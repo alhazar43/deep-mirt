@@ -1,0 +1,15 @@
+[submodule "deep-gpcm"]
+	path = deep-gpcm
+	url = https://github.com/alhazar43/deep-gpcm.git
+[submodule "akt"]
+	path = akt
+	url = https://github.com/arghosh/AKT.git
+[submodule "dkvmn-ori"]
+	path = dkvmn-ori
+	url = https://github.com/jennyzhang0215/DKVMN.git
+[submodule "dkvmn-torch"]
+	path = dkvmn-torch
+	url = https://github.com/lucky7-code/DKVMN.git
+[submodule "deep-1pl"]
+	path = deep-1pl
+	url = https://github.com/ckyeungac/DeepIRT.git
