@@ -69,6 +69,7 @@ class DKVMNMIRT(BaseKTModel):
         betas = []
         probs = []
         attn_weights = []
+        reads = []
 
         for t in range(seq):
             q_t = q_embed[:, t, :]
@@ -77,6 +78,7 @@ class DKVMNMIRT(BaseKTModel):
             weights = self.memory.attention(q_t)
             read = self.memory.read(weights)
             attn_weights.append(weights)
+            reads.append(read)
 
             summary = self.summary(torch.cat([read, q_t], dim=-1))
             theta, alpha, beta = self.irt(summary.unsqueeze(1), q_t.unsqueeze(1))
@@ -97,6 +99,7 @@ class DKVMNMIRT(BaseKTModel):
                 self.memory.write(weights, v_t)
 
         self.last_attention = torch.stack(attn_weights, dim=1) if attn_weights else None
+        self.last_read = torch.stack(reads, dim=1) if reads else None
         return (
             torch.stack(thetas, dim=1),
             torch.stack(betas, dim=1),
