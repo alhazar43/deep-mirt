@@ -13,6 +13,15 @@ from mirt_dkvmn.data.loaders import DataLoaderManager
 from mirt_dkvmn.models.implementations.dkvmn_mirt import DKVMNMIRT
 
 
+def load_compatible_state(model, payload):
+    model_state = model.state_dict()
+    filtered = {}
+    for key, value in payload["model_state"].items():
+        if key in model_state and model_state[key].shape == value.shape:
+            filtered[key] = value
+    model.load_state_dict(filtered, strict=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/base.yaml")
@@ -45,7 +54,7 @@ def main() -> None:
     ).to(device)
 
     payload = torch.load(args.checkpoint, map_location=device)
-    model.load_state_dict(payload["model_state"])
+    load_compatible_state(model, payload)
     model.eval()
 
     all_attn = []

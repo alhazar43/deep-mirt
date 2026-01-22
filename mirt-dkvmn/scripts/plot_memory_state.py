@@ -17,6 +17,14 @@ def pca_2d(arr: np.ndarray) -> np.ndarray:
     u, s, vt = np.linalg.svd(arr, full_matrices=False)
     return u[:, :2] * s[:2]
 
+def load_compatible_state(model, payload):
+    model_state = model.state_dict()
+    filtered = {}
+    for key, value in payload["model_state"].items():
+        if key in model_state and model_state[key].shape == value.shape:
+            filtered[key] = value
+    model.load_state_dict(filtered, strict=False)
+
 def heatmap_config(values: np.ndarray) -> tuple[str, float, float]:
     vmin = float(np.min(values))
     vmax = float(np.max(values))
@@ -56,7 +64,7 @@ def main() -> None:
     ).to(device)
 
     payload = torch.load(args.checkpoint, map_location=device)
-    model.load_state_dict(payload["model_state"])
+    load_compatible_state(model, payload)
     model.eval()
 
     batch = next(iter(dataloader))
