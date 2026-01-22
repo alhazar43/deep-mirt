@@ -160,15 +160,18 @@ class MirtGpcmGenerator:
         return out_dir
 
 
-def parse_dataset_name(name: str) -> Tuple[int, int, int]:
-    match = re.match(r"synthetic_(\d+)_(\d+)_(\d+)$", name)
+def parse_dataset_name(name: str) -> Tuple[int, int, int, int]:
+    match = re.match(r"synthetic_(\d+)_(\d+)_(\d+)(?:_d(\d+))?$", name)
     if not match:
         raise ValueError(f"Invalid dataset name: {name}")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+    n_traits = int(match.group(4)) if match.group(4) else -1
+    return int(match.group(1)), int(match.group(2)), int(match.group(3)), n_traits
 
 
 def build_default_config(dataset_name: str, n_traits: int, min_seq: int, max_seq: int, seed: int) -> SyntheticConfig:
-    n_students, n_questions, n_cats = parse_dataset_name(dataset_name)
+    n_students, n_questions, n_cats, name_traits = parse_dataset_name(dataset_name)
+    if name_traits > 0:
+        n_traits = name_traits
     return SyntheticConfig(
         n_students=n_students,
         n_questions=n_questions,
