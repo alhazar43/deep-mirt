@@ -60,7 +60,11 @@ def main() -> None:
     if not all_attn:
         raise RuntimeError("No attention weights collected for plotting.")
 
-    attn = np.concatenate(all_attn, axis=0)  # (batch, seq, memory_size)
+    min_len = min(arr.shape[1] for arr in all_attn)
+    if min_len <= 0:
+        raise RuntimeError("No valid sequence lengths for attention.")
+    trimmed = [arr[:, :min_len, :] for arr in all_attn]
+    attn = np.concatenate(trimmed, axis=0)  # (batch, seq, memory_size)
     mean_attn = attn.mean(axis=(0, 1))
 
     out_dir = Path(args.output)
