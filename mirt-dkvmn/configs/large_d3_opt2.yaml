@@ -11,7 +11,7 @@ model:
   summary_dim: 128
   embedding_strategy: linear_decay
   concept_aligned_memory: true
-  theta_projection: false
+  theta_projection: true
   memory_add_activation: linear
   theta_source: memory
 training:
@@ -24,7 +24,7 @@ training:
   qwk_weight: 1.0
   ordinal_weight: 0.5
   attention_entropy_weight: 0.0
-  theta_norm_weight: 0.1
+  theta_norm_weight: 0.0
 
 data:
   dataset_name: synthetic_5000_1000_5_d3
