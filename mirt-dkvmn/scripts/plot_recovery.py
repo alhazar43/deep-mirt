@@ -13,18 +13,24 @@ from mirt_dkvmn.data.loaders import DataLoaderManager
 from mirt_dkvmn.models.implementations.dkvmn_mirt import DKVMNMIRT
 
 
-def zscore(arr: np.ndarray) -> np.ndarray:
-    mean = arr.mean(axis=0, keepdims=True)
-    std = arr.std(axis=0, keepdims=True)
+def normalize_theta(thetas: np.ndarray) -> np.ndarray:
+    mean = thetas.mean(axis=0, keepdims=True)
+    std = thetas.std(axis=0, keepdims=True)
     std = np.where(std == 0, 1.0, std)
-    return (arr - mean) / std
+    return (thetas - mean) / std
 
 
 def normalize_alpha(alphas: np.ndarray) -> np.ndarray:
     eps = 1e-8
     log_alphas = np.log(np.clip(alphas, eps, None))
-    log_norm = zscore(log_alphas)
+    log_norm = (log_alphas - np.mean(log_alphas)) / np.std(log_alphas)
     return np.exp(log_norm * 0.3)
+
+
+def normalize_beta(betas: np.ndarray) -> np.ndarray:
+    beta_mean = np.mean(betas)
+    beta_std = np.std(betas)
+    return (betas - beta_mean) / max(beta_std, 0.1)
 
 
 def procrustes_align(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -76,8 +82,8 @@ def collect_item_params(model, dataloader, device):
 
 
 def plot_theta_distributions(theta_est, theta_true, out_dir):
-    theta_true_norm = zscore(theta_true[: theta_est.shape[0]])
-    aligned = procrustes_align(zscore(theta_est), theta_true_norm)
+    theta_true_norm = normalize_theta(theta_true[: theta_est.shape[0]])
+    aligned = procrustes_align(normalize_theta(theta_est), theta_true_norm)
     n_traits = aligned.shape[1]
     fig, axes = plt.subplots(1, n_traits, figsize=(4 * n_traits, 3), squeeze=False)
     for idx in range(n_traits):
@@ -172,12 +178,12 @@ def main():
     max_beta = min(beta_true.shape[1], beta_est.shape[1])
     for idx in range(max_beta):
         plot_item_scatter(
-            zscore(beta_true[: beta_est.shape[0], idx]),
-            zscore(beta_est[:, idx]),
+            normalize_beta(beta_true[: beta_est.shape[0], idx]),
+            normalize_beta(beta_est[:, idx]),
             out_dir / f"beta_{idx}_recovery.png",
             f"Beta recovery (threshold {idx})",
-            "True beta (z)",
-            "Learned beta (z)",
+            "True beta (mean_sigma)",
+            "Learned beta (mean_sigma)",
         )
 
 

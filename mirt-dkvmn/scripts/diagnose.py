@@ -14,19 +14,26 @@ from mirt_dkvmn.models.implementations.dkvmn_mirt import DKVMNMIRT
 from mirt_dkvmn.utils.metrics import quadratic_weighted_kappa
 
 
-def zscore(arr: np.ndarray) -> np.ndarray:
-    mean = arr.mean(axis=0, keepdims=True)
-    std = arr.std(axis=0, keepdims=True)
+def normalize_theta(thetas: np.ndarray) -> np.ndarray:
+    mean = thetas.mean(axis=0, keepdims=True)
+    std = thetas.std(axis=0, keepdims=True)
     std = np.where(std == 0, 1.0, std)
-    return (arr - mean) / std
+    return (thetas - mean) / std
 
 
 def normalize_alpha(alphas: np.ndarray) -> np.ndarray:
-    """Match Deep-GPCM's lognormal(0, 0.3) normalization."""
+    """Match Deep-GPCM mean-sigma normalization for lognormal(0, 0.3)."""
     eps = 1e-8
     log_alphas = np.log(np.clip(alphas, eps, None))
-    log_norm = zscore(log_alphas)
+    log_norm = (log_alphas - np.mean(log_alphas)) / np.std(log_alphas)
     return np.exp(log_norm * 0.3)
+
+
+def normalize_beta(betas: np.ndarray) -> np.ndarray:
+    """Match Deep-GPCM mean-sigma normalization for thresholds."""
+    beta_mean = np.mean(betas)
+    beta_std = np.std(betas)
+    return (betas - beta_mean) / max(beta_std, 0.1)
 
 
 def pearson_corr(a: np.ndarray, b: np.ndarray) -> float:
@@ -138,8 +145,10 @@ def main() -> None:
         beta_true = np.array(true_params["beta"])
 
         theta_true_trim = theta_true[: theta_est.shape[0]]
-        theta_aligned = procrustes_align(zscore(theta_est), zscore(theta_true_trim))
-        theta_corr = pearson_corr(theta_aligned, zscore(theta_true_trim))
+        theta_true_norm = normalize_theta(theta_true_trim)
+        theta_est_norm = normalize_theta(theta_est)
+        theta_aligned = procrustes_align(theta_est_norm, theta_true_norm)
+        theta_corr = pearson_corr(theta_aligned, theta_true_norm)
 
         alpha_true_trim = alpha_true[: alpha_est.shape[0]]
         alpha_corr = pearson_corr(
@@ -148,10 +157,13 @@ def main() -> None:
         )
 
         beta_true_trim = beta_true[: beta_est.shape[0]]
-        beta_corr = pearson_corr(zscore(beta_est).reshape(-1), zscore(beta_true_trim).reshape(-1))
+        beta_corr = pearson_corr(
+            normalize_beta(beta_est).reshape(-1),
+            normalize_beta(beta_true_trim).reshape(-1),
+        )
         print(f"Theta corr (procrustes): {theta_corr:.4f}")
-        print(f"Alpha corr (zscore): {alpha_corr:.4f}")
-        print(f"Beta corr (zscore): {beta_corr:.4f}")
+        print(f"Alpha corr (mean_sigma): {alpha_corr:.4f}")
+        print(f"Beta corr (mean_sigma): {beta_corr:.4f}")
     else:
         print("No true_irt_parameters.json found; skipping parameter recovery.")
 
