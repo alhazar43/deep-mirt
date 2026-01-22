@@ -18,6 +18,8 @@ class Trainer:
         device: str = "cpu",
         attention_entropy_weight: float = 0.0,
         theta_norm_weight: float = 0.0,
+        alpha_prior_weight: float = 0.0,
+        beta_prior_weight: float = 0.0,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
@@ -25,6 +27,8 @@ class Trainer:
         self.device = device
         self.attention_entropy_weight = attention_entropy_weight
         self.theta_norm_weight = theta_norm_weight
+        self.alpha_prior_weight = alpha_prior_weight
+        self.beta_prior_weight = beta_prior_weight
 
     def train_epoch(self, dataloader: Iterable) -> float:
         self.model.train()
@@ -39,11 +43,14 @@ class Trainer:
             self.optimizer.zero_grad()
             outputs = self.model(questions, responses)
             theta = outputs[0]
+            beta = outputs[1]
+            alpha = outputs[2]
             probs = outputs[-1]
             logits = torch.log(probs + 1e-8)
             loss = self.loss_fn(logits, responses)
             loss = loss + self._attention_entropy_penalty()
             loss = loss + self._theta_norm_penalty(theta)
+            loss = loss + self._item_prior_penalty(alpha, beta)
             loss.backward()
             self.optimizer.step()
 
@@ -67,11 +74,14 @@ class Trainer:
 
             outputs = self.model(questions, responses)
             theta = outputs[0]
+            beta = outputs[1]
+            alpha = outputs[2]
             probs = outputs[-1]
             logits = torch.log(probs + 1e-8)
             loss = self.loss_fn(logits, responses)
             loss = loss + self._attention_entropy_penalty()
             loss = loss + self._theta_norm_penalty(theta)
+            loss = loss + self._item_prior_penalty(alpha, beta)
 
             total_loss += loss.item()
             batches += 1
@@ -107,6 +117,24 @@ class Trainer:
         std = theta.std(dim=(0, 1))
         penalty = torch.mean(mean.pow(2)) + torch.mean((std - 1.0).pow(2))
         return self.theta_norm_weight * penalty
+
+    def _item_prior_penalty(self, alpha: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
+        if self.alpha_prior_weight <= 0 and self.beta_prior_weight <= 0:
+            return torch.tensor(0.0, device=self.device)
+        penalty = torch.tensor(0.0, device=self.device)
+
+        if self.alpha_prior_weight > 0:
+            log_alpha = torch.log(alpha + 1e-8)
+            mean = log_alpha.mean()
+            std = log_alpha.std()
+            penalty = penalty + self.alpha_prior_weight * (mean.pow(2) + (std - 0.3).pow(2))
+
+        if self.beta_prior_weight > 0:
+            mean = beta.mean()
+            std = beta.std()
+            penalty = penalty + self.beta_prior_weight * (mean.pow(2) + (std - 1.0).pow(2))
+
+        return penalty
 
     @staticmethod
     def _unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor]:
