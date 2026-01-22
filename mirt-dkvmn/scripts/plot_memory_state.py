@@ -17,6 +17,14 @@ def pca_2d(arr: np.ndarray) -> np.ndarray:
     u, s, vt = np.linalg.svd(arr, full_matrices=False)
     return u[:, :2] * s[:2]
 
+def heatmap_config(values: np.ndarray) -> tuple[str, float, float]:
+    vmin = float(np.min(values))
+    vmax = float(np.max(values))
+    if vmin < 0 < vmax:
+        bound = max(abs(vmin), abs(vmax))
+        return "coolwarm", -bound, bound
+    return "viridis", vmin, vmax
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -65,8 +73,9 @@ def main() -> None:
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    cmap, vmin, vmax = heatmap_config(key_mem)
     fig, ax = plt.subplots(figsize=(6, 3))
-    im = ax.imshow(key_mem, aspect="auto", cmap="viridis")
+    im = ax.imshow(key_mem, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
     ax.set_title("Key memory heatmap")
     ax.set_xlabel("Key dimension")
     ax.set_ylabel("Memory slot")
@@ -75,8 +84,9 @@ def main() -> None:
     fig.savefig(out_dir / "key_memory_heatmap.png", dpi=150)
     plt.close(fig)
 
+    cmap, vmin, vmax = heatmap_config(value_mean)
     fig, ax = plt.subplots(figsize=(6, 3))
-    im = ax.imshow(value_mean, aspect="auto", cmap="viridis")
+    im = ax.imshow(value_mean, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
     ax.set_title("Value memory heatmap (batch mean)")
     ax.set_xlabel("Value dimension")
     ax.set_ylabel("Memory slot")
