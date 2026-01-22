@@ -14,13 +14,14 @@ class MIRTParameterExtractor(nn.Module):
         self.n_cats = n_cats
 
         self.theta_net = nn.Linear(input_dim, n_traits)
-        self.alpha_net = nn.Linear(question_dim, n_traits)
+        self.alpha_net = nn.Linear(input_dim + question_dim, n_traits)
         self.beta_base = nn.Linear(question_dim, 1)
         self.beta_gaps = nn.Linear(question_dim, max(n_cats - 2, 1))
 
     def forward(self, features: torch.Tensor, question_features: torch.Tensor) -> tuple:
         theta = self.theta_net(features)
-        raw_alpha = self.alpha_net(question_features)
+        alpha_input = torch.cat([features, question_features], dim=-1)
+        raw_alpha = self.alpha_net(alpha_input)
         alpha = torch.exp(0.3 * raw_alpha)
         beta_0 = self.beta_base(question_features)
 
