@@ -5,10 +5,13 @@ model:
   n_traits: 4
   memory_size: 50
   key_dim: 64
-  value_dim: 64
+  value_dim: 4
   summary_dim: 64
   embedding_strategy: linear_decay
-  concept_aligned_memory: false
+  concept_aligned_memory: true
+  theta_projection: false
+  memory_add_activation: tanh
+  theta_source: summary
 training:
   batch_size: 64
   epochs: 30
@@ -17,7 +20,7 @@ training:
   qwk_weight: 0.5
   ordinal_weight: 0.2
   attention_entropy_weight: 0.0
-  theta_norm_weight: 0.0
+  theta_norm_weight: 0.1
 data:
   dataset_name: synthetic_500_200_4
   data_root: data

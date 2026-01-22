@@ -13,7 +13,7 @@ model:
   concept_aligned_memory: true
 training:
   batch_size: 64
-  epochs: 20
+  epochs: 30
   lr: 0.001
   weight_decay: 0.0
   grad_clip: 1.0
