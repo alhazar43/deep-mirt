@@ -17,3 +17,5 @@ class TrainingConfig:
     theta_norm_weight: float = 0.0
     alpha_prior_weight: float = 0.0
     beta_prior_weight: float = 0.0
+    alpha_norm_weight: float = 0.0
+    alpha_norm_target: float = 1.0

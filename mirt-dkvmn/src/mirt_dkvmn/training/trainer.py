@@ -20,6 +20,8 @@ class Trainer:
         theta_norm_weight: float = 0.0,
         alpha_prior_weight: float = 0.0,
         beta_prior_weight: float = 0.0,
+        alpha_norm_weight: float = 0.0,
+        alpha_norm_target: float = 1.0,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
@@ -29,6 +31,8 @@ class Trainer:
         self.theta_norm_weight = theta_norm_weight
         self.alpha_prior_weight = alpha_prior_weight
         self.beta_prior_weight = beta_prior_weight
+        self.alpha_norm_weight = alpha_norm_weight
+        self.alpha_norm_target = alpha_norm_target
 
     def train_epoch(self, dataloader: Iterable) -> float:
         self.model.train()
@@ -51,6 +55,7 @@ class Trainer:
             loss = loss + self._attention_entropy_penalty()
             loss = loss + self._theta_norm_penalty(theta)
             loss = loss + self._item_prior_penalty(alpha, beta)
+            loss = loss + self._alpha_norm_penalty(alpha)
             loss.backward()
             self.optimizer.step()
 
@@ -82,6 +87,7 @@ class Trainer:
             loss = loss + self._attention_entropy_penalty()
             loss = loss + self._theta_norm_penalty(theta)
             loss = loss + self._item_prior_penalty(alpha, beta)
+            loss = loss + self._alpha_norm_penalty(alpha)
 
             total_loss += loss.item()
             batches += 1
@@ -135,6 +141,13 @@ class Trainer:
             penalty = penalty + self.beta_prior_weight * (mean.pow(2) + (std - 1.0).pow(2))
 
         return penalty
+
+    def _alpha_norm_penalty(self, alpha: torch.Tensor) -> torch.Tensor:
+        if self.alpha_norm_weight <= 0:
+            return torch.tensor(0.0, device=self.device)
+        norms = torch.linalg.norm(alpha, dim=-1)
+        target = torch.tensor(self.alpha_norm_target, device=self.device)
+        return self.alpha_norm_weight * (norms.mean() - target).pow(2)
 
     @staticmethod
     def _unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor]:
