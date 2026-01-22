@@ -39,38 +39,23 @@ class MirtGpcmGenerator:
         rho = 0.2
         cov = (1 - rho) * np.eye(cfg.n_traits) + rho * np.ones((cfg.n_traits, cfg.n_traits))
         mean = np.zeros(cfg.n_traits)
-        theta = self.rng.multivariate_normal(mean, cov, size=cfg.n_students)
-        if cfg.balance:
-            theta = theta * 0.7
-        return theta
+        return self.rng.multivariate_normal(mean, cov, size=cfg.n_students)
 
     def _sample_alpha(self) -> np.ndarray:
         cfg = self.config
-        directions = self.rng.normal(size=(cfg.n_questions, cfg.n_traits))
-        norms = np.linalg.norm(directions, axis=1, keepdims=True)
-        directions = directions / np.clip(norms, 1e-6, None)
-        magnitudes = self.rng.lognormal(mean=-0.1, sigma=0.25, size=(cfg.n_questions, 1))
-        alpha = directions * magnitudes
-        if not cfg.allow_negative_alpha:
-            alpha = np.abs(alpha)
+        alpha = self.rng.lognormal(mean=0.0, sigma=0.2, size=(cfg.n_questions, cfg.n_traits))
+        if cfg.allow_negative_alpha:
+            signs = self.rng.choice([-1.0, 1.0], size=alpha.shape)
+            alpha = alpha * signs
         return alpha
 
     def _sample_beta(self) -> np.ndarray:
         cfg = self.config
         beta = np.zeros((cfg.n_questions, cfg.n_cats - 1))
-        gap_base = self.rng.lognormal(mean=-0.25, sigma=0.2, size=cfg.n_questions)
-        offsets = np.arange(1, cfg.n_cats) - (cfg.n_cats / 2.0)
-
         for q in range(cfg.n_questions):
-            base = self.rng.normal(0.0, 0.4)
-            gaps = gap_base[q] * offsets
-            noise = self.rng.normal(0.0, 0.05, size=cfg.n_cats - 1)
-            beta[q] = base + gaps + noise
-
-        if cfg.balance:
-            shift = self._estimate_dot_mean()
-            beta = beta + shift
-
+            base = self.rng.normal(0.0, 1.0)
+            steps = self.rng.lognormal(mean=-0.2, sigma=0.3, size=cfg.n_cats - 1)
+            beta[q] = base + np.cumsum(steps)
         return beta
 
     def _estimate_dot_mean(self) -> float:
