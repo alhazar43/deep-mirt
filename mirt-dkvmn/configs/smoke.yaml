@@ -17,6 +17,9 @@ training:
   weight_decay: 0.0
   grad_clip: 1.0
   output_dir: mirt-dkvmn/artifacts/smoke
+  qwk_weight: 0.5
+  ordinal_weight: 0.2
+  attention_entropy_weight: 0.0
 
 data:
   dataset_name: synthetic_40_20_4

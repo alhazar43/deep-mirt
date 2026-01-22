@@ -8,20 +8,20 @@ import torch.nn.functional as F
 class MIRTParameterExtractor(nn.Module):
     """Extract theta, alpha, beta for MIRT heads."""
 
-    def __init__(self, input_dim: int, n_traits: int, n_cats: int) -> None:
+    def __init__(self, input_dim: int, n_traits: int, n_cats: int, question_dim: int) -> None:
         super().__init__()
         self.n_traits = n_traits
         self.n_cats = n_cats
 
         self.theta_net = nn.Linear(input_dim, n_traits)
-        self.alpha_net = nn.Linear(input_dim, n_traits)
-        self.beta_base = nn.Linear(input_dim, 1)
-        self.beta_gaps = nn.Linear(input_dim, max(n_cats - 2, 1))
+        self.alpha_net = nn.Linear(question_dim, n_traits)
+        self.beta_base = nn.Linear(question_dim, 1)
+        self.beta_gaps = nn.Linear(question_dim, max(n_cats - 2, 1))
 
-    def forward(self, features: torch.Tensor) -> tuple:
+    def forward(self, features: torch.Tensor, question_features: torch.Tensor) -> tuple:
         theta = self.theta_net(features)
-        alpha = self.alpha_net(features)
-        beta_0 = self.beta_base(features)
+        alpha = self.alpha_net(question_features)
+        beta_0 = self.beta_base(question_features)
 
         if self.n_cats <= 2:
             beta = beta_0

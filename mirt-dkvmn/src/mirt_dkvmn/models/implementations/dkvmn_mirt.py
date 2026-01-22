@@ -38,7 +38,7 @@ class DKVMNMIRT(BaseKTModel):
             nn.Tanh(),
         )
 
-        self.irt = MIRTParameterExtractor(summary_dim, n_traits, n_cats)
+        self.irt = MIRTParameterExtractor(summary_dim, n_traits, n_cats, question_dim=key_dim)
         self.gpcm_logits = MIRTGPCMLogits()
         self.gpcm_head = GPCMHead()
 
@@ -60,6 +60,7 @@ class DKVMNMIRT(BaseKTModel):
         alphas = []
         betas = []
         probs = []
+        attn_weights = []
 
         for t in range(seq):
             q_t = q_embed[:, t, :]
@@ -67,9 +68,10 @@ class DKVMNMIRT(BaseKTModel):
 
             weights = self.memory.attention(q_t)
             read = self.memory.read(weights)
+            attn_weights.append(weights)
 
             summary = self.summary(torch.cat([read, q_t], dim=-1))
-            theta, alpha, beta = self.irt(summary.unsqueeze(1))
+            theta, alpha, beta = self.irt(summary.unsqueeze(1), q_t.unsqueeze(1))
             if self.concept_aligned_memory:
                 theta = read.unsqueeze(1)
             logits = self.gpcm_logits(theta, alpha, beta)
@@ -83,6 +85,7 @@ class DKVMNMIRT(BaseKTModel):
             if t < seq - 1:
                 self.memory.write(weights, v_t)
 
+        self.last_attention = torch.stack(attn_weights, dim=1) if attn_weights else None
         return (
             torch.stack(thetas, dim=1),
             torch.stack(betas, dim=1),

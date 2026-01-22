@@ -10,11 +10,12 @@ from mirt_dkvmn.utils.metrics import compute_metrics
 class Trainer:
     """Minimal trainer with checkpoint-friendly structure."""
 
-    def __init__(self, model, optimizer, loss_fn, device: str = "cpu") -> None:
+    def __init__(self, model, optimizer, loss_fn, device: str = "cpu", attention_entropy_weight: float = 0.0) -> None:
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.device = device
+        self.attention_entropy_weight = attention_entropy_weight
 
     def train_epoch(self, dataloader: Iterable) -> float:
         self.model.train()
@@ -31,6 +32,7 @@ class Trainer:
             probs = outputs[-1]
             logits = torch.log(probs + 1e-8)
             loss = self.loss_fn(logits, responses)
+            loss = loss + self._attention_entropy_penalty()
             loss.backward()
             self.optimizer.step()
 
@@ -56,6 +58,7 @@ class Trainer:
             probs = outputs[-1]
             logits = torch.log(probs + 1e-8)
             loss = self.loss_fn(logits, responses)
+            loss = loss + self._attention_entropy_penalty()
 
             total_loss += loss.item()
             batches += 1
@@ -73,6 +76,16 @@ class Trainer:
         avg_loss = total_loss / max(batches, 1)
         avg_metrics = {key: value / max(metrics_count, 1) for key, value in metrics_accum.items()}
         return avg_loss, avg_metrics
+
+    def _attention_entropy_penalty(self) -> torch.Tensor:
+        if self.attention_entropy_weight <= 0:
+            return torch.tensor(0.0, device=self.device)
+        attn = getattr(self.model, "last_attention", None)
+        if attn is None:
+            return torch.tensor(0.0, device=self.device)
+        eps = 1e-8
+        ent = -(attn * torch.log(attn + eps)).sum(dim=-1).mean()
+        return self.attention_entropy_weight * ent
 
     @staticmethod
     def _unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor]:

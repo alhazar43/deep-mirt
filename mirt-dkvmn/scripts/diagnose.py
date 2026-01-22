@@ -31,6 +31,15 @@ def pearson_corr(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.corrcoef(a, b)[0, 1])
 
 
+def procrustes_align(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Align a to b via orthogonal Procrustes (no scaling)."""
+    a_center = a - a.mean(axis=0, keepdims=True)
+    b_center = b - b.mean(axis=0, keepdims=True)
+    u, _, vt = np.linalg.svd(a_center.T @ b_center, full_matrices=False)
+    r = u @ vt
+    return a_center @ r
+
+
 def collect_outputs(model, dataloader, device) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     model.eval()
     theta_per_student: Dict[int, List[np.ndarray]] = {}
@@ -118,10 +127,11 @@ def main() -> None:
         alpha_true = np.array(true_params["alpha"])
         beta_true = np.array(true_params["beta"])
 
-        theta_corr = pearson_corr(zscore(theta_est), zscore(theta_true[: theta_est.shape[0]]))
+        theta_aligned = procrustes_align(zscore(theta_est), zscore(theta_true[: theta_est.shape[0]]))
+        theta_corr = pearson_corr(theta_aligned, zscore(theta_true[: theta_est.shape[0]]))
         alpha_corr = pearson_corr(zscore(alpha_est), zscore(alpha_true[: alpha_est.shape[0]]))
         beta_corr = pearson_corr(zscore(beta_est), zscore(beta_true[: beta_est.shape[0]]))
-        print(f"Theta corr (zscore): {theta_corr:.4f}")
+        print(f"Theta corr (procrustes): {theta_corr:.4f}")
         print(f"Alpha corr (zscore): {alpha_corr:.4f}")
         print(f"Beta corr (zscore): {beta_corr:.4f}")
     else:

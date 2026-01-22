@@ -17,11 +17,10 @@ def test_trainer_epoch_runs():
     responses = torch.randint(0, 4, (4, 6))
     loader = DataLoader(TensorDataset(questions, responses), batch_size=2)
 
-    trainer = Trainer(model, optimizer, loss_fn, device="cpu")
+    trainer = Trainer(model, optimizer, loss_fn, device="cpu", attention_entropy_weight=0.1)
     loss = trainer.train_epoch(loader)
     val_loss, metrics = trainer.evaluate_epoch(loader)
 
     assert isinstance(loss, float)
     assert isinstance(val_loss, float)
     assert "qwk" in metrics
-

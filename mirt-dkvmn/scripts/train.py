@@ -8,7 +8,7 @@ import torch
 from mirt_dkvmn.config.loader import load_config
 from mirt_dkvmn.data.loaders import DataLoaderManager
 from mirt_dkvmn.models.implementations.dkvmn_mirt import DKVMNMIRT
-from mirt_dkvmn.training.losses import OrdinalCrossEntropy
+from mirt_dkvmn.training.losses import CombinedOrdinalLoss
 from mirt_dkvmn.training.trainer import Trainer
 from mirt_dkvmn.utils.checkpoint import save_checkpoint
 from mirt_dkvmn.utils.logging import get_logger
@@ -41,8 +41,17 @@ def main() -> None:
     model.to(device)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.training.lr, weight_decay=config.training.weight_decay)
-    loss_fn = OrdinalCrossEntropy()
-    trainer = Trainer(model, optimizer, loss_fn, device=str(device))
+    loss_fn = CombinedOrdinalLoss(
+        qwk_weight=config.training.qwk_weight,
+        ordinal_weight=config.training.ordinal_weight,
+    )
+    trainer = Trainer(
+        model,
+        optimizer,
+        loss_fn,
+        device=str(device),
+        attention_entropy_weight=config.training.attention_entropy_weight,
+    )
 
     output_dir = Path(config.training.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -11,3 +11,6 @@ class TrainingConfig:
     weight_decay: float = 1e-4
     grad_clip: float = 1.0
     output_dir: str = "artifacts"
+    qwk_weight: float = 0.5
+    ordinal_weight: float = 0.2
+    attention_entropy_weight: float = 0.0
