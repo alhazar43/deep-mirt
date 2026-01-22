@@ -19,3 +19,4 @@ class TrainingConfig:
     beta_prior_weight: float = 0.0
     alpha_norm_weight: float = 0.0
     alpha_norm_target: float = 1.0
+    alpha_ortho_weight: float = 0.0

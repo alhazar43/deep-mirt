@@ -60,6 +60,7 @@ def main() -> None:
         beta_prior_weight=config.training.beta_prior_weight,
         alpha_norm_weight=config.training.alpha_norm_weight,
         alpha_norm_target=config.training.alpha_norm_target,
+        alpha_ortho_weight=config.training.alpha_ortho_weight,
     )
 
     output_dir = Path(config.training.output_dir)

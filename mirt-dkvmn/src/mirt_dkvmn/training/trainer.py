@@ -22,6 +22,7 @@ class Trainer:
         beta_prior_weight: float = 0.0,
         alpha_norm_weight: float = 0.0,
         alpha_norm_target: float = 1.0,
+        alpha_ortho_weight: float = 0.0,
     ) -> None:
         self.model = model
         self.optimizer = optimizer
@@ -33,6 +34,7 @@ class Trainer:
         self.beta_prior_weight = beta_prior_weight
         self.alpha_norm_weight = alpha_norm_weight
         self.alpha_norm_target = alpha_norm_target
+        self.alpha_ortho_weight = alpha_ortho_weight
 
     def train_epoch(self, dataloader: Iterable) -> float:
         self.model.train()
@@ -56,6 +58,7 @@ class Trainer:
             loss = loss + self._theta_norm_penalty(theta)
             loss = loss + self._item_prior_penalty(alpha, beta)
             loss = loss + self._alpha_norm_penalty(alpha)
+            loss = loss + self._alpha_ortho_penalty(alpha)
             loss.backward()
             self.optimizer.step()
 
@@ -88,6 +91,7 @@ class Trainer:
             loss = loss + self._theta_norm_penalty(theta)
             loss = loss + self._item_prior_penalty(alpha, beta)
             loss = loss + self._alpha_norm_penalty(alpha)
+            loss = loss + self._alpha_ortho_penalty(alpha)
 
             total_loss += loss.item()
             batches += 1
@@ -148,6 +152,15 @@ class Trainer:
         norms = torch.linalg.norm(alpha, dim=-1)
         target = torch.tensor(self.alpha_norm_target, device=self.device)
         return self.alpha_norm_weight * (norms.mean() - target).pow(2)
+
+    def _alpha_ortho_penalty(self, alpha: torch.Tensor) -> torch.Tensor:
+        if self.alpha_ortho_weight <= 0:
+            return torch.tensor(0.0, device=self.device)
+        flat = alpha.reshape(-1, alpha.shape[-1])
+        flat = flat - flat.mean(dim=0, keepdim=True)
+        cov = (flat.T @ flat) / max(flat.shape[0] - 1, 1)
+        off_diag = cov - torch.diag(torch.diag(cov))
+        return self.alpha_ortho_weight * torch.mean(off_diag.pow(2))
 
     @staticmethod
     def _unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor]:
