@@ -3,7 +3,7 @@
   "n_students": 5000,
   "n_questions": 1000,
   "n_cats": 5,
-  "n_traits": 5,
+  "n_traits": 3,
   "seq_len_range": [
     120,
     150
