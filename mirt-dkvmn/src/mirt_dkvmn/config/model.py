@@ -16,3 +16,4 @@ class ModelConfig:
     concept_aligned_memory: bool = False
     theta_projection: bool = False
     memory_add_activation: str = "tanh"
+    theta_source: str = "summary"

@@ -20,16 +20,20 @@ class DKVMNMIRT(BaseKTModel):
                  summary_dim: int = 64,
                  concept_aligned_memory: bool = False,
                  theta_projection: bool = False,
-                 memory_add_activation: str = "tanh") -> None:
+                 memory_add_activation: str = "tanh",
+                 theta_source: str = "summary") -> None:
         super().__init__()
         self.n_questions = n_questions
         self.n_cats = n_cats
         self.n_traits = n_traits
         self.concept_aligned_memory = concept_aligned_memory
         self.theta_projection = theta_projection
+        self.theta_source = theta_source
 
         if self.concept_aligned_memory and value_dim != n_traits:
             raise ValueError("concept_aligned_memory requires value_dim == n_traits")
+        if self.theta_source not in {"summary", "memory"}:
+            raise ValueError("theta_source must be 'summary' or 'memory'")
 
         self.embedding = LinearDecayEmbedding(n_questions, n_cats)
         self.q_embed = nn.Embedding(n_questions + 1, key_dim, padding_idx=0)
@@ -76,7 +80,7 @@ class DKVMNMIRT(BaseKTModel):
 
             summary = self.summary(torch.cat([read, q_t], dim=-1))
             theta, alpha, beta = self.irt(summary.unsqueeze(1), q_t.unsqueeze(1))
-            if self.concept_aligned_memory:
+            if self.concept_aligned_memory and self.theta_source == "memory":
                 if self.theta_from_memory is not None:
                     theta = self.theta_from_memory(read).unsqueeze(1)
                 else:

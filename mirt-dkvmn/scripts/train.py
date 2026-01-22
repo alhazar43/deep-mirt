@@ -40,6 +40,7 @@ def main() -> None:
         concept_aligned_memory=config.model.concept_aligned_memory,
         theta_projection=config.model.theta_projection,
         memory_add_activation=config.model.memory_add_activation,
+        theta_source=config.model.theta_source,
     )
     model.to(device)
 
