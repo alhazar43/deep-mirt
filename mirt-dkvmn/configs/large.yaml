@@ -21,6 +21,7 @@ training:
   qwk_weight: 0.5
   ordinal_weight: 0.2
   attention_entropy_weight: 0.01
+  theta_norm_weight: 0.1
 
 data:
   dataset_name: synthetic_5000_1000_5

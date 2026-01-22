@@ -51,6 +51,7 @@ def main() -> None:
         loss_fn,
         device=str(device),
         attention_entropy_weight=config.training.attention_entropy_weight,
+        theta_norm_weight=config.training.theta_norm_weight,
     )
 
     output_dir = Path(config.training.output_dir)

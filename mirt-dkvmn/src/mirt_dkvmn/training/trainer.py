@@ -10,12 +10,21 @@ from mirt_dkvmn.utils.metrics import compute_metrics
 class Trainer:
     """Minimal trainer with checkpoint-friendly structure."""
 
-    def __init__(self, model, optimizer, loss_fn, device: str = "cpu", attention_entropy_weight: float = 0.0) -> None:
+    def __init__(
+        self,
+        model,
+        optimizer,
+        loss_fn,
+        device: str = "cpu",
+        attention_entropy_weight: float = 0.0,
+        theta_norm_weight: float = 0.0,
+    ) -> None:
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.device = device
         self.attention_entropy_weight = attention_entropy_weight
+        self.theta_norm_weight = theta_norm_weight
 
     def train_epoch(self, dataloader: Iterable) -> float:
         self.model.train()
@@ -29,10 +38,12 @@ class Trainer:
 
             self.optimizer.zero_grad()
             outputs = self.model(questions, responses)
+            theta = outputs[0]
             probs = outputs[-1]
             logits = torch.log(probs + 1e-8)
             loss = self.loss_fn(logits, responses)
             loss = loss + self._attention_entropy_penalty()
+            loss = loss + self._theta_norm_penalty(theta)
             loss.backward()
             self.optimizer.step()
 
@@ -55,10 +66,12 @@ class Trainer:
             responses = responses.to(self.device)
 
             outputs = self.model(questions, responses)
+            theta = outputs[0]
             probs = outputs[-1]
             logits = torch.log(probs + 1e-8)
             loss = self.loss_fn(logits, responses)
             loss = loss + self._attention_entropy_penalty()
+            loss = loss + self._theta_norm_penalty(theta)
 
             total_loss += loss.item()
             batches += 1
@@ -86,6 +99,14 @@ class Trainer:
         eps = 1e-8
         ent = -(attn * torch.log(attn + eps)).sum(dim=-1).mean()
         return self.attention_entropy_weight * ent
+
+    def _theta_norm_penalty(self, theta: torch.Tensor) -> torch.Tensor:
+        if self.theta_norm_weight <= 0:
+            return torch.tensor(0.0, device=self.device)
+        mean = theta.mean(dim=(0, 1))
+        std = theta.std(dim=(0, 1))
+        penalty = torch.mean(mean.pow(2)) + torch.mean((std - 1.0).pow(2))
+        return self.theta_norm_weight * penalty
 
     @staticmethod
     def _unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor]:

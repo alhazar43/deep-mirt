@@ -20,7 +20,8 @@ class MIRTParameterExtractor(nn.Module):
 
     def forward(self, features: torch.Tensor, question_features: torch.Tensor) -> tuple:
         theta = self.theta_net(features)
-        alpha = self.alpha_net(question_features)
+        raw_alpha = self.alpha_net(question_features)
+        alpha = torch.exp(0.3 * raw_alpha)
         beta_0 = self.beta_base(question_features)
 
         if self.n_cats <= 2:

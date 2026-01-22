@@ -20,6 +20,7 @@ training:
   qwk_weight: 0.5
   ordinal_weight: 0.2
   attention_entropy_weight: 0.0
+  theta_norm_weight: 0.0
 
 data:
   dataset_name: synthetic_40_20_4

@@ -14,3 +14,4 @@ class TrainingConfig:
     qwk_weight: float = 0.5
     ordinal_weight: float = 0.2
     attention_entropy_weight: float = 0.0
+    theta_norm_weight: float = 0.0
