@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import numpy as np
 import torch
 
@@ -18,6 +19,8 @@ def main() -> None:
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--split", default="test", choices=["train", "valid", "test"])
+    parser.add_argument("--gif", action="store_true", help="Generate an attention GIF")
+    parser.add_argument("--fps", type=int, default=6)
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -82,6 +85,32 @@ def main() -> None:
     fig.tight_layout()
     fig.savefig(out_dir / "memory_attention_heatmap.png", dpi=150)
     plt.close(fig)
+
+    if args.gif:
+        mean_by_t = attn.mean(axis=0)  # (seq, memory_size)
+        fig, ax = plt.subplots(figsize=(6, 3))
+        bars = ax.bar(np.arange(mean_by_t.shape[1]), mean_by_t[0])
+        ax.set_ylim(0, mean_by_t.max() * 1.1)
+        ax.set_title("Mean Attention per Slot (time 0)")
+        ax.set_xlabel("Memory slot")
+        ax.set_ylabel("Mean attention")
+
+        def update(frame_idx):
+            for bar, height in zip(bars, mean_by_t[frame_idx]):
+                bar.set_height(height)
+            ax.set_title(f"Mean Attention per Slot (time {frame_idx})")
+            return bars
+
+        anim = animation.FuncAnimation(
+            fig,
+            update,
+            frames=mean_by_t.shape[0],
+            interval=1000 / max(args.fps, 1),
+            blit=False,
+        )
+        gif_path = out_dir / "memory_attention.gif"
+        anim.save(gif_path, writer="pillow", fps=args.fps)
+        plt.close(fig)
 
 
 if __name__ == "__main__":
