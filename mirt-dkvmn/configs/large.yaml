@@ -5,10 +5,10 @@ model:
   n_questions: 1000
   n_cats: 5
   n_traits: 5
-  memory_size: 50
-  key_dim: 64
+  memory_size: 100
+  key_dim: 128
   value_dim: 5
-  summary_dim: 64
+  summary_dim: 128
   embedding_strategy: linear_decay
   concept_aligned_memory: true
 training:
@@ -18,9 +18,9 @@ training:
   weight_decay: 0.0
   grad_clip: 1.0
   output_dir: mirt-dkvmn/artifacts/large
-  qwk_weight: 0.5
-  ordinal_weight: 0.2
-  attention_entropy_weight: 0.01
+  qwk_weight: 1.0
+  ordinal_weight: 0.5
+  attention_entropy_weight: 0.0
   theta_norm_weight: 0.1
 
 data:
