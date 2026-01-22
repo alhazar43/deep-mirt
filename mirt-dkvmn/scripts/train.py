@@ -1,6 +1,7 @@
 """Training entry point (placeholder)."""
 
 import argparse
+import csv
 from pathlib import Path
 
 import torch
@@ -56,25 +57,44 @@ def main() -> None:
 
     output_dir = Path(config.training.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    metrics_path = output_dir / "metrics.csv"
+    with metrics_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["epoch", "train_loss", "val_loss", "qwk", "cat_acc", "ece", "nll"])
 
-    for epoch in range(1, config.training.epochs + 1):
-        train_loss = trainer.train_epoch(dataloaders["train"])
-        if dataloaders["valid"]:
-            val_loss, val_metrics = trainer.evaluate_epoch(dataloaders["valid"])
-            logger.info(
-                "Epoch %s: train_loss=%.4f val_loss=%.4f qwk=%.4f cat_acc=%.4f ece=%.4f nll=%.4f",
-                epoch,
-                train_loss,
-                val_loss,
-                val_metrics.get("qwk", float("nan")),
-                val_metrics.get("cat_acc", float("nan")),
-                val_metrics.get("ece", float("nan")),
-                val_metrics.get("nll", float("nan")),
+        for epoch in range(1, config.training.epochs + 1):
+            train_loss = trainer.train_epoch(dataloaders["train"])
+            val_loss = float("nan")
+            val_metrics = {}
+            if dataloaders["valid"]:
+                val_loss, val_metrics = trainer.evaluate_epoch(dataloaders["valid"])
+                logger.info(
+                    "Epoch %s: train_loss=%.4f val_loss=%.4f qwk=%.4f cat_acc=%.4f ece=%.4f nll=%.4f",
+                    epoch,
+                    train_loss,
+                    val_loss,
+                    val_metrics.get("qwk", float("nan")),
+                    val_metrics.get("cat_acc", float("nan")),
+                    val_metrics.get("ece", float("nan")),
+                    val_metrics.get("nll", float("nan")),
+                )
+            else:
+                logger.info("Epoch %s: train_loss=%.4f val_loss=nan", epoch, train_loss)
+
+            writer.writerow(
+                [
+                    epoch,
+                    train_loss,
+                    val_loss,
+                    val_metrics.get("qwk", float("nan")),
+                    val_metrics.get("cat_acc", float("nan")),
+                    val_metrics.get("ece", float("nan")),
+                    val_metrics.get("nll", float("nan")),
+                ]
             )
-        else:
-            logger.info("Epoch %s: train_loss=%.4f val_loss=nan", epoch, train_loss)
+            handle.flush()
 
-        save_checkpoint(str(output_dir / f"epoch_{epoch}.pt"), model, optimizer, step=epoch)
+            save_checkpoint(str(output_dir / f"epoch_{epoch}.pt"), model, optimizer, step=epoch)
 
     save_checkpoint(str(output_dir / "last.pt"), model, optimizer, step=config.training.epochs)
     logger.info("Saved checkpoint to %s", output_dir / "last.pt")
