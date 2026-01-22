@@ -14,3 +14,5 @@ class ModelConfig:
     summary_dim: int = 64
     embedding_strategy: str = "linear_decay"
     concept_aligned_memory: bool = False
+    theta_projection: bool = False
+    memory_add_activation: str = "tanh"

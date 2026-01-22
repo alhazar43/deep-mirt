@@ -7,11 +7,18 @@ import torch.nn as nn
 class DKVMN(nn.Module):
     """Placeholder DKVMN with key/value memories."""
 
-    def __init__(self, memory_size: int, key_dim: int, value_dim: int) -> None:
+    def __init__(
+        self,
+        memory_size: int,
+        key_dim: int,
+        value_dim: int,
+        add_activation: str = "tanh",
+    ) -> None:
         super().__init__()
         self.memory_size = memory_size
         self.key_dim = key_dim
         self.value_dim = value_dim
+        self.add_activation = add_activation
 
         self.key_memory = nn.Parameter(torch.randn(memory_size, key_dim))
         self.value_memory = None
@@ -33,7 +40,11 @@ class DKVMN(nn.Module):
 
     def write(self, weights: torch.Tensor, content: torch.Tensor) -> None:
         erase = torch.sigmoid(self.erase(content))
-        add = torch.tanh(self.add(content))
+        add_raw = self.add(content)
+        if self.add_activation == "linear":
+            add = add_raw
+        else:
+            add = torch.tanh(add_raw)
         erase = erase.unsqueeze(1)
         add = add.unsqueeze(1)
         weights = weights.unsqueeze(2)

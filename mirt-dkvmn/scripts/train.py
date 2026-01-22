@@ -38,6 +38,8 @@ def main() -> None:
         value_dim=config.model.value_dim,
         summary_dim=config.model.summary_dim,
         concept_aligned_memory=config.model.concept_aligned_memory,
+        theta_projection=config.model.theta_projection,
+        memory_add_activation=config.model.memory_add_activation,
     )
     model.to(device)
 

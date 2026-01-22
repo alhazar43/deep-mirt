@@ -18,12 +18,15 @@ class DKVMNMIRT(BaseKTModel):
     def __init__(self, n_questions: int, n_cats: int, n_traits: int,
                  memory_size: int = 50, key_dim: int = 64, value_dim: int = 64,
                  summary_dim: int = 64,
-                 concept_aligned_memory: bool = False) -> None:
+                 concept_aligned_memory: bool = False,
+                 theta_projection: bool = False,
+                 memory_add_activation: str = "tanh") -> None:
         super().__init__()
         self.n_questions = n_questions
         self.n_cats = n_cats
         self.n_traits = n_traits
         self.concept_aligned_memory = concept_aligned_memory
+        self.theta_projection = theta_projection
 
         if self.concept_aligned_memory and value_dim != n_traits:
             raise ValueError("concept_aligned_memory requires value_dim == n_traits")
@@ -32,13 +35,14 @@ class DKVMNMIRT(BaseKTModel):
         self.q_embed = nn.Embedding(n_questions + 1, key_dim, padding_idx=0)
         self.value_proj = nn.Linear(self.embedding.output_dim, value_dim)
 
-        self.memory = DKVMN(memory_size, key_dim, value_dim)
+        self.memory = DKVMN(memory_size, key_dim, value_dim, add_activation=memory_add_activation)
         self.summary = nn.Sequential(
             nn.Linear(key_dim + value_dim, summary_dim),
             nn.Tanh(),
         )
 
         self.irt = MIRTParameterExtractor(summary_dim, n_traits, n_cats, question_dim=key_dim)
+        self.theta_from_memory = nn.Linear(value_dim, n_traits) if theta_projection else None
         self.gpcm_logits = MIRTGPCMLogits()
         self.gpcm_head = GPCMHead()
 
@@ -73,7 +77,10 @@ class DKVMNMIRT(BaseKTModel):
             summary = self.summary(torch.cat([read, q_t], dim=-1))
             theta, alpha, beta = self.irt(summary.unsqueeze(1), q_t.unsqueeze(1))
             if self.concept_aligned_memory:
-                theta = read.unsqueeze(1)
+                if self.theta_from_memory is not None:
+                    theta = self.theta_from_memory(read).unsqueeze(1)
+                else:
+                    theta = read.unsqueeze(1)
             logits = self.gpcm_logits(theta, alpha, beta)
             prob = self.gpcm_head(logits)
 
