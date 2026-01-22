@@ -27,7 +27,7 @@ class MIRTParameterExtractor(nn.Module):
         if self.n_cats <= 2:
             beta = beta_0
         else:
-            gaps = F.softplus(self.beta_gaps(features))
+            gaps = F.softplus(self.beta_gaps(question_features))
             betas = [beta_0]
             for idx in range(gaps.shape[-1]):
                 betas.append(betas[-1] + gaps[..., idx:idx + 1])
