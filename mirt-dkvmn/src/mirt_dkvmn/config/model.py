@@ -17,3 +17,4 @@ class ModelConfig:
     theta_projection: bool = False
     memory_add_activation: str = "tanh"
     theta_source: str = "summary"
+    gpcm_mode: str = "k_minus_1"

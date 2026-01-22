@@ -41,6 +41,7 @@ def main() -> None:
         theta_projection=config.model.theta_projection,
         memory_add_activation=config.model.memory_add_activation,
         theta_source=config.model.theta_source,
+        gpcm_mode=config.model.gpcm_mode,
     )
     model.to(device)
 
