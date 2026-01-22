@@ -21,6 +21,14 @@ def zscore(arr: np.ndarray) -> np.ndarray:
     return (arr - mean) / std
 
 
+def normalize_alpha(alphas: np.ndarray) -> np.ndarray:
+    """Match Deep-GPCM's lognormal(0, 0.3) normalization."""
+    eps = 1e-8
+    log_alphas = np.log(np.clip(alphas, eps, None))
+    log_norm = zscore(log_alphas)
+    return np.exp(log_norm * 0.3)
+
+
 def pearson_corr(a: np.ndarray, b: np.ndarray) -> float:
     if a.size == 0:
         return float("nan")
@@ -40,7 +48,9 @@ def procrustes_align(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return a_center @ r
 
 
-def collect_outputs(model, dataloader, device) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def collect_outputs(
+    model, dataloader, device
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
     model.eval()
     theta_per_student: Dict[int, List[np.ndarray]] = {}
     alpha_by_item: Dict[int, List[np.ndarray]] = {}
@@ -63,7 +73,7 @@ def collect_outputs(model, dataloader, device) -> Tuple[np.ndarray, np.ndarray, 
                 valid = mask[i].cpu().numpy()
                 theta_seq = theta[i].cpu().numpy()[valid]
                 if theta_seq.size > 0:
-                    theta_per_student.setdefault(sid, []).append(theta_seq.mean(axis=0))
+                    theta_per_student.setdefault(sid, []).append(theta_seq[-1])
 
                 q_seq = questions[i].cpu().numpy()[valid]
                 alpha_seq = alpha[i].cpu().numpy()[valid]
@@ -127,10 +137,18 @@ def main() -> None:
         alpha_true = np.array(true_params["alpha"])
         beta_true = np.array(true_params["beta"])
 
-        theta_aligned = procrustes_align(zscore(theta_est), zscore(theta_true[: theta_est.shape[0]]))
-        theta_corr = pearson_corr(theta_aligned, zscore(theta_true[: theta_est.shape[0]]))
-        alpha_corr = pearson_corr(zscore(alpha_est), zscore(alpha_true[: alpha_est.shape[0]]))
-        beta_corr = pearson_corr(zscore(beta_est), zscore(beta_true[: beta_est.shape[0]]))
+        theta_true_trim = theta_true[: theta_est.shape[0]]
+        theta_aligned = procrustes_align(zscore(theta_est), zscore(theta_true_trim))
+        theta_corr = pearson_corr(theta_aligned, zscore(theta_true_trim))
+
+        alpha_true_trim = alpha_true[: alpha_est.shape[0]]
+        alpha_corr = pearson_corr(
+            normalize_alpha(alpha_est).reshape(-1),
+            normalize_alpha(alpha_true_trim).reshape(-1),
+        )
+
+        beta_true_trim = beta_true[: beta_est.shape[0]]
+        beta_corr = pearson_corr(zscore(beta_est).reshape(-1), zscore(beta_true_trim).reshape(-1))
         print(f"Theta corr (procrustes): {theta_corr:.4f}")
         print(f"Alpha corr (zscore): {alpha_corr:.4f}")
         print(f"Beta corr (zscore): {beta_corr:.4f}")
