@@ -1,5 +1,6 @@
 """MIRT parameter extraction and logits."""
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -53,8 +54,12 @@ class MIRTGPCMLogits(nn.Module):
         batch, seq, _ = theta.shape
         n_cats = self.n_cats
         dot = torch.sum(theta * alpha, dim=-1)
+        alpha_scale = torch.linalg.norm(alpha, dim=-1) / math.sqrt(alpha.shape[-1])
 
         logits = torch.zeros(batch, seq, n_cats, device=theta.device)
         for k in range(1, n_cats):
-            logits[:, :, k] = torch.sum(dot.unsqueeze(-1) - beta[:, :, :k], dim=-1)
+            logits[:, :, k] = torch.sum(
+                dot.unsqueeze(-1) - beta[:, :, :k] * alpha_scale.unsqueeze(-1),
+                dim=-1,
+            )
         return logits

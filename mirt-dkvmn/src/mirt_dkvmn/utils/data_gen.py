@@ -70,9 +70,10 @@ class MirtGpcmGenerator:
     def gpcm_prob(self, theta: np.ndarray, alpha: np.ndarray, beta: np.ndarray) -> np.ndarray:
         n_cats = beta.shape[0] + 1
         dot = float(np.dot(theta, alpha))
+        alpha_scale = float(np.linalg.norm(alpha) / math.sqrt(alpha.shape[0]))
         cum_logits = np.zeros(n_cats)
         for k in range(1, n_cats):
-            cum_logits[k] = np.sum(dot - beta[:k])
+            cum_logits[k] = np.sum(dot - beta[:k] * alpha_scale)
         exp_logits = np.exp(cum_logits - np.max(cum_logits))
         return exp_logits / np.sum(exp_logits)
 

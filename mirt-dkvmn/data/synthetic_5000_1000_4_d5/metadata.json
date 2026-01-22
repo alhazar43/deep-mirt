@@ -1,0 +1,15 @@
+{
+  "dataset_name": "synthetic_5000_1000_4_d5",
+  "n_students": 5000,
+  "n_questions": 1000,
+  "n_cats": 4,
+  "n_traits": 5,
+  "seq_len_range": [
+    120,
+    150
+  ],
+  "train_students": 4000,
+  "test_students": 500,
+  "format": "dkvmn_text",
+  "response_type": "ordered_categorical"
+}
