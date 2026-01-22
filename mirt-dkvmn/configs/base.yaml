@@ -1,0 +1,19 @@
+# Placeholder config for MIRT-DKVMN
+model:
+  n_questions: 100
+  n_cats: 4
+  n_traits: 4
+  memory_size: 50
+  key_dim: 64
+  value_dim: 64
+  summary_dim: 64
+  embedding_strategy: linear_decay
+  concept_aligned_memory: false
+training:
+  batch_size: 64
+  epochs: 30
+  lr: 0.001
+  output_dir: artifacts
+data:
+  dataset_name: synthetic_500_200_4
+  data_root: data

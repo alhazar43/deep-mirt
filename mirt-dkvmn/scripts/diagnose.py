@@ -1,0 +1,132 @@
+"""Diagnostics for parameter recovery and attention behavior."""
+
+import argparse
+import json
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+import numpy as np
+import torch
+
+from mirt_dkvmn.config.loader import load_config
+from mirt_dkvmn.data.loaders import DataLoaderManager
+from mirt_dkvmn.models.implementations.dkvmn_mirt import DKVMNMIRT
+from mirt_dkvmn.utils.metrics import quadratic_weighted_kappa
+
+
+def zscore(arr: np.ndarray) -> np.ndarray:
+    mean = arr.mean(axis=0, keepdims=True)
+    std = arr.std(axis=0, keepdims=True)
+    std = np.where(std == 0, 1.0, std)
+    return (arr - mean) / std
+
+
+def pearson_corr(a: np.ndarray, b: np.ndarray) -> float:
+    if a.size == 0:
+        return float("nan")
+    a = a.reshape(-1)
+    b = b.reshape(-1)
+    if np.std(a) == 0 or np.std(b) == 0:
+        return float("nan")
+    return float(np.corrcoef(a, b)[0, 1])
+
+
+def collect_outputs(model, dataloader, device) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    model.eval()
+    theta_per_student: Dict[int, List[np.ndarray]] = {}
+    alpha_by_item: Dict[int, List[np.ndarray]] = {}
+    beta_by_item: Dict[int, List[np.ndarray]] = {}
+    all_preds = []
+    all_targets = []
+
+    with torch.no_grad():
+        for batch in dataloader:
+            questions = batch["questions"].to(device)
+            responses = batch["responses"].to(device)
+            mask = batch["mask"].to(device)
+            student_ids = batch["student_ids"].cpu().numpy()
+
+            theta, beta, alpha, probs = model(questions, responses)
+            preds = probs.argmax(dim=-1)
+
+            for i in range(questions.size(0)):
+                sid = int(student_ids[i])
+                valid = mask[i].cpu().numpy()
+                theta_seq = theta[i].cpu().numpy()[valid]
+                if theta_seq.size > 0:
+                    theta_per_student.setdefault(sid, []).append(theta_seq.mean(axis=0))
+
+                q_seq = questions[i].cpu().numpy()[valid]
+                alpha_seq = alpha[i].cpu().numpy()[valid]
+                beta_seq = beta[i].cpu().numpy()[valid]
+                for q, a_vec, b_vec in zip(q_seq, alpha_seq, beta_seq):
+                    alpha_by_item.setdefault(int(q), []).append(a_vec)
+                    beta_by_item.setdefault(int(q), []).append(b_vec)
+
+            all_preds.append(preds[mask].cpu())
+            all_targets.append(responses[mask].cpu())
+
+    theta_est = np.array([np.mean(v, axis=0) for _, v in sorted(theta_per_student.items())])
+    alpha_est = np.zeros((max(alpha_by_item) + 1, alpha_by_item[next(iter(alpha_by_item))][0].shape[0]))
+    beta_est = np.zeros((max(beta_by_item) + 1, beta_by_item[next(iter(beta_by_item))][0].shape[0]))
+    for item, values in alpha_by_item.items():
+        alpha_est[item] = np.mean(values, axis=0)
+    for item, values in beta_by_item.items():
+        beta_est[item] = np.mean(values, axis=0)
+
+    preds_all = torch.cat(all_preds, dim=0)
+    targets_all = torch.cat(all_targets, dim=0)
+    qwk = quadratic_weighted_kappa(preds_all, targets_all, probs.size(-1))
+
+    return theta_est, alpha_est, beta_est, preds_all.numpy(), targets_all.numpy(), qwk
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="configs/base.yaml")
+    parser.add_argument("--checkpoint", required=True)
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+    device = torch.device(config.base.device if torch.cuda.is_available() else "cpu")
+
+    loader = DataLoaderManager(config.data.dataset_name, data_root=config.data.data_root)
+    dataloaders = loader.build_dataloaders(batch_size=config.training.batch_size, split_ratio=0.8, val_ratio=0.1)
+
+    model = DKVMNMIRT(
+        n_questions=config.model.n_questions,
+        n_cats=config.model.n_cats,
+        n_traits=config.model.n_traits,
+        memory_size=config.model.memory_size,
+        key_dim=config.model.key_dim,
+        value_dim=config.model.value_dim,
+        summary_dim=config.model.summary_dim,
+        concept_aligned_memory=config.model.concept_aligned_memory,
+    ).to(device)
+
+    payload = torch.load(args.checkpoint, map_location=device)
+    model.load_state_dict(payload["model_state"])
+
+    theta_est, alpha_est, beta_est, preds, targets, qwk = collect_outputs(model, dataloaders["test"], device)
+    print(f"QWK (test): {qwk:.4f}")
+
+    params_path = Path(config.data.data_root) / config.data.dataset_name / "true_irt_parameters.json"
+    if params_path.exists():
+        with params_path.open("r", encoding="utf-8") as handle:
+            true_params = json.load(handle)
+        theta_true = np.array(true_params["theta"])
+        alpha_true = np.array(true_params["alpha"])
+        beta_true = np.array(true_params["beta"])
+
+        theta_corr = pearson_corr(zscore(theta_est), zscore(theta_true[: theta_est.shape[0]]))
+        alpha_corr = pearson_corr(zscore(alpha_est), zscore(alpha_true[: alpha_est.shape[0]]))
+        beta_corr = pearson_corr(zscore(beta_est), zscore(beta_true[: beta_est.shape[0]]))
+        print(f"Theta corr (zscore): {theta_corr:.4f}")
+        print(f"Alpha corr (zscore): {alpha_corr:.4f}")
+        print(f"Beta corr (zscore): {beta_corr:.4f}")
+    else:
+        print("No true_irt_parameters.json found; skipping parameter recovery.")
+
+
+if __name__ == "__main__":
+    main()

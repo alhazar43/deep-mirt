@@ -1,0 +1,23 @@
+base:
+  seed: 42
+  device: cuda
+model:
+  n_questions: 20
+  n_cats: 4
+  n_traits: 3
+  memory_size: 25
+  key_dim: 32
+  value_dim: 32
+  summary_dim: 32
+  embedding_strategy: linear_decay
+training:
+  batch_size: 8
+  epochs: 2
+  lr: 0.001
+  weight_decay: 0.0
+  grad_clip: 1.0
+  output_dir: mirt-dkvmn/artifacts/smoke
+
+data:
+  dataset_name: synthetic_40_20_4
+  data_root: mirt-dkvmn/data
