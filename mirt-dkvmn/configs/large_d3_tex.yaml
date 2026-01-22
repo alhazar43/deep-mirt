@@ -14,7 +14,7 @@ model:
   theta_projection: false
   memory_add_activation: tanh
   theta_source: summary
-  gpcm_mode: k_full
+  gpcm_mode: k_minus_1
 training:
   batch_size: 64
   epochs: 10

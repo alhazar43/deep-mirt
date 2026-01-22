@@ -456,25 +456,25 @@ A 3PL variant is obtained by adding a lower asymptote $c_j=\sigma(\bm{w}_c^\top 
 \]
 
 \paragraph{Multidimensional GPCM.}
-For ordered categories $k=0,\dots,K_j-1$, we use a common loading $\bm{a}_j$ and cumulative step difficulties.
+For ordered categories $k=0,\dots,K_j-1$, we use a common loading $\bm{a}_j$ and $K_j-1$ cumulative step difficulties.
 Define
 \begin{align}
   \bm{a}_j &= W_{a}^{\mathrm{irt}} \bm{h}_j, \\
   \delta_{j0} &= \bm{w}_0^\top \bm{h}_j + b_0, \\
   \Delta_{jh} &= \mathrm{softplus}(\bm{w}_h^\top \bm{h}_j + b_h),
-  \quad h = 1,\dots,K_j-1, \\
+  \quad h = 1,\dots,K_j-2, \\
   \delta_{jh} &= \delta_{j0} + \sum_{\ell=1}^h \Delta_{j\ell},
 \end{align}
-and set
+and set the baseline category $k=0$ to have zero logit. Then
 \begin{equation}
   p_j(r_t = k \mid \bm{\theta}_t)
   =
-  \frac{\exp\Big( \sum_{h=0}^{k} \big(\bm{a}_j^\top \bm{\theta}_t - \delta_{jh}\big) \Big)}
+  \frac{\exp\Big( \sum_{h=0}^{k-1} \big(\bm{a}_j^\top \bm{\theta}_t - \delta_{jh}\big) \Big)}
        {\sum_{c=0}^{K_j-1}
-        \exp\Big( \sum_{h=0}^{c} \big(\bm{a}_j^\top \bm{\theta}_t - \delta_{jh}\big) \Big)}.
+        \exp\Big( \sum_{h=0}^{c-1} \big(\bm{a}_j^\top \bm{\theta}_t - \delta_{jh}\big) \Big)}.
   \label{eq:gpcm-mirt}
 \end{equation}
-Equation \eqref{eq:gpcm-mirt} is the vector extension of the scalar GPCM head: in the special case $D=1$ and scalar $\bm{a}_j$, it collapses to the previous 1D formulation.
+Equation \eqref{eq:gpcm-mirt} is the vector extension of the standard K-1 step GPCM head: in the special case $D=1$ and scalar $\bm{a}_j$, it collapses to the usual 1D formulation.
 
 \paragraph{Graded Response Model (GRM).}
 For GRM, we parameterize ordered thresholds $\gamma_{jk}$ via
