@@ -21,8 +21,7 @@ class DKVMNMIRT(BaseKTModel):
                  concept_aligned_memory: bool = False,
                  theta_projection: bool = False,
                  memory_add_activation: str = "tanh",
-                 theta_source: str = "summary",
-                 gpcm_mode: str = "k_minus_1") -> None:
+                 theta_source: str = "summary") -> None:
         super().__init__()
         self.n_questions = n_questions
         self.n_cats = n_cats
@@ -30,7 +29,6 @@ class DKVMNMIRT(BaseKTModel):
         self.concept_aligned_memory = concept_aligned_memory
         self.theta_projection = theta_projection
         self.theta_source = theta_source
-        self.gpcm_mode = gpcm_mode
 
         if self.concept_aligned_memory and value_dim != n_traits:
             raise ValueError("concept_aligned_memory requires value_dim == n_traits")
@@ -52,10 +50,9 @@ class DKVMNMIRT(BaseKTModel):
             n_traits,
             n_cats,
             question_dim=key_dim,
-            gpcm_mode=gpcm_mode,
         )
         self.theta_from_memory = nn.Linear(value_dim, n_traits) if theta_projection else None
-        self.gpcm_logits = MIRTGPCMLogits(n_cats=n_cats, gpcm_mode=gpcm_mode)
+        self.gpcm_logits = MIRTGPCMLogits(n_cats=n_cats)
         self.gpcm_head = GPCMHead()
 
     def forward(

@@ -131,7 +131,6 @@ def main() -> None:
         theta_projection=config.model.theta_projection,
         memory_add_activation=config.model.memory_add_activation,
         theta_source=config.model.theta_source,
-        gpcm_mode=config.model.gpcm_mode,
     ).to(device)
 
     payload = torch.load(args.checkpoint, map_location=device)
@@ -161,11 +160,8 @@ def main() -> None:
         )
 
         beta_true_trim = beta_true[: beta_est.shape[0]]
-        beta_est_use = beta_est
-        if beta_est.shape[1] == beta_true_trim.shape[1] + 1:
-            beta_est_use = beta_est[:, 1:]
         beta_corr = pearson_corr(
-            normalize_beta(beta_est_use).reshape(-1),
+            normalize_beta(beta_est).reshape(-1),
             normalize_beta(beta_true_trim).reshape(-1),
         )
         print(f"Theta corr (procrustes): {theta_corr:.4f}")

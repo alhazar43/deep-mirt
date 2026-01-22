@@ -154,7 +154,6 @@ def main():
         theta_projection=config.model.theta_projection,
         memory_add_activation=config.model.memory_add_activation,
         theta_source=config.model.theta_source,
-        gpcm_mode=config.model.gpcm_mode,
     ).to(device)
 
     payload = torch.load(args.checkpoint, map_location=device)
@@ -179,14 +178,11 @@ def main():
     plot_theta_distributions(theta_est, theta_true, out_dir)
     plot_alpha_by_dim(alpha_true, alpha_est, out_dir)
 
-    beta_est_use = beta_est
-    if beta_est.shape[1] == beta_true.shape[1] + 1:
-        beta_est_use = beta_est[:, 1:]
-    max_beta = min(beta_true.shape[1], beta_est_use.shape[1])
+    max_beta = min(beta_true.shape[1], beta_est.shape[1])
     for idx in range(max_beta):
         plot_item_scatter(
-            normalize_beta(beta_true[: beta_est_use.shape[0], idx]),
-            normalize_beta(beta_est_use[:, idx]),
+            normalize_beta(beta_true[: beta_est.shape[0], idx]),
+            normalize_beta(beta_est[:, idx]),
             out_dir / f"beta_{idx}_recovery.png",
             f"Beta recovery (threshold {idx})",
             "True beta (mean_sigma)",
