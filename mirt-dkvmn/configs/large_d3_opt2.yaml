@@ -13,6 +13,7 @@ model:
   concept_aligned_memory: true
   theta_projection: false
   memory_add_activation: linear
+  theta_source: memory
 training:
   batch_size: 64
   epochs: 10
