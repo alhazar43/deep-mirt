@@ -1,0 +1,30 @@
+base:
+  seed: 42
+  device: cuda
+model:
+  n_questions: 1000
+  n_cats: 5
+  n_traits: 6
+  memory_size: 100
+  key_dim: 128
+  value_dim: 6
+  summary_dim: 128
+  embedding_strategy: linear_decay
+  concept_aligned_memory: true
+  theta_projection: false
+  memory_add_activation: tanh
+  theta_source: summary
+training:
+  batch_size: 64
+  epochs: 20
+  lr: 0.001
+  weight_decay: 0.0
+  grad_clip: 1.0
+  output_dir: mirt-dkvmn/artifacts/run_c5_d6_20
+  qwk_weight: 1.0
+  ordinal_weight: 0.5
+  attention_entropy_weight: 0.0
+  theta_norm_weight: 0.1
+data:
+  dataset_name: synthetic_5000_1000_5_d6
+  data_root: mirt-dkvmn/data

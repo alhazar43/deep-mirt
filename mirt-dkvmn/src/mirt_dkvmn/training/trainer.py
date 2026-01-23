@@ -4,7 +4,7 @@ from typing import Iterable, Tuple
 
 import torch
 
-from mirt_dkvmn.utils.metrics import compute_metrics
+from mirt_dkvmn.utils.metrics import compute_metrics, confusion_matrix
 
 
 class Trainer:
@@ -68,12 +68,13 @@ class Trainer:
         return total_loss / max(batches, 1)
 
     @torch.no_grad()
-    def evaluate_epoch(self, dataloader: Iterable) -> tuple[float, dict]:
+    def evaluate_epoch(self, dataloader: Iterable) -> tuple[float, dict, torch.Tensor]:
         self.model.eval()
         total_loss = 0.0
         batches = 0
         metrics_accum = {}
         metrics_count = 0
+        conf_sum = None
 
         for batch in dataloader:
             questions, responses = self._unpack_batch(batch)
@@ -105,10 +106,19 @@ class Trainer:
                     continue
                 metrics_accum[key] = metrics_accum.get(key, 0.0) + value
             metrics_count += 1
+            batch_conf = confusion_matrix(
+                probs.argmax(dim=-1), responses, probs.size(-1), mask
+            )
+            if conf_sum is None:
+                conf_sum = torch.tensor(batch_conf, dtype=torch.long)
+            else:
+                conf_sum += torch.tensor(batch_conf, dtype=torch.long)
 
         avg_loss = total_loss / max(batches, 1)
         avg_metrics = {key: value / max(metrics_count, 1) for key, value in metrics_accum.items()}
-        return avg_loss, avg_metrics
+        if conf_sum is None:
+            conf_sum = torch.zeros((probs.size(-1), probs.size(-1)), dtype=torch.long)
+        return avg_loss, avg_metrics, conf_sum
 
     def _attention_entropy_penalty(self) -> torch.Tensor:
         if self.attention_entropy_weight <= 0:

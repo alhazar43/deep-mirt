@@ -1,0 +1,63 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\title{Progress Report: Multidimensional DKVMN as Dynamic MIRT}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Purpose}
+This report summarizes implementation progress against the plan in \texttt{updated\_plan.tex}, with emphasis on the multidimensional DKVMN core, polytomous IRT heads, synthetic data generation, and psychometrics-aligned diagnostics.
+
+\section{Plan Alignment (What We Have Built)}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Dynamic MIRT framing.} Implemented a DKVMN-style model where the value memory supports a multidimensional latent trait $\theta_t$ and an MIRT-compatible GPCM head.
+  \item \textbf{Polytomous IRT head.} GPCM logits follow the deep-gpcm scaling convention (with $s_j=\lVert \alpha_j\rVert/\sqrt{D}$ for thresholds), aligning data generation and prediction.
+  \item \textbf{Memory/trait separation.} The model exposes summary $\theta_t$ (from read+item) and memory-derived signals (read vectors and slot states) for interpretability.
+\end{itemize}
+
+\section{Engineering Milestones}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Model core.} DKVMN MIRT implementation with configurable attention, summary projection, and GPCM head.
+  \item \textbf{Synthetic data generator.} Balanced category sampling and realistic item parameter priors; supports $D=2..6$ and $K=2..5$.
+  \item \textbf{Training pipeline.} Per-run artifacts, automatic plots, confusion matrices, and resume/plot-only utilities.
+  \item \textbf{Metrics.} Ordinal metrics (QWK, within-one accuracy, balanced accuracy) and recovery plots for $\alpha$, $\beta$, and $\theta$.
+\end{itemize}
+
+\section{Experiments and Artifacts}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Datasets.} 20 synthetic datasets: \texttt{synthetic\_5000\_1000\_K\_dD} for $K\in\{2,3,4,5\}$ and $D\in\{2,3,4,5,6\}$.
+  \item \textbf{Runs.} Trained runs for $D=3$ and $D=6$ across $K=2..5$, with 20 epochs per run.
+  \item \textbf{Artifacts.} Each run stores checkpoints, metrics, confusion matrices, recovery plots, and research plots in its artifact directory.
+\end{itemize}
+
+\section{Interpretability and Diagnostics}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Attention maps.} Aggregate item$\leftrightarrow$slot heatmap (items grouped by dominant slot) with a slot$\leftrightarrow$dimension panel using summary $\theta$.
+  \item \textbf{Theta dynamics.} Per-dimension trajectories and a cohort band plot (mean $\pm$ std over time).
+  \item \textbf{Theta--attention correlation.} Implemented the Section~1 diagnostic from \texttt{theta\_attention\_correlation.md}:
+    Spearman alignment between attention weights and effective contribution $c_t(n)=w_t(n)\,a_{q_t}^\top s_{n,t}$, plus a shuffled null and item-level summaries.
+\end{itemize}
+
+\section{Open Issues Observed So Far}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Parameter recovery.} $\alpha$ and $\beta$ recovery remains weaker than in deep-gpcm despite normalization alignment.
+  \item \textbf{Calibration and ordinal accuracy.} QWK improves but often plateaus; confusion matrices still show concentration in lower categories for some runs.
+  \item \textbf{Identifiability.} Current model is sensitive to scaling and normalization choices; additional constraints may be needed for stable recovery.
+\end{itemize}
+
+\section{Immediate Next Steps}
+\begin{itemize}[leftmargin=*]
+  \item Run the attention--contribution diagnostic across all datasets and summarize distributions by $D$ and $K$.
+  \item Improve item parameter recovery with identifiability constraints and/or alternative regularization.
+  \item Extend the report with calibration plots (threshold-level) and ordinal proper scoring rules for psychometric reporting.
+\end{itemize}
+
+\end{document}

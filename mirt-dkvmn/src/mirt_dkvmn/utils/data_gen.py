@@ -22,6 +22,10 @@ class SyntheticConfig:
     seed: int = 42
     balance: bool = True
     allow_negative_alpha: bool = False
+    screening_theta_samples: int = 2000
+    screening_min_pct: float = 0.03
+    screening_max_pct: float = 0.5
+    screening_max_attempts: int = 30
 
 
 class MirtGpcmGenerator:
@@ -44,6 +48,7 @@ class MirtGpcmGenerator:
     def _sample_alpha(self) -> np.ndarray:
         cfg = self.config
         alpha = self.rng.lognormal(mean=0.0, sigma=0.2, size=(cfg.n_questions, cfg.n_traits))
+        alpha = np.clip(alpha, 0.6, 1.8)
         if cfg.allow_negative_alpha:
             signs = self.rng.choice([-1.0, 1.0], size=alpha.shape)
             alpha = alpha * signs
@@ -52,10 +57,19 @@ class MirtGpcmGenerator:
     def _sample_beta(self) -> np.ndarray:
         cfg = self.config
         beta = np.zeros((cfg.n_questions, cfg.n_cats - 1))
+        if cfg.n_cats <= 2:
+            base_offsets = np.array([0.0])
+        elif cfg.n_cats == 3:
+            base_offsets = np.array([-0.7, 0.7])
+        elif cfg.n_cats == 4:
+            base_offsets = np.array([-1.0, 0.0, 1.0])
+        else:
+            base_offsets = np.array([-1.5, -0.5, 0.5, 1.5])
         for q in range(cfg.n_questions):
-            base = self.rng.normal(0.0, 1.0)
-            steps = self.rng.lognormal(mean=-0.2, sigma=0.3, size=cfg.n_cats - 1)
-            beta[q] = base + np.cumsum(steps)
+            b = self.rng.normal(0.0, 1.2)
+            noise = self.rng.normal(0.0, 0.2, size=cfg.n_cats - 1)
+            offsets = np.sort(base_offsets[: cfg.n_cats - 1] + noise)
+            beta[q] = b + offsets
         return beta
 
     def _estimate_dot_mean(self) -> float:
@@ -145,7 +159,7 @@ class MirtGpcmGenerator:
         split_ratio: float = 0.8,
         val_ratio: float = 0.1,
     ) -> Path:
-        sequences = self.generate_sequences()
+        sequences = self._generate_with_item_screening()
         n_train = int(len(sequences) * split_ratio)
         n_val = int(len(sequences) * val_ratio)
         train_seqs = sequences[:n_train]
@@ -159,6 +173,51 @@ class MirtGpcmGenerator:
         self.save_metadata(out_dir, dataset_name, n_train, len(test_seqs))
         self.save_true_params(out_dir)
         return out_dir
+
+    def _estimate_item_marginals(self, theta: np.ndarray, alpha: np.ndarray, beta: np.ndarray) -> np.ndarray:
+        probs = self._gpcm_prob_batch(theta, alpha, beta)
+        return np.mean(probs, axis=0)
+
+    def _gpcm_prob_batch(self, theta: np.ndarray, alpha: np.ndarray, beta: np.ndarray) -> np.ndarray:
+        n_cats = beta.shape[0] + 1
+        dot = theta @ alpha
+        alpha_scale = float(np.linalg.norm(alpha) / math.sqrt(alpha.shape[0]))
+        cum_beta = np.cumsum(beta) * alpha_scale
+        logits = np.zeros((theta.shape[0], n_cats))
+        for k in range(1, n_cats):
+            logits[:, k] = k * dot - cum_beta[k - 1]
+        logits = logits - np.max(logits, axis=1, keepdims=True)
+        exp_logits = np.exp(logits)
+        return exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+
+    def _generate_with_item_screening(self) -> List[dict]:
+        cfg = self.config
+        sampled_theta = self.rng.normal(0.0, 1.0, size=(cfg.screening_theta_samples, cfg.n_traits))
+        alpha = np.zeros((cfg.n_questions, cfg.n_traits))
+        beta = np.zeros((cfg.n_questions, cfg.n_cats - 1))
+        min_pct = cfg.screening_min_pct
+        max_pct = cfg.screening_max_pct
+        if cfg.n_cats <= 2:
+            min_pct = max(min_pct, 0.1)
+            max_pct = max(max_pct, 0.9)
+        for q in range(cfg.n_questions):
+            attempts = 0
+            while True:
+                attempts += 1
+                cand_alpha = self._sample_alpha()[0]
+                cand_beta = self._sample_beta()[0]
+                marginals = self._estimate_item_marginals(sampled_theta, cand_alpha, cand_beta)
+                if marginals.max() < max_pct and marginals.min() > min_pct:
+                    alpha[q] = cand_alpha
+                    beta[q] = cand_beta
+                    break
+                if attempts >= cfg.screening_max_attempts:
+                    alpha[q] = cand_alpha
+                    beta[q] = cand_beta
+                    break
+        self.alpha = alpha
+        self.beta = beta
+        return self.generate_sequences()
 
 
 def parse_dataset_name(name: str) -> Tuple[int, int, int, int]:

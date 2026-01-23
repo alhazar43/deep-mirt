@@ -54,6 +54,7 @@ class DKVMNMIRT(BaseKTModel):
         self.theta_from_memory = nn.Linear(value_dim, n_traits) if theta_projection else None
         self.gpcm_logits = MIRTGPCMLogits(n_cats=n_cats)
         self.gpcm_head = GPCMHead()
+        self.capture_memory = False
 
     def forward(
         self,
@@ -75,6 +76,7 @@ class DKVMNMIRT(BaseKTModel):
         probs = []
         attn_weights = []
         reads = []
+        value_snapshots = [] if self.capture_memory else None
 
         for t in range(seq):
             q_t = q_embed[:, t, :]
@@ -84,6 +86,8 @@ class DKVMNMIRT(BaseKTModel):
             read = self.memory.read(weights)
             attn_weights.append(weights)
             reads.append(read)
+            if self.capture_memory:
+                value_snapshots.append(self.memory.value_memory.detach().clone())
 
             summary = self.summary(torch.cat([read, q_t], dim=-1))
             theta, alpha, beta = self.irt(summary.unsqueeze(1), q_t.unsqueeze(1))
@@ -105,6 +109,9 @@ class DKVMNMIRT(BaseKTModel):
 
         self.last_attention = torch.stack(attn_weights, dim=1) if attn_weights else None
         self.last_read = torch.stack(reads, dim=1) if reads else None
+        self.last_value_memory = (
+            torch.stack(value_snapshots, dim=1) if value_snapshots else None
+        )
         return (
             torch.stack(thetas, dim=1),
             torch.stack(betas, dim=1),

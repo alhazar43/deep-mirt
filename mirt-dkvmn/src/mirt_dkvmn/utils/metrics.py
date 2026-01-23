@@ -51,6 +51,43 @@ def mean_absolute_error(
     return torch.abs(preds.float() - targets.float()).mean().item()
 
 
+def within_one_accuracy(
+    preds: torch.Tensor, targets: torch.Tensor, mask: Optional[torch.Tensor] = None
+) -> float:
+    preds, targets = _apply_mask(preds, targets, mask)
+    if preds.numel() == 0:
+        return float("nan")
+    return (torch.abs(preds.float() - targets.float()) <= 1).float().mean().item()
+
+
+def balanced_accuracy(
+    preds: torch.Tensor,
+    targets: torch.Tensor,
+    n_cats: int,
+    mask: Optional[torch.Tensor] = None,
+) -> float:
+    per_class = per_class_accuracy(preds, targets, n_cats, mask)
+    values = [v for v in per_class.values() if not np.isnan(v)]
+    if not values:
+        return float("nan")
+    return float(np.mean(values))
+
+
+def spearman_correlation(
+    preds: torch.Tensor, targets: torch.Tensor, mask: Optional[torch.Tensor] = None
+) -> float:
+    preds, targets = _apply_mask(preds, targets, mask)
+    if preds.numel() == 0:
+        return float("nan")
+    preds_np = preds.cpu().numpy().astype(float)
+    targets_np = targets.cpu().numpy().astype(float)
+    pred_ranks = np.argsort(np.argsort(preds_np))
+    target_ranks = np.argsort(np.argsort(targets_np))
+    if np.std(pred_ranks) == 0 or np.std(target_ranks) == 0:
+        return float("nan")
+    return float(np.corrcoef(pred_ranks, target_ranks)[0, 1])
+
+
 def expected_calibration_error(
     probs: torch.Tensor,
     targets: torch.Tensor,
@@ -173,6 +210,9 @@ def compute_metrics(
     metrics = {
         "cat_acc": categorical_accuracy(preds, targets, mask),
         "mae": mean_absolute_error(preds, targets, mask),
+        "balanced_acc": balanced_accuracy(preds, targets, n_cats, mask),
+        "within_one_acc": within_one_accuracy(preds, targets, mask),
+        "spearman": spearman_correlation(preds, targets, mask),
         "qwk": quadratic_weighted_kappa(preds, targets, n_cats, mask),
         "ece": expected_calibration_error(probs, targets, mask),
         "nll": negative_log_likelihood(probs, targets, mask),
