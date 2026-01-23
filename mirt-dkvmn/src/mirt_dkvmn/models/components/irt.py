@@ -23,18 +23,31 @@ class MIRTParameterExtractor(nn.Module):
         self.alpha_net = nn.Linear(input_dim + question_dim, n_traits)
         self.beta_base = nn.Linear(question_dim, 1)
         self.beta_gaps = nn.Linear(question_dim, max(n_cats - 2, 1))
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        nn.init.kaiming_normal_(self.theta_net.weight)
+        nn.init.constant_(self.theta_net.bias, 0.0)
+        nn.init.normal_(self.alpha_net.weight, std=0.1)
+        nn.init.constant_(self.alpha_net.bias, 0.0)
+        nn.init.normal_(self.beta_base.weight, std=0.05)
+        nn.init.constant_(self.beta_base.bias, 0.0)
+        if self.n_cats > 2:
+            nn.init.normal_(self.beta_gaps.weight, std=0.05)
+            nn.init.constant_(self.beta_gaps.bias, 0.3)
 
     def forward(self, features: torch.Tensor, question_features: torch.Tensor) -> tuple:
         theta = self.theta_net(features)
         alpha_input = torch.cat([features, question_features], dim=-1)
         raw_alpha = self.alpha_net(alpha_input)
         alpha = torch.exp(0.3 * raw_alpha)
-        beta_0 = self.beta_base(question_features)
+        beta_0 = torch.clamp(self.beta_base(question_features), min=-3.0, max=3.0)
 
         if self.n_cats <= 2:
             beta = beta_0
         else:
             gaps = F.softplus(self.beta_gaps(question_features))
+            gaps = torch.clamp(gaps, min=0.1, max=2.0)
             betas = [beta_0]
             for idx in range(gaps.shape[-1]):
                 betas.append(betas[-1] + gaps[..., idx:idx + 1])
