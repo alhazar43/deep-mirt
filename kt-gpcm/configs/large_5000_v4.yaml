@@ -1,0 +1,47 @@
+# large_5000_v4.yaml
+#
+# Hyperparameter sweep on matched scalar-GPCM data.
+#
+# Changes vs v3:
+#   - dataset: large_5000 (scalar GPCM formula, matches model — same as v3)
+#   - theta_norm_weight: 0.1 (stronger unit-variance constraint vs v3's 0.05)
+#   - alpha_prior_weight: 0.02 (lighter prior vs v3's 0.1 — let data drive alpha)
+
+base:
+  experiment_name: "large_5000_v4"
+  device: "cuda"
+  seed: 42
+
+model:
+  n_questions: 200
+  n_categories: 5
+  n_traits: 1
+  memory_size: 100
+  key_dim: 64
+  value_dim: 128
+  summary_dim: 50
+  ability_scale: 1.0
+  dropout_rate: 0.0
+  memory_add_activation: "tanh"
+  init_value_memory: true
+
+training:
+  epochs: 50
+  batch_size: 64
+  lr: 0.001
+  grad_clip: 1.0
+  focal_weight: 0.5
+  weighted_ordinal_weight: 0.5
+  ordinal_penalty: 0.5
+  lr_patience: 10
+  lr_factor: 0.9
+  attention_entropy_weight: 0.0
+  theta_norm_weight: 0.1
+  alpha_prior_weight: 0.02
+  beta_prior_weight: 0.0
+
+data:
+  data_dir: "data"
+  dataset_name: "large_5000"
+  train_split: 0.8
+  min_seq_len: 10

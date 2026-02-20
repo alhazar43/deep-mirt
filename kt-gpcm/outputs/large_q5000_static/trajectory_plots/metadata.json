@@ -1,0 +1,38 @@
+{
+  "config": "kt-gpcm/configs/large_q5000_static.yaml",
+  "checkpoint": "kt-gpcm/outputs/large_q5000_static/best.pt",
+  "reference_item": 995,
+  "alpha_ref": 1.1247977944217318,
+  "beta_ref": [
+    0.00020019250349689877,
+    1.0522885249993352,
+    1.0648150412760995,
+    1.6391078428667192
+  ],
+  "students": {
+    "High-ability": {
+      "index": 846,
+      "theta_true": 3.1788536793675353,
+      "true_er": 3.8205365385015693,
+      "seq_len": 578
+    },
+    "Low-ability": {
+      "index": 949,
+      "theta_true": -3.6484128252147836,
+      "true_er": 0.016403308899392444,
+      "seq_len": 579
+    },
+    "Mid-ability": {
+      "index": 878,
+      "theta_true": -0.1034201135746335,
+      "true_er": 0.7283451360280188,
+      "seq_len": 600
+    },
+    "Ambiguous": {
+      "index": 766,
+      "theta_true": 0.08362107741055723,
+      "true_er": 0.8768710703689947,
+      "seq_len": 459
+    }
+  }
+}

@@ -1,0 +1,45 @@
+# large_5000_v8b.yaml — StaticItemEmbedding, no theta penalty
+#
+# StaticItemEmbedding with H auto-scaled to K * Q = 5 * 200 = 1000.
+# Cross-item interference O(1/√(K*Q)) ≈ 0.032 — same as LinearDecay capacity.
+# theta_norm_weight: 0.0 (all penalties off)
+
+base:
+  experiment_name: "large_5000_v8b"
+  device: "cuda"
+  seed: 42
+
+model:
+  n_questions: 200
+  n_categories: 5
+  n_traits: 1
+  memory_size: 50
+  key_dim: 64
+  value_dim: 64
+  summary_dim: 50
+  embedding_type: "static_item"
+  ability_scale: 1.0
+  dropout_rate: 0.0
+  memory_add_activation: "tanh"
+  init_value_memory: false
+
+training:
+  epochs: 10
+  batch_size: 64
+  lr: 0.001
+  grad_clip: 1.0
+  focal_weight: 0.5
+  weighted_ordinal_weight: 0.5
+  ordinal_penalty: 0.5
+  lr_patience: 10
+  lr_factor: 0.9
+  attention_entropy_weight: 0.0
+  theta_norm_weight: 0.0
+  alpha_prior_weight: 0.0
+  beta_prior_weight: 0.0
+
+data:
+  data_dir: "data"
+  dataset_name: "large_5000"
+  train_split: 0.8
+  min_seq_len: 10

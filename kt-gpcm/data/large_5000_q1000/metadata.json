@@ -1,0 +1,11 @@
+{
+  "dataset_name": "large_5000_q1000",
+  "n_students": 5000,
+  "n_questions": 1000,
+  "n_categories": 5,
+  "seq_len_range": [
+    20,
+    80
+  ],
+  "model_type": "GPCM"
+}

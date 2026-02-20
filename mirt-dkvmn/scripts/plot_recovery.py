@@ -71,7 +71,7 @@ def collect_item_params(model, dataloader, device):
                 valid = mask[i].cpu().numpy()
                 theta_seq = theta[i].cpu().numpy()[valid]
                 if theta_seq.size > 0:
-                    theta_per_student.setdefault(sid, []).append(theta_seq[-1])
+                    theta_per_student.setdefault(sid, []).append(theta_seq)
 
                 q_seq = questions[i].cpu().numpy()[valid]
                 alpha_seq = alpha[i].cpu().numpy()[valid]
@@ -80,7 +80,7 @@ def collect_item_params(model, dataloader, device):
                     alpha_by_item.setdefault(int(q), []).append(a_vec)
                     beta_by_item.setdefault(int(q), []).append(b_vec)
 
-    theta_est = np.array([np.mean(v, axis=0) for _, v in sorted(theta_per_student.items())])
+    theta_est = np.array([np.mean([seq[-1] for seq in v], axis=0) for _, v in sorted(theta_per_student.items())])
     alpha_est = np.zeros((max(alpha_by_item) + 1, alpha_by_item[next(iter(alpha_by_item))][0].shape[0]))
     beta_est = np.zeros((max(beta_by_item) + 1, beta_by_item[next(iter(beta_by_item))][0].shape[0]))
     for item, values in alpha_by_item.items():

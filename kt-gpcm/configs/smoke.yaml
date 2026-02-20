@@ -1,0 +1,26 @@
+# smoke.yaml — Tiny config for rapid iteration and CI smoke tests.
+# Inherits all unspecified fields from dataclass defaults (not from base.yaml).
+# Run: PYTHONPATH=src python scripts/train.py --config configs/smoke.yaml
+
+base:
+  experiment_name: "smoke"
+  device: "cpu"
+  seed: 0
+
+model:
+  n_questions: 20
+  n_categories: 4
+  n_traits: 1
+  memory_size: 10
+  key_dim: 32
+  value_dim: 64
+  summary_dim: 32
+
+training:
+  epochs: 2
+  batch_size: 16
+  lr: 0.001
+
+data:
+  dataset_name: "smoke_test"
+  min_seq_len: 5

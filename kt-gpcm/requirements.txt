@@ -1,0 +1,21 @@
+# kt-gpcm runtime dependencies
+#
+# PyTorch — install separately to match your CUDA version:
+#   CPU only:   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   CUDA 11.8:  pip install torch --index-url https://download.pytorch.org/whl/cu118
+#   CUDA 12.1:  pip install torch --index-url https://download.pytorch.org/whl/cu121
+#
+# Minimum version reflects features used: nn.Module, ReduceLROnPlateau, no_grad ctx manager.
+torch>=1.13.0
+
+# Numerical / data generation
+numpy>=1.21.0
+
+# Plotting (plot_metrics.py, plot_recovery.py)
+matplotlib>=3.5.0
+
+# YAML config loading (config/loader.py)
+pyyaml>=6.0
+
+# ── Dev / test ────────────────────────────────────────────────────────────────
+pytest>=7.0
