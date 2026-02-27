@@ -92,10 +92,10 @@ class Trainer:
         n_batches = 0
 
         for batch in dataloader:
-            questions, responses, mask = self._unpack(batch)
+            questions, responses, mask, student_ids = self._unpack(batch)
             self.optimizer.zero_grad()
 
-            out = self.model(questions, responses)
+            out = self._forward(questions, responses, student_ids)
             logits: Tensor = out["logits"]   # (B, S, K)
             probs: Tensor = out["probs"]     # (B, S, K)
 
@@ -177,8 +177,8 @@ class Trainer:
 
         with torch.no_grad():
             for batch in dataloader:
-                questions, responses, mask = self._unpack(batch)
-                out = self.model(questions, responses)
+                questions, responses, mask, student_ids = self._unpack(batch)
+                out = self._forward(questions, responses, student_ids)
                 logits: Tensor = out["logits"]
                 probs: Tensor = out["probs"]
 
@@ -212,6 +212,7 @@ class Trainer:
                 "qwk": 0.0,
                 "mae": 0.0,
                 "spearman": 0.0,
+                "kendall_tau": 0.0,
                 "confusion_matrix": torch.zeros(K, K, dtype=torch.long),
             }
 
@@ -291,20 +292,39 @@ class Trainer:
 
     def _unpack(
         self, batch: object
-    ) -> tuple[Tensor, Tensor, Tensor]:
-        """Unpack a batch into (questions, responses, mask) on device."""
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor | None]:
+        """Unpack a batch into (questions, responses, mask, student_ids) on device.
+
+        ``student_ids`` is ``None`` when the batch does not include it
+        (legacy 3-element tuple format).
+        """
         if isinstance(batch, (list, tuple)):
             questions, responses, mask = batch[0], batch[1], batch[2]
+            student_ids = batch[3] if len(batch) > 3 else None
         else:
             # Dict-style batch (from SequenceDataset / collate_sequences)
             questions = batch["questions"]
             responses = batch["responses"]
             mask = batch["mask"]
+            student_ids = batch.get("student_ids", None)
         return (
             questions.to(self.device),
             responses.to(self.device),
             mask.to(self.device),
+            student_ids.to(self.device) if student_ids is not None else None,
         )
+
+    def _forward(
+        self,
+        questions: Tensor,
+        responses: Tensor,
+        student_ids: Tensor | None,
+    ) -> dict:
+        """Dispatch model forward based on model type."""
+        model_type = getattr(self.model, "_model_type", None)
+        if model_type in ("static_gpcm", "dynamic_gpcm") and student_ids is not None:
+            return self.model(student_ids, questions, responses)
+        return self.model(questions, responses)
 
     @staticmethod
     def _flatten_mask(

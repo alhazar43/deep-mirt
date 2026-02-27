@@ -48,6 +48,8 @@ class SequenceDataset(Dataset):
         questions: List of question-ID sequences (variable length).
         responses: List of response-category sequences (same lengths).
         min_seq_len: Sequences shorter than this are silently dropped.
+        id_offset: Added to the dataset index to form the student ID.
+            Defaults to 1 so that ID 0 is reserved for padding.
     """
 
     def __init__(
@@ -55,18 +57,20 @@ class SequenceDataset(Dataset):
         questions: List[List[int]],
         responses: List[List[int]],
         min_seq_len: int = 1,
+        id_offset: int = 1,
     ) -> None:
         assert len(questions) == len(responses), (
             "questions and responses must have the same number of sequences"
         )
-        # Filter short sequences
+        # Filter short sequences; preserve original index as student ID.
         pairs = [
-            (q, r)
-            for q, r in zip(questions, responses)
+            (q, r, orig_idx + id_offset)
+            for orig_idx, (q, r) in enumerate(zip(questions, responses))
             if len(q) >= min_seq_len
         ]
         self._questions = [p[0] for p in pairs]
         self._responses = [p[1] for p in pairs]
+        self._student_ids = [p[2] for p in pairs]
 
     def __len__(self) -> int:
         return len(self._questions)
@@ -75,6 +79,7 @@ class SequenceDataset(Dataset):
         return {
             "questions": torch.tensor(self._questions[idx], dtype=torch.long),
             "responses": torch.tensor(self._responses[idx], dtype=torch.long),
+            "student_id": self._student_ids[idx],
         }
 
 
@@ -83,15 +88,17 @@ class SequenceDataset(Dataset):
 # ---------------------------------------------------------------------------
 
 
-def collate_sequences(batch: List[dict]) -> Tuple[Tensor, Tensor, Tensor]:
+def collate_sequences(batch: List[dict]) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Pad a list of variable-length sequences to the batch maximum length.
 
     Args:
-        batch: List of dicts with keys ``"questions"`` and ``"responses"``.
+        batch: List of dicts with keys ``"questions"``, ``"responses"``,
+               and ``"student_id"``.
 
     Returns:
-        Tuple ``(questions, responses, mask)`` each of shape ``(B, S_max)``
-        where ``S_max`` is the longest sequence in the batch.
+        Tuple ``(questions, responses, mask, student_ids)`` where the first
+        three are ``(B, S_max)`` tensors and ``student_ids`` is ``(B, S_max)``
+        with the student ID broadcast across all timesteps (same ID per row).
         ``mask[b, t]`` is ``True`` when position *t* of sequence *b* is
         valid (not padding).
     """
@@ -101,14 +108,17 @@ def collate_sequences(batch: List[dict]) -> Tuple[Tensor, Tensor, Tensor]:
     q_pad = torch.zeros(B, max_len, dtype=torch.long)
     r_pad = torch.zeros(B, max_len, dtype=torch.long)
     mask = torch.zeros(B, max_len, dtype=torch.bool)
+    sid = torch.zeros(B, max_len, dtype=torch.long)
 
     for i, item in enumerate(batch):
         s = item["questions"].shape[0]
         q_pad[i, :s] = item["questions"]
         r_pad[i, :s] = item["responses"]
         mask[i, :s] = True
+        # Broadcast student ID across all timesteps (including padding positions)
+        sid[i, :] = item["student_id"]
 
-    return q_pad, r_pad, mask
+    return q_pad, r_pad, mask, sid
 
 
 # ---------------------------------------------------------------------------
@@ -139,6 +149,7 @@ class DataModule:
         # Populated after build()
         self.n_questions: int = 0
         self.n_categories: int = cfg.model.n_categories
+        self.n_students: int = 0
         self.metadata: dict = {}
 
     # ------------------------------------------------------------------
@@ -181,6 +192,9 @@ class DataModule:
             self.cfg.model.n_questions = self.n_questions
             self.cfg.model.n_categories = self.n_categories
 
+        # Total students = total sequences (one sequence per student in synthetic data)
+        self.n_students = len(questions_all)
+
         # Train / test split
         n_total = len(questions_all)
         n_train = int(n_total * self.cfg.data.train_split)
@@ -189,8 +203,10 @@ class DataModule:
         train_r, test_r = responses_all[:n_train], responses_all[n_train:]
 
         min_len = self.cfg.data.min_seq_len
-        train_ds = SequenceDataset(train_q, train_r, min_seq_len=min_len)
-        test_ds = SequenceDataset(test_q, test_r, min_seq_len=min_len)
+        # id_offset=1 for train (IDs 1..n_train); test continues from n_train+1
+        # so all student IDs are globally unique and non-zero (0 = padding).
+        train_ds = SequenceDataset(train_q, train_r, min_seq_len=min_len, id_offset=1)
+        test_ds = SequenceDataset(test_q, test_r, min_seq_len=min_len, id_offset=n_train + 1)
 
         bs = self.cfg.training.batch_size
 
@@ -219,7 +235,10 @@ class DataModule:
         if self.train_loader is None:
             raise RuntimeError("Call build() first.")
         parts = []
-        for _, responses, mask in self.train_loader:
+        for batch in self.train_loader:
+            # batch is (questions, responses, mask, student_ids)
+            responses = batch[1]
+            mask = batch[2]
             valid = responses.view(-1)[mask.view(-1)]
             parts.append(valid)
         return torch.cat(parts)

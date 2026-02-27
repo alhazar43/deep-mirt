@@ -12,6 +12,7 @@ ordinal_accuracy      fraction of predictions within ±1 category
 qwk                   quadratic weighted kappa ∈ [-1, 1]
 mae                   mean absolute error (treating categories as ordinal)
 spearman              Spearman rank correlation via argsort-of-argsort
+kendall_tau           Kendall's τ_b from confusion matrix
 confusion_matrix      (K, K) integer tensor, rows=true, cols=pred
 """
 
@@ -49,6 +50,39 @@ def _spearman(pred: Tensor, target: Tensor) -> float:
     denom = (rp_c.norm() * rt_c.norm()).clamp(min=1e-8)
     rho = (rp_c * rt_c).sum() / denom
     return float(rho.item())
+
+
+def _kendall_tau_b(pred: Tensor, target: Tensor, n_categories: int) -> float:
+    """Kendall's τ_b computed from the confusion matrix.
+
+    O(K^4) — fine for K ≤ 5.  Handles ties via τ_b formula.
+    """
+    K = n_categories
+    idx = target * K + pred
+    cm = torch.bincount(idx, minlength=K * K).view(K, K).float()
+
+    C = 0.0
+    D = 0.0
+    for i in range(K):
+        for k in range(K):
+            if cm[i, k] == 0:
+                continue
+            for j in range(i + 1, K):
+                for l in range(K):
+                    if l > k:
+                        C += float(cm[i, k].item()) * float(cm[j, l].item())
+                    elif l < k:
+                        D += float(cm[i, k].item()) * float(cm[j, l].item())
+
+    row_sums = cm.sum(dim=1)
+    col_sums = cm.sum(dim=0)
+    T_x = float((row_sums * (row_sums - 1) / 2).sum().item())
+    T_y = float((col_sums * (col_sums - 1) / 2).sum().item())
+
+    denom = ((C + D + T_x) * (C + D + T_y)) ** 0.5
+    if denom < 1e-8:
+        return 0.0
+    return float((C - D) / denom)
 
 
 def _qwk(pred: Tensor, target: Tensor, n_categories: int) -> float:
@@ -132,6 +166,7 @@ def compute_metrics(
             "qwk": 0.0,
             "mae": 0.0,
             "spearman": 0.0,
+            "kendall_tau": 0.0,
             "confusion_matrix": torch.zeros(K, K, dtype=torch.long, device=device),
         }
 
@@ -155,6 +190,9 @@ def compute_metrics(
     # Spearman
     spearman = _spearman(preds_v.float(), targets_v.float())
 
+    # Kendall's τ_b
+    kendall_tau = _kendall_tau_b(preds_v, targets_v, K)
+
     # Confusion matrix
     idx = targets_v * K + preds_v
     cm = torch.bincount(idx, minlength=K ** 2).view(K, K)
@@ -165,5 +203,6 @@ def compute_metrics(
         "qwk": qwk,
         "mae": mae,
         "spearman": spearman,
+        "kendall_tau": kendall_tau,
         "confusion_matrix": cm,
     }

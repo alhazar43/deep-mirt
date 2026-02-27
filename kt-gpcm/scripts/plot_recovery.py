@@ -37,6 +37,7 @@ from torch.utils.data import DataLoader
 from kt_gpcm.config import load_config
 from kt_gpcm.data.loaders import DataModule, SequenceDataset, collate_sequences
 from kt_gpcm.models.kt_gpcm import DeepGPCM
+from kt_gpcm.models.static_gpcm import StaticGPCM
 
 
 # ---------------------------------------------------------------------------
@@ -50,8 +51,14 @@ def resolve_device(cfg_device: str) -> torch.device:
     return torch.device(cfg_device)
 
 
-def build_model(cfg, device: torch.device) -> DeepGPCM:
-    model = DeepGPCM(**vars(cfg.model))
+def build_model(cfg, device: torch.device, n_students: int = 0):
+    model_kwargs = {k: v for k, v in vars(cfg.model).items() if k != "model_type"}
+    model_type = getattr(cfg.model, "model_type", "deepgpcm")
+    if model_type == "static_gpcm":
+        model = StaticGPCM(n_students=n_students, **model_kwargs)
+        model._model_type = "static_gpcm"
+    else:
+        model = DeepGPCM(**model_kwargs)
     return model.to(device)
 
 
@@ -128,7 +135,7 @@ def main() -> None:
     train_loader, test_loader = data_mgr.build()
 
     # ---- Load model --------------------------------------------------------
-    model = build_model(cfg, device)
+    model = build_model(cfg, device, n_students=data_mgr.n_students)
     state = torch.load(args.checkpoint, map_location=device)
     model.load_state_dict(state["model"])
     model.eval()
@@ -162,13 +169,18 @@ def main() -> None:
     beta_count = np.zeros((Q,))
 
     def process_loader(loader: DataLoader) -> None:
-        for questions, responses, mask in loader:
-            questions = questions.to(device)
-            responses = responses.to(device)
-            mask = mask.to(device)
+        model_type = getattr(model, "_model_type", None)
+        for batch in loader:
+            questions = batch[0].to(device)
+            responses = batch[1].to(device)
+            mask = batch[2].to(device)
+            student_ids = batch[3].to(device) if len(batch) > 3 else None
 
             with torch.no_grad():
-                out = model(questions, responses)
+                if model_type == "static_gpcm" and student_ids is not None:
+                    out = model(student_ids, questions, responses)
+                else:
+                    out = model(questions, responses)
 
             alpha = out["alpha"].cpu().numpy()   # (B, S, D)
             beta = out["beta"].cpu().numpy()     # (B, S, K-1)

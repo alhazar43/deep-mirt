@@ -18,12 +18,16 @@ import time
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
 
 # --- Package imports -------------------------------------------------------
 from kt_gpcm.config import load_config
 from kt_gpcm.data.loaders import DataModule
 from kt_gpcm.models.kt_gpcm import DeepGPCM
+from kt_gpcm.models.dkvmn_softmax import DKVMNSoftmax
+from kt_gpcm.models.static_gpcm import StaticGPCM
+from kt_gpcm.models.dynamic_gpcm import DynamicGPCM
 from kt_gpcm.training.losses import CombinedLoss, compute_class_weights
 from kt_gpcm.training.trainer import Trainer
 
@@ -55,8 +59,19 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def build_model(cfg, device: torch.device) -> DeepGPCM:
-    model = DeepGPCM(**vars(cfg.model))
+def build_model(cfg, device: torch.device, n_students: int = 0) -> nn.Module:
+    model_kwargs = {k: v for k, v in vars(cfg.model).items() if k != "model_type"}
+    model_type = getattr(cfg.model, "model_type", "deepgpcm")
+    if model_type == "dkvmn_softmax":
+        model = DKVMNSoftmax(**model_kwargs)
+    elif model_type == "static_gpcm":
+        model = StaticGPCM(n_students=n_students, **model_kwargs)
+        model._model_type = "static_gpcm"
+    elif model_type == "dynamic_gpcm":
+        model = DynamicGPCM(n_students=n_students, **model_kwargs)
+        model._model_type = "dynamic_gpcm"
+    else:
+        model = DeepGPCM(**model_kwargs)
     return model.to(device)
 
 
@@ -123,7 +138,7 @@ def main() -> None:
         class_weights = None
 
     # ---- Model ------------------------------------------------------------
-    model = build_model(cfg, device)
+    model = build_model(cfg, device, n_students=data_mgr.n_students)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info("Model parameters: %d", n_params)
 
@@ -224,6 +239,7 @@ def main() -> None:
             "val_qwk": val_qwk,
             "val_mae": val_stats["metrics"]["mae"],
             "val_spearman": val_stats["metrics"]["spearman"],
+            "val_kendall_tau": val_stats["metrics"].get("kendall_tau", 0.0),
             "lr": current_lr,
             "epoch_time_s": round(ep_time, 2),
         }

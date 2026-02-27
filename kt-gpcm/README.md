@@ -2,6 +2,15 @@
 
 Knowledge tracing with the Generalized Partial Credit Model (GPCM) and a Dynamic Key-Value Memory Network (DKVMN). Trains on student response sequences and recovers ground-truth IRT parameters (θ = ability, α = discrimination, β = thresholds).
 
+Three model variants are supported via `model.model_type` in the config:
+
+| `model_type` | Class | Description |
+|---|---|---|
+| `deepgpcm` (default) | `DeepGPCM` | DKVMN backbone + GPCM head; dynamic θ_t per step |
+| `dkvmn_softmax` | `DKVMNSoftmax` | DKVMN backbone + softmax head; no IRT parameters |
+| `static_gpcm` | `StaticGPCM` | Lookup-table IRT baseline; static per-student θ |
+| `dynamic_gpcm` | `DynamicGPCM` | Recurrent IRT baseline; dynamic θ_t, no memory |
+
 ---
 
 ## Table of contents
@@ -13,10 +22,12 @@ Knowledge tracing with the Generalized Partial Credit Model (GPCM) and a Dynamic
 5. [Long training runs](#long-training-runs)
 6. [Monitor training](#monitor-training)
 7. [Plot IRT recovery](#plot-irt-recovery)
-8. [Multi-dimensional MIRT](#multi-dimensional-mirt)
-9. [Configuration reference](#configuration-reference)
-10. [Project layout](#project-layout)
-11. [Tests](#tests)
+8. [Combined recovery figure](#combined-recovery-figure)
+9. [Learner trajectory plot](#learner-trajectory-plot)
+10. [Multi-dimensional MIRT](#multi-dimensional-mirt)
+11. [Configuration reference](#configuration-reference)
+12. [Project layout](#project-layout)
+13. [Tests](#tests)
 
 ---
 
@@ -28,20 +39,18 @@ pip install -r requirements.txt
 
 > PyTorch must be installed separately to match your CUDA version — see the comment at the top of `requirements.txt`.
 
-There are no sklearn or scipy dependencies in `src/`.
-
 ### Set PYTHONPATH once per session
 
-All scripts require `src/` on the Python path. Set it once before running anything.
-
-**PowerShell (Windows)**
-```powershell
-$env:PYTHONPATH = "src"
-```
+All scripts require `src/` on the Python path.
 
 **bash / zsh / Git Bash**
 ```bash
 export PYTHONPATH=src
+```
+
+**PowerShell (Windows)**
+```powershell
+$env:PYTHONPATH = "src"
 ```
 
 **cmd.exe**
@@ -49,49 +58,47 @@ export PYTHONPATH=src
 set PYTHONPATH=src
 ```
 
-The examples throughout this README assume PYTHONPATH is already set. No inline prefix is used.
+The examples throughout this README assume PYTHONPATH is already set.
 
 ---
 
 ## Quick start
 
-```powershell
+```bash
 # 1. Generate a smoke dataset
-python scripts/data_gen.py `
+python scripts/data_gen.py \
     --name smoke_test --n_questions 20 --n_cats 4 --output_dir data
 
 # 2. Train for 2 epochs (CPU, fast)
 python scripts/train.py --config configs/smoke.yaml --dataset smoke_test
 
 # 3. Plot training curves
-python scripts/plot_metrics.py `
-    --metrics outputs/smoke/metrics.csv `
+python scripts/plot_metrics.py \
+    --metrics outputs/smoke/metrics.csv \
     --output  outputs/smoke/metric_plots
 
 # 4. Plot IRT parameter recovery
-python scripts/plot_recovery.py `
-    --config     configs/smoke.yaml `
-    --checkpoint outputs/smoke/best.pt `
+python scripts/plot_recovery.py \
+    --config     configs/smoke.yaml \
+    --checkpoint outputs/smoke/best.pt \
     --output     outputs/smoke/recovery_plots
 ```
-
-> **bash users**: replace the backtick `` ` `` line continuation with `\`.
 
 ---
 
 ## Generate data
 
-`scripts/data_gen.py` generates synthetic student response sequences using the standard GPCM (Muraki 1992) with D = 1 latent trait. Ground-truth IRT parameters are saved alongside the data for recovery analysis.
+`scripts/data_gen.py` generates synthetic student response sequences using the M-GPCM (Muraki 1992) with D = 1 latent trait. Ground-truth IRT parameters are saved alongside the data for recovery analysis.
 
-```powershell
-python scripts/data_gen.py `
-    --name       my_dataset `
-    --n_students 2000 `
-    --n_questions 200 `
-    --n_cats     5 `
-    --min_seq    20 `
-    --max_seq    80 `
-    --output_dir data `
+```bash
+python scripts/data_gen.py \
+    --name       my_dataset \
+    --n_students 2000 \
+    --n_questions 200 \
+    --n_cats     5 \
+    --min_seq    20 \
+    --max_seq    80 \
+    --output_dir data \
     --seed       42
 ```
 
@@ -114,25 +121,25 @@ metadata.json            — dataset parameters
 true_irt_parameters.json — ground-truth theta, alpha, beta arrays
 ```
 
-Replace `my_dataset` with any name you like. The `data.dataset_name` key in your YAML must match the `--name` value used here.
+The `data.dataset_name` key in your YAML must match the `--name` value used here.
 
 ---
 
 ## Train
 
-Pass `--dataset` with the name you used in `data_gen.py`. `n_questions` and `n_categories` are read from the dataset's `metadata.json` automatically — no manual config editing needed.
+Pass `--dataset` with the name you used in `data_gen.py`. `n_questions` and `n_categories` are read from the dataset's `metadata.json` automatically.
 
-```powershell
-python scripts/train.py --config configs/base.yaml --dataset my_dataset
+```bash
+python scripts/train.py --config configs/deepgpcm_k5_s42.yaml --dataset my_dataset
 ```
 
-Checkpoints and logs are written to `outputs/my_dataset/`:
+Checkpoints and logs are written to `outputs/<experiment_name>/`:
 
 ```
-outputs/base/
+outputs/<name>/
 ├── best.pt      — checkpoint with highest validation QWK
 ├── last.pt      — checkpoint after the most recent epoch
-└── metrics.csv  — per-epoch metrics (see columns below)
+└── metrics.csv  — per-epoch metrics
 ```
 
 `metrics.csv` columns:
@@ -162,137 +169,125 @@ The learning rate scheduler (`ReduceLROnPlateau`) tracks `val_qwk`. Best model i
 
 Pass `--resume` to continue from `last.pt`. The epoch counter picks up where training stopped; the CSV log is appended (no header duplication).
 
-```powershell
-python scripts/train.py --config configs/base.yaml --resume
+```bash
+python scripts/train.py --config configs/deepgpcm_k5_s42.yaml --resume
 ```
 
-`last.pt` is overwritten every epoch so a crash loses at most one epoch. `best.pt` is only overwritten when QWK improves, so it always holds the best weights found so far.
+`last.pt` is overwritten every epoch so a crash loses at most one epoch. `best.pt` is only overwritten when QWK improves.
 
 ### Running more epochs than the config specifies
 
-`--resume` adds `training.epochs` on top of the saved `start_epoch`, so you can extend a run by keeping the epoch count the same and re-running with `--resume`:
+`--resume` adds `training.epochs` on top of the saved `start_epoch`:
 
-```yaml
-# configs/base.yaml — first run: epochs 1–100
-training:
-  epochs: 100
-```
-
-```powershell
+```bash
 # First run (epochs 1–100)
-python scripts/train.py --config configs/base.yaml
+python scripts/train.py --config configs/deepgpcm_k5_s42.yaml
 
 # Continue for another 100 epochs (epochs 101–200)
-python scripts/train.py --config configs/base.yaml --resume
-
-# Continue again (epochs 201–300)
-python scripts/train.py --config configs/base.yaml --resume
-```
-
-To run a different total, just change `epochs` before resuming:
-
-```yaml
-training:
-  epochs: 50   # will run 50 more epochs from wherever last.pt left off
+python scripts/train.py --config configs/deepgpcm_k5_s42.yaml --resume
 ```
 
 ### Isolating experiments
 
-Copy `configs/base.yaml` and set `base.experiment_name` to a unique value. Each name gets its own `outputs/<name>/` directory — runs never overwrite each other.
+Each config's `base.experiment_name` determines the output directory. Copy a config and change the name to keep runs separate:
 
-**PowerShell**
-```powershell
-Copy-Item configs/base.yaml configs/large_d3.yaml
-# edit: experiment_name, n_traits, epochs, etc.
-python scripts/train.py --config configs/large_d3.yaml
-```
-
-**bash**
 ```bash
-cp configs/base.yaml configs/large_d3.yaml
-python scripts/train.py --config configs/large_d3.yaml
+cp configs/deepgpcm_k5_s42.yaml configs/my_experiment.yaml
+# edit: experiment_name, epochs, etc.
+python scripts/train.py --config configs/my_experiment.yaml
 ```
 
 ### NaN / Inf safety
 
-The trainer skips any batch that produces non-finite loss and logs a warning. Training continues; the skipped batch is excluded from epoch statistics. If entire epochs produce NaN (e.g. exploding gradients), lower `training.lr` or raise `training.grad_clip`.
+The trainer skips any batch that produces non-finite loss and logs a warning. If entire epochs produce NaN, lower `training.lr` or raise `training.grad_clip`.
 
 ### Learning rate decay
 
-`ReduceLROnPlateau` fires when QWK has not improved for `lr_patience` consecutive epochs, multiplying LR by `lr_factor`. Both are visible in `metrics.csv` under the `lr` column.
-
-```yaml
-training:
-  lr_patience: 5    # wait longer before decaying
-  lr_factor: 0.5    # more aggressive decay
-```
+`ReduceLROnPlateau` fires when QWK has not improved for `lr_patience` consecutive epochs, multiplying LR by `lr_factor`.
 
 ---
 
 ## Monitor training
 
-Plot all six metric panels from `metrics.csv`:
-
-```powershell
-python scripts/plot_metrics.py `
-    --metrics outputs/base/metrics.csv `
-    --output  outputs/base/metric_plots
+```bash
+python scripts/plot_metrics.py \
+    --metrics outputs/deepgpcm_k5_s42/metrics.csv \
+    --output  outputs/deepgpcm_k5_s42/metric_plots
 ```
 
-Saves `outputs/base/metric_plots/training_metrics.png` — a 2×3 grid showing:
-
-- Loss (train vs. val)
-- Accuracy (categorical + ordinal, train vs. val)
-- Quadratic Weighted Kappa
-- Mean Absolute Error
-- Spearman correlation
-- Learning rate and gradient norm (dual-axis)
+Saves a 2×3 grid showing loss, accuracy, QWK, MAE, Spearman, and learning rate / gradient norm.
 
 ---
 
 ## Plot IRT recovery
 
-For synthetic datasets (those with `true_irt_parameters.json`), compare model estimates against ground truth:
+For synthetic datasets (those with `true_irt_parameters.json`), compare model estimates against ground truth. Applies proper IRT linking: log-space z-score rescaled to `target_std=0.3` for α; z-score for β.
 
-```powershell
-python scripts/plot_recovery.py `
-    --config     configs/base.yaml `
-    --checkpoint outputs/base/best.pt `
-    --output     outputs/base/recovery_plots
+```bash
+python scripts/plot_recovery.py \
+    --config     configs/deepgpcm_k5_s42.yaml \
+    --checkpoint outputs/deepgpcm_k5_s42/best.pt \
+    --output     outputs/deepgpcm_k5_s42/recovery_plots
 ```
 
-Runs inference over the full dataset (train + test), averages item-level estimates across all appearances, then saves one scatter plot per parameter group:
+Saves one scatter plot per parameter group:
 
 - `alpha_dim0_recovery.png` — item discrimination (one file per trait dim D)
 - `beta_threshold0_recovery.png` — first threshold (one file per threshold, K−1 total)
-- `beta_threshold1_recovery.png`, etc.
 
-Each plot shows estimated vs. true values with Pearson r in the title and a y = x reference line.
+Each plot shows linked estimated vs. true values with Pearson r and a y = x reference line.
+
+---
+
+## Combined recovery figure
+
+`scripts/plot_recovery_figure.py` produces the paper's 3×6 recovery figure comparing all three model types side by side. Requires trained checkpoints for DeepGPCM, StaticGPCM, and DynamicGPCM.
+
+```bash
+python scripts/plot_recovery_figure.py \
+  --deepgpcm-config    configs/deepgpcm_k5_s42.yaml \
+  --deepgpcm-checkpoint outputs/deepgpcm_k5_s42/best.pt \
+  --static-config      configs/static_gpcm_k5_s42.yaml \
+  --static-checkpoint  outputs/static_gpcm_k5_s42/best.pt \
+  --dynamic-config     configs/dynamic_gpcm_k5_s42.yaml \
+  --dynamic-checkpoint outputs/dynamic_gpcm_k5_s42/best.pt \
+  --output             outputs/deepgpcm_k5_s42/recovery_figure
+```
+
+Saves `recovery_figure.pgf` and `recovery_figure.png`. The PGF file is `\input`-ed directly into `paper.tex`.
+
+---
+
+## Learner trajectory plot
+
+`scripts/plot_learner_trajectories.py` produces the paper's Fig 3 comparing θ_t trajectories across DeepGPCM, DynamicGPCM, and DKVMN+Softmax for four learner archetypes.
+
+```bash
+python scripts/plot_learner_trajectories.py \
+  --deepgpcm-config    configs/deepgpcm_k5_s42.yaml \
+  --deepgpcm-checkpoint outputs/deepgpcm_k5_s42/best.pt \
+  --softmax-config     configs/softmax_k5_s42.yaml \
+  --softmax-checkpoint outputs/softmax_k5_s42/best.pt \
+  --dynamic-config     configs/dynamic_gpcm_k5_s42.yaml \
+  --dynamic-checkpoint outputs/dynamic_gpcm_k5_s42/best.pt \
+  --output-dir         outputs/deepgpcm_k5_s42/trajectory_plots
+```
+
+Saves `learner_trajectories.pgf` and `learner_trajectories.png`.
 
 ---
 
 ## Multi-dimensional MIRT
 
-Setting `model.n_traits > 1` enables multi-dimensional IRT with no code changes. The dot-product interaction `sum(theta * alpha, dim=-1)` degenerates correctly for D = 1 and scales to any D:
+Setting `model.n_traits > 1` enables multi-dimensional IRT with no code changes:
 
 ```yaml
-# configs/mirt_d3.yaml
-base:
-  experiment_name: "mirt_d3"
-
 model:
-  n_traits: 3   # only change needed for MIRT
-  memory_size: 50
-  key_dim: 64
-  value_dim: 128
-  summary_dim: 50
+  n_traits: 3
+  model_type: deepgpcm
 ```
 
-```powershell
-python scripts/train.py --config configs/mirt_d3.yaml
-```
-
-The model returns `theta` and `alpha` of shape `(B, S, D)`. Recovery plots produce D alpha scatter plots (`alpha_dim0_recovery.png`, `alpha_dim1_recovery.png`, …).
+The model returns `theta` and `alpha` of shape `(B, S, D)`. Recovery plots produce D alpha scatter plots.
 
 > **Note**: The data generator produces D = 1 ground truth. For D > 1, train on real data or extend the generator.
 
@@ -314,6 +309,7 @@ All fields carry defaults defined in `src/kt_gpcm/config/types.py`. A YAML only 
 
 | Field | Default | Description |
 |-------|---------|-------------|
+| `model_type` | `"deepgpcm"` | `"deepgpcm"` \| `"dkvmn_softmax"` \| `"static_gpcm"` \| `"dynamic_gpcm"` |
 | `n_questions` | `100` | Item bank size Q (must match dataset) |
 | `n_categories` | `5` | Ordinal response categories K (must match dataset) |
 | `n_traits` | `1` | Latent trait dimension D |
@@ -321,6 +317,8 @@ All fields carry defaults defined in `src/kt_gpcm/config/types.py`. A YAML only 
 | `key_dim` | `64` | Key/query dimension d_k |
 | `value_dim` | `128` | Value memory dimension d_v |
 | `summary_dim` | `50` | Summary (FC) hidden dimension d_s |
+| `embedding_type` | `"linear_decay"` | `"linear_decay"` \| `"static_item"` \| `"separable"` |
+| `item_embed_dim` | `0` | Static item embedding dim H (`static_item` only); 0 = auto |
 | `ability_scale` | `1.0` | Global scale on raw theta output |
 | `dropout_rate` | `0.0` | Dropout probability in summary network |
 | `memory_add_activation` | `"tanh"` | Activation for DKVMN add gate |
@@ -361,43 +359,55 @@ All fields carry defaults defined in `src/kt_gpcm/config/types.py`. A YAML only 
 kt-gpcm/
 ├── src/kt_gpcm/
 │   ├── config/
-│   │   ├── types.py          # BaseConfig, ModelConfig, TrainingConfig, DataConfig, Config
-│   │   └── loader.py         # load_config(yaml_path) → Config
+│   │   ├── types.py              # BaseConfig, ModelConfig, TrainingConfig, DataConfig, Config
+│   │   └── loader.py             # load_config(yaml_path) → Config
 │   ├── models/
-│   │   ├── kt_gpcm.py        # DeepGPCM — main model (dict return)
+│   │   ├── kt_gpcm.py            # DeepGPCM — DKVMN + GPCM head
+│   │   ├── static_gpcm.py        # StaticGPCM — lookup-table IRT baseline
+│   │   ├── dynamic_gpcm.py       # DynamicGPCM — recurrent IRT baseline
+│   │   ├── dkvmn_softmax.py      # DKVMNSoftmax — DKVMN + softmax head baseline
 │   │   ├── components/
-│   │   │   ├── embeddings.py # LinearDecayEmbedding (nn.Module, vectorised)
-│   │   │   ├── memory.py     # DKVMN (flat class, learned_init)
-│   │   │   └── irt.py        # IRTParameterExtractor, GPCMLogits
+│   │   │   ├── embeddings.py     # LinearDecayEmbedding, StaticItemEmbedding
+│   │   │   ├── memory.py         # DKVMN (flat class, learned_init)
+│   │   │   └── irt.py            # IRTParameterExtractor, GPCMLogits
 │   │   └── heads/
-│   │       └── gpcm.py       # GPCMHead (softmax)
+│   │       └── gpcm.py           # GPCMHead (softmax over GPCM logits)
 │   ├── training/
-│   │   ├── losses.py         # FocalLoss, QWKLoss, WeightedOrdinalLoss, CombinedLoss
-│   │   └── trainer.py        # Trainer (train_epoch, evaluate_epoch)
+│   │   ├── losses.py             # FocalLoss, WeightedOrdinalLoss, CombinedLoss
+│   │   └── trainer.py            # Trainer (train_epoch, evaluate_epoch)
 │   ├── data/
-│   │   └── loaders.py        # SequenceDataset, DataModule, collate_sequences
+│   │   └── loaders.py            # SequenceDataset, DataModule, collate_sequences
 │   └── utils/
-│       └── metrics.py        # compute_metrics — pure PyTorch, no sklearn
+│       └── metrics.py            # compute_metrics — pure PyTorch, no sklearn
 ├── scripts/
-│   ├── data_gen.py           # GPCMGenerator — synthetic data
-│   ├── train.py              # Training entry point
-│   ├── plot_metrics.py       # Training curves from metrics.csv
-│   └── plot_recovery.py      # IRT parameter recovery scatter plots
+│   ├── data_gen.py               # GPCMGenerator — synthetic data with ground-truth IRT params
+│   ├── train.py                  # Training entry point (all model_types)
+│   ├── plot_metrics.py           # Training curves from metrics.csv
+│   ├── plot_recovery.py          # Per-model IRT recovery scatter plots
+│   ├── plot_recovery_figure.py   # Combined 3×6 paper figure (all three models)
+│   ├── plot_learner_trajectories.py  # Learner state trajectory figure (Fig 3)
+│   ├── eval_metrics.py           # Standalone evaluation on a saved checkpoint
+│   └── prepare_assistments.py    # ASSISTments → ordinal proxy pipeline
 ├── configs/
-│   ├── base.yaml             # Validated Deep-GPCM defaults
-│   └── smoke.yaml            # Tiny config for rapid iteration
+│   ├── smoke.yaml                # Tiny config for rapid iteration
+│   ├── deepgpcm_k{2,3,4,5}_s42.yaml   # DeepGPCM experiments
+│   ├── static_gpcm_k{2,3,4,5}_s42.yaml
+│   ├── dynamic_gpcm_k{2,3,4,5}_s42.yaml
+│   ├── softmax_k{2,3,4,5}_s42.yaml
+│   ├── ordinal_k{2,3,4,5}_s42.yaml
+│   └── large_q5000_static.yaml   # Scalability experiment
 ├── tests/
-│   ├── test_shapes.py        # Forward-pass tensor shapes for D=1 and D=3
-│   ├── test_heads.py         # GPCMLogits baseline, prob normalisation
-│   ├── test_losses.py        # CombinedLoss finite output
-│   └── test_config_loader.py # YAML loading and validation
-├── data/                     # Generated datasets (gitignored)
-├── outputs/                  # Training outputs — checkpoints, metrics, plots (gitignored)
+│   ├── test_shapes.py            # Forward-pass tensor shapes for D=1 and D=3
+│   ├── test_heads.py             # GPCMLogits baseline, prob normalisation
+│   ├── test_losses.py            # CombinedLoss finite output
+│   └── test_config_loader.py     # YAML loading and validation
+├── data/                         # Generated datasets (gitignored)
+├── outputs/                      # Training outputs — checkpoints, metrics, plots (gitignored)
 ├── requirements.txt
 └── README.md
 ```
 
-### Model forward pass
+### DeepGPCM forward pass
 
 ```
 (questions, responses)              # (B, S) integer tensors
@@ -423,7 +433,7 @@ Returns dict:
 
 ## Tests
 
-```powershell
+```bash
 # from kt-gpcm/ with PYTHONPATH=src already set
 pytest tests/ -v
 ```

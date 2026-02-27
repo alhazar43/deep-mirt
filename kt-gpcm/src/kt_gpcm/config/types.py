@@ -45,6 +45,7 @@ class ModelConfig:
     dropout_rate: float = 0.0
     memory_add_activation: str = "tanh"   # Activation for DKVMN add gate
     init_value_memory: bool = True        # Learned initial value memory
+    model_type: str = "deepgpcm"          # "deepgpcm" | "dkvmn_softmax"
 
 
 @dataclass
