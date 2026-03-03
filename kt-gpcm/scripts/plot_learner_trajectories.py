@@ -165,9 +165,11 @@ def main():
     alpha_true = np.array(params["alpha"])
     beta_true  = np.array(params["beta"])
 
-    model_kwargs = {k: v for k, v in vars(cfg.model).items() if k != "model_type"}
+    _skip = {"model_type", "monotonic_betas"}
+    model_kwargs = {k: v for k, v in vars(cfg.model).items() if k not in _skip}
+    deep_kwargs  = {k: v for k, v in vars(cfg.model).items() if k != "model_type"}
 
-    deep_model = DeepGPCM(**model_kwargs).to(device)
+    deep_model = DeepGPCM(**deep_kwargs).to(device)
     deep_model.load_state_dict(torch.load(args.deepgpcm_checkpoint, map_location=device)["model"])
     deep_model.eval()
 
@@ -248,7 +250,8 @@ def main():
         Line2D([0], [0], color=COLORS["Dynamic GPCM"],   lw=1.6, alpha=0.6,
                label=r"Dynamic GPCM $\theta_t$"),
     ]
-    fig.suptitle(r"Learner State Trajectories ($K=5$, $Q=200$)",
+    Q = cfg.model.n_questions
+    fig.suptitle(rf"Learner State Trajectories ($K={K}$, $Q={Q}$)",
                  fontsize=9, y=0.98)
     fig.legend(handles=legend_elements, loc="upper center", ncol=3, fontsize=7,
                bbox_to_anchor=(0.5, 0.92), framealpha=0.92, edgecolor="lightgray",

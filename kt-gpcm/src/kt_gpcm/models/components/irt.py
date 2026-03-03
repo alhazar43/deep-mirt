@@ -82,12 +82,14 @@ class IRTParameterExtractor(nn.Module):
         n_traits: int = 1,
         ability_scale: float = 1.0,
         question_dim: int | None = None,
+        monotonic_betas: bool = True,
     ) -> None:
         super().__init__()
         self.n_categories = n_categories
         self.n_traits = n_traits
         self.ability_scale = ability_scale
         self.question_dim = question_dim if question_dim is not None else input_dim
+        self.monotonic_betas = monotonic_betas
 
         # ---- Student ability (θ): (B, S, input_dim) → (B, S, D) --------
         self.ability_network = nn.Linear(input_dim, n_traits)
@@ -101,12 +103,18 @@ class IRTParameterExtractor(nn.Module):
         # This matches deep-gpcm's architecture (discrim_input = summary + q_embed).
         self.discrimination_network = nn.Linear(input_dim + self.question_dim, n_traits)
 
-        # ---- Item difficulty (β): monotonic gap parameterisation ---------
-        # β₀: unconstrained base threshold per item
-        self.threshold_base = nn.Linear(self.question_dim, 1)
-        # Positive gaps for β₁, …, β_{K-2}  (K-2 extra gaps for K-1 total thresholds)
-        if n_categories > 2:
-            self.threshold_gaps = nn.Linear(self.question_dim, n_categories - 2)
+        # ---- Item difficulty (β) -----------------------------------------
+        if self.monotonic_betas:
+            # Monotonic gap parameterisation: guarantees β₁ < β₂ < … < β_{K-1}.
+            # β₀: unconstrained base threshold per item.
+            self.threshold_base = nn.Linear(self.question_dim, 1)
+            # Positive gaps for β₁, …, β_{K-2}  (K-2 extra gaps for K-1 total thresholds)
+            if n_categories > 2:
+                self.threshold_gaps = nn.Linear(self.question_dim, n_categories - 2)
+        else:
+            # Unconstrained thresholds: single linear layer → K-1 values with no
+            # ordering guarantee.  Used to measure the cost of removing monotonicity.
+            self.threshold_unconstrained = nn.Linear(self.question_dim, n_categories - 1)
 
         self._init_weights()
 
@@ -124,6 +132,9 @@ class IRTParameterExtractor(nn.Module):
           (positive bias keeps initial thresholds spread out).
         - discrimination: N(0, 0.1) weight, zero bias so that
           exp(0.3 * 0) = 1.0 is the initial discrimination.
+        - threshold_unconstrained: N(0, 0.05) weight, zero bias
+          (bias set to evenly-spaced values so initial thresholds are
+          spread across [-1, 1] even without the gap construction).
         """
         nn.init.kaiming_normal_(self.ability_network.weight)
         nn.init.constant_(self.ability_network.bias, 0.0)
@@ -131,12 +142,21 @@ class IRTParameterExtractor(nn.Module):
         nn.init.normal_(self.discrimination_network.weight, std=0.1)
         nn.init.constant_(self.discrimination_network.bias, 0.0)
 
-        nn.init.normal_(self.threshold_base.weight, std=0.05)
-        nn.init.constant_(self.threshold_base.bias, 0.0)
+        if self.monotonic_betas:
+            nn.init.normal_(self.threshold_base.weight, std=0.05)
+            nn.init.constant_(self.threshold_base.bias, 0.0)
 
-        if self.n_categories > 2:
-            nn.init.normal_(self.threshold_gaps.weight, std=0.05)
-            nn.init.constant_(self.threshold_gaps.bias, 0.3)
+            if self.n_categories > 2:
+                nn.init.normal_(self.threshold_gaps.weight, std=0.05)
+                nn.init.constant_(self.threshold_gaps.bias, 0.3)
+        else:
+            nn.init.normal_(self.threshold_unconstrained.weight, std=0.05)
+            # Spread initial thresholds evenly across [-1, 1] so the unconstrained
+            # model starts in roughly the same regime as the monotonic model.
+            K = self.n_categories
+            init_bias = torch.linspace(-1.0, 1.0, K - 1)
+            with torch.no_grad():
+                self.threshold_unconstrained.bias.copy_(init_bias)
 
     # ------------------------------------------------------------------
     # Forward
@@ -170,17 +190,21 @@ class IRTParameterExtractor(nn.Module):
         )  # (B, S, D)
         alpha = torch.exp(0.3 * raw_alpha)                       # (B, S, D)
 
-        # ---- beta: monotonic gap parameterisation -----------------------
-        beta_0 = self.threshold_base(question_embed)  # (B, S, 1)
-        if self.n_categories == 2:
-            beta = beta_0  # (B, S, 1)
+        # ---- beta: monotonic or unconstrained thresholds ---------------
+        if self.monotonic_betas:
+            beta_0 = self.threshold_base(question_embed)  # (B, S, 1)
+            if self.n_categories == 2:
+                beta = beta_0  # (B, S, 1)
+            else:
+                # Strictly positive gaps via softplus
+                gaps = F.softplus(self.threshold_gaps(question_embed))  # (B, S, K-2)
+                betas = [beta_0]
+                for i in range(gaps.shape[-1]):
+                    betas.append(betas[-1] + gaps[:, :, i : i + 1])
+                beta = torch.cat(betas, dim=-1)  # (B, S, K-1)
         else:
-            # Strictly positive gaps via softplus
-            gaps = F.softplus(self.threshold_gaps(question_embed))  # (B, S, K-2)
-            betas = [beta_0]
-            for i in range(gaps.shape[-1]):
-                betas.append(betas[-1] + gaps[:, :, i : i + 1])
-            beta = torch.cat(betas, dim=-1)  # (B, S, K-1)
+            # Unconstrained: direct linear projection with no ordering guarantee.
+            beta = self.threshold_unconstrained(question_embed)  # (B, S, K-1)
 
         return theta, alpha, beta
 

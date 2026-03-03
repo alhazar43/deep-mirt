@@ -1,0 +1,11 @@
+{
+  "dataset_name": "large_5000_k4_s20_40",
+  "n_students": 5000,
+  "n_questions": 200,
+  "n_categories": 4,
+  "seq_len_range": [
+    20,
+    40
+  ],
+  "model_type": "GPCM"
+}

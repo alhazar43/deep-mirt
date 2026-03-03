@@ -77,6 +77,7 @@ class DeepGPCM(nn.Module):
         use_separable_embed: bool = False,  # legacy; overridden by embedding_type
         embedding_type: str = "linear_decay",  # "linear_decay" | "separable" | "static_item"
         item_embed_dim: int = 0,       # static item embed dim H (static_item only); 0 = K*Q auto
+        monotonic_betas: bool = True,  # If False, use unconstrained β thresholds (ablation)
     ) -> None:
         super().__init__()
 
@@ -84,6 +85,7 @@ class DeepGPCM(nn.Module):
         self.n_categories = n_categories
         self.n_traits = n_traits
         self.memory_size = memory_size
+        self.monotonic_betas = monotonic_betas
 
         # ---- Embedding -------------------------------------------------------
         # Key queries — shared by DKVMN attention and IRT extraction.
@@ -138,6 +140,7 @@ class DeepGPCM(nn.Module):
             n_traits=n_traits,
             ability_scale=ability_scale,
             question_dim=key_dim,
+            monotonic_betas=monotonic_betas,
         )
 
         # ---- GPCM logit / probability layers --------------------------------

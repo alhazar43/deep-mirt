@@ -3,6 +3,23 @@
 Usage (from kt-gpcm/):
     PYTHONPATH=src python scripts/eval_metrics.py --config configs/deepgpcm_k5_s42.yaml \
         --checkpoint outputs/deepgpcm_k5_s42/best.pt
+
+Metrics reported
+----------------
+Standard predictive metrics (via compute_metrics):
+    acc, qwk, spearman, kendall_tau, mae
+
+IRT recovery diagnostic:
+    pct_disordered_betas — percentage of items whose per-item average β vector
+    has at least one disordered adjacent pair (β_k > β_{k+1}).  For a model
+    trained with monotonic_betas=True this is always 0%.  For unconstrained
+    models (monotonic_betas=False) this measures how often the model fails to
+    respect threshold ordering.  Requires K >= 3; reported as "N/A" for K=2.
+
+    Method: for each (student, timestep, item) observation, accumulate the
+    predicted beta vector and the question ID.  After the full validation pass,
+    compute the per-item mean beta by averaging across all (B*S) observations
+    that share the same question ID.  Then count items with any disorder.
 """
 from __future__ import annotations
 import argparse
@@ -47,6 +64,13 @@ def main():
     model.eval()
 
     all_probs, all_targets, all_masks = [], [], []
+    # For disordered-beta metric: accumulate per-item beta sums and counts.
+    # beta_sum[q] and beta_count[q] indexed by 1-based question ID.
+    n_q = cfg.model.n_questions
+    K = cfg.model.n_categories
+    beta_sum = torch.zeros(n_q + 1, K - 1)   # index 0 unused (padding)
+    beta_count = torch.zeros(n_q + 1)
+
     with torch.no_grad():
         for batch in val_loader:
             questions, responses, mask = batch[0], batch[1], batch[2]
@@ -60,6 +84,20 @@ def main():
             all_probs.append(out["probs"].cpu())
             all_targets.append(responses.cpu())
             all_masks.append(mask.cpu())
+
+            # Accumulate beta vectors per item if the model produces them.
+            if "beta" in out and K >= 3:
+                beta_cpu = out["beta"].cpu()          # (B, S, K-1)
+                q_cpu = questions.cpu()               # (B, S) — 1-based IDs
+                B_b, S_b = q_cpu.shape
+                beta_flat = beta_cpu.view(B_b * S_b, K - 1)
+                q_flat = q_cpu.view(B_b * S_b)
+                # Exclude padding (question ID 0)
+                valid_mask = q_flat > 0
+                q_valid = q_flat[valid_mask]
+                b_valid = beta_flat[valid_mask]
+                beta_sum.index_add_(0, q_valid, b_valid)
+                beta_count.index_add_(0, q_valid, torch.ones(q_valid.shape[0]))
 
     # Pad to uniform length
     max_len = max(p.shape[1] for p in all_probs)
@@ -77,6 +115,27 @@ def main():
     masks_cat = torch.cat([pad(m, False) for m in all_masks], dim=0)
 
     m = compute_metrics(probs_cat, targets_cat, masks_cat)
+
+    # ---- Disordered-beta metric -----------------------------------------------
+    # Compute the fraction of items whose mean predicted β vector has at least one
+    # disordered adjacent pair (β_k > β_{k+1}).  Defined only for K >= 3.
+    disorder_str = ""
+    if K >= 3:
+        # Items seen at least once (skip padding slot 0)
+        seen = beta_count[1:] > 0                           # (n_q,)
+        if seen.any():
+            # Per-item mean beta: (n_items_seen, K-1)
+            mean_beta = beta_sum[1:][seen] / beta_count[1:][seen].unsqueeze(-1)
+            # Disordered if any gap β_{k+1} - β_k <= 0  (i.e., not strictly increasing)
+            gaps = mean_beta[:, 1:] - mean_beta[:, :-1]    # (n_items_seen, K-2)
+            n_disordered = int((gaps <= 0).any(dim=-1).sum().item())
+            n_seen = int(seen.sum().item())
+            pct = 100.0 * n_disordered / n_seen
+            disorder_str = f"  pct_disordered_betas={pct:.1f}% ({n_disordered}/{n_seen} items)"
+        else:
+            disorder_str = "  pct_disordered_betas=N/A (no items seen)"
+    else:
+        disorder_str = "  pct_disordered_betas=N/A (K<3)"
 
     # AUC for K=2 (binary case)
     auc_str = ""
@@ -98,7 +157,7 @@ def main():
 
     print(f"acc={m['categorical_accuracy']:.4f}  qwk={m['qwk']:.4f}  "
           f"spearman={m['spearman']:.4f}  kendall_tau={m['kendall_tau']:.4f}  "
-          f"mae={m['mae']:.4f}{auc_str}")
+          f"mae={m['mae']:.4f}{auc_str}{disorder_str}")
 
 
 if __name__ == "__main__":

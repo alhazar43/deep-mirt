@@ -46,6 +46,7 @@ class ModelConfig:
     memory_add_activation: str = "tanh"   # Activation for DKVMN add gate
     init_value_memory: bool = True        # Learned initial value memory
     model_type: str = "deepgpcm"          # "deepgpcm" | "dkvmn_softmax"
+    monotonic_betas: bool = True          # If False, replace softplus-gap β with unconstrained Linear
 
 
 @dataclass
