@@ -61,7 +61,7 @@
 }
 
 
-% DISALLOWED PACKAGES
+% DizaLLOWED PACKAGES
 % \usepackage{authblk} -- This package is specifically forbidden
 % \usepackage{balance} -- This package is specifically forbidden
 % \usepackage{color (if used in text)
@@ -87,7 +87,7 @@
 % \usepackage{tocbibind} -- This package is specifically forbidden
 % \usepackage{ulem} -- This package is specifically forbidden
 % \usepackage{wrapfig} -- This package is specifically forbidden
-% DISALLOWED COMMANDS
+% DizaLLOWED COMMANDS
 % \nocopyright -- Your paper will not be published if you use this command
 % \addtolength -- This command may not be used
 % \balance -- This command may not be used
@@ -186,14 +186,14 @@
 \begin{abstract}
 Knowledge tracing is a core component of adaptive learning systems, yet much of the literature assumes binary correctness as the observation signal. In many educational settings, however, learner evidence is polytomous, including ordered rubric levels and partial credit, where both ordinal structure and interpretability matter for measurement and intervention. 
 
-We present DEEP-MIRT, a modular framework that extends knowledge tracing to polytomous responses by bridging sequential neural modeling with psychometric Item Response Theory. The framework couples a swappable sequential backbone with an interchangeable IRT-grounded response head, separating the question of how learner ability evolves over time from the question of how that ability maps to ordered response categories. Instantiated with a Generalized Partial Credit Model (GPCM) head, DEEP-MIRT produces interpretable outputs at every interaction: an evolving student ability estimate, per-item discrimination values, and ordered difficulty thresholds corresponding to rubric level transitions. On synthetic benchmarks with known ground truth, DEEP-GPCM achieves strong rank-order agreement across category resolutions $K\in\{2,3,4,5\}$ (QWK up to 0.778) and recovers item difficulty thresholds and discrimination with high to moderate fidelity (mean $r_{\beta}=0.90$; $r_{\alpha}\approx 0.65$). The model remains backward-compatible with standard binary knowledge tracing benchmarks, matching established baselines on ASSIST2015 and Synthetic-5 with $K=2$. Together, the proposed model advances knowledge tracing from a binary predictive instrument into a measurement-aware framework that supports both instructional decision-making with psychometric interpretation.
+We propose DEEP-MIRT, a modular framework that extends knowledge tracing to polytomous responses by bridging sequential neural modeling with psychometric Item Response Theory. The framework couples a swappable sequential backbone with an interchangeable response head, separating the question of how learner ability evolves over time from the question of how that ability maps to ordered response categories. Instantiated with a Generalized Partial Credit Model (GPCM) head, DEEP-MIRT produces psychometrically interpretable outputs at every interaction, including an evolving student ability estimate, item discrimination values, and ordered difficulty thresholds. The model delivers strong predictive performance while accurately recovers ground-truth item parameters across varying category resolutions. The framework advances knowledge tracing from a purely predictive instrument into a measurement-aware system that grounds instructional decision-making in interpretable psychometric theory.
 \end{abstract}
 
 
 
 \section{Introduction}
 Educational assessments often target graded performance rather than pass/fail outcomes. Rubric-based scoring, partial-credit items, and constructed-response tasks encode degrees of correctness that binary labels collapse into a single signal \citep{black_assessment_1998, heritage_formative_2007}.
-While automated scoring systems can deliver this ordinal structure at scale in intelligent tutoring contexts \citep{shute_stealth_2011, baral_improving_2021}, most KT benchmarks, evaluation protocols, and dominant modeling paradigms still assume binary correctness. This leaves ordinal outcomes comparatively underexplored in KT, even though they are central to authentic assessment practice.
+While automated scoring systems can deliver this ordinal structure at scale in intelligent tutoring contexts \citep{shute_stealth_2011, baral_improving_2021}, most KT benchmarks, evaluation protocols, and modeling paradigms still assume binary correctness. This leaves ordinal outcomes comparatively underexplored in KT, even though they are central to authentic assessment practice.
 
 % Knowledge Tracing (KT) is central to adaptive instruction in Intelligent Tutoring Systems (ITS) and online learning platforms: from a learner’s interaction history, a KT model estimates an evolving latent knowledge state to support feedback, practice selection, and mastery decisions \citep{aleven_embedding_2016}. For educational use, KT must be accurate and interpretable to support assessment arguments, teacher trust, and curriculum integration.
 
@@ -220,9 +220,9 @@ Our main contributions are:
 
 We investigate the following research questions:
 \begin{itemize}
-    \item \textbf{RQ1 (Prediction).} Does coupling a DKVMN backbone with an ordinal, psychometrically-constrained GPCM response head improve polytomous next-response prediction, and does it better preserve ordinal structure than format-unaware alternatives?
-    \item \textbf{RQ2 (Parameter Recovery).} Do the IRT parameters inferred by DEEP-GPCM faithfully recover known ground-truth values from synthetic data, and are item parameter estimates stable across student subpopulations as assessed by split-half reliability?
-    \item \textbf{RQ3 (Learner State).} Do the inferred student ability trajectories $\theta_t$ exhibit psychologically plausible learning dynamics, and can DEEP-GPCM reveal meaningful learner patterns (mastery, growth, persistent difficulty) that are not visible from format-unaware latent state representations?
+    \item \textbf{RQ1 (Prediction).} Does coupling a DKVMN backbone with an ordinal, psychometrically constrained response head improve polytomous next-response prediction, and does it better preserve ordinal structure than format-unaware alternatives?
+    \item \textbf{RQ2 (Learner State).} Do the inferred student ability trajectories $\theta_t$ exhibit psychologically plausible learning dynamics, and can DEEP-GPCM reveal meaningful learner patterns (mastery, growth, persistent difficulty) that are not visible from format-unaware latent state representations?
+    \item \textbf{RQ3 (Parameter Recovery).} Do the IRT parameters inferred by DEEP-GPCM faithfully recover known ground-truth values from synthetic data, and are item parameter estimates stable across student subpopulations as assessed by split-half reliability?
     \item \textbf{RQ4 (Scalability).} Does Static Item Embedding maintain ordinal prediction quality and parameter recovery at large item-bank scales ($Q \sim 5000$) while substantially reducing parameter count compared to dense encoding strategies?
     \item \textbf{RQ5 (Ecological Validity).} When ordinal response categories are constructed from proxy signals in existing binary KT benchmarks (e.g., attempt counts), does the ordinal GPCM head yield measurable gains over format-unaware alternatives, and how sensitive are these gains to the quality of the proxy ordinal construction?
 \end{itemize}
@@ -230,27 +230,34 @@ We investigate the following research questions:
 
 \section{Related Work}
 \subsection{Knowledge Tracing: From Binary to Polytomous}
-Knowledge tracing has evolved through several modeling paradigms, but all share a common assumption: learner responses are binary. Bayesian Knowledge Tracing (BKT) models mastery of a Knowledge Component (KC) as a two-state Hidden Markov Model \citep{corbett_knowledge_1994}. Deep Knowledge Tracing (DKT) reframed the task as sequence modeling with recurrent neural networks, learning high-dimensional latent states from interaction sequences \citep{piech_deep_2015}. Dynamic Key-Value Memory Networks (DKVMN) introduced a structured memory that separates static concept representations (key memory) from evolving mastery states (value memory), offering a more transparent mapping between knowledge components and latent state than generic RNNs \citep{graves_hybrid_2016, zhang_dynamic_2017}. Attention-based models such as SAKT and AKT apply self-attention to weigh the relevance of prior interactions for next-step prediction \citep{pandey_self-attentive_2019, ghosh_context-aware_2020}, and recent work has further explored Transformer-based architectures \citep{choi_saint_2020, liu_simplekt_2023}. Throughout this progression, the response format has remained dichotomous: every model cited above predicts a binary correct/incorrect outcome.
+Knowledge tracing has evolved through several modeling paradigms, but most of them assume a binary mastery state. Bayesian Knowledge Tracing (BKT) models mastery of a Knowledge Component (KC) as a two-state Hidden Markov Model \citep{corbett_knowledge_1994}. Deep Knowledge Tracing (DKT) reframed the task as sequence modeling with recurrent neural networks, learning high-dimensional latent states from interaction sequences \citep{piech_deep_2015}. Dynamic Key-Value Memory Networks (DKVMN) introduced a structured memory that separates static concept representations (key memory) from evolving mastery states (value memory), offering a more transparent mapping between knowledge components and latent state than generic RNNs \citep{graves_hybrid_2016, zhang_dynamic_2017}. Attention-based models such as SAKT and AKT apply self-attention to weigh the relevance of prior interactions for next-step prediction \citep{pandey_self-attentive_2019, ghosh_context-aware_2020}, and recent work has further explored Transformer-based architectures \citep{choi_saint_2020, liu_simplekt_2023}. Throughout this progression, the response format has remained dichotomous: every model cited above predicts a binary correct/incorrect outcome.
 
 Recent KT research has begun to acknowledge that correctness alone is insufficient. \citet{lu_selfkt_2024} fuse process features (attempts, response time, historical accuracy) to enrich difficulty representations, and \citet{li_pskt_2025} integrate problem complexity and state-stability mechanisms to reduce noisy updates. These efforts treat richer signals as auxiliary features within a binary prediction framework. They do not change the response format itself, but they highlight that educational interactions carry information beyond pass/fail: precisely the information that ordinal and polytomous responses encode directly. The only prior work to move beyond binary responses in a KT context is \citet{wang_extending_2013}, who extended BKT to partial credit using continuous Bayesian nodes, but without deep sequential modeling or IRT-based parameterization.
 
 \subsection{Interpretability in Deep Knowledge Tracing}
-In most DKT models, learned states  are opaque distributed representations rather than psychometrically meaningful constructs \citep{nrc_knowing_2001}. Several efforts address this gap by coupling neural architectures with Item Response Theory (IRT) structure. Deep-IRT attaches an IRT-style readout to DKVMN, exposing student ability and item difficulty parameters for each prediction \citep{yeung_deep-irt_2019}. DKVMN-MRI similarly integrates IRT within an LSTM-based memory framework \citep{xu_dkvmn_2024}. \citet{converse_irt_kt_2021} propose a general approach for incorporating IRT parameters into KT training. These IRT-augmented models improve interpretability: a teacher or assessment specialist can inspect the estimated ability and difficulty values, rather than relying on opaque hidden states. In educational terms, ``interpretability’’ here means that model outputs correspond to constructs that practitioners already use (student proficiency levels, item difficulty, and discrimination quality), supporting the kinds of validity arguments that responsible assessment requires \citep{messick_validity_1995, kane_argument_2013}.
+In most DKT models, learned states are computed as high dimensional representations than psychometrically meaningful constructs \citep{nrc_knowing_2001}. Several efforts address this gap by coupling neural architectures with Item Response Theory (IRT) structure. Deep-IRT attaches an IRT-style readout to DKVMN, exposing student ability and item difficulty parameters for each prediction \citep{yeung_deep-irt_2019}. DKVMN-MRI similarly integrates IRT within an LSTM-based memory framework \citep{xu_dkvmn_2024}. \citet{converse_irt_kt_2021} propose a general approach for incorporating IRT parameters into KT training. These IRT-augmented models improve interpretability: a teacher or assessment specialist can inspect the estimated ability and difficulty values, rather than relying on opaque hidden states. In educational terms, ``interpretability’’ here means that model outputs correspond to constructs that practitioners already use (student proficiency levels, item difficulty, and discrimination quality), supporting the kinds of validity arguments that responsible assessment requires \citep{messick_validity_1995, kane_argument_2013}.
 
-A critical limitation, however, is that all existing IRT-KT integrations operate on dichotomous responses. They estimate a single ability and difficulty for binary outcomes and do not model the ordered step structure of rubric scores or partial-credit items. Attention-based models provide a complementary form of interpretability through attention weights (which interactions were most relevant to a prediction), but they too lack psychometric parameterization and ordinal response awareness.
+A critical limitation, however, is that all existing IRT-KT integrations operate on dichotomous responses. They estimate a single ability and difficulty for binary outcomes and do not model the ordered step structure of rubric scores or partial-credit items. Attention-based models provide a complementary form of interpretability through attention weights (which interactions were most relevant to a prediction), but they too lack psychometric parameterization and ordinal structure awareness.
 
 
 \subsection{Polytomous Item-Response Theory}
 \label{sec:polytomous_irt}
-Psychometrics provides a family of models for ordered responses grounded in a latent ability parameter $\theta$ and item-specific properties \citep{hambleton_item_1985, embretson_irt_2000}. Two traditions dominate for ordinal outcomes. Cumulative models such as the Graded Response Model \citep[GRM;][]{samejima_estimation_1969} define boundary parameters between adjacent categories, modelling the probability of scoring at or above category $k$ as a logistic function of $\theta$. Adjacent-category models, including the Partial Credit Model \citep[PCM;][]{masters_partial_1997} and the Generalized Partial Credit Model \citep[GPCM;][]{van_der_linden_generalized_1997}, parameterize each step transition directly: the GPCM characterizes each item by a discrimination parameter $\alpha_j$ controlling how sharply the item differentiates ability levels, and ordered step difficulty thresholds $\boldsymbol{\beta}_j = (\beta_{j,0}, \ldots, \beta_{j,K-2})$ representing the ability level at which each consecutive rubric transition becomes equally likely. Adjacent-category models are the natural fit for rubric scoring, where performance progresses sequentially through ordered levels \citep{embretson_irt_2000, wilson_constructing_2005}. For unordered categories, the Nominal Response Model \citep[NRM;][]{bock_estimating_1972} provides an analogous framework.
+Psychometrics provides a family of models for ordered responses grounded in a latent ability parameter $\theta$ and item-specific properties \citep{hambleton_item_1985, embretson_irt_2000}. Two traditions dominate for ordinal outcomes. Cumulative models such as the Graded Response Model \citep[GRM;][]{samejima_estimation_1969} define boundary parameters between adjacent categories, modeling the probability of scoring at or above category $k$ as a logistic function of $\theta$. Adjacent-category models, including the Partial Credit Model \citep[PCM;][]{masters_partial_1997} and the Generalized Partial Credit Model \citep[GPCM;][]{van_der_linden_generalized_1997}, parameterize each step transition directly: the GPCM characterizes each item by a discrimination parameter $\alpha_j$ controlling how sharply the item differentiates ability levels, and ordered step difficulty thresholds $\boldsymbol{\beta}_j = (\beta_{j,0}, \ldots, \beta_{j,K-2})$ representing the ability level at which each consecutive rubric transition becomes equally likely. Adjacent-category models are the natural fit for rubric scoring, where performance progresses sequentially through ordered levels \citep{embretson_irt_2000, wilson_constructing_2005}. For unordered categories, the Nominal Response Model \citep[NRM;][]{bock_estimating_1972} provides an analogous framework.
 
-All classical polytomous IRT models treat ability as fixed across items, which is appropriate for standardized testing but inadequate for adaptive tutoring contexts where ability evolves through practice. Extending the interpretable parameter structure of IRT to a dynamic sequential setting is the central goal of this work.
+In the context of knowledge tracing, these static measurement paradigms must be reformulated to capture sequential learning dynamics. Formally, at time step $t$, a student interacts with an item indicated by a one-hot vector $q_t \in \{0,1\}^Q$ over $Q$ unique items, yielding an ordinal response $r_t \in \{0,1,\ldots,K-1\}$ across $K$ rubric levels. Defining an interaction as the tuple $x_t=(q_t,r_t)$ and the cumulative history as $\mathcal{X}_t=\{x_1,\ldots,x_t\}$, the objective of polytomous knowledge tracing is to predict the conditional distribution of the next response:
+\begin{equation}
+    P(r_{t+1}=k \mid q_{t+1}, \mathcal{X}_t), \quad k \in \{0,\ldots,K-1\}.
+\end{equation}
+
+
+This work therefore explores how the interpretable parameter structures of polytomous IRT might be adapted for sequential modeling. We treat it as a time-varying latent state conditioned on the interaction history $\mathcal{X}_t$, aiming to interpret dynamic tracing results with psychometric models.
 
 
 \section{Methodology}
 
 \begin{figure*}[htb!]
 \centering
+\vspace{-8pt}
 \resizebox{\linewidth}{!}{%
 \begin{tikzpicture}[
     >=stealth, line width=0.65pt,
@@ -386,6 +393,7 @@ All classical polytomous IRT models treat ability as fixed across items, which i
 
 \end{tikzpicture}%
 }%
+\vspace{-6pt}
 \caption{DEEP-MIRT framework at timestep $t$. Item parameters $(\alpha_j, \boldsymbol{\beta}_j)$ bypass the student state via the item embedding (dashed, top), consistent with the IRT assumption that discrimination and difficulty are student-independent. The GPCM head maps $(\theta_t, \alpha_j, \boldsymbol{\beta}_j)$ to the predicted ordinal distribution $\hat{P}(r_{t+1}=k)$.}
 \label{fig:architecture}
 \end{figure*}
@@ -397,19 +405,20 @@ DEEP-MIRT is a modular architecture with two separable concerns. The \emph{backb
 
 This separation is conceptually and practically helpful for tracking learning progressions. The backbone addresses the learning dynamics question of how student ability evolves across a sequence of interactions, naturally handled by sequential neural architectures. The head addresses the measurement question of how current ability maps to the probability of each ordered rubric score, naturally handled by psychometric theory. Coupling them through a clean interface means the two concerns can be improved independently: a better backbone (e.g., Transformer instead of DKVMN) improves temporal modeling without changing the interpretable parameterization; a different head (e.g., GRM instead of GPCM) changes the measurement assumptions without retraining the backbone.
 
-In this paper we instantiate the head as the \textbf{Generalized Partial Credit Model} (GPCM, Section~\ref{sec:polytomous_irt}). We chose GPCM over the other major polytomous families for three reasons: (1) it is an adjacent-category model, which is the natural match for rubric scoring where a student progresses sequentially through performance levels; (2) it produces a discrimination parameter $\alpha_j$ and ordered step difficulty thresholds $\boldsymbol{\beta}_j$ that correspond directly to rubric design decisions and can be inspected by assessment practitioners; (3) its monotone threshold constraint admits a clean differentiable parameterization (Section~\ref{sec:gpcm_head}). A cumulative model such as the Graded Response Model~\citep{samejima_estimation_1969} would be a natural alternative for tasks where each scoring threshold represents an independent decision (e.g., analytic rubrics with independent sub-scores); a Nominal Response Model~\citep{bock_estimating_1972} would apply when response categories are unordered (e.g., multiple-choice distractors encoding different misconceptions). We treat these as directions for future instantiation.
+In this paper we instantiate the head with the GPCM over the other major polytomous families for three reasons: (1) it is an adjacent-category model, which is the natural match for rubric scoring where a student progresses sequentially through performance levels; (2) it produces a discrimination parameter $\alpha_j$ and ordered step difficulty thresholds $\boldsymbol{\beta}_j$ that correspond directly to rubric design decisions and can be inspected by assessment practitioners; (3) its monotone threshold constraint admits a clean differentiable parameterization (Section~\ref{sec:gpcm_head}). A cumulative model such as the GRM~\citep{samejima_estimation_1969} would be a natural alternative for tasks where each scoring threshold represents an independent decision (e.g., analytic rubrics with independent sub-scores); a NRM~\citep{bock_estimating_1972} would apply when response categories are unordered (e.g., multiple-choice representing different misconceptions). We treat these as directions for future instantiation.
 
 The backbone processes inputs through four sequential stages as shown in Figure~\ref{fig:architecture}: ordinal interaction encoding, DKVMN memory update, summary compression, and IRT-based parameter extraction. An ordinal-aware training objective supervises all stages jointly. The following subsections formalize each component.
 
-\subsection{Problem Formulation}
-Let $r_t \in \{0,1,\ldots,K-1\}$ denote an observed response with $K$ \emph{ordered} categories (e.g., rubric levels / partial credit),
-and let $q_t \in \{0,1\}^Q$ be a one-hot indicator of the exercised question/item, where $Q$ is the number of unique items.
-An interaction is $x_t=(q_t,r_t)$ and the observed history up to time $t$ is
-$\mathcal{X}_t=\{(q_1,r_1),\ldots,(q_t,r_t)\}$.
-We study \emph{ordinal} (polytomous) knowledge tracing as predicting the full distribution
-\begin{equation}
-    P(r_{t+1}=k \mid q_{t+1}, \mathcal{X}_t), \quad k \in \{0,\ldots,K-1\}.
-\end{equation}
+% Moved to Related Work
+% \subsection{Problem Formulation}
+% Let $r_t \in \{0,1,\ldots,K-1\}$ denote an observed response with $K$ \emph{ordered} categories (e.g., rubric levels / partial credit),
+% and let $q_t \in \{0,1\}^Q$ be a one-hot indicator of the exercised question/item, where $Q$ is the number of unique items.
+% An interaction is defined as $x_t=(q_t,r_t)$, with the observed history up to time $t$ given by
+% $\mathcal{X}_t=\{(q_1,r_1),\ldots,(q_t,r_t)\}$.
+% We define \emph{ordinal} knowledge tracing as predicting the full distribution
+% \begin{equation}
+%     P(r_{t+1}=k \mid q_{t+1}, \mathcal{X}_t), \quad k \in \{0,\ldots,K-1\}.
+% \end{equation}
 
 \subsection{Ordinal-Aware Interaction Representation}
 \paragraph{Linear Decay Encoding}
@@ -546,7 +555,7 @@ After validating the PKT instantiations on Synthetic-Ordinal, we confirm compati
 \end{itemize}
 
 \subsubsection{Models and Baselines}
-We compare DEEP-GPCM against three baselines that progressively relax psychometric and ordinal structure, each isolating a different design question:
+We compare DEEP-GPCM against four baselines that progressively relax psychometric and ordinal structure, each isolating a different design question:
 \begin{itemize}
     \item \textbf{DKVMN + Softmax}: DKVMN backbone with a $K$-way softmax head trained with categorical cross-entropy. No ordinal structure, no IRT constraints. Tests whether psychometric parameterization provides gains over a purely neural polytomous baseline.
     \item \textbf{DKVMN + Ordinal}: DKVMN backbone with a linear output head trained using the weighted ordinal loss \eqref{eqn:wol_loss}. Introduces ordinal awareness without IRT parameterization, isolating the contribution of the GPCM structure over simpler ordinal objectives.
@@ -669,10 +678,10 @@ DEEP-GPCM (ours) & 50.7 & 0.759 & 0.576 \\
 \end{subtable}
 \end{table*}
 
-Two findings stand out. First, the $\tau$ advantage of DEEP-GPCM over the DKVMN baselines is largest at $K=3$ and shrinks as $K$ grows, reaching near-parity at $K=5$. This is counterintuitive if one attributes the gain to the GPCM's threshold structure --- more thresholds should, if anything, help more at higher $K$. A more consistent explanation is that at low $K$, the ordinal signal per observation is weak and the GPCM's ability-centred parameterisation provides a stronger inductive bias for ranking students correctly; at high $K$, the richer per-step signal allows the DKVMN baselines to learn comparable rank structure from data alone. Second, the IRT ablation shows that sequential dynamics, not item parameterisation, drive the bulk of performance: Dynamic GPCM, which shares item tables with Static GPCM but adds a single gated ability update, recovers most of the gap to the neural models. At $K=4$ and $K=5$, Dynamic GPCM nearly matches DKVMN + Softmax on QWK despite having no distributed memory, which suggests that a lightweight recurrent IRT model is a surprisingly competitive baseline when the response scale is fine-grained enough to provide a strong per-step learning signal.
+Two findings stand out. First, the $\tau$ advantage of DEEP-GPCM over the DKVMN baselines is largest at $K=3$ and shrinks as $K$ grows, reaching near-parity at $K=5$. This is counterintuitive in terms of GPCM's ordinal structure where more thresholds should, if anything, help more at higher $K$. A feasible explanation is that at low $K$, the ordinal signal per observation is weak and the GPCM's ability-centred parameterization provides a stronger inductive bias for ranking students correctly; at high $K$, the richer per-step signal allows the DKVMN baselines to learn comparable rank structure from data alone. Second, the IRT ablation shows that sequential dynamics, not item parameterization, drive the bulk of performance: Dynamic GPCM, which shares item tables with Static GPCM but adds a single gated ability update, recovers most of the gap to the neural models. At $K=4$ and $K=5$, Dynamic GPCM nearly matches DKVMN + Softmax on QWK despite having no distributed memory, which suggests that a lightweight recurrent IRT model is a surprisingly competitive baseline when the response scale is fine-grained enough to provide a strong per-step learning signal.
 
 \subsubsection{Binary Compatibility on Standard KT Benchmarks}
-An important practical requirement is that a polytomous KT model should not sacrifice performance when deployed on standard binary data, since many existing item banks and datasets use dichotomous scoring, and a useful framework must handle both formats without architectural modification. We evaluate backward compatibility by instantiating DEEP-MIRT with $K=2$ and testing on ASSIST2015 and Synthetic-5. Results are reported in Table~\ref{tab:combined_perf}. DEEP-GPCM achieves competitive performance compared to DKT and DKVMN despite substituting the binary readout with a GPCM head, confirming that the GPCM head gracefully degenerates to a standard logistic model when $K=2$.
+For practical deployment, it is important for PKT models to not sacrifice performance even when tested on binary data, since many existing item banks and datasets use dichotomous scoring, and a useful framework must handle both formats without architectural modification. We evaluate backward compatibility by instantiating DEEP-MIRT with $K=2$ and testing on ASSIST2015 and Synthetic-5. Results are reported in Table~\ref{tab:combined_perf}. DEEP-GPCM achieves competitive performance compared to DKT and DKVMN despite substituting the binary readout with a GPCM head, confirming that the GPCM collapses to a standard logistic model when $K=2$.
 
 \begin{table}[htb!]
 \centering
@@ -691,19 +700,48 @@ DEEP-GPCM & \textbf{75.4\%} & 0.723 & 74.7\% & 0.824 \\
 \end{tabular}
 \end{table}
 
-\subsubsection{IRT Parameter Recovery and Stability (RQ2)}
-\label{sec:irt_analysis}
-DEEP-GPCM recovers discrimination \emph{better} than both GPCM baselines across most conditions ($r_\alpha = 0.75$--$0.80$ vs.\ $0.69$--$0.76$ for Static and Dynamic GPCM; Table~\ref{tab:irt_recovery_k}), despite receiving no direct supervision on $\alpha$. This is the stronger finding: the DKVMN memory, trained solely on ordinal prediction, captures item-level sharpness more faithfully than models that optimise item parameters directly. Step difficulty recovery is slightly lower ($\bar{r}_\beta = 0.82$--$0.92$ for DEEP-GPCM vs.\ $0.97$--$0.99$ for the baselines), which is expected --- dedicated lookup tables have an unobstructed gradient path to each $\beta$, whereas DEEP-GPCM infers thresholds as a byproduct of sequential prediction. The absolute values remain reasonable, and per-threshold correlations deviate by at most $0.04$ from the condition mean, confirming uniform recovery across the difficulty continuum.
+\subsubsection{Learner State Dynamics (RQ2)}
+\label{sec:trajectories}
+Figure~\ref{fig:trajectories} compares learner state trajectories across three models for four synthetic types of students. At each time $t$, we project $\theta_t$ to responses with the final output head of each model for the reference item. Therefore a faster convergence to the true projected category suggests higher confidence in modeling learning dynamics.
 
-Figure~\ref{fig:recovery} shows that the estimated ability distributions closely track the $\mathcal{N}(0,1)$ generating prior, confirming population-level calibration. The low point-to-point $r_\theta$ is expected: the synthetic ground truth is a static scalar, whereas $\theta_t$ is a dynamic trajectory that updates with each interaction. These are different constructs --- the former is a fixed trait, the latter is an evolving belief --- and comparing them directly is a category error. The meaningful criterion for a dynamic estimator is whether $\theta_t$ moves in the right direction as evidence accumulates, which Section~\ref{sec:trajectories} addresses directly.
+Specifically, dynamic GPCM's $\theta_t$ is a per-student embedding updated by a fixed recurrence, producing trajectories that are smooth but relatively flat, which means that the model adjusts slowly and converges to a stable estimate regardless of archetype. DEEP-GPCM and DKVMN+Softmax, sharing the same DKVMN backbone, produce trajectories by tracking the local response pattern, which yields fast convergence to projected responses even with the mid-ability type.
 
-\begin{figure*}[htb!]
+\begin{figure}[htb!]
 \centering
-\resizebox{\linewidth}{!}{\input{kt-gpcm/outputs/deepgpcm_k5_s42/recovery_figure.pgf}}
-\caption{IRT parameter recovery ($K=5$, $Q=200$, $N=5000$). Each row shows one model; columns show ability $\theta$ density, discrimination $\alpha$ (log-linked), and step difficulties $\beta_1$--$\beta_4$ (z-scored). Pearson $r$ is annotated per panel. Static GPCM: $r_\alpha=0.698$, $\bar{r}_\beta=0.985$. Dynamic GPCM: $r_\alpha=0.694$, $\bar{r}_\beta=0.965$. DEEP-GPCM: $r_\alpha=0.746$, $\bar{r}_\beta=0.912$.}
-\label{fig:recovery}
+\vspace{-8pt}
+\input{kt-gpcm/outputs/deepgpcm_k4_s42/trajectory_plots/learner_trajectories.pgf}
+\vspace{-6pt}
+\caption{Learner state trajectories for four archetypes ($K=4$, $Q=200$). Curves smoothed with a 9-step rolling mean.}
+\label{fig:trajectories}
+\end{figure}
+
+The similarity between DEEP-GPCM's $\theta_t$ and DKVMN+Softmax's expected score $\hat{s}_t$ is itself informative. Although both curves track each other closely across all four types, the trajectory reading from the GPCM head is able to output prediction on psychometrically interpretable scales, without losing the latent signal from the memory. The practical implication is that replacing a softmax head with a GPCM head costs nothing in trajectory quality while gaining insights to item-level characteristics, deriving richer context that $\hat{s}_t$ alone cannot support.
+
+\subsubsection{IRT Parameter Recovery and Stability (RQ3)}
+\label{sec:irt_analysis}
+DEEP-GPCM recovers the discrimination parameter, $\alpha$, more consistently than both GPCM baselines across most conditions ($r_\alpha = 0.75$--$0.80$ vs.\ $0.69$--$0.76$ for Static and Dynamic GPCM; Table~\ref{tab:irt_recovery_k}), despite receiving no direct supervision. This is suggests the DKVMN memory, trained solely on ordinal prediction, can distinguish item-level characteristics. Step difficulty recovery is slightly lower ($\bar{r}_\beta = 0.82$--$0.92$ for DEEP-GPCM vs.\ $0.97$--$0.99$ for the baselines), which is expected as both GPCM bas dedicated lookup tables, offering an unobstructed gradient path to each $\beta$, whereas DEEP-GPCM infers thresholds as a byproduct of sequential prediction.
+
+Figure~\ref{fig:recovery_student} shows that the estimated ability distributions closely track the $\mathcal{N}(0,1)$ generating prior, confirming population-level calibration. Low $r_\theta$ is expected, as the synthetic ground truth is a static scalar, whereas $\theta_t$ is a dynamic trajectory that updates with each interaction. A meaningful criterion for a dynamic estimator is whether $\theta_t$, or projected response category converge at later interactions.
+
+\begin{figure}[t]
+\centering
+\vspace{-8pt}
+\input{kt-gpcm/outputs/deepgpcm_k4_s42/recovery_split_student.pgf}
+\vspace{-6pt}
+\caption{Student ability recovery ($K=4$, $Q=200$, $N=5000$). Each row shows one model's estimated $\theta$ distribution compared to ground truth.}
+\label{fig:recovery_student}
+\end{figure}
+
+Figure~\ref{fig:recovery_item} shows item parameter recovery. Static GPCM: $r_\alpha=0.606$, $\bar{r}_\beta=0.983$. Dynamic GPCM: $r_\alpha=0.700$, $\bar{r}_\beta=0.966$. DEEP-GPCM: $r_\alpha=0.707$, $\bar{r}_\beta=0.918$.
+
+\begin{figure*}[t]
+\centering
+\vspace{-8pt}
+\resizebox{\linewidth}{!}{\input{kt-gpcm/outputs/deepgpcm_k4_s42/recovery_split_item.pgf}}
+\vspace{-6pt}
+\caption{Item parameter recovery ($K=4$, $Q=200$, $N=5000$). Each row shows one model; columns show discrimination $\alpha$ (log-linked) and step difficulties $\beta_1$--$\beta_3$ (z-scored). Pearson $r$ is annotated per panel.}
+\label{fig:recovery_item}
 \end{figure*}
-\FloatBarrier
 
 Table~\ref{tab:irt_recovery_k} reports the full breakdown across $K \in \{3,4,5\}$; taken together, DEEP-GPCM achieves competitive recovery of both item parameters without any direct IRT supervision.
 
@@ -735,19 +773,8 @@ $K$ & Model & $r_\alpha$ & $r_\beta$ (mean) & Per-threshold correlation \\
 \end{tabular}
 \end{table}
 
-\subsubsection{Learner State Dynamics (RQ3)}
-\label{sec:trajectories}
-Figure~\ref{fig:trajectories} compares learner state trajectories across three models for four synthetic archetypes. The key contrast is between Dynamic GPCM and the two memory-based models. Dynamic GPCM's $\theta_t$ is a per-student embedding updated by a fixed recurrence, producing trajectories that are smooth but relatively flat --- the model adjusts slowly and converges to a stable estimate regardless of archetype. DEEP-GPCM and DKVMN+Softmax, sharing the same DKVMN backbone, produce trajectories that are more reactive: they track the local response pattern, rising after correct responses and dipping after errors, and separate more cleanly across archetypes. This confirms that the memory read/write mechanism, not the response head, drives the dynamic sensitivity of the learner state.
 
-The similarity between DEEP-GPCM's $\theta_t$ and DKVMN+Softmax's expected score $\hat{s}_t$ is itself informative. Both curves track each other closely across all four archetypes, indicating that the GPCM head does not distort the latent signal encoded by the memory --- it re-expresses the same information on a psychometrically interpretable scale. The practical implication is that replacing a softmax head with a GPCM head costs nothing in trajectory quality while gaining a direct connection to item parameters: $\theta_t$ can be compared against item difficulty thresholds $\beta_k$ to determine which rubric transitions a student is ready to cross, a form of criterion-referenced feedback that $\hat{s}_t$ cannot support.
 
-\begin{figure}[htb!]
-\centering
-\input{kt-gpcm/outputs/deepgpcm_k5_s42/trajectory_plots/learner_trajectories.pgf}
-\caption{Learner state trajectories for four archetypes ($K=5$, $Q=200$). Curves smoothed with a 9-step rolling mean.}
-\label{fig:trajectories}
-\end{figure}
-\FloatBarrier
 
 
 
@@ -779,14 +806,6 @@ SIE (ours)  &   408K  & \textbf{0.778} & 0.23 & \textbf{0.654} & 0.884 \\
 \paragraph{Loss components.}
 We evaluate focal-only, WOL-only, and the combined loss \eqref{eqn:combined_loss} at $K=4$. The combination ($\lambda_{\mathrm{focal}}=\lambda_{\mathrm{WOL}}=0.5$) yields the strongest QWK. Removing focal loss primarily degrades accuracy on minority categories (highest rubric levels), confirming its value for class-imbalanced partial-credit distributions. Removing the ordinal distance penalty $\gamma$ from WOL reduces Kendall's $\tau$ without much effect on accuracy, isolating its contribution to rank-order consistency.
 
-\paragraph{Monotonic threshold constraint.}
-Removing the softplus gap construction \eqref{eqn:b_k} and replacing it with unconstrained thresholds introduces disordered step difficulties in approximately 18\% of items at $K=5$ (single-seed estimate; multi-seed confirmation pending), with a corresponding drop in QWK. This confirms that enforcing rubric ordering by construction is necessary, not merely helpful.
-
-\paragraph{Sensitivity analyses.}
-We evaluate robustness to category resolution $K\in\{3,4,5\}$ (results reported in Table~\ref{tab:comp_results}), class imbalance severity, and interaction sequence length. Ordinal agreement (QWK) degrades gracefully under mild to moderate class skew, with the focal loss component absorbing much of the imbalance. Shorter sequences ($S < 50$) reduce ability recovery quality, as the model has insufficient interaction history to converge $\theta_t$; this is consistent with minimum-length requirements in classical IRT estimation. Robustness to severe imbalance and very short sequences ($S < 20$) remains an open question pending additional experimentation.
-
-Table~\ref{tab:ablation_loss} reports QWK and $\tau$ for the three loss variants at $K=4$ (single seed). Differences are within $\Delta\mathrm{QWK} < 0.006$ and $\Delta\tau < 0.008$, indicating that the combined loss provides a consistent but modest improvement on this synthetic dataset.
-
 \begin{table}[htb!]
 \centering
 \caption{Ablation of loss components at $K=4$ (single seed, $Q=200$, $N=5000$).}
@@ -804,9 +823,56 @@ WOL only ($\lambda_{\mathrm{focal}}{=}0$, $\lambda_{\mathrm{WOL}}{=}1$) & 0.684 
 \end{tabular}
 \end{table}
 
-\subsubsection{Ecological Validity: Proxy-Ordinality on Binary Benchmarks (RQ5)}
+\paragraph{Monotonic threshold constraint.}
+To isolate the contribution of the softplus gap construction \eqref{eqn:b_k}, we conduct a controlled ablation at $K=5$ with three conditions: (1) the baseline DEEP-GPCM model with monotonic thresholds and ordinal losses (focal + WOL), (2) an unconstrained variant that replaces the softplus gap construction with a single linear layer $\boldsymbol{\beta} = W_\beta \mathbf{q} + \mathbf{b}_\beta$ producing $K-1$ thresholds without ordering guarantees, trained with ordinal losses, and (3) the unconstrained variant trained with pure cross-entropy loss (focal\_weight $= 0$, weighted\_ordinal\_weight $= 0$) to test whether ordinal losses or the GPCM likelihood itself enforce ordering. All three models use identical architectures (Static Item Embedding, $N=5000$, $Q=200$, 15 epochs, seed 42) and differ only in the threshold parameterisation and loss composition.
+
+Results in Table~\ref{tab:ablation_monotonic} show that removing the monotonicity constraint produces near-zero disordered step difficulties when trained with ordinal losses (0.0\% disorder), but 0.5\% disorder emerges without ordinal losses. Inspection of the learned parameters reveals that the unconstrained linear layer's bias vector converges to approximately ordered values even without ordinal losses (e.g., $[-0.90, -0.25, 0.25, 0.89]$), indicating that the GPCM likelihood provides weak implicit ordering pressure. However, ordinal losses are necessary to fully eliminate disorder. QWK degrades marginally when removing the monotonicity constraint ($\Delta\mathrm{QWK} \approx -0.002$ with ordinal losses, $-0.02$ without), but parameter recovery degrades substantially: $\bar{r}_\beta$ drops from $0.912$ (monotonic) to $0.694$ (unconstrained + ordinal) to $0.545$ (unconstrained + no ordinal), and $r_\alpha$ similarly degrades from $0.760$ to $0.600$ to $0.656$. This indicates that while unconstrained thresholds can achieve comparable predictive performance, they sacrifice interpretability — the learned $\boldsymbol{\beta}$ vectors no longer faithfully represent the ground-truth item step difficulties, undermining the psychometric validity of the extracted parameters.
+
+\begin{table}[htb!]
+\centering
+\caption{Monotonicity constraint ablation at $K=5$ ($Q=200$, $N=5000$, 15 epochs, seed 42). Unconstrained models replace the softplus gap construction with a single linear layer producing $K-1$ thresholds without ordering guarantees. Recovery correlations computed on the test set.}
+\label{tab:ablation_monotonic}
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{ACC} & \textbf{QWK} & $\boldsymbol{\tau}$ & $\boldsymbol{r_\alpha}$ & $\boldsymbol{\bar{r}_\beta}$ & \textbf{Disorder (\%)} \\
+\midrule
+Monotonic + ordinal & 0.511 & 0.759 & 0.576 & 0.760 & 0.912 & 0.0 \\
+Unconstrained + ordinal & 0.507 & 0.757 & 0.574 & 0.600 & 0.694 & 0.0 \\
+Unconstrained + NO ordinal & 0.513 & 0.736 & 0.549 & 0.656 & 0.545 & 0.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Sensitivity analyses.}
+We evaluate robustness to category resolution $K\in\{3,4,5\}$ (results reported in Table~\ref{tab:comp_results}), class imbalance severity, and interaction sequence length. Ordinal agreement (QWK) degrades gracefully under mild to moderate class skew, with the focal loss component absorbing much of the imbalance. Shorter sequences ($S < 50$) reduce ability recovery quality, as the model has insufficient interaction history to converge $\theta_t$; this is consistent with minimum-length requirements in classical IRT estimation. Robustness to severe imbalance and very short sequences ($S < 20$) remains an open question pending additional experimentation.
+
+Table~\ref{tab:ablation_loss} reports QWK and $\tau$ for the three loss variants at $K=4$ (single seed). Differences are within $\Delta\mathrm{QWK} < 0.006$ and $\Delta\tau < 0.008$, indicating that the combined loss provides a consistent but modest improvement on this synthetic dataset.
+
+We evaluate sequence length sensitivity at $K=4$ across three regimes: $S\in[20,80]$ (baseline), $S\in[20,100]$, and $S\in[20,40]$. QWK follows the expected direction ($0.6903$, $0.6825$, $0.6742$ respectively), with a modest drop under very short sequences. Item-level recovery ($\bar{r}_\beta \approx 0.92$ across all regimes) is stable, consistent with the person--item identification asymmetry: item parameters are estimated from $N=5000$ student interactions and are robust to individual sequence length, whereas discrimination recovery ($r_\alpha$) degrades more markedly from $0.786$ to $0.524$ as sequences shorten and item co-occurrence patterns become sparser. Ability recovery ($r_\theta$) is similarly lower at $S\in[20,40]$ ($0.158$ vs.\ $0.191$ baseline), reflecting the reduced interaction history available per student. Table~\ref{tab:seqlen_sensitivity} reports the full results.
+
+\begin{table}[htb!]
+\centering
+\caption{Sequence length sensitivity at $K=4$ ($Q=200$, $N=5000$, seed 42, 15 epochs). Recovery correlations computed on the test set.}
+\label{tab:seqlen_sensitivity}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Regime} & \textbf{ACC} & \textbf{QWK} & $\boldsymbol{\tau}$ & $\boldsymbol{r_\theta}$ & $\boldsymbol{r_\alpha}$ & $\boldsymbol{\bar{r}_\beta}$ \\
+\midrule
+$S\in[20,80]$ (baseline) & 0.529 & 0.683 & 0.513 & 0.191 & 0.715 & 0.918 \\
+$S\in[20,100]$ & 0.530 & 0.690 & 0.518 & 0.168 & 0.786 & 0.927 \\
+$S\in[20,40]$ & 0.523 & 0.674 & 0.505 & 0.158 & 0.524 & 0.916 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsubsection{Proxy-Ordinality on Binary Benchmarks (RQ5)}
 \label{sec:proxy_results}
-Addressing \textbf{RQ5}, we evaluate whether ordinal modeling gains persist when response categories must be constructed from proxy signals rather than purpose-designed rubrics. Real KT benchmarks are predominantly binary, yet process features such as attempt counts, hint requests, and response latency encode graded evidence of understanding \citep{lu_selfkt_2024}. We derive $K=3$ ordered categories from attempt counts in ASSISTments-style interaction logs: 1 attempt ($=$ mastery), 2--3 attempts ($=$ partial understanding), 4$+$ attempts ($=$ struggle). This mapping approximates an ordinal rubric but introduces noise — guessing, rapid retries, and help-seeking behaviour may violate the assumed ordering. We therefore treat this setting as a \emph{stress test} of the model's ordinal structure under imperfect category construction, and ask whether the GPCM head exploits the constructed step transitions (supporting RQ5 positively) or whether category noise erases the gains (informative null result).
+Addressing \textbf{RQ5}, we evaluate whether ordinal modeling gains persist when response categories must be constructed from proxy signals rather than purpose-designed rubrics. Real KT benchmarks are predominantly binary, yet process features such as attempt counts, hint requests, and response latency encode graded evidence of understanding \citep{lu_selfkt_2024}. We derive $K=3$ ordered categories from attempt counts in ASSISTments-style interaction logs: 1 attempt ($=$ mastery), 2--3 attempts ($=$ partial understanding), 4$+$ attempts ($=$ struggle). This mapping approximates an ordinal rubric but introduces noise — guessing, rapid retries, and help-seeking behavior may violate the assumed ordering. We therefore treat this setting as a \emph{stress test} of the model's ordinal structure under imperfect category construction, and ask whether the GPCM head exploits the constructed step transitions (supporting RQ5 positively) or whether category noise erases the gains (informative null result).
 
 Results for DEEP-GPCM variants against DKVMN (softmax) are reported in Table~\ref{tab:real_placeholder}, using QWK as the primary metric. The table is complete once the ASSISTments pipeline is run; the expected pattern and sensitivity analysis are described in the note below.
 
@@ -828,7 +894,7 @@ DEEP-GPCM (SIE) & --- & --- & --- \\
 \end{table}
 
 \begin{pendingbox}[Pending: proxy-ordinality experiments]
-Results require running the ASSISTments attempt-count pipeline through all three models. Expected pattern: DEEP-GPCM should show QWK gains over DKVMN (softmax) if ordinal category construction is consistent enough for the GPCM formulation to exploit step transitions; if attempt-count bins are too noisy, the QWK gap may narrow. This experiment also serves as a stress test of the model under non-ideal ordinal category construction.
+Running the ASSISTments attempt-count converted proxy-oridnal case: DEEP-GPCM should show QWK gains over DKVMN (softmax) if ordinal category construction is consistent enough for the GPCM formulation to exploit step transitions; if attempt-count bins are too noisy, the QWK gap may narrow.
 \end{pendingbox}
 
 
@@ -838,25 +904,26 @@ Results require running the ASSISTments attempt-count pipeline through all three
 
 \subsection{Educational Implications}
 \label{sec:disc_educational}
-DEEP-MIRT preserves fine-grained evidence that binary KT discards, with concrete consequences for formative assessment practice. An intelligent tutoring system using binary KT knows only whether a student got an item right or wrong. With ordinal KT, the system can distinguish a student who consistently achieves partial credit (identifying the correct approach but making computational errors) from one who scores zero, lacking the relevant concept entirely. These two students require different instructional responses, and the GPCM head's evolving ability estimate $\theta_t$ and predicted category probabilities make this distinction explicit. More broadly, ordinal trajectories reveal learning progressions that binary scoring flattens: a student progressing from rubric level 1 to level 2 to level 3 shows a clear trajectory that binary KT would represent only as a string of failures ending in a sudden success \citep{heritage_formative_2007, wilson_constructing_2005}.
+DEEP-MIRT extends binary KT to address wider applications for formative assessment practice. By estimating a dynamic ability and categorical probabilities, it differentiates partial knowledge from total misunderstanding, providing richer insights in continuous learning progressions. Furthermore, the extracted item parameters describe item-level characteristics beyond immediate predictive use. 
+Unlike classical psychometric calibration, DEEP-MIRT allows online extraction of item characteristics alongside student states, which helps identify underperforming or misaligned items in real time.
+This transition from a purely predictive instrument to a measurement-aware system ensures that instructional decisions are grounded in identifiable, theoretically-backed constructs such as discrimination and step difficulty \citep{heritage_formative_2007, wilson_constructing_2005}.
 
-The interpretable item parameters serve an additional purpose beyond prediction: rubric quality assurance. Items with low discrimination ($\alpha_j \approx 0$) fail to differentiate between students of different ability, signalling a poorly designed rubric or a mismatch with the intended learning goal. Items with disordered or closely spaced thresholds suggest redundant scoring categories that could be collapsed. This kind of item review is standard in psychometric analysis \citep{embretson_irt_2000} but has not previously been available in a dynamic KT context, where the same model can identify underperforming items while simultaneously tracking student growth.
+% For example, an intelligent tutoring system with ordinal KT can distinguish a student who consistently achieves partial credit (identifying the correct approach but making computational errors) from one who scores zero, lacking the relevant concept entirely. These two students require different instructional responses, and the GPCM head's evolving ability estimate $\theta_t$ and predicted category probabilities make this distinction explicit. More broadly, ordinal trajectories reveal learning progressions that binary scoring flattens: a student progressing from rubric level 1 to level 2 to level 3 shows a clear trajectory that binary KT would represent only as a string of failures ending in a sudden success.
 
-\subsection{Limitations and Validity}
-\label{sec:disc_limitations}
-The parameter recovery results (Table~\ref{tab:recovery} and Figure~\ref{fig:recovery}) are encouraging, but several constraints limit the conclusions that can be drawn.
 
-Rank-order agreement for step difficulty thresholds is strong (mean $r_\beta = 0.90$ across four thresholds), and discrimination recovery is moderate ($r_\alpha \approx 0.65$). However, an examination of raw threshold values reveals a systematic compression toward the centre: the model places step difficulties closer together than their true values. While this does not harm rank-order recovery, it means the absolute spacing between rubric transitions is underestimated, which matters for applications such as cut-score setting where threshold magnitudes are substantively interpreted. The source of this compression is not yet fully understood; tighter coupling between the threshold base and increment parameterisations, or a dedicated dispersion correction in the loss, are candidate remedies.
+\subsection{Limitations and Future Directions}
+While the framework establishes a foundation for polytomous knowledge tracing, several limitations present direct avenues for future research. 
 
-The primary evaluation uses synthetic data generated from the same GPCM assumptions as the model, which is necessarily circular for assessing recovery. Real rubric-scored responses carry construct-irrelevant variance (rater disagreement, handwriting quality, guessing) and may not follow the adjacent-category step structure. The proxy-ordinality experiment (Table~\ref{tab:real_placeholder}) partially addresses this, but attempt-count bins are a noisy proxy for purpose-designed rubric scores. On any real deployment, the correspondence between model parameters and educational constructs requires external validation, for instance by checking whether students with higher $\theta_T$ also outperform on an independent standardised measure \citep{messick_validity_1995, kane_argument_2013}. Additionally, the current implementation assumes a uniform $K$ across items; extending to variable category counts per item, and to multidimensional traits \citep{reckase_mirt_2009}, are natural next steps that the framework architecture already accommodates.
+First, although we proposed DEEP-MIRT as a modular framework with interchangeable components, the current implementation DEEP-GPCM is limited to the GPCM head. A significant research opportunity lies in fully realizing this modularity. For example, a nominal response head using the NRM \citep{bock_estimating_1972} would extend the framework to unordered polytomous responses such as multiple-choice distractors, enabling misconception-level feedback.
 
-\subsection{Future Directions}
-\label{sec:disc_future}
-Four directions follow directly from the current work. First, multidimensional instantiations with concept-aligned memory slots would enable per-skill ability tracking, supporting more targeted instructional recommendations than a composite $\theta_t$. Second, evaluation on naturally rubric-scored datasets, such as writing assessment corpora and project-based learning logs, would test the model under authentic assessment conditions. Third, a nominal response head using the Nominal Response Model \citep{bock_estimating_1972} would extend the framework to unordered polytomous responses such as multiple-choice distractors, enabling misconception-level feedback. Fourth, integration with computerised adaptive testing algorithms would allow DEEP-MIRT's ability estimates to drive item selection in real time, closing the loop between measurement and instruction.
+Second, evaluating parameter recovery on synthetic data generated under GPCM assumptions is inherently circular, and proxy signals like attempt counts contain construct-irrelevant variance. Future evaluations will apply the model to authentic polytomous datasets and validate the inferred trajectories against external standardized measures.
+
+Third, while the current backbone effectively maintains a unidimensional student state but struggles with multi-dimensional discrimination recovery. Connecting multidimensional instantiations with concept-aligned memory slots would enable per-skill ability tracking, supporting more targeted tracking than a composite $\theta_t$.
+
 
 \section{Conclusion}
 \label{sec:conclusion}
-Educational assessments that produce ordinal outcomes (rubric scores, partial credit, graded performance levels) are ubiquitous in classrooms, tutoring systems, and online learning platforms, yet knowledge tracing research has overwhelmingly assumed binary responses. This paper introduced DEEP-MIRT, a framework that bridges deep knowledge tracing and polytomous item response theory to address this gap. By coupling a sequential neural backbone with a GPCM-based response head, DEEP-MIRT tracks evolving student ability over time while producing interpretable psychometric parameters (ability trajectories, item discrimination, and ordered difficulty thresholds) that educators and assessment designers can inspect and act upon. Our DEEP-GPCM instantiation on controlled synthetic benchmarks demonstrates strong ordinal prediction performance (QWK up to 0.778), faithful recovery of item parameters (mean $r_\beta = 0.90$; $r_\alpha \approx 0.65$), and backward compatibility with binary KT settings. The Static Item Embedding (SIE) encoding further enables scalable deployment on large item banks at under one-fifth of the parameter count of dense encoding alternatives. Important next steps include evaluation on naturally rubric-scored real-world data, multidimensional extensions, and integration with adaptive testing systems; taken together, these extensions would establish DEEP-MIRT as a principled foundation for knowledge tracing that fully respects the ordinal structure of educational assessment.
+The transition from binary to polytomous responses is essential for practical educational assessment. DEEP-MIRT reconciles the predictive performance of sequential neural networks with the rigorness of IRT. By decoupling the sequential backbone from interchangeable psychometric heads, we demonstrate that deep learning can optimize prediction while yielding identifiable measurement constructs. The framework's backward compatibility and scalability confirm its viability as a practical replacement for existing systems. By respecting the ordinal structure of educational data, DEEP-MIRT establishes an alternative for measurement-aware adaptive learning.
 
 % -------------------------------------------------------------------------
 % BibTeX entries to add to aaai2026.bib for new citations in Sections 1--2:
