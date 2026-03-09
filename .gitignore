@@ -24,8 +24,10 @@ build/
 *.fls
 *.log
 *.out
+*.spl
 *.synctex.gz
 *.toc
+paper.pdf
 
 # Jupyter
 .ipynb_checkpoints/

@@ -68,11 +68,11 @@ Three item encoding strategies are available via `model.embedding_type`:
 
 ## Repository Layout
 
-- `kt-gpcm/`: Active DEEP-GPCM implementation, configs, data tools, scripts, and tests.
-- `mirt-dkvmn/`: Earlier multi-dimensional MIRT-DKVMN prototype (archived).
-- `deep-gpcm/`: Reference implementation and legacy scripts.
-- `dkvmn-ori/`, `dkvmn-torch/`, `akt/`, `deep-1pl/`: Legacy or comparative baselines.
+- `kt-gpcm/`: Active DEEP-GPCM implementation, configs, data, scripts, and tests.
 - `paper.tex`: Research paper (LaTeX source).
+- `figures/`: PDF figures for paper.
+- `TODO.md`: Active task list.
+- `PAPER_PLAN.md`: Venue strategy and writing plan.
 
 ## Data and Artifacts
 
