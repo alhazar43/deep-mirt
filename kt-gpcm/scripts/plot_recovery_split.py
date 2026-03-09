@@ -207,7 +207,10 @@ def make_student_figure(models_data, true_theta, K, output_path):
     pgf_path = Path(output_path + "_student.pgf")
     pgf_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(pgf_path)
-    fig.savefig(pgf_path.with_suffix(".png"), dpi=150)
+    try:
+        fig.savefig(pgf_path.with_suffix(".png"), dpi=150)
+    except Exception as e:
+        print(f"  PNG save skipped: {e}")
     plt.close(fig)
     print(f"Student figure saved: {pgf_path}")
 
@@ -284,7 +287,10 @@ def make_item_figure(models_data, true_alpha, true_beta, K, output_path):
     pgf_path = Path(output_path + "_item.pgf")
     pgf_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(pgf_path)
-    fig.savefig(pgf_path.with_suffix(".png"), dpi=150)
+    try:
+        fig.savefig(pgf_path.with_suffix(".png"), dpi=150)
+    except Exception as e:
+        print(f"  PNG save skipped: {e}")
     plt.close(fig)
     print(f"Item figure saved: {pgf_path}")
     for name in models_data:
