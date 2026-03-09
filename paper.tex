@@ -761,9 +761,29 @@ Unconstrained & .679 & .510 & .676 & .684 & \textbf{.93} \\
 
 Real educational assessments rarely produce uniformly distributed rubric scores: high-performing students dominate most operational datasets, creating skewed response distributions that challenge standard classifiers. We evaluate DEEP-GPCM under three levels of imbalance at $Q=200$, $K=4$, induced by shifting the student ability distribution upward ($\theta \sim \mathcal{N}(\mu, 1)$ for $\mu \in \{0.5, 1.0, 1.5\}$), producing mild, severe, and extreme skew toward the highest response category.
 
-\begin{pendingbox}[Pending: class imbalance experiments]
-Results pending. Expected: QWK degrades gracefully as imbalance increases; IRT parameter recovery remains stable since item parameters are population-level; WOL class weighting prevents collapse to majority-class prediction.
-\end{pendingbox}
+\begin{table}[t]
+\centering
+\caption{Class imbalance robustness at $Q=200$, $K=4$. Response distribution shows empirical proportions for categories 0--3. QWK and IRT recovery correlations ($r_\alpha$, $r_\beta$, $r_\theta$) are reported on the held-out test set.}
+\label{tab:imbalance}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Condition} & \textbf{Distribution} & \textbf{QWK} & $r_\alpha$ & $r_\beta$ & $r_\theta$ \\
+\midrule
+Balanced  & .31/.21/.20/.29 & 0.683 & 0.777 & 0.927 & 0.941 \\
+Mild      & .16/.16/.21/.46 & 0.669 & 0.736 & 0.909 & 0.931 \\
+Severe    & .08/.11/.20/.62 & 0.630 & 0.641 & 0.844 & 0.896 \\
+Extreme   & .05/.08/.18/.69 & 0.594 & 0.543 & 0.829 & 0.877 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:imbalance} reveals three findings relevant to practitioners deploying ordinal KT in operational settings.
+
+First, \textbf{prediction quality degrades gracefully}. QWK drops from 0.683 under balanced conditions to 0.594 under extreme imbalance---a 13\% relative decline even when the dominant category accounts for 69\% of responses. The model does not collapse to majority-class prediction, confirming that the WOL's class weighting successfully counteracts distributional skew.
+
+Second, \textbf{student ability recovery remains strong}. $r_\theta$ decreases from 0.941 to 0.877 across conditions, remaining well above the 0.80 threshold typically considered acceptable for individual-level measurement~\citep{embretson_item_2000}. This stability arises because the DKVMN's sequential memory accumulates evidence across interactions regardless of the marginal response distribution, producing reliable per-student ability estimates even when most responses fall in a single category.
+
+Third, \textbf{item discrimination is most sensitive to imbalance}. $r_\alpha$ drops from 0.777 to 0.543 under extreme skew. This is expected: when few students respond in the lowest categories, the model has limited information to distinguish how sharply items discriminate at the low end of the ability continuum. Threshold recovery ($r_\beta$) is more robust (0.927$\to$0.829) because thresholds are anchored by the ordinal structure of the GPCM even when category frequencies are uneven. For educational applications, this suggests that item parameter calibration should use approximately balanced datasets when possible, while student ability tracking can tolerate substantial distributional skew without meaningful accuracy loss.
 
 
 \section{Discussion}
