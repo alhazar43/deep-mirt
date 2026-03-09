@@ -1,0 +1,11 @@
+{
+  "dataset_name": "large_q2000_k6",
+  "n_students": 3000,
+  "n_questions": 2000,
+  "n_categories": 6,
+  "seq_len_range": [
+    50,
+    120
+  ],
+  "model_type": "GPCM"
+}

@@ -91,15 +91,15 @@ def run_inference_deepgpcm(cfg, checkpoint, device):
             a = out["alpha"].cpu().numpy(); b = out["beta"].cpu().numpy()
             t = out["theta"].cpu().numpy(); qn = q.cpu().numpy(); mn = mask.cpu().numpy()
             for bi in range(qn.shape[0]):
-                tv = []
+                last_theta = None
                 for s in range(qn.shape[1]):
                     if mn[bi, s]:
                         qid = int(qn[bi, s]) - 1
                         if 0 <= qid < Q:
                             alpha_sum[qid] += a[bi, s]; alpha_cnt[qid] += 1
                             beta_sum[qid]  += b[bi, s]; beta_cnt[qid]  += 1
-                        tv.append(float(t[bi, s, 0]))
-                if tv: theta_list.append(np.mean(tv))
+                        last_theta = float(t[bi, s, 0])
+                if last_theta is not None: theta_list.append(last_theta)
     process(train_loader); process(test_loader)
     seen = alpha_cnt > 0
     return (seen,
@@ -130,15 +130,15 @@ def run_inference_irt(cfg, checkpoint, device, model_class):
             a = out["alpha"].cpu().numpy(); b = out["beta"].cpu().numpy()
             t = out["theta"].cpu().numpy(); qn = q.cpu().numpy(); mn = mask.cpu().numpy()
             for bi in range(qn.shape[0]):
-                tv = []
+                last_theta = None
                 for s in range(qn.shape[1]):
                     if mn[bi, s]:
                         qid = int(qn[bi, s]) - 1
                         if 0 <= qid < Q:
                             alpha_sum[qid] += a[bi, s]; alpha_cnt[qid] += 1
                             beta_sum[qid]  += b[bi, s]; beta_cnt[qid]  += 1
-                        tv.append(float(t[bi, s, 0]))
-                if tv: theta_list.append(np.mean(tv))
+                        last_theta = float(t[bi, s, 0])
+                if last_theta is not None: theta_list.append(last_theta)
     process(train_loader); process(test_loader)
     seen = alpha_cnt > 0
     return (seen,
@@ -315,10 +315,21 @@ def main():
     print("Running Dynamic GPCM inference...")
     dyn_data  = run_inference_irt(cfg_dyn,  args.dynamic_checkpoint,  device, DynamicGPCM)
 
+    # Resolve data_dir relative to project root (kt-gpcm/)
+    config_path = Path(args.deepgpcm_config).resolve()
+    project_root = config_path.parent
+    while project_root.name != "kt-gpcm" and project_root.parent != project_root:
+        project_root = project_root.parent
+
     data_root = Path(cfg_deep.data.data_dir)
     if not data_root.is_absolute():
-        data_root = Path(args.deepgpcm_config).parent.parent / data_root
-    with (data_root / cfg_deep.data.dataset_name / "true_irt_parameters.json").open() as f:
+        data_root = project_root / data_root
+
+    true_params_path = data_root / cfg_deep.data.dataset_name / "true_irt_parameters.json"
+    if not true_params_path.exists():
+        raise FileNotFoundError(f"True IRT parameters not found: {true_params_path}")
+
+    with true_params_path.open() as f:
         true_irt = json.load(f)
 
     models_data = {

@@ -1,0 +1,24 @@
+{
+  "dataset_name": "large_q200_k4_mild_imbalance",
+  "n_students": 5000,
+  "n_questions": 200,
+  "n_categories": 4,
+  "seq_len_range": [
+    20,
+    80
+  ],
+  "model_type": "GPCM",
+  "target_distribution": [
+    0.1,
+    0.2,
+    0.3,
+    0.4
+  ],
+  "empirical_distribution": [
+    0.1596534406624836,
+    0.16221035290175634,
+    0.21394693908485676,
+    0.4641892673509033
+  ],
+  "total_responses": 250693
+}

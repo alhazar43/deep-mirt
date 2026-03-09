@@ -1,0 +1,24 @@
+{
+  "dataset_name": "large_q200_k4_balanced",
+  "n_students": 5000,
+  "n_questions": 200,
+  "n_categories": 4,
+  "seq_len_range": [
+    20,
+    80
+  ],
+  "model_type": "GPCM",
+  "target_distribution": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "empirical_distribution": [
+    0.30566868640129563,
+    0.21133817059112142,
+    0.19611636543501415,
+    0.28687677757256885
+  ],
+  "total_responses": 250693
+}

@@ -1,0 +1,11 @@
+{
+  "dataset_name": "large_q2000_k4",
+  "n_students": 5000,
+  "n_questions": 2000,
+  "n_categories": 4,
+  "seq_len_range": [
+    100,
+    200
+  ],
+  "model_type": "GPCM"
+}

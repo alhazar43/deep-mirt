@@ -264,7 +264,16 @@ def plot_trajectories(
     # ------------------------------------------------------------------
     # 3. Load dataset (all students, unshuffled)
     # ------------------------------------------------------------------
+    # Resolve data_root relative to project root if not absolute
+    config_path = Path(config_path).resolve()
+    project_root = config_path.parent
+    while project_root.name not in ["mirt-dkvmn", "kt-gpcm"] and project_root.parent != project_root:
+        project_root = project_root.parent
+
     data_root = Path(config.data.data_root)
+    if not data_root.is_absolute():
+        data_root = project_root / data_root
+
     dataset_name = config.data.dataset_name
     dataset_dir = data_root / dataset_name
 

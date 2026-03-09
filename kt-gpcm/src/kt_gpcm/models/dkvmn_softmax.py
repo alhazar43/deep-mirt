@@ -42,6 +42,7 @@ class DKVMNSoftmax(nn.Module):
         ability_scale: float = 1.0,
         response_dim: int = 16,
         use_separable_embed: bool = False,
+        monotonic_betas: bool = True,
         model_type: str = "dkvmn_softmax",
     ) -> None:
         super().__init__()

@@ -149,9 +149,15 @@ def main():
               Path(args.deepgpcm_checkpoint).parent / "trajectory_plots"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Resolve data_dir relative to project root (kt-gpcm/)
+    config_path = Path(args.deepgpcm_config).resolve()
+    project_root = config_path.parent
+    while project_root.name != "kt-gpcm" and project_root.parent != project_root:
+        project_root = project_root.parent
+
     data_root = Path(cfg.data.data_dir)
     if not data_root.is_absolute():
-        data_root = Path(args.deepgpcm_config).parent.parent / data_root
+        data_root = project_root / data_root
     data_dir = data_root / cfg.data.dataset_name
 
     with (data_dir / "sequences.json").open() as f:
@@ -260,6 +266,7 @@ def main():
 
     out_path = out_dir / "learner_trajectories.pgf"
     fig.savefig(out_path)  # no bbox_inches="tight" — keeps figure at native width
+    fig.savefig(out_path.with_suffix(".png"), dpi=150)
     plt.close(fig)
     print(f"Figure saved: {out_path}")
 

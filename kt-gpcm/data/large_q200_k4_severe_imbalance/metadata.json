@@ -1,0 +1,24 @@
+{
+  "dataset_name": "large_q200_k4_severe_imbalance",
+  "n_students": 5000,
+  "n_questions": 200,
+  "n_categories": 4,
+  "seq_len_range": [
+    20,
+    80
+  ],
+  "model_type": "GPCM",
+  "target_distribution": [
+    0.05,
+    0.1,
+    0.25,
+    0.6
+  ],
+  "empirical_distribution": [
+    0.0780197293103517,
+    0.10772538523213651,
+    0.19688224242400068,
+    0.6173726430335111
+  ],
+  "total_responses": 250693
+}
