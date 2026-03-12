@@ -48,6 +48,15 @@ COLORS = {
     "DEEP-GPCM": "#ff7f0e",
 }
 
+FS = {
+    "suptitle": 13,
+    "subtitle": 8,
+    "axis":     9,
+    "tick":     6.0,
+    "annot":    6.5,
+    "legend":   7,
+}
+
 
 def z_score(x):
     s = x.std()
@@ -159,54 +168,81 @@ def _yx_line(ax):
 
 
 def make_student_figure(models_data, true_theta, K, output_path):
-    """3×1 theta KDE plots."""
-    from scipy.stats import gaussian_kde, norm
+    """n_models×1 theta KDE plots — fixed cell size, figure height adapts to n_models."""
+    from scipy.stats import gaussian_kde
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
 
     model_names = list(models_data.keys())
     n_rows = len(model_names)
 
-    fig, axes = plt.subplots(n_rows, 1, figsize=(3.5, 1.25 * n_rows + 0.3), squeeze=False)
-    fig.subplots_adjust(hspace=0.35, top=0.86, bottom=0.08, left=0.13, right=0.96)
+    # Fixed cell dimensions (inches)
+    CELL_W, CELL_H = 2.8, 1.1
+    left_m, right_m = 0.42, 0.14   # S1: no y-label text, just tick space
+    top_m, bot_m   = 0.62, 0.40    # S2: compact top for suptitle + legend
+    v_gap = 0.18                    # S1: no subplot titles, rows can be tight
+
+    fig_w = left_m + CELL_W + right_m
+    fig_h = top_m + n_rows * CELL_H + (n_rows - 1) * v_gap + bot_m
+
+    # S2: center over plot area, not figure (asymmetric margins)
+    plot_cx = (left_m + fig_w - right_m) / 2 / fig_w
+
+    fig, axes = plt.subplots(n_rows, 1, figsize=(fig_w, fig_h), squeeze=False)
+    fig.subplots_adjust(
+        left   = left_m / fig_w,
+        right  = 1 - right_m / fig_w,
+        bottom = bot_m / fig_h,
+        top    = 1 - top_m / fig_h,
+        hspace = v_gap / CELL_H,
+    )
 
     xs = np.linspace(-4, 4, 300)
     true_z = z_score(true_theta)
 
-    # Main title with larger font
-    fig.suptitle(r"Student Ability $\theta$", fontsize=11, y=0.98, fontweight="bold")
+    suptitle_y = 1 - 0.07 / fig_h
+    legend_y   = 1 - 0.28 / fig_h   # S2: tighter gap from title
+    fig.suptitle(r"\textbf{Student Ability} $\theta$", fontsize=FS["suptitle"],
+                 y=suptitle_y, x=plot_cx)
 
-    # Merged legend: model colors + line styles in single row
-    # Offset x-coordinate to account for left margin (y-axis labels)
+    # S3: remove N(0,1) reference — true θ is drawn from N(0,1) so it's redundant
     model_handles = [Patch(facecolor=COLORS[name], label=name) for name in model_names]
-    line_handles = [
-        Line2D([0], [0], color="gray", lw=0.8, ls=":", label=r"$\mathcal{N}(0,1)$"),
-        Line2D([0], [0], color="black", lw=1.4, ls="--", label=r"True $\theta^*$"),
-    ]
-    all_handles = model_handles + line_handles
-    fig.legend(handles=all_handles, loc="upper center", ncol=5, fontsize=6,
-               bbox_to_anchor=(0.54, 0.90), framealpha=0.92, edgecolor="lightgray",
+    true_handle = Line2D([0], [0], color="black", lw=1.4, ls="--", label=r"True $\theta^*$")
+    fig.legend(handles=model_handles + [true_handle], loc="upper center",
+               ncol=min(4, n_rows + 1),
+               fontsize=FS["legend"],
+               bbox_to_anchor=(plot_cx, legend_y), framealpha=0.92, edgecolor="lightgray",
                handlelength=1.1, columnspacing=0.5, handletextpad=0.3)
+
+    # S1: shared axis labels via fig.text
+    plot_left = left_m / fig_w
+    plot_bot  = bot_m / fig_h
+    plot_top  = 1 - top_m / fig_h
+    fig.text(plot_cx, plot_bot * 0.38,
+             r"\textbf{Normalized} $\theta$", ha="center", va="center", fontsize=FS["axis"])
+    fig.text(plot_left * 0.20, (plot_bot + plot_top) / 2,
+             r"\textbf{Density}", ha="center", va="center", fontsize=FS["axis"], rotation=90)
 
     for row_idx, name in enumerate(model_names):
         seen, alpha_est, beta_est, theta_est = models_data[name]
         color = COLORS[name]
         ax = axes[row_idx, 0]
 
-        ax.plot(xs, norm.pdf(xs), color="gray", lw=0.8, ls=":")
+        # S3: no N(0,1) line; keep only true θ KDE and estimated θ KDE
         ax.plot(xs, gaussian_kde(true_z, bw_method="scott")(xs),
                 color="black", ls="--", lw=1.4)
         ax.plot(xs, gaussian_kde(z_score(theta_est), bw_method="scott")(xs),
                 color=color, lw=1.6)
-        # No row title - parameter name is in suptitle
-        ax.set_xlabel(r"Norm.\ $\theta$", fontsize=6.5, labelpad=1)
-        ax.set_ylabel("Density", fontsize=6.5, labelpad=1)
         ax.grid(True, alpha=0.2, lw=0.4)
-        ax.tick_params(labelsize=6, pad=1)
+        ax.tick_params(labelsize=FS["tick"], pad=1)
 
     pgf_path = Path(output_path + "_student.pgf")
     pgf_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(pgf_path)
+    try:
+        fig.savefig(pgf_path.with_suffix(".pdf"))
+    except Exception as e:
+        print(f"  PDF save skipped: {e}")
     try:
         fig.savefig(pgf_path.with_suffix(".png"), dpi=150)
     except Exception as e:
@@ -216,7 +252,9 @@ def make_student_figure(models_data, true_theta, K, output_path):
 
 
 def make_item_figure(models_data, true_alpha, true_beta, K, output_path):
-    """3×(1+K-1) alpha + beta scatter plots, slightly larger."""
+    """n_models×(1+K-1) alpha + beta scatter plots.
+    Fixed square cell size; figure width grows with K, height grows with n_models.
+    """
     from matplotlib.patches import Patch
 
     K1 = true_beta.shape[1]
@@ -224,22 +262,54 @@ def make_item_figure(models_data, true_alpha, true_beta, K, output_path):
     model_names = list(models_data.keys())
     n_rows = len(model_names)
 
-    fig, axes = plt.subplots(n_rows, n_cols,
-                              figsize=(6.5, 1.1 * n_rows + 0.4),
-                              squeeze=False)
-    fig.subplots_adjust(hspace=0.40, wspace=0.32,
-                        top=0.85, bottom=0.08, left=0.06, right=0.99)
+    # Fixed cell size (inches) — wider than tall
+    CELL_W = 1.35
+    CELL_H = 1.10
+    left_m, right_m = 0.44, 0.12   # no row labels; left just for y-ticks
+    top_m, bot_m   = 0.66, 0.48    # compact top; bot for shared x-label
+    h_gap = 0.30                    # tight: no per-cell y-axis labels
+    v_gap = 0.18                    # tight: matches student figure density
 
-    # Main title with larger font
-    fig.suptitle(r"Item Parameters", fontsize=11, y=0.97, fontweight="bold")
+    fig_w = left_m + n_cols * CELL_W + (n_cols - 1) * h_gap + right_m
+    fig_h = top_m + n_rows * CELL_H + (n_rows - 1) * v_gap + bot_m
 
-    # Color legend after title
+    # Center over plot area (asymmetric left/right margins)
+    plot_cx = (left_m + fig_w - right_m) / 2 / fig_w
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_w, fig_h), squeeze=False)
+    fig.subplots_adjust(
+        left   = left_m / fig_w,
+        right  = 1 - right_m / fig_w,
+        bottom = bot_m / fig_h,
+        top    = 1 - top_m / fig_h,
+        wspace = h_gap / CELL_W,
+        hspace = v_gap / CELL_H,
+    )
+
+    suptitle_y = 1 - 0.07 / fig_h
+    legend_y   = 1 - 0.28 / fig_h
+    fig.suptitle(r"\textbf{Item Parameters}", fontsize=FS["suptitle"],
+                 y=suptitle_y, x=plot_cx)
+
     legend_handles = [Patch(facecolor=COLORS[name], label=name) for name in model_names]
-    fig.legend(handles=legend_handles, loc="upper center", ncol=3, fontsize=6.5,
-               bbox_to_anchor=(0.5, 0.91), framealpha=0.92, edgecolor="lightgray",
+    fig.legend(handles=legend_handles, loc="upper center", ncol=n_rows,
+               fontsize=FS["legend"],
+               bbox_to_anchor=(plot_cx, legend_y), framealpha=0.92, edgecolor="lightgray",
                handlelength=1.0, columnspacing=0.8)
 
-    col_titles = [r"Discrimination $\alpha$"] + [f"Threshold $\\beta_{{{k+1}}}$" for k in range(K1)]
+    # Single shared axis labels via fig.text
+    plot_left  = left_m / fig_w
+    plot_right = 1 - right_m / fig_w
+    plot_bot   = bot_m / fig_h
+    plot_top   = 1 - top_m / fig_h
+    fig.text(plot_cx, plot_bot * 0.38,
+             r"\textbf{True}", ha="center", va="center", fontsize=FS["axis"])
+    fig.text(plot_left * 0.20, (plot_bot + plot_top) / 2,
+             r"\textbf{Estimated}", ha="center", va="center",
+             fontsize=FS["axis"], rotation=90)
+
+    col_titles = [r"\textbf{Discrimination} $\alpha$"] + \
+                 [rf"\textbf{{Step threshold}} $\beta_{{{k+1}}}$" for k in range(K1)]
 
     r_alpha_all = {}
     r_beta_all  = {name: [] for name in model_names}
@@ -255,16 +325,14 @@ def make_item_figure(models_data, true_alpha, true_beta, K, output_path):
         ea = link_alpha(alpha_est[seen, 0])
         r  = float(np.corrcoef(ta, ea)[0, 1])
         r_alpha_all[name] = r
-        ax.scatter(ta, ea, alpha=0.4, s=6, color=color, edgecolors="none")
+        ax.scatter(ta, ea, alpha=0.4, s=5, color=color, edgecolors="none")
         _yx_line(ax)
         ax.text(0.05, 0.93, f"$r={r:.3f}$", transform=ax.transAxes,
-                fontsize=6, va="top", color=color)
+                fontsize=FS["annot"], va="top", color=color)
         if row_idx == 0:
-            ax.set_title(col_titles[0], fontsize=7.5, pad=2)
-        ax.set_xlabel(r"True $\alpha$", fontsize=6.5, labelpad=1)
-        ax.set_ylabel(r"Est.\ $\hat{\alpha}$", fontsize=6.5, labelpad=1)
+            ax.set_title(col_titles[0], fontsize=FS["subtitle"], pad=2)
         ax.grid(True, alpha=0.2, lw=0.4)
-        ax.tick_params(labelsize=6, pad=1)
+        ax.tick_params(labelsize=FS["tick"], pad=1)
 
         # Cols 1+: Beta scatters
         for k in range(K1):
@@ -273,20 +341,22 @@ def make_item_figure(models_data, true_alpha, true_beta, K, output_path):
             eb = link_normal(beta_est[seen, k])
             r  = float(np.corrcoef(tb, eb)[0, 1])
             r_beta_all[name].append(r)
-            ax.scatter(tb, eb, alpha=0.4, s=6, color=color, edgecolors="none")
+            ax.scatter(tb, eb, alpha=0.4, s=5, color=color, edgecolors="none")
             _yx_line(ax)
             ax.text(0.05, 0.93, f"$r={r:.3f}$", transform=ax.transAxes,
-                    fontsize=6, va="top", color=color)
+                    fontsize=FS["annot"], va="top", color=color)
             if row_idx == 0:
-                ax.set_title(col_titles[1 + k], fontsize=7.5, pad=2)
-            ax.set_xlabel(f"True $\\beta_{{{k+1}}}$", fontsize=6.5, labelpad=1)
-            ax.set_ylabel(f"Est.\ $\\hat{{\\beta}}_{{{k+1}}}$", fontsize=6.5, labelpad=1)
+                ax.set_title(col_titles[1 + k], fontsize=FS["subtitle"], pad=2)
             ax.grid(True, alpha=0.2, lw=0.4)
-            ax.tick_params(labelsize=6, pad=1)
+            ax.tick_params(labelsize=FS["tick"], pad=1)
 
     pgf_path = Path(output_path + "_item.pgf")
     pgf_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(pgf_path)
+    try:
+        fig.savefig(pgf_path.with_suffix(".pdf"))
+    except Exception as e:
+        print(f"  PDF save skipped: {e}")
     try:
         fig.savefig(pgf_path.with_suffix(".png"), dpi=150)
     except Exception as e:
