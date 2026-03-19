@@ -28,7 +28,7 @@
 
 \begin{document}
 
-\title[Article Title]{TBD}
+\title[Article Title]{MA-IRT: A Memory-Augmented Framework for Polytomous Knowledge Tracing with IRT Parameter Recovery}
 
 \author[1]{\fnm{Wenrui} \sur{Yuan}}
 
@@ -43,7 +43,7 @@
 
 \abstract{Knowledge tracing is a core component of adaptive learning systems, yet much of the literature assumes binary correctness as the observation signal. In many educational settings, however, learner evidence is polytomous, including ordered score levels and partial credit, where both ordinal structure and interpretability matter for measurement and intervention.
 
-We propose DEEP-MIRT, a modular framework that extends knowledge tracing to polytomous responses by bridging sequential neural modeling with psychometric Item Response Theory. The framework couples a swappable sequential backbone with an interchangeable response head, separating the question of how learner ability evolves over time from the question of how that ability maps to ordered response categories. Instantiated with a Generalized Partial Credit Model (GPCM) head, DEEP-MIRT produces psychometrically interpretable outputs at every interaction, including an evolving student ability estimate, item discrimination values, and ordered step thresholds. The model delivers strong predictive performance while accurately recovering ground-truth item parameters across varying category resolutions. The framework advances knowledge tracing from a purely predictive instrument into a measurement-aware system that grounds instructional decision-making in interpretable psychometric theory.}
+We propose MA-IRT, a modular framework that extends knowledge tracing to polytomous responses by bridging sequential neural modeling with psychometric Item Response Theory. The framework couples a memory-augmented sequential backbone with an interchangeable response head, separating the question of how learner ability evolves over time from the question of how that ability maps to ordered response categories. Instantiated with a Generalized Partial Credit Model (GPCM) head, MA-IRT produces psychometrically interpretable outputs at every interaction, including an evolving student ability estimate, item discrimination values, and ordered step thresholds. The model delivers strong predictive performance while accurately recovering ground-truth item parameters across varying category resolutions. The framework advances knowledge tracing from a purely predictive instrument into a measurement-aware system that grounds instructional decision-making in interpretable psychometric theory.}
 
 \keywords{Knowledge tracing, Item-response theory, Deep learning, Psychometrics}
 
@@ -53,7 +53,7 @@ We propose DEEP-MIRT, a modular framework that extends knowledge tracing to poly
 
 \section{Introduction}
 Educational assessments often target graded performance rather than pass/fail outcomes. Rubric-based scoring, partial-credit items, and constructed-response tasks encode degrees of correctness that binary labels collapse into a single signal \citep{black_assessment_1998, heritage_formative_2007}.
-While automated scoring systems can deliver this ordinal structure at scale in intelligent tutoring contexts \citep{shute_stealth_2011, baral_improving_2021}, most KT benchmarks, evaluation protocols, and modeling paradigms still assume binary correctness. This leaves ordinal outcomes comparatively underexplored in KT, even though they are central to authentic assessment practice.
+While automated scoring systems can deliver this ordinal structure at scale in intelligent tutoring contexts \citep{shute_stealth_2011, baral_improving_2021}, most Knowledge Tracing (KT) benchmarks, evaluation protocols, and modeling paradigms still assume binary correctness. This leaves ordinal outcomes comparatively underexplored in KT, even though they are central to authentic assessment practice.
 
 % Knowledge Tracing (KT) is central to adaptive instruction in Intelligent Tutoring Systems (ITS) and online learning platforms: from a learner’s interaction history, a KT model estimates an evolving latent knowledge state to support feedback, practice selection, and mastery decisions \citep{aleven_embedding_2016}. For educational use, KT must be accurate and interpretable to support assessment arguments, teacher trust, and curriculum integration.
 
@@ -61,21 +61,21 @@ Beyond the outcome type, interpretability remains a key concern. Most KT models 
 
 % The majority of KT research, however, relies on binary states to represent mastery levels. This is a lossy observation model for many learning interactions that are naturally \emph{polytomous}, such as rubric scores, multi-step problems with partial credit, attempts/hints/time-to-solve signals, nominal multiple-choice distractions that encode different misconceptions, multi-response items, and ranking/ordering tasks. Collapsing these signals into a binary label loses details for formative assessment that are central to learning progressions.
 
-Three lines of existing work address these issues in isolation, leaving a gap at their intersection. First, deep KT models, from Deep Knowledge Tracing \citep[DKT;][]{piech_deep_2015} to memory-augmented and attention-based variants \citep{zhang_dynamic_2017, pandey_self-attentive_2019}, capture temporal learning dynamics but typically assume dichotomous correctness and learn latent states with limited psychometric interpretability. Second, polytomous Item Response Theory (IRT) models such as the Generalized Partial Credit Model \citep[GPCM;][]{van_der_linden_generalized_1997} provide principled, interpretable measurement of ordered responses with identifiable parameters (student ability, item discrimination, ordered step thresholds), but they generally treat ability as time-invariant and are not designed for sequential interaction logs. Third, recent efforts that inject IRT structure into deep KT \citep{yeung_deep-irt_2019, converse_irt_kt_2021} improve interpretability but largely remain restricted to dichotomous outcomes. An early partial exception is \citet{wang_extending_2013}, who extended Bayesian Knowledge Tracing to allow partial credit via continuous Bayesian nodes, but without deep sequential modeling or recovering standard polytomous IRT step structure. Yet these approaches have not reconciled sequential dynamics with ordinal response modeling while retaining psychometric identifiability.
+Three lines of existing work address these issues in isolation, leaving a gap at their intersection. First, deep KT models, from Deep Knowledge Tracing \citep[DKT;][]{piech_deep_2015} to memory-augmented and attention-based variants \citep{zhang_dynamic_2017, pandey_self-attentive_2019}, capture temporal learning dynamics but typically assume dichotomous correctness and learn latent states with limited psychometric interpretability. Second, polytomous Item Response Theory (IRT) models such as the Generalized Partial Credit Model \citep[GPCM;][]{van_der_linden_generalized_1997} provide principled, interpretable measurement of ordered responses with identifiable parameters (student ability, item discrimination, ordered step thresholds), but they generally treat ability as time-invariant and are not designed for sequential interaction logs. Third, recent efforts that inject IRT structure into deep KT \citep{yeung_deep-irt_2019, converse_irt_kt_2021} improve interpretability but largely remain restricted to dichotomous outcomes. A partial exception is \citet{wang_extending_2013}, who extended Bayesian Knowledge Tracing to allow partial credit via continuous Bayesian nodes, but without deep sequential modeling or recovering standard polytomous IRT step structure. Yet these approaches have not reconciled sequential dynamics with ordinal response modeling while retaining psychometric identifiability.
 
-We propose \textit{DEEP-MIRT}, a modular framework that extends KT to Polytomous Knowledge Tracing (PKT) by coupling a swappable sequential backbone with an IRT-grounded response head. In this setting, PKT is the task of predicting the full distribution over ordered response categories from a learner’s interaction history. We instantiate the framework with a GPCM response head, yielding DEEP-GPCM, which combines a Dynamic Key-Value Memory Network (DKVMN) backbone with a GPCM observation model. At each timestep, the GPCM head maps the learner state to a distribution over ordinal categories and exposes psychometrically interpretable components, including an evolving student ability estimate, as well as learned item parameters such as per-item discrimination values and ordered step thresholds marking the transitions between score categories. While the experiments focus on ordinal PKT, the framework accommodates other polytomous formats through alternative response heads.
+We propose \textit{MA-IRT}, a modular framework that extends KT to Polytomous Knowledge Tracing (PKT) by coupling a swappable sequential backbone with an IRT-grounded response head. In this setting, PKT is the task of predicting the full distribution over ordered response categories from a learner’s interaction history. We instantiate the framework with a GPCM response head, yielding MA-GPCM, which combines a Dynamic Key-Value Memory Network (DKVMN) backbone with a GPCM observation model. At each timestep, the GPCM head maps the learner state to a distribution over ordinal categories and exposes psychometrically interpretable components, including an evolving student ability estimate, as well as learned item parameters such as per-item discrimination values and ordered step thresholds marking the transitions between score categories. While the experiments focus on ordinal PKT, the framework accommodates other polytomous formats through alternative response heads.
 
 % We refer to this broader problem family as \textit{Polytomous Knowledge Tracing (PKT)}: given an interaction history $\mathcal{X}_t=\{x_1,\ldots,x_t\}$ with $x_t=(q_t,r_t)$, the goal is to predict the distribution of the next response $P(r_{t+1}\mid q_{t+1},\mathcal{X}_t)$, where the response space depends on the item format (ordered categories for partial credit; unordered options for multiple choice; sets for multi-response; permutations for ranking). Particularly, we focus on the most common PKT setting in assessment and tutoring: \textit{ordinal} responses with $r_t\in\{0,1,\ldots,K-1\}$ and prediction target $P(r_{t+1}=k\mid q_{t+1},\mathcal{X}_t)$ for each ordered category $k$.
 
 % A core challenge in student modeling is to reconcile \textit{static measurement} with \textit{dynamic state evolution}: psychometric models provide identifiable and interpretable measurement, but are typically static; deep sequential KT models capture temporal dynamics, but are weakly constrained and hard to interpret. This challenge is amplified for PKT because deep KT is largely organized around binary correctness, making multi-category outcomes harder to model. Recent KT work has also highlighted that problem complexity and unstable knowledge state updates can deteriorate predictive performances \citep{li_pskt_2025}, and that rich process features (e.g., attempts and response time) contain information beyond correctness \citep{lu_selfkt_2024}. PKT therefore calls for models that are simultaneously dynamic, format-aware, and psychometrically interpretable.
 
-% We propose \textit{DEEP-MIRT} as a \emph{framework} for extending dichotomous KT to PKT by coupling a swappable sequential backbone (e.g., memory networks or attention) with a \emph{response-aware head} grounded in psychometric item response models. In this study, we instantiate the framework for ordinal/partial-credit responses via a Generalized Partial Credit Model (GPCM) head, yielding two showcase models: \textbf{DEEP-GPCM}, which combines a DKVMN-style dynamic memory with a GPCM observation model, and \textbf{ATTN-GPCM}, which further integrates self-attention mechanisms to improve interaction representation and memory addressing. While our experiments emphasize ordinal PKT, the framework is designed to accommodate other polytomous formats (e.g., nominal multiple-choice and ranking) through alternative response heads.
+% We propose \textit{MA-IRT} as a \emph{framework} for extending dichotomous KT to PKT by coupling a swappable sequential backbone (e.g., memory networks or attention) with a \emph{response-aware head} grounded in psychometric item response models. In this study, we instantiate the framework for ordinal/partial-credit responses via a Generalized Partial Credit Model (GPCM) head, yielding two showcase models: \textbf{MA-GPCM}, which combines a DKVMN-style dynamic memory with a GPCM observation model, and \textbf{ATTN-GPCM}, which further integrates self-attention mechanisms to improve interaction representation and memory addressing. While our experiments emphasize ordinal PKT, the framework is designed to accommodate other polytomous formats (e.g., nominal multiple-choice and ranking) through alternative response heads.
 
 We make the following contributions:
 \begin{enumerate}
-    \item \textbf{A modular framework for polytomous knowledge tracing.} We propose DEEP-MIRT, which decouples a sequential backbone from an interchangeable psychometric response head. We instantiate the framework with a GPCM head and evaluate whether the ordinal inductive bias improves prediction (\textbf{RQ1}) and produces plausible ability trajectories (\textbf{RQ2}).
-    \item \textbf{Unsupervised recovery of full IRT parameters.} We show that DEEP-GPCM recovers discrimination, step thresholds, and dynamic ability from interaction data alone, without ever observing ground-truth parameters during training (\textbf{RQ3}).
-    \item \textbf{A scalable encoding for large item banks.} We propose Static Item Embedding (SIE), which maintains recovery from 200 to 2{,}000 items (\textbf{RQ4}). We also ablate the monotonicity constraint and test robustness under skewed response distributions (\textbf{RQ5}).
+    \item \textbf{A modular framework for polytomous knowledge tracing.} We propose MA-IRT, which decouples a sequential backbone from an interchangeable psychometric response head. We instantiate the framework with a GPCM head and evaluate whether the ordinal inductive bias improves prediction (\textbf{RQ1}) and produces plausible ability trajectories (\textbf{RQ2}).
+    \item \textbf{Unsupervised recovery of full IRT parameters.} We show that MA-GPCM recovers discrimination, step thresholds, and dynamic ability from interaction data alone, without ever observing ground-truth parameters during training (\textbf{RQ3}).
+    \item \textbf{An empirical comparison of item representations for large item banks.} We compare three item representations (one-hot, learned, StaticItem) that share the same ordinal encoding but differ in how items are represented, finding that frozen random item vectors match learned embeddings up to $Q=2{,}000$ (\textbf{RQ4}). We also ablate the monotonicity constraint and test robustness under skewed response distributions (\textbf{RQ5}).
 \end{enumerate}
 
 
@@ -144,7 +144,7 @@ This work therefore explores how the interpretable parameter structures of polyt
 
 %% ---- STAGE HEADER LABELS ----
 \node[hdr] at ( 0.20, 3.70) {Input};
-\node[hdr] at ( 3.35, 3.70) {Encoding};
+\node[hdr] at ( 3.35, 3.70) {Value Embedding};
 \node[hdr] at ( 7.15, 3.70) {DKVMN Memory};
 \node[hdr] at (11.30, 3.70) {Summary};
 \node[hdr] at (14.75, 3.70) {IRT Extraction};
@@ -245,20 +245,20 @@ This work therefore explores how the interpretable parameter structures of polyt
 \end{tikzpicture}%
 }%
 \vspace{-6pt}
-\caption{DEEP-MIRT framework at timestep $t$. Item parameters $(\alpha_j, \boldsymbol{\beta}_j)$ bypass the student state via the item embedding (dashed, top), consistent with the IRT assumption that discrimination and difficulty are student-independent. The GPCM head maps $(\theta_t, \alpha_j, \boldsymbol{\beta}_j)$ to the predicted ordinal distribution $\hat{P}(r_{t+1}=k)$.}
+\caption{MA-IRT framework at timestep $t$. Item parameters $(\alpha_j, \boldsymbol{\beta}_j)$ bypass the student state via the item embedding (dashed, top), consistent with the IRT assumption that discrimination and difficulty are student-independent. The GPCM head maps $(\theta_t, \alpha_j, \boldsymbol{\beta}_j)$ to the predicted ordinal distribution $\hat{P}(r_{t+1}=k)$.}
 \label{fig:architecture}
 \end{figure}
 
 \subsection{Framework Overview}
 \label{sec:framework_overview}
 
-DEEP-MIRT is a modular architecture with two separable concerns. The \emph{backbone} handles the knowledge tracing problem by encoding item-response interactions, maintaining a dynamic memory of the student's evolving knowledge state, and producing a summary vector $\mathbf{f}_t$ representing current student state. The \emph{response head} handles the measurement problem by mapping the backbone's student state $\mathbf{f}_t$ and item identity $\mathbf{k}_t$ to a probability distribution over response categories through a psychometric observation model. Any differentiable function $h(\mathbf{f}_t, \mathbf{k}_t) \to \Delta^{K-1}$ (a distribution over $K$ categories) satisfying this interface is a valid DEEP-MIRT instantiation. The backbone is agnostic to which measurement model governs the head.
+MA-IRT is a modular architecture with two separable concerns. The \emph{backbone} handles the knowledge tracing problem by encoding item-response interactions, maintaining a dynamic memory of the student's evolving knowledge state, and producing a summary vector $\mathbf{f}_t$ representing current student state. The \emph{response head} handles the measurement problem by mapping the backbone's student state $\mathbf{f}_t$ and item identity $\mathbf{k}_t$ to a probability distribution over response categories through a psychometric observation model. Any differentiable function $h(\mathbf{f}_t, \mathbf{k}_t) \to \Delta^{K-1}$ (a distribution over $K$ categories) satisfying this interface is a valid MA-IRT instantiation. The backbone is agnostic to which measurement model governs the head.
 
-This separation is conceptually and practically helpful for tracking learning progressions. The backbone addresses the learning dynamics question of how student ability evolves across a sequence of interactions, naturally handled by sequential neural architectures. The head addresses the measurement question of how current ability maps to the probability of each ordered score category, naturally handled by psychometric theory. Coupling them through a clean interface means the two concerns can be improved independently. A better backbone (e.g., Transformer instead of DKVMN) improves temporal modeling without changing the interpretable parameterization, and a different head (e.g., GRM instead of GPCM) changes the measurement assumptions without retraining the backbone.
+This separation is conceptually and practically helpful for tracking learning progressions. The backbone addresses the learning dynamics question of how student ability evolves across a sequence of interactions, naturally handled by memory-augmented architectures that maintain and selectively update per-concept knowledge states. The head addresses the measurement question of how current ability maps to the probability of each ordered score category, naturally handled by psychometric theory. Coupling them through a clean interface means the two concerns can be improved independently. A better backbone (e.g., Transformer instead of DKVMN) improves temporal modeling without changing the interpretable parameterization, and a different head (e.g., GRM instead of GPCM) changes the measurement assumptions without retraining the backbone.
 
-In this paper we instantiate the head with the GPCM over the other major polytomous families for three reasons: (1) it is an adjacent-category model, which is the natural match for graded scoring where a student progresses sequentially through performance levels; (2) it produces a discrimination parameter $\alpha_j$ and ordered step thresholds $\boldsymbol{\beta}_j$ that correspond directly to scoring design decisions and can be inspected by assessment practitioners; (3) its monotone threshold constraint admits a clean differentiable parameterization as described below. A cumulative model such as the GRM~\citep{samejima_estimation_1969} would be a natural alternative for tasks where each scoring threshold represents an independent decision (e.g., analytic rubrics with independent sub-scores); a NRM~\citep{bock_estimating_1972} would apply when response categories are unordered (e.g., multiple-choice representing different misconceptions). We treat these as directions for future instantiation.
+In this paper we instantiate the head with the GPCM over the other major polytomous families for three reasons. (1) It is an adjacent-category model, which is the natural match for graded scoring where a student progresses sequentially through performance levels; (2) it produces a discrimination parameter $\alpha_j$ and ordered step thresholds $\boldsymbol{\beta}_j$ that correspond directly to scoring design decisions and can be inspected by assessment practitioners; (3) its monotone threshold constraint admits a clean differentiable parameterization as described below. A cumulative model such as the GRM~\citep{samejima_estimation_1969} would be a natural alternative for tasks where each scoring threshold represents an independent decision (e.g., analytic rubrics with independent sub-scores); a NRM~\citep{bock_estimating_1972} would apply when response categories are unordered (e.g., multiple-choice representing different misconceptions). We treat these as directions for future instantiation.
 
-The backbone processes inputs through four sequential stages as shown in Figure~\ref{fig:architecture}: ordinal interaction encoding, DKVMN memory update, summary compression, and IRT-based parameter extraction. An ordinal-aware training objective supervises all stages jointly. The following subsections formalize each component.
+The backbone processes inputs through four sequential stages as shown in Figure~\ref{fig:architecture}: value embedding, DKVMN memory update, summary compression, and IRT-based parameter extraction. An ordinal-aware training objective supervises all stages jointly. The following subsections formalize each component.
 
 % Moved to Related Work
 % \subsection{Problem Formulation}
@@ -271,11 +271,11 @@ The backbone processes inputs through four sequential stages as shown in Figure~
 %     P(r_{t+1}=k \mid q_{t+1}, \mathcal{X}_t), \quad k \in \{0,\ldots,K-1\}.
 % \end{equation}
 
-\subsection{Ordinal-Aware Interaction Representation}
+\subsection{Value Embedding}
 The first design decision is how to represent a student's ordinal response (e.g., a rubric score of 2 out of 4) as a numerical vector that a neural network can process. In binary KT, interactions are typically encoded as a $2Q$-dimensional one-hot vector that pairs item identity with a correct/incorrect indicator \citep{piech_deep_2015, zhang_dynamic_2017}. Ordinal responses require an encoding that preserves the distance structure between score categories (a score of 2 should be closer to 3 than to 0), which one-hot representations discard.
 
-\subsubsection{Linear Decay Encoding (LinDecay)}
-We encode an ordinal response $r_t$ with a linear decay kernel over ordered categories.
+\subsubsection{Ordinal Response Kernel}
+We encode an ordinal response $r_t$ with a triangular kernel over ordered categories \citep{vargas_soft_2023}.
 Define a length-$K$ ordinal code $\mathbf{s}_t \in \mathbb{R}^{K}$ by
 \begin{equation}\label{eqn:linear_embed}
     \begin{split}
@@ -283,33 +283,41 @@ Define a length-$K$ ordinal code $\mathbf{s}_t \in \mathbb{R}^{K}$ by
     \mathbf{s}_t&=[s_t^{(0)};\ldots;s_t^{(K-1)}].
     \end{split}
 \end{equation}
-For example, with $K=4$ score categories and a response of $r_t = 2$ (``correct approach with errors''), the ordinal code is $\mathbf{s}_t = [0.33,\; 0.67,\; 1.0,\; 0.67]$, which spreads activation to neighboring categories while peaking at the observed level. This encoding preserves the ordinal structure. A response of 2 is represented as more similar to responses 1 and 3 than to response 0, reflecting the educational intuition that partial credit is closer to full credit than to no credit.
+For example, with $K=4$ score categories and a response of $r_t = 2$ (``correct approach with errors''), the ordinal code is $\mathbf{s}_t = [0.33,\; 0.67,\; 1.0,\; 0.67]$, which spreads activation to neighboring categories while peaking at the observed level. This encoding preserves the ordinal structure. A response of 2 is represented as more similar to responses 1 and 3 than to response 0, reflecting the educational intuition that partial credit is closer to full credit than to no credit. When $K=2$, the kernel reduces to a binary indicator consistent with standard interaction encoding \citep{zhang_dynamic_2017}.
 
-We then bind the ordinal code to the item indicator via a Kronecker product (equivalently, a block one-hot expansion):
+All three item representations in this paper share this same triangular kernel $\mathbf{s}_t$; they differ only in how the item index $q_t$ is vectorized before being combined with the ordinal code. This choice governs scalability and learnability rather than ordinal awareness.
+
+\subsubsection{Item Representation}
+\label{sec:item_identity}
+Given the ordinal code $\mathbf{s}_t$, the value vector $\mathbf{v}_t \in \mathbb{R}^{d_v}$ written into DKVMN memory must also identify which item was answered. We consider three options.
+
+\paragraph{One-hot.} The simplest approach uses a Kronecker product to bind the ordinal code to a one-hot item indicator \citep{piech_deep_2015, zhang_dynamic_2017}:
 \begin{equation}
-    \mathbf{x}_t = q_t \otimes \mathbf{s}_t \in \mathbb{R}^{KQ}.
+    \mathbf{x}_t = q_t \otimes \mathbf{s}_t \in \mathbb{R}^{KQ}, \qquad \mathbf{v}_t = B^{\top}\mathbf{x}_t \in \mathbb{R}^{d_v}.
 \end{equation}
-This reduces to the standard binary interaction encoding when $K=2$ (consistent with \citet{zhang_dynamic_2017}).
-While LinDecay is the natural ordinal extension of binary interaction encoding, the $\mathcal{O}(KQ)$ dimensionality becomes a practical constraint for large item banks; we address this in the following subsection.
+Both the item indicator and the ordinal code are fixed (non-learnable). The projection $B \in \mathbb{R}^{KQ \times d_v}$ grows as $\mathcal{O}(KQ)$, which becomes a practical constraint for large item banks.
 
-\subsubsection{Scalable Value Encoding for Large Item Banks}
-Large-scale educational platforms maintain item banks spanning various grade levels and subject domains. The LinDecay Kronecker encoding in \eqref{eqn:linear_embed} yields an interaction vector of dimension $KQ$, which grows linearly with item bank size. The subsequent value projection $\mathbf{v}_t = B^{\top}\mathbf{x}_t \in \mathbb{R}^{d_v}$ therefore requires a $KQ \times d_v$ weight matrix; at $Q = 5000$ and $K = 5$, this amounts to 1.6M parameters and a per-batch intermediate tensor of size $\mathrm{batch} \times S \times 25000$, placing substantial memory pressure on GPU-constrained deployment environments.
+\paragraph{Learned.} A trainable dense embedding replaces the sparse one-hot item indicator. A learned item lookup $\mathbf{e}_{q_t} \in \mathbb{R}^{d_k}$ is concatenated with $\mathbf{s}_t$ and projected:
+\begin{equation}\label{eqn:lie}
+    \mathbf{v}_t = W_{\mathrm{proj}}[\mathbf{e}_{q_t};\;\mathbf{s}_t] + \mathbf{b}_{\mathrm{proj}} \in \mathbb{R}^{d_v}.
+\end{equation}
+This follows the standard DKVMN value embedding \citep{zhang_dynamic_2017} generalized from binary to ordinal responses. The projection requires $\mathcal{O}((d_k + K) \times d_v)$ parameters independent of $Q$. However, the item embeddings are fully learnable, so items with sparse observation counts may not receive enough gradient signal to learn distinctive representations.
 
-We propose \textbf{Static Item Embedding} (SIE), an alternative value encoding that decouples item identity from response pattern via two independent additive branches:
+\paragraph{StaticItem.} This option combines the fixed (non-learnable) item vectors of the one-hot approach with the dense representation of the learned approach. Each item receives a frozen random unit-norm vector at initialization, and the item vector and response code are projected through independent additive branches:
 \begin{equation}\label{eqn:sie}
     \mathbf{v}_t = W_{\mathrm{item}}\,\mathbf{u}_{q_t} + W_{\mathrm{resp}}\,\mathbf{s}_t + \mathbf{b}_{\mathrm{resp}} \in \mathbb{R}^{d_v},
 \end{equation}
-where $\mathbf{u}_{q_t} \in \mathbb{R}^{H}$ is a \emph{frozen} (non-trainable) unit-norm random vector assigned to item $q_t$ at initialization, $\mathbf{s}_t \in \mathbb{R}^K$ is the LinDecay ordinal code from \eqref{eqn:linear_embed}, and $W_{\mathrm{item}} \in \mathbb{R}^{d_v \times H}$ and $W_{\mathrm{resp}} \in \mathbb{R}^{d_v \times K}$ are learned projections shared across all items.
+where $\mathbf{u}_{q_t} \in \mathbb{R}^{H}$ is a \emph{frozen} (non-trainable) unit-norm random vector, $\mathbf{s}_t \in \mathbb{R}^K$ is the ordinal code from \eqref{eqn:linear_embed}, and $W_{\mathrm{item}} \in \mathbb{R}^{d_v \times H}$, $W_{\mathrm{resp}} \in \mathbb{R}^{d_v \times K}$ are learned projections shared across all items.
 
-The factored structure in \eqref{eqn:sie} separates two gradient channels: $W_{\mathrm{item}}$ is updated by item-identity signals, while $W_{\mathrm{resp}}$ is updated by response-pattern signals. Because item vectors are frozen, items cannot collapse to similar representations during training, a failure mode of learned item embeddings at large $Q$. For two independent uniformly random unit vectors in $\mathbb{R}^H$, the expected squared inner product is $1/H$ \citep{dasgupta_elementary_2003}, so pairwise interference concentrates around zero as $H$ grows; cross-item gradient crosstalk in $W_{\mathrm{item}}$ therefore decays with $H$ independently of $Q$, making SIE well-suited for large item banks.
+The factored structure separates two gradient channels: $W_{\mathrm{item}}$ is updated by item-identity signals, while $W_{\mathrm{resp}}$ is updated by response-pattern signals. Because item vectors are frozen, items cannot collapse to similar representations during training, a failure mode of learned item embeddings at large $Q$. For two independent uniformly random unit vectors in $\mathbb{R}^H$, the expected squared inner product is $1/H$ \citep{dasgupta_elementary_2003}, so cross-item gradient crosstalk in $W_{\mathrm{item}}$ decays with $H$ independently of $Q$.
 
-The frozen dimension $H$ is set as the smallest power of two no less than $\max(128, \lfloor Q/2 \rfloor)$, clamped to $[128, 1024]$.\footnote{Concretely, $H = 128$ for $Q \le 256$, $H = 256$ for $Q \approx 500$, $H = 512$ for $Q \approx 1000$, and $H = 1024$ for $Q \ge 2000$.} This schedule ensures near-orthogonality scales with item bank size while keeping the projection dimension bounded, in contrast to the $\mathcal{O}(KQ)$ complexity of the full LinDecay Kronecker encoding. Notably, SIE's separation of frozen item identity from learnable response projections echoes the same static-versus-dynamic design principle used in DKVMN's memory architecture (Section~\ref{sec:dkvmn}): in both cases, a fixed component provides stable structure while a learned component adapts to data.
+The frozen dimension $H$ is set as the smallest power of two no less than $\max(128, \lfloor Q/2 \rfloor)$, clamped to $[128, 1024]$.\footnote{Concretely, $H = 128$ for $Q \le 256$, $H = 256$ for $Q \approx 500$, $H = 512$ for $Q \approx 1000$, and $H = 1024$ for $Q \ge 2000$.} The separation of frozen item vectors from learnable response projections echoes the same static-versus-dynamic design principle used in DKVMN's memory architecture (Section~\ref{sec:dkvmn}), where a fixed component provides stable structure while a learned component adapts to data.
 
 \subsection{Dynamic Key-Value Memory Network}
 \label{sec:dkvmn}
 With the interaction now encoded as a dense vector, the model needs a mechanism to accumulate knowledge over the student's response history. We adopt the Dynamic Key-Value Memory Network \citep[DKVMN;][]{zhang_dynamic_2017} as the sequential backbone, a memory-augmented architecture originally designed for knowledge tracing.
 Let $\mathbf{k}_t = A^{\top} q_t \in \mathbb{R}^{d_k}$ be a key embedding for the current item and
-$\mathbf{v}_t \in \mathbb{R}^{d_v}$ be a value embedding for the interaction, obtained via the Kronecker projection $\mathbf{v}_t = B^{\top}\mathbf{x}_t$ (ordinal-aware encoding) or the Static Item Embedding in \eqref{eqn:sie} (scalable encoding).
+$\mathbf{v}_t \in \mathbb{R}^{d_v}$ be the value vector produced by one of the item representations in Section~\ref{sec:item_identity}.
 The model maintains a static key memory $\mathbf{M}^k \in \mathbb{R}^{N \times d_k}$ and
 a dynamic value memory $\mathbf{M}^v_t \in \mathbb{R}^{N \times d_v}$.
 In educational terms, the key memory represents latent skill areas or knowledge components, the value memory tracks the student's evolving mastery of each area, and the attention weights $\mathbf{w}_t$ (below) indicate which skill areas a given item exercises \citep{zhang_dynamic_2017}. The summary vector $\mathbf{f}_t$ aggregates the student's current mastery state relevant to the item at hand.
@@ -338,7 +346,7 @@ Following the Neural Turing Machine \citep{graves_neural_2014}, the value memory
 \end{align}
 Intuitively, the erase vector $\mathbf{e}_t$ selectively forgets outdated mastery information, while the add vector $\mathbf{a}_t$ incorporates what was learned from the current interaction. The attention weights $\mathbf{w}_t$ ensure that only the memory slots relevant to the current item are modified.
 
-\subsection{DEEP-GPCM: an Ordinal IRT Head}
+\subsection{MA-GPCM: an Ordinal IRT Head}
 \label{sec:gpcm_head}
 The backbone produces a summary vector $\mathbf{f}_t$ that encodes the student's current knowledge state. In a standard DKT model, this vector would be mapped to a binary correct/incorrect probability through a simple sigmoid. To instead produce the full set of IRT parameters familiar from psychometric practice (ability, discrimination, and step thresholds), we replace this binary readout with a GPCM head.
 Let $j$ denote the item exercised at time $t$ (i.e., $[q_t]_j=1$).
@@ -347,11 +355,11 @@ We compute a time-varying ability $\theta_t$ and item-specific parameters (step 
     \theta_t &= W_{\theta}\mathbf{f}_t+b_{\theta}, \label{eqn:ability_net}\\
     \beta_{j,0} &= W_{\beta}\mathbf{k}_t+b_{\beta}, \label{eqn:b_0}\\
     \beta_{j,k} &= \beta_{j,k-1}+\mathrm{softplus}(W_{g[k]}\mathbf{k}_t+b_{g[k]}),\quad 1\le k\le K-2, \label{eqn:b_k}\\
-    \alpha_{j} &= \exp\!\left(W_{\alpha}\mathbf{k}_t+b_{\alpha}\right). \label{eqn:diff_net}
+    \alpha_{j} &= \exp\!\left(0.3\cdot(W_{\alpha}[\mathbf{f}_t;\mathbf{k}_t]+b_{\alpha})\right). \label{eqn:diff_net}
 \end{align}
 The construction in \eqref{eqn:b_k} enforces $\beta_{j,0}<\beta_{j,1}<\cdots<\beta_{j,K-2}$ by adding strictly positive increments (via softplus) to each preceding threshold. This monotonicity guarantee has direct educational meaning. Achieving score level $k{+}1$ always requires higher ability than achieving level $k$, respecting the ordering that an assessment designer intended. Without this constraint, the model could learn disordered thresholds where some score categories are never the most probable response at any ability level, a well-documented problem in educational measurement that signals a poorly functioning item \citep{wilson_constructing_2005}.
 
-Because discrimination is an item-intrinsic property in the GPCM, $\alpha_j$ is derived solely from the item key $\mathbf{k}_t$, deliberately excluding the student-state summary $\mathbf{f}_t$. This separation ensures that the estimated discrimination reflects the item's inherent capacity to differentiate ability levels, independently of which student is currently being modeled, consistent with the IRT assumption that item parameters are population-invariant \citep{hambleton_item_1985}. Item-level discrimination is recovered by averaging per-timestep estimates across all encounters with a given item \citep{meulders_person-by-item_2004}. The exponential activation ensures $\alpha_j > 0$.
+Although discrimination is an item-intrinsic property in the GPCM, the network in \eqref{eqn:diff_net} receives both the student-state summary $\mathbf{f}_t$ and the item key $\mathbf{k}_t$. Including the student state gives the network a richer gradient signal for learning per-item discrimination. Because $\alpha$ is estimated at every timestep, item-level discrimination is recovered by averaging per-timestep estimates across all encounters with a given item \citep{meulders_person-by-item_2004}, which marginalizes out the student-state dependence. The exponential activation ensures $\alpha_j > 0$. The scaling factor $0.3$ plays the same role as the variance of a lognormal prior in Bayesian IRT estimation \citep{de_ayala_theory_2009}, constraining the effective discrimination range without prescribing specific values.
 
 Given $(\theta_t,\alpha_j,\{\beta_{j,k}\}_{k=0}^{K-2})$, the GPCM category probability is
 \begin{equation}\label{eqn:gpcm_prob}
@@ -377,17 +385,17 @@ To balance classes, with $c_k$ the sample count of class $k$, we set $w_k=\sqrt{
 
 % \subsection{Experimental Settings}
 
-% Unless otherwise stated, all results below use \textbf{single-trait} instantiations of DEEP-MIRT; multidimensional extensions are part of future work.
+% Unless otherwise stated, all results below use \textbf{single-trait} instantiations of MA-IRT; multidimensional extensions are part of future work.
 \subsection{Experimental Setup}
 \subsubsection{Datasets}
 \paragraph{Synthetic-Ordinal.}
 To the best of our knowledge, there are no standardized public benchmarks for ordinal knowledge tracing. We therefore generate a synthetic dataset using an IRT-GPCM data generating process following established psychometric principles. This design provides controlled polytomous supervision $r_t\in\{0,\ldots,K-1\}$ and enables parameter recovery analysis with known ground truth.
 
-We simulate $5000$ students interacting with questions drawn from a pool of $Q=200$ questions in random order. Each interaction sequence has variable length in $[20,80]$. With an average sequence length of $\sim\!50$ interactions, this yields approximately $1{,}250$ observations per item ($5{,}000 \times 50 \div 200$), well above the recommended minimum of 500 for stable IRT estimation \citep{de_ayala_theory_2009}. Students and questions are configured with \emph{static} GPCM parameters following assumed priors:
+We simulate $5000$ students interacting with questions drawn from a pool of $Q=200$ questions in random order. Each interaction sequence has variable length in $[20,80]$. With an average sequence length of $\sim\!50$ interactions, this yields approximately $1{,}250$ observations per item ($5{,}000 \times 50 \div 200$), well above the recommended minimum of 500 for stable IRT estimation \citep{de_ayala_theory_2009}. Students and questions are configured with \emph{static} GPCM parameters following assumed priors.
 \begin{itemize}
     \item \textit{Student ability:} $\theta\sim\mathcal{N}(0,1)$,
     \item \textit{Item discrimination:} $\alpha\sim \mathrm{LogNormal}(0,0.3)$,
-    \item \textit{Item thresholds:} $K{-}1$ values drawn independently from $\mathcal{N}(0,1)$ and sorted to obtain $\beta_0<\cdots<\beta_{K-2}$.
+    \item \textit{Item thresholds:} for each item, a base difficulty is drawn from $\mathcal{N}(0,1)$, then $K{-}1$ thresholds are drawn from $\mathcal{N}(\mathrm{base},\,0.5)$ and sorted to obtain $\beta_0<\cdots<\beta_{K-2}$.
 \end{itemize}
 We generate five datasets with $K\in\{2,3,4,5,6\}$ to test extensibility across category resolutions. When $K=2$, the GPCM reduces to the standard 2PL IRT model (a single binary logistic function of $\alpha_j(\theta_t - \beta_{j,0})$), making it a theoretically grounded boundary condition that validates backward compatibility with binary KT. The conditions $K\in\{3,4,5,6\}$ constitute the primary ordinal evaluation. Each dataset is split 80/20 for training/testing; a validation split is held out from training for hyperparameter tuning. All experiments are run with five random seeds $\{42, 123, 7, 0, 1\}$ and results are reported as mean $\pm$ standard deviation. All student ability recovery correlations ($r_\theta$) are computed exclusively on held-out test students to ensure that reported values reflect generalization to unseen individuals rather than in-sample fit.
 
@@ -395,19 +403,19 @@ We generate five datasets with $K\in\{2,3,4,5,6\}$ to test extensibility across 
 Real educational assessments rarely produce uniformly distributed scores. High-performing students dominate most operational datasets, creating skewed response distributions where the highest category is most frequent. To test robustness to this common condition, we generate three imbalanced variants of the $Q=200$, $K=4$ dataset by shifting the student ability distribution upward. We test mild imbalance ($\theta \sim \mathcal{N}(0.5, 1)$), severe imbalance ($\theta \sim \mathcal{N}(1.0, 1)$), and extreme imbalance ($\theta \sim \mathcal{N}(1.5, 1)$). This produces progressively skewed response distributions where the highest category accounts for approximately 35\%, 50\%, and 65\% of responses respectively, while retaining the same item parameters and GPCM data-generating process. All other settings match Synthetic-Ordinal.
 
 \paragraph{Binary Compatibility}
-After validating the PKT instantiations on Synthetic-Ordinal, we confirm compatibility with binary KT. Due to implementation differences in batch handling and sequence-to-question lookup, we select two datasets:
+After validating the PKT instantiations on Synthetic-Ordinal, we confirm compatibility with binary KT. Due to implementation differences in batch handling and sequence-to-question lookup, we select two datasets.
 \begin{itemize}
     \item \textbf{ASSIST2015}\footnote{\url{https://sites.google.com/site/assistmentsdata/datasets/2015-assistments-skill-builder-data}}: 19,840 students and 100 KCs/questions.
     \item \textbf{Synthetic-5}\footnote{\url{https://github.com/chrispiech/DeepKnowledgeTracing/tree/master/data/synthetic}}: \citep{piech_deep_2015} simulated 4,000 students' responses with probability $p(r)=c+\frac{1}{1+\exp(-(\theta-\beta))}$ where $c=0.25$ models question guessing. Each student is administered 50 questions in sequential order.
 \end{itemize}
 
 \subsubsection{Models and Baselines}
-We compare DEEP-GPCM against three baselines that progressively relax psychometric and ordinal structure, each isolating a different design question:
+We compare MA-GPCM against three baselines that progressively relax psychometric and ordinal structure, each isolating a different design question.
 \begin{itemize}
     \item \textbf{DKVMN + Softmax}: DKVMN backbone with a $K$-way softmax head trained with categorical cross-entropy. No ordinal structure, no IRT constraints. Tests whether psychometric parameterization provides gains over a purely neural polytomous baseline.
     \item \textbf{Static GPCM}: Standard GPCM fit from interaction data with student ability held fixed across items. No sequential dynamics. Represents the psychometric status quo and quantifies what sequential modeling adds beyond classical IRT estimation.
     \item \textbf{Dynamic GPCM}: GPCM with per-item $\alpha$/$\beta$ lookup tables and a gated recurrent ability update driven by prediction error at each step. No DKVMN memory. Isolates the contribution of sequential ability updating from DKVMN's distributed memory.
-    \item \textbf{DEEP-GPCM (ours)}: DKVMN backbone with GPCM head and weighted ordinal loss \eqref{eqn:wol_loss}. Uses SIE encoding by default; the choice of encoding strategy is ablated below.
+    \item \textbf{MA-GPCM (ours)}: DKVMN backbone with GPCM head and weighted ordinal loss \eqref{eqn:wol_loss}. Uses StaticItem by default; the choice of item representation is ablated below.
 \end{itemize}
 
 \subsubsection{Prediction Mapping}
@@ -418,10 +426,10 @@ We use the weighted ordinal loss in \eqref{eqn:wol_loss} to handle class imbalan
 
 We set $d_k=64$ and $d_v=64$ for key/value embedding dimensions and configure $N=50$ memory slots with summary dimension $d_s=50$. No dropout is applied. All models use a single latent trait ($D=1$) with ability scale 1.0.
 
-All models are trained with batch size 64 using Adam with learning rate $10^{-3}$. The learning rate is reduced on validation plateau with patience 5 and factor 0.8. Epoch counts are model-specific. DEEP-GPCM and DKVMN+Softmax train for 30 epochs, Dynamic GPCM for 50 epochs, and Static GPCM for 150 epochs, reflecting their different convergence rates. Gradients are clipped to norm 1.0. The best checkpoint is selected by validation QWK. Models are implemented in PyTorch and trained on an RTX 4060 Laptop GPU. All results are reported as mean $\pm$ standard deviation across five random seeds $\{42, 123, 7, 0, 1\}$.
+All models are trained with batch size 64 using Adam with learning rate $10^{-3}$ and gradient clipping to norm 1.0. MA-GPCM uses learning rate reduction on plateau with patience 5 and factor 0.8, training for 30 epochs. Baselines use patience 10 and factor 0.9, with model-specific epoch counts reflecting their different convergence rates (DKVMN+Softmax 15, Dynamic GPCM 30, Static GPCM 200). The best checkpoint is selected by validation QWK. Models are implemented in PyTorch and trained on an RTX 4060 Laptop GPU. All results are reported as mean $\pm$ standard deviation across five random seeds $\{42, 123, 7, 0, 1\}$.
 
 \subsubsection{Evaluation Metrics}
-We use the following metrics:
+We use the following metrics.
 \begin{itemize}
     \item \textbf{Categorical Accuracy (ACC)}: percentage of exact matches between predicted category and ground truth. While straightforward, ACC does not distinguish near-misses from far-misses and is therefore insufficient as a sole ordinal metric.
     \item \textbf{Quadratic Weighted Kappa (QWK)} \citep{cohen_weighted_1968}: our primary metric for ordinal tasks. QWK applies a quadratic penalty proportional to the squared distance between predicted and true categories, making it the standard agreement measure in automated essay scoring and graded assessment. A QWK of 0.0 indicates chance-level agreement; 1.0 indicates perfect agreement.
@@ -431,19 +439,19 @@ We use the following metrics:
 \end{itemize}
 
 \subsubsection{IRT Analysis Setup}
-For parameter recovery analysis on Synthetic-Ordinal, we use:
+For parameter recovery analysis on Synthetic-Ordinal, we apply the following aggregation.
 \begin{itemize}
     \item $\boldsymbol{\theta}$ \textbf{Aggregation}: we take the mean ability estimate $\bar{\theta} = \frac{1}{T}\sum_{t=1}^{T}\theta_t$ across all timesteps for each student. Because $\theta_t$ is produced by a noisy sequential process, any individual timestep is an imprecise estimate of the underlying static ability; averaging reduces this noise substantially, analogous to how longer tests yield more precise ability estimates in classical IRT \citep{embretson_irt_2000}.
     \item $\boldsymbol{\alpha}, \boldsymbol{\beta}$ \textbf{Aggregation}: because questions appear with variable frequency due to random sequencing, we aggregate item parameters based on occurrences and use the sample mean for recovery analysis.
 \end{itemize}
 
-To enable fair comparison between estimated and true parameters, we apply IRT linking transformations that align the scales while preserving correlations. For student ability $\theta$ and item difficulty $\beta$, we use z-score normalization: $\theta_{\mathrm{norm}} = (\theta - \mu_\theta) / \sigma_\theta$, where $\mu$ and $\sigma$ are computed from the respective parameter sets (estimated or true). For discrimination $\alpha$, we apply log-transformation followed by standardization: $\alpha_{\mathrm{norm}} = \exp\bigl((\log \alpha - \mu_{\log \alpha}) / \sigma_{\log \alpha} \cdot 0.3\bigr)$, where the 0.3 scaling factor matches the log-normal prior used in data generation ($\alpha \sim \mathrm{LogNormal}(0, 0.3)$). This normalization follows standard IRT linking practice \citep{kolen_test_2014}, removing arbitrary scale and location differences while preserving the correlation structure that reflects true parameter recovery quality.
+To enable fair comparison between estimated and true parameters, we apply IRT linking transformations that align the scales while preserving correlations. For student ability $\theta$ and step thresholds $\beta$, we use z-score normalization: $\theta_{\mathrm{norm}} = (\theta - \mu_\theta) / \sigma_\theta$, where $\mu$ and $\sigma$ are computed from the respective parameter sets (estimated or true). For discrimination $\alpha$, we apply log-transformation followed by standardization: $\alpha_{\mathrm{norm}} = \exp\bigl((\log \alpha - \mu_{\log \alpha}) / \sigma_{\log \alpha} \cdot 0.3\bigr)$, where the 0.3 scaling factor matches the log-normal prior used in data generation ($\alpha \sim \mathrm{LogNormal}(0, 0.3)$). This normalization follows standard IRT linking practice \citep{kolen_test_2014}, removing arbitrary scale and location differences while preserving the correlation structure that reflects true parameter recovery quality.
 
 \subsection{Results}
 
 \subsubsection{Ordinal Prediction on Synthetic-Ordinal (RQ1)}
 
-Table~\ref{tab:comp_results} compares DEEP-GPCM against all baselines across category resolutions. DEEP-GPCM leads on QWK, $\tau$, and MAE at every $K$, and the gap widens as $K$ increases. This pattern is consistent with what one would expect from a constrained ordinal model. The GPCM head imposes $K{-}1$ ordered thresholds, giving the model explicit structure that becomes increasingly valuable as the response space grows. A softmax head, by contrast, must learn to partition $K$ response categories without any ordinal guidance, a task that becomes harder with finer scales.
+Table~\ref{tab:comp_results} compares MA-GPCM against all baselines across category resolutions. MA-GPCM leads on QWK, $\tau$, and MAE at every $K$, and the gap widens as $K$ increases. This pattern is consistent with what one would expect from a constrained ordinal model. The GPCM head imposes $K{-}1$ ordered thresholds, giving the model explicit structure that becomes increasingly valuable as the response space grows. A softmax head, by contrast, must learn to partition $K$ response categories without any ordinal guidance, a task that becomes harder with finer scales.
 
 \begin{table}[htb!]
 \centering
@@ -459,41 +467,41 @@ Table~\ref{tab:comp_results} compares DEEP-GPCM against all baselines across cat
 Static GPCM    & $0.483 \pm 0.002$ & $0.314 \pm 0.004$ & $0.234 \pm 0.003$ & $0.697 \pm 0.003$ \\
 Dynamic GPCM   & $0.578 \pm 0.001$ & $0.557 \pm 0.001$ & $0.406 \pm 0.000$ & $0.494 \pm 0.001$ \\
 DKVMN+Softmax  & $\mathbf{0.598} \pm 0.001$ & $0.583 \pm 0.001$ & $0.423 \pm 0.001$ & $0.471 \pm 0.001$ \\
-\textbf{DEEP-GPCM} & $0.596 \pm 0.001$ & $\mathbf{0.594} \pm 0.001$ & $\mathbf{0.431} \pm 0.001$ & $\mathbf{0.465} \pm 0.001$ \\
+\textbf{MA-GPCM} & $0.596 \pm 0.001$ & $\mathbf{0.594} \pm 0.001$ & $\mathbf{0.431} \pm 0.001$ & $\mathbf{0.465} \pm 0.001$ \\
 \midrule
 \multicolumn{5}{l}{$K=4$} \\
 \cmidrule(lr){1-5}
 Static GPCM    & $0.388 \pm 0.006$ & $0.321 \pm 0.014$ & $0.244 \pm 0.011$ & $1.036 \pm 0.017$ \\
 Dynamic GPCM   & $0.506 \pm 0.002$ & $0.647 \pm 0.002$ & $0.490 \pm 0.001$ & $0.648 \pm 0.002$ \\
 DKVMN+Softmax  & $\mathbf{0.528} \pm 0.000$ & $0.669 \pm 0.001$ & $0.504 \pm 0.001$ & $0.623 \pm 0.003$ \\
-\textbf{DEEP-GPCM} & $0.525 \pm 0.001$ & $\mathbf{0.684} \pm 0.000$ & $\mathbf{0.516} \pm 0.000$ & $\mathbf{0.609} \pm 0.001$ \\
+\textbf{MA-GPCM} & $0.525 \pm 0.001$ & $\mathbf{0.684} \pm 0.000$ & $\mathbf{0.516} \pm 0.000$ & $\mathbf{0.609} \pm 0.001$ \\
 \midrule
 \multicolumn{5}{l}{$K=5$} \\
 \cmidrule(lr){1-5}
 Static GPCM    & $0.363 \pm 0.002$ & $0.379 \pm 0.003$ & $0.290 \pm 0.002$ & $1.296 \pm 0.004$ \\
 Dynamic GPCM   & $0.475 \pm 0.001$ & $0.725 \pm 0.002$ & $0.555 \pm 0.002$ & $0.755 \pm 0.003$ \\
 DKVMN+Softmax  & $\mathbf{0.506} \pm 0.001$ & $0.746 \pm 0.001$ & $0.568 \pm 0.001$ & $0.718 \pm 0.002$ \\
-\textbf{DEEP-GPCM} & $0.501 \pm 0.001$ & $\mathbf{0.761} \pm 0.001$ & $\mathbf{0.580} \pm 0.001$ & $\mathbf{0.701} \pm 0.002$ \\
+\textbf{MA-GPCM} & $0.501 \pm 0.001$ & $\mathbf{0.761} \pm 0.001$ & $\mathbf{0.580} \pm 0.001$ & $\mathbf{0.701} \pm 0.002$ \\
 \midrule
 \multicolumn{5}{l}{$K=6$} \\
 \cmidrule(lr){1-5}
 Static GPCM    & $0.324 \pm 0.003$ & $0.385 \pm 0.008$ & $0.296 \pm 0.006$ & $1.601 \pm 0.015$ \\
 Dynamic GPCM   & $0.434 \pm 0.001$ & $0.759 \pm 0.002$ & $0.590 \pm 0.001$ & $0.873 \pm 0.003$ \\
 DKVMN+Softmax  & $\mathbf{0.470} \pm 0.003$ & $0.781 \pm 0.001$ & $0.603 \pm 0.002$ & $0.829 \pm 0.002$ \\
-\textbf{DEEP-GPCM} & $0.465 \pm 0.002$ & $\mathbf{0.795} \pm 0.000$ & $\mathbf{0.616} \pm 0.001$ & $\mathbf{0.805} \pm 0.001$ \\
+\textbf{MA-GPCM} & $0.465 \pm 0.002$ & $\mathbf{0.795} \pm 0.000$ & $\mathbf{0.616} \pm 0.001$ & $\mathbf{0.805} \pm 0.001$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The baseline comparisons isolate the contribution of each architectural component. Static GPCM performs worst overall, confirming that psychometric structure alone cannot compensate for the absence of sequential dynamics. Dynamic GPCM closes much of this gap through recurrent updates but still falls short of models with distributed memory. DEEP-GPCM and DKVMN+Softmax share the same DKVMN backbone, so comparing them isolates the effect of the response head. DKVMN+Softmax edges ahead on ACC at every $K$, which is expected for a head optimized solely for categorical prediction. DEEP-GPCM must simultaneously learn interpretable IRT parameters ($\theta_t$, $\alpha_j$, $\boldsymbol{\beta}_j$) through a constrained parameterization, yet it remains competitive on ACC while surpassing DKVMN+Softmax on every ordinal metric. The GPCM head's ordinal constraint therefore acts as a useful inductive bias, and the interpretable parameterization comes at no meaningful predictive cost.
+The baseline comparisons isolate the contribution of each architectural component. Static GPCM performs worst overall, confirming that psychometric structure alone cannot compensate for the absence of sequential dynamics. Dynamic GPCM closes much of this gap through recurrent updates but still falls short of models with distributed memory. MA-GPCM and DKVMN+Softmax share the same DKVMN backbone, so comparing them isolates the effect of the response head. DKVMN+Softmax edges ahead on ACC at every $K$, which is expected for a head optimized solely for categorical prediction. MA-GPCM must simultaneously learn interpretable IRT parameters ($\theta_t$, $\alpha_j$, $\boldsymbol{\beta}_j$) through a constrained parameterization, yet it remains competitive on ACC while surpassing DKVMN+Softmax on every ordinal metric. The GPCM head's ordinal constraint therefore acts as a useful inductive bias, and the interpretable parameterization comes at no meaningful predictive cost.
 
 
 \subsubsection{Binary Compatibility on Standard KT Benchmarks}
-A practical requirement for any polytomous KT framework is backward compatibility with existing binary benchmarks. When $K=2$, the GPCM category probability in~\eqref{eqn:gpcm_prob} reduces to a single logistic function of $\alpha_j(\theta_t - \beta_{j,0})$, recovering the standard 2PL IRT model. Table~\ref{tab:combined_perf} confirms that this theoretical equivalence holds in practice. DEEP-GPCM matches DKT and DKVMN on both ASSIST2015 and Synthetic-5, with AUC differences well within the margin of run-to-run variability. The psychometric parameterization imposes no measurable cost when ordinal structure is absent.
+A practical requirement for any polytomous KT framework is backward compatibility with existing binary benchmarks. When $K=2$, the GPCM category probability in~\eqref{eqn:gpcm_prob} reduces to a single logistic function of $\alpha_j(\theta_t - \beta_{j,0})$, recovering the standard 2PL IRT model. Table~\ref{tab:combined_perf} confirms that this theoretical equivalence holds in practice. MA-GPCM matches DKT and DKVMN on both ASSIST2015 and Synthetic-5, with AUC differences well within the margin of run-to-run variability. The psychometric parameterization imposes no measurable cost when ordinal structure is absent.
 
 \begin{table}[htb!]
 \centering
-\caption{Binary compatibility ($K=2$). DEEP-GPCM matches neural baselines. Best per column in bold.}
+\caption{Binary compatibility ($K=2$). MA-GPCM matches neural baselines. Best per column in bold.}
 \label{tab:combined_perf}
 \small
 \setlength{\tabcolsep}{3pt}
@@ -505,7 +513,7 @@ A practical requirement for any polytomous KT framework is backward compatibilit
 \midrule
 DKT & --- & --- & 75.2\% & 0.727 & \textbf{75.2}\% & 0.817 \\
 DKVMN & --- & --- & 75.1\% & \textbf{0.729} & 75.1\% & \textbf{0.827} \\
-DEEP-GPCM & \textbf{70.6}\% & \textbf{0.605} & \textbf{75.4}\% & 0.723 & 74.7\% & 0.824 \\
+MA-GPCM & \textbf{70.6}\% & \textbf{0.605} & \textbf{75.4}\% & 0.723 & 74.7\% & 0.824 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -514,7 +522,7 @@ DEEP-GPCM & \textbf{70.6}\% & \textbf{0.605} & \textbf{75.4}\% & 0.723 & 74.7\% 
 \label{sec:trajectories}
 Figure~\ref{fig:trajectories} visualizes expected score trajectories $\hat{s}_t$ for four learner archetypes (consistently high-performing, consistently struggling, improving, and declining). All three models produce similar trajectories that differentiate the archetypes, which is expected given their comparable prediction performance (Table~\ref{tab:comp_results}).
 
-The key distinction is not in the trajectories themselves but in what underlies them. DEEP-GPCM and DKVMN+Softmax produce nearly identical $\hat{s}_t$ curves, confirming that the GPCM head functions as a measurement lens, re-expressing the DKVMN's learned dynamics in psychometric terms ($\theta_t$, $\alpha_j$, $\boldsymbol{\beta}_j$) without altering the underlying sequential signal. Dynamic GPCM matches them at the expected-score level, yet its internal $\theta$ parameter does not correlate with true ability ($r_\theta \approx 0.1$; see RQ3 below). The model predicts well but its latent state carries no interpretable psychometric meaning. For practitioners, this distinction matters. All three models can track learner performance, but only DEEP-GPCM provides the decomposition into ability, discrimination, and thresholds needed for item analysis and diagnostic reporting.
+The key distinction is not in the trajectories themselves but in what underlies them. MA-GPCM and DKVMN+Softmax produce nearly identical $\hat{s}_t$ curves, confirming that the GPCM head functions as a measurement lens, re-expressing the DKVMN's learned dynamics in psychometric terms ($\theta_t$, $\alpha_j$, $\boldsymbol{\beta}_j$) without altering the underlying sequential signal. Dynamic GPCM matches them at the expected-score level, yet its internal $\theta$ parameter does not correlate with true ability ($r_\theta \approx 0.1$; see RQ3 below). The model predicts well but its latent state carries no psychometric meaning. For practitioners, this distinction matters. All three models can track learner performance, but only MA-GPCM provides the decomposition into ability, discrimination, and thresholds needed for item analysis and diagnostic reporting.
 
 \begin{figure}[htb!]
 \centering
@@ -527,13 +535,13 @@ The key distinction is not in the trajectories themselves but in what underlies 
 
 Table~\ref{tab:irt_recovery_k} reports recovery correlations across all three parameter types and category resolutions.
 
-\paragraph{Student ability \texorpdfstring{$\boldsymbol{\theta}$}{theta}.} DEEP-GPCM recovers ability most accurately at every $K$, with recovery comparable to traditional IRT calibration studies using 20--40 items per examinee \citep{reckase_mirt_2009}. Recovery improves slightly at higher $K$ as finer ordinal scales carry more information per interaction. Static GPCM's $r_\theta$ hovers near $0.50$. The KDE plots in Figure~\ref{fig:recovery_k4_student} clarify why: Static GPCM reproduces the marginal $\mathcal{N}(0,1)$ shape almost perfectly, but this distributional match reflects population-level fitting rather than individual-level recovery. The model assigns plausible ability values that preserve the aggregate distribution without ranking students correctly. Dynamic GPCM's weak $r_\theta$ confirms that its latent state, despite producing reasonable expected-score trajectories (Section~\ref{sec:trajectories}), does not recover the generating ability parameter.
+\paragraph{Student ability \texorpdfstring{$\boldsymbol{\theta}$}{theta}.} MA-GPCM recovers ability most accurately at every $K$, with recovery comparable to traditional IRT calibration studies using 20 to 40 items per examinee \citep{reckase_mirt_2009}. Recovery improves slightly at higher $K$ as finer ordinal scales carry more information per interaction. Static GPCM's $r_\theta$ hovers near $0.50$. The KDE plots in Figure~\ref{fig:recovery_k4_student} clarify why: Static GPCM reproduces the marginal $\mathcal{N}(0,1)$ shape almost perfectly, but this distributional match reflects population-level fitting rather than individual-level recovery. The model assigns plausible ability values that preserve the aggregate distribution without ranking students correctly. Dynamic GPCM's weak $r_\theta$ confirms that its latent state, despite producing reasonable expected-score trajectories (Section~\ref{sec:trajectories}), does not recover the generating ability parameter.
 
-\paragraph{Item discrimination \texorpdfstring{$\boldsymbol{\alpha}$}{alpha}.} DEEP-GPCM achieves the highest $r_\alpha$ at every $K$ despite receiving no ground-truth discrimination values during training. The GPCM parameterization (Eq.~\ref{eqn:diff_net}) requires $\alpha_j$ to carry item-level information for the loss to decrease, so the architecture creates a structural pressure toward meaningful discrimination estimates. The memory network provides sufficient capacity to learn these from response variation alone. Dynamic GPCM also recovers discrimination at moderate levels, particularly at higher $K$, because its item embeddings must differentiate items regardless of whether ability is well-identified. Static GPCM shows the weakest discrimination recovery, likely because its lack of sequential dynamics limits the signal available for separating item characteristics from student-level variation.
+\paragraph{Item discrimination \texorpdfstring{$\boldsymbol{\alpha}$}{alpha}.} MA-GPCM achieves the highest $r_\alpha$ at every $K$ despite receiving no ground-truth discrimination values during training. The GPCM parameterization (Eq.~\ref{eqn:diff_net}) requires $\alpha_j$ to carry item-level information for the loss to decrease, so the architecture creates a structural pressure toward meaningful discrimination estimates. The DKVMN memory accumulates item-specific response patterns across students and timesteps, providing the structured capacity to learn discrimination from response variation alone. Dynamic GPCM also recovers discrimination at moderate levels, particularly at higher $K$, because its item embeddings must differentiate items regardless of whether ability is well-identified. Static GPCM shows the weakest discrimination recovery, likely because its lack of sequential dynamics limits the signal available for separating item characteristics from student-level variation.
 
-\paragraph{Step thresholds \texorpdfstring{$\boldsymbol{\beta}$}{beta}.} Static and Dynamic GPCM achieve near-perfect threshold recovery through direct parameter tables that receive gradients without intervening transformations. DEEP-GPCM trades some threshold precision for sequential modeling capacity, since thresholds must pass through memory reads and summary layers rather than being retrieved directly. At $K=3$, recovery falls below $r=0.85$ (a level commonly considered adequate for applied IRT calibration), but improves steadily with $K$ and exceeds this level for $K \geq 4$. DEEP-GPCM's threshold variance across seeds is also notably higher than the baselines, suggesting some sensitivity to initialization.
+\paragraph{Step thresholds \texorpdfstring{$\boldsymbol{\beta}$}{beta}.} Static and Dynamic GPCM achieve near-perfect threshold recovery through direct parameter tables that receive gradients without intervening transformations. MA-GPCM trades some threshold precision for sequential modeling capacity, since thresholds must pass through memory reads and summary layers rather than being retrieved directly. At $K=3$, recovery falls below $r=0.85$ (a level commonly considered adequate for applied IRT calibration), but improves steadily with $K$ and exceeds this level for $K \geq 4$. MA-GPCM's threshold variance across seeds is also notably higher than the baselines, suggesting some sensitivity to initialization.
 
-Figures~\ref{fig:recovery_k4_student} and~\ref{fig:recovery_k4_item} visualize recovery at $K=4$, $Q=200$. The item scatter plots show that DEEP-GPCM's discrimination estimates follow the identity line but with visible dispersion, particularly for highly discriminating items. Threshold estimates are tighter, though still more scattered than the baseline lookup models.
+Figures~\ref{fig:recovery_k4_student} and~\ref{fig:recovery_k4_item} visualize recovery at $K=4$, $Q=200$. The item scatter plots show that MA-GPCM's discrimination estimates follow the identity line but with visible dispersion, particularly for highly discriminating items. Threshold estimates are tighter, though still more scattered than the baseline lookup models.
 
 \begin{figure}[htb!]
 \centering
@@ -551,7 +559,7 @@ Figures~\ref{fig:recovery_k4_student} and~\ref{fig:recovery_k4_item} visualize r
 
 \begin{table}[htb!]
 \centering
-\caption{Parameter recovery across models and $K$ at $Q=200$ (mean $\pm$ std, $N\!=\!5$ seeds). DEEP-GPCM recovers discrimination without supervision. Best per column in bold.}
+\caption{Parameter recovery across models and $K$ at $Q=200$ (mean $\pm$ std, $N\!=\!5$ seeds). MA-GPCM recovers discrimination without supervision. Best per column in bold.}
 \label{tab:irt_recovery_k}
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{lccc}
@@ -562,36 +570,36 @@ Figures~\ref{fig:recovery_k4_student} and~\ref{fig:recovery_k4_item} visualize r
 \cmidrule(lr){1-4}
 Static GPCM  & $0.423 \pm 0.024$ & $\mathbf{0.986} \pm 0.001$ & $0.500 \pm 0.016$ \\
 Dynamic GPCM & $0.653 \pm 0.018$ & $0.981 \pm 0.002$ & $0.083 \pm 0.019$ \\
-DEEP-GPCM    & $\mathbf{0.718} \pm 0.054$ & $0.783 \pm 0.033$ & $\mathbf{0.914} \pm 0.001$ \\
+MA-GPCM    & $\mathbf{0.718} \pm 0.054$ & $0.783 \pm 0.033$ & $\mathbf{0.914} \pm 0.001$ \\
 \midrule
 \multicolumn{4}{l}{$K=4$} \\
 \cmidrule(lr){1-4}
 Static GPCM  & $0.338 \pm 0.024$ & $\mathbf{0.981} \pm 0.000$ & $0.497 \pm 0.015$ \\
 Dynamic GPCM & $0.666 \pm 0.006$ & $0.974 \pm 0.001$ & $0.107 \pm 0.013$ \\
-DEEP-GPCM    & $\mathbf{0.734} \pm 0.023$ & $0.851 \pm 0.047$ & $\mathbf{0.936} \pm 0.001$ \\
+MA-GPCM    & $\mathbf{0.734} \pm 0.023$ & $0.851 \pm 0.047$ & $\mathbf{0.936} \pm 0.001$ \\
 \midrule
 \multicolumn{4}{l}{$K=5$} \\
 \cmidrule(lr){1-4}
 Static GPCM  & $0.437 \pm 0.014$ & $\mathbf{0.981} \pm 0.001$ & $0.491 \pm 0.015$ \\
 Dynamic GPCM & $0.712 \pm 0.007$ & $0.972 \pm 0.000$ & $0.148 \pm 0.012$ \\
-DEEP-GPCM    & $\mathbf{0.739} \pm 0.024$ & $0.896 \pm 0.023$ & $\mathbf{0.945} \pm 0.002$ \\
+MA-GPCM    & $\mathbf{0.739} \pm 0.024$ & $0.896 \pm 0.023$ & $\mathbf{0.945} \pm 0.002$ \\
 \midrule
 \multicolumn{4}{l}{$K=6$} \\
 \cmidrule(lr){1-4}
 Static GPCM  & $0.293 \pm 0.013$ & $\mathbf{0.982} \pm 0.001$ & $0.484 \pm 0.016$ \\
 Dynamic GPCM & $0.626 \pm 0.010$ & $0.972 \pm 0.000$ & $0.125 \pm 0.007$ \\
-DEEP-GPCM    & $\mathbf{0.759} \pm 0.031$ & $0.917 \pm 0.011$ & $\mathbf{0.951} \pm 0.001$ \\
+MA-GPCM    & $\mathbf{0.759} \pm 0.031$ & $0.917 \pm 0.011$ & $\mathbf{0.951} \pm 0.001$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-DEEP-GPCM is the only model that recovers all three parameter types at useful levels simultaneously. Static GPCM recovers thresholds well but neither ranks students accurately nor recovers discrimination. Dynamic GPCM recovers discrimination at moderate levels and thresholds near-perfectly, but its inability to recover ability limits its usefulness for student-level inference.
+MA-GPCM is the only model that recovers all three parameter types at useful levels simultaneously. Static GPCM recovers thresholds well but neither ranks students accurately nor recovers discrimination. Dynamic GPCM recovers discrimination at moderate levels and thresholds near-perfectly, but its inability to recover ability limits its usefulness for student-level inference.
 
 
 \subsubsection{Ablation and Sensitivity Analysis}
 
 \paragraph{Monotonic threshold constraint.}
-Table~\ref{tab:ablation_monotonic} compares DEEP-GPCM with and without the monotonicity constraint on step thresholds (Eq.~\ref{eqn:b_k}). Prediction and ability recovery are largely unchanged, but item parameter recovery tells a different story. Threshold recovery drops markedly without the constraint, and discrimination recovery also degrades. Without monotonicity, the model can produce disordered category response functions in which some score levels are never the most probable response at any ability level, a behavior characteristic of the Nominal Response Model \citep{bock_estimating_1972}. The GPCM remains parametrically nested within the NRM due to its integer-spaced slope structure \citep{de_ayala_theory_2009}, so enforcing or relaxing this single constraint changes the effective measurement model from ordered to nominal. That the backbone and training procedure remain identical in both cases illustrates the modularity of the DEEP-MIRT framework.
+Table~\ref{tab:ablation_monotonic} compares MA-GPCM with and without the monotonicity constraint on step thresholds (Eq.~\ref{eqn:b_k}). Prediction and ability recovery are largely unchanged, but item parameter recovery tells a different story. Threshold recovery drops markedly without the constraint, and discrimination recovery also degrades. Without monotonicity, the model can produce disordered category response functions in which some score levels are never the most probable response at any ability level, a behavior characteristic of the Nominal Response Model \citep{bock_estimating_1972}. The GPCM remains parametrically nested within the NRM due to its integer-spaced slope structure \citep{de_ayala_theory_2009}, so enforcing or relaxing this single constraint changes the effective measurement model from ordered to nominal. That the backbone and training procedure remain identical in both cases illustrates the modularity of the MA-IRT framework.
 
 \begin{table}[htb!]
 \centering
@@ -608,44 +616,52 @@ Unconstr.\ $\beta$ & $0.681 \pm 0.001$ & $0.525 \pm 0.001$ & $0.660 \pm 0.061$ &
 \end{tabular}
 \end{table}
 
-\paragraph{Encoding strategy and item bank scalability.}
-Table~\ref{tab:recovery} compares SIE against LinDecay as $Q$ grows from 200 to 2{,}000. QWK is slightly higher for SIE at every scale, though the differences are small. The more informative variation appears in parameter recovery. SIE maintains stable discrimination and threshold recovery across all $Q$, suggesting that its frozen near-orthogonal projections preserve item-level identifiability as the bank grows. LinDecay's discrimination recovery, by contrast, degrades and becomes increasingly variable at larger item banks ($r_\alpha$ std reaches $0.122$ at $Q=2{,}000$, indicating that some seeds fail to recover discrimination entirely). LinDecay does recover ability more accurately at every scale, but both encodings exceed the $0.80$ operational threshold \citep{embretson_irt_2000} by a wide margin. SIE also requires far fewer parameters (311K vs.\ 1.2M at $Q=2{,}000$), making it the recommended encoding for practical deployment. For the largest condition, the $N=10{,}000$ student sample yields approximately 250 observations per item, which is marginal by conventional IRT standards \citep{de_ayala_theory_2009} but sufficient for stable recovery given the sequential nature of the data.
+\paragraph{Item representation and scalability.}
+Table~\ref{tab:recovery} compares three item representations as $Q$ grows from 200 to 2{,}000. All three share the same triangular ordinal kernel; they differ only in how items are represented (one-hot, learned, or frozen random).
+
+At $Q=200$, all three achieve comparable prediction and recovery, confirming that the GPCM extraction mechanism is robust to input representation at moderate scale. As the item bank grows, each strategy reveals a distinct profile. One-hot recovers ability ($r_\theta$) most accurately at every scale, likely because its $\mathcal{O}(KQ)$-dimensional representation gives the summary network a richer per-item signal. However, its discrimination recovery degrades and becomes increasingly variable at larger $Q$ ($r_\alpha$ std reaches $0.122$ at $Q=2{,}000$, indicating that some seeds fail to recover discrimination). Learned and StaticItem maintain stable discrimination and threshold recovery across all scales, with nearly identical mean correlations, despite having far fewer parameters (322K and 311K vs.\ 1.2M at $Q=2{,}000$).
+
+The most informative comparison is between learned and StaticItem. StaticItem matches learned on all metrics despite using frozen random item vectors with zero item-specific learnable parameters, while learned has a trainable embedding per item. This indicates that distinguishing items does not require learned vectors; the DKVMN memory and GPCM head carry the representational load, and the item component need only provide a distinctive fingerprint. StaticItem additionally requires no retraining when new items enter the bank (a new random unit-norm vector suffices), a practical advantage for operational assessment systems. For the largest condition, the $N=10{,}000$ student sample yields approximately 250 observations per item, marginal by conventional IRT standards \citep{de_ayala_theory_2009} but sufficient for stable recovery given the sequential nature of the data.
 
 \begin{table}[htb!]
 \centering
-\caption{Encoding strategy and scalability at $K=4$ (mean $\pm$ std, $N\!=\!5$ seeds). Best per column in bold within each $Q$.}
+\caption{Item representation and scalability at $K=4$ (mean $\pm$ std, $N\!=\!5$ seeds). Best per column in bold within each $Q$.}
 \label{tab:recovery}
 \setlength{\tabcolsep}{2pt}
 \begin{tabular}{lccccr}
 \toprule
-\textbf{Enc.} & \textbf{QWK} & $r_\alpha$ & $\bar{r}_\beta$ & $r_\theta$ & \textbf{\# Params} \\
+\textbf{Repr.} & \textbf{QWK} & $r_\alpha$ & $\bar{r}_\beta$ & $r_\theta$ & \textbf{\# Params} \\
 \midrule
 \multicolumn{6}{l}{$Q=200$} \\
 \cmidrule(lr){1-6}
-SIE       & $\mathbf{0.684} \pm 0.000$ & $\mathbf{0.734} \pm 0.023$ & $\mathbf{0.851} \pm 0.047$ & $0.936 \pm 0.001$ & 81K \\
-LinDecay  & $0.684 \pm 0.000$ & $0.600 \pm 0.060$ & $0.796 \pm 0.052$ & $\mathbf{0.955} \pm 0.001$ & 166K \\
+StaticItem       & $0.684 \pm 0.000$ & $0.734 \pm 0.021$ & $\mathbf{0.851} \pm 0.042$ & $0.936 \pm 0.001$ & 81K \\
+Learned & $\mathbf{0.686} \pm 0.000$ & $\mathbf{0.736} \pm 0.066$ & $0.849 \pm 0.030$ & $0.947 \pm 0.002$ & 91K \\
+One-hot  & $0.684 \pm 0.000$ & $0.600 \pm 0.060$ & $0.796 \pm 0.052$ & $\mathbf{0.955} \pm 0.001$ & 166K \\
 \midrule
 \multicolumn{6}{l}{$Q=500$} \\
 \cmidrule(lr){1-6}
-SIE       & $\mathbf{0.700} \pm 0.001$ & $\mathbf{0.767} \pm 0.046$ & $\mathbf{0.880} \pm 0.030$ & $0.936 \pm 0.001$ & 117K \\
-LinDecay  & $0.699 \pm 0.001$ & $0.603 \pm 0.066$ & $0.823 \pm 0.015$ & $\mathbf{0.957} \pm 0.001$ & 339K \\
+StaticItem       & $0.700 \pm 0.001$ & $\mathbf{0.767} \pm 0.041$ & $\mathbf{0.880} \pm 0.027$ & $0.936 \pm 0.001$ & 117K \\
+Learned & $\mathbf{0.702} \pm 0.001$ & $0.765 \pm 0.045$ & $0.879 \pm 0.029$ & $0.948 \pm 0.003$ & 130K \\
+One-hot  & $0.699 \pm 0.001$ & $0.603 \pm 0.066$ & $0.823 \pm 0.015$ & $\mathbf{0.957} \pm 0.001$ & 339K \\
 \midrule
 \multicolumn{6}{l}{$Q=1{,}000$} \\
 \cmidrule(lr){1-6}
-SIE       & $\mathbf{0.697} \pm 0.001$ & $\mathbf{0.790} \pm 0.024$ & $\mathbf{0.875} \pm 0.028$ & $0.937 \pm 0.002$ & 181K \\
-LinDecay  & $0.696 \pm 0.001$ & $0.651 \pm 0.094$ & $0.787 \pm 0.051$ & $\mathbf{0.955} \pm 0.002$ & 627K \\
+StaticItem       & $0.697 \pm 0.001$ & $0.790 \pm 0.021$ & $0.875 \pm 0.025$ & $0.937 \pm 0.002$ & 181K \\
+Learned & $\mathbf{0.699} \pm 0.001$ & $\mathbf{0.797} \pm 0.013$ & $\mathbf{0.880} \pm 0.022$ & $0.950 \pm 0.002$ & 194K \\
+One-hot  & $0.696 \pm 0.001$ & $0.651 \pm 0.094$ & $0.787 \pm 0.051$ & $\mathbf{0.955} \pm 0.002$ & 627K \\
 \midrule
 \multicolumn{6}{l}{$Q=2{,}000$} \\
 \cmidrule(lr){1-6}
-SIE       & $\mathbf{0.695} \pm 0.001$ & $\mathbf{0.752} \pm 0.030$ & $\mathbf{0.889} \pm 0.018$ & $0.937 \pm 0.001$ & 311K \\
-LinDecay  & $0.693 \pm 0.001$ & $0.515 \pm 0.122$ & $0.854 \pm 0.025$ & $\mathbf{0.955} \pm 0.001$ & 1.2M \\
+StaticItem       & $\mathbf{0.695} \pm 0.001$ & $\mathbf{0.752} \pm 0.026$ & $\mathbf{0.889} \pm 0.016$ & $0.937 \pm 0.001$ & 311K \\
+Learned & $\mathbf{0.695} \pm 0.001$ & $0.741 \pm 0.040$ & $0.881 \pm 0.012$ & $0.947 \pm 0.001$ & 322K \\
+One-hot  & $0.693 \pm 0.001$ & $0.515 \pm 0.122$ & $0.854 \pm 0.025$ & $\mathbf{0.955} \pm 0.001$ & 1.2M \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Class imbalance robustness.}
 \label{sec:imbalance_results}
-Assessments in practice often exhibit skewed response distributions where higher score categories predominate. Table~\ref{tab:imbalance} evaluates DEEP-GPCM under progressively severe imbalance at $Q=200$, $K=4$, shifting the ability prior from $\mathcal{N}(0,1)$ to $\mathcal{N}(1.5,1)$ so that the highest category accounts for up to 58\% of responses.
+Assessments in practice often exhibit skewed response distributions where higher score categories predominate. Table~\ref{tab:imbalance} evaluates MA-GPCM under progressively severe imbalance at $Q=200$, $K=4$, shifting the ability prior from $\mathcal{N}(0,1)$ to $\mathcal{N}(1.5,1)$ so that the highest category accounts for up to 58\% of responses.
 
 All three recovery metrics remain within a narrow range across conditions, indicating that the model is robust to distributional skew. Ability recovery ($r_\theta$) is highest under balanced data and stays well above the $0.80$ threshold for individual-level measurement \citep{embretson_irt_2000} even at extreme imbalance. Discrimination and threshold recovery fluctuate only slightly, with all values remaining in an acceptable range for operational use. The one notable shift is in the prediction metrics. ACC rises sharply under extreme imbalance, reflecting the well-known tendency of accuracy to reward majority-class prediction when one category dominates. QWK, which adjusts for chance agreement and penalizes ordinal distance, degrades only moderately across conditions, confirming that ordinal prediction quality is largely preserved.
 
@@ -671,28 +687,28 @@ Extreme   & \phantom{0}9/12/20/58 & $.640 \pm .001$ & $\mathbf{.607} \pm .004$ &
 \section{Discussion and Conclusion}
 \label{sec:discussion}
 
-DEEP-MIRT extends binary KT to address wider applications for formative assessment practice. By estimating a dynamic ability and categorical probabilities, it differentiates partial knowledge from total misunderstanding, providing richer insights into learning progressions. The model's ability recovery meets operational standards for adaptive testing. Traditional IRT calibration requires 20 to 40 items per student to achieve comparable reliability \citep{de_ayala_theory_2009}, but DEEP-GPCM achieves this dynamically from sequential interaction data, enabling real-time ability tracking without lengthy calibration assessments.
+By coupling a memory-augmented sequential backbone with a polytomous IRT head, MA-IRT extends binary KT to formative assessment with ordered responses. By estimating a dynamic ability and categorical probabilities, it differentiates partial knowledge from total misunderstanding, providing richer insights into learning progressions. The model's ability recovery meets operational standards for adaptive testing. Traditional IRT calibration requires 20 to 40 items per student to achieve comparable reliability \citep{de_ayala_theory_2009}, but MA-GPCM achieves this dynamically from sequential interaction data, enabling real-time ability tracking without lengthy calibration assessments.
 
-The extracted item parameters carry diagnostic value beyond immediate prediction. Unlike classical psychometric calibration, DEEP-MIRT allows online extraction of item characteristics alongside student states, helping identify underperforming or misaligned items in real time. Items with unexpectedly low discrimination ($\alpha < 0.5$) may signal ambiguous wording or difficulty unrelated to the target skill, while disordered step thresholds indicate score categories that need revision \citep{wilson_constructing_2005}. This transition from a purely predictive instrument to a measurement-aware system ensures that instructional decisions are grounded in interpretable constructs \citep{heritage_formative_2007}.
+The extracted item parameters carry diagnostic value beyond immediate prediction. Unlike classical psychometric calibration, MA-IRT allows online extraction of item characteristics alongside student states, helping identify underperforming or misaligned items in real time. Items with unexpectedly low discrimination ($\alpha < 0.5$) may signal ambiguous wording or difficulty unrelated to the target skill, while disordered step thresholds indicate score categories that need revision \citep{wilson_constructing_2005}. Moving beyond pure prediction to measurement-aware outputs ensures that instructional decisions are grounded in interpretable constructs \citep{heritage_formative_2007}.
 
-The closest prior work linking deep KT with IRT is Deep-IRT \citep{yeung_deep-irt_2019}, which attaches a 1PL readout to DKVMN, exposing a scalar difficulty $\beta_j$ per item and a student ability $\theta_t$ derived from the memory read vector. Because the 1PL formulation omits discrimination, every item is implicitly assumed to differentiate ability equally well, an assumption rarely met in practice. Deep-IRT validates difficulty estimates only by correlation with item-analysis statistics on a real dataset ($r = 0.56$), without simulation-based recovery against known generating parameters, and reports no quantitative ability recovery. The authors further note a ``reconstruction issue'' in which estimated ability can decrease after a correct answer, suggesting the ability trajectory is not fully reliable. DKVMN-MRI \citep{xu_dkvmn_2024} similarly augments DKVMN with a Rasch prediction head and multi-relational information but does not evaluate the quality of the resulting IRT estimates at all, focusing exclusively on prediction accuracy. DEEP-GPCM addresses both gaps by recovering the full GPCM parameter set (discrimination $\alpha_j$, $K{-}1$ ordered step thresholds $\boldsymbol{\beta}_j$, and dynamic ability $\theta_t$) and validating each through simulation-based recovery against ground-truth generating parameters. The discrimination parameter is arguably the most informative for item quality assessment, yet no prior IRT-augmented KT model recovers it.
+The closest prior work linking deep KT with IRT is Deep-IRT \citep{yeung_deep-irt_2019}, which attaches a 1PL readout to DKVMN, exposing a scalar difficulty $\beta_j$ per item and a student ability $\theta_t$ derived from the memory read vector. Because the 1PL formulation omits discrimination, every item is implicitly assumed to differentiate ability equally well, an assumption rarely met in practice. Deep-IRT validates difficulty estimates only by correlation with item-analysis statistics on a real dataset ($r = 0.56$), without simulation-based recovery against known generating parameters, and reports no quantitative ability recovery. The authors further note a ``reconstruction issue'' in which estimated ability can decrease after a correct answer, suggesting the ability trajectory is not fully reliable. DKVMN-MRI \citep{xu_dkvmn_2024} similarly augments DKVMN with a Rasch prediction head and multi-relational information but does not evaluate the quality of the resulting IRT estimates at all, focusing exclusively on prediction accuracy. MA-GPCM addresses both gaps by recovering the full GPCM parameter set (discrimination $\alpha_j$, $K{-}1$ ordered step thresholds $\boldsymbol{\beta}_j$, and dynamic ability $\theta_t$) and validating each through simulation-based recovery against ground-truth generating parameters. The discrimination parameter is arguably the most informative for item quality assessment, yet no prior IRT-augmented KT model recovers it.
 
-From a deployment perspective, DEEP-GPCM trains in under 20 minutes per 5{,}000-student dataset on a single GPU, and inference is a single forward pass through the DKVMN backbone. The $K=2$ boundary condition (Table~\ref{tab:combined_perf}) confirms that practitioners with existing binary item banks can adopt the framework with no performance penalty, upgrading to polytomous scoring as rubric-scored items become available. For item bank scaling, the static-item embedding maintains recovery quality up to $Q = 2{,}000$ items provided the observations-per-item ratio remains adequate ($\geq 250$; \citealt{de_ayala_theory_2009}).
+From a deployment perspective, MA-GPCM trains in under 20 minutes per 5{,}000-student dataset on a single GPU, and inference is a single forward pass through the DKVMN backbone. The $K=2$ boundary condition (Table~\ref{tab:combined_perf}) confirms that practitioners with existing binary item banks can adopt the framework with no performance penalty, upgrading to polytomous scoring as rubric-scored items become available. For item bank scaling, the StaticItem representation maintains recovery quality up to $Q = 2{,}000$ items provided the observations-per-item ratio remains adequate ($\geq 250$; \citealt{de_ayala_theory_2009}).
 
 \subsection{Limitations and Future Directions}
 \label{sec:limitations}
-While the framework establishes a foundation for polytomous knowledge tracing, several limitations present direct avenues for future research.
+While these results demonstrate the framework's viability for polytomous knowledge tracing, several limitations present avenues for future research.
 
-First, evaluating parameter recovery on synthetic data generated under GPCM assumptions is inherently circular. The most pressing next step is applying the model to authentic polytomous datasets (e.g., NAEP constructed-response items, PISA open-ended tasks, or rubric-scored science performance assessments) and validating inferred trajectories against external standardized measures.
+First, evaluating parameter recovery on synthetic data generated under GPCM assumptions is a limited test of generalization. The most pressing next step is applying the model to authentic polytomous datasets (e.g., NAEP constructed-response items, PISA open-ended tasks, or rubric-scored science performance assessments) and validating inferred trajectories against external standardized measures.
 
-Second, although we proposed DEEP-MIRT as a modular framework with interchangeable components, the current implementation is limited to the GPCM head. A nominal response head using the NRM \citep{bock_estimating_1972} would extend the framework to unordered polytomous responses such as multiple-choice distractors, enabling misconception-level feedback.
+Second, although we proposed MA-IRT as a modular framework with interchangeable components, the current implementation is limited to the GPCM head. A nominal response head using the NRM \citep{bock_estimating_1972} would extend the framework to unordered polytomous responses such as multiple-choice distractors, enabling misconception-level feedback.
 
 Third, the current backbone maintains a unidimensional student state and does not address multidimensional discrimination recovery. Connecting multidimensional instantiations with concept-aligned memory slots would enable per-skill ability tracking, supporting more targeted diagnostics than a composite $\theta_t$.
 
 
 \subsection{Conclusion}
 \label{sec:conclusion}
-This paper introduced DEEP-MIRT, a modular framework that couples sequential neural backbones with polytomous IRT heads to extend knowledge tracing beyond binary responses. The concrete instantiation, DEEP-GPCM, pairs a DKVMN backbone with a GPCM head and demonstrates three main results. First, the GPCM head's ordinal inductive bias matches or exceeds a pure softmax baseline on prediction quality while simultaneously producing interpretable psychometric parameters (discrimination, step thresholds, and dynamic ability) that no prior neural KT model recovers jointly. Second, the framework is backward-compatible. At $K=2$ it reduces to a standard 2PL model and matches existing binary KT baselines, so adoption requires no sacrifice on legacy benchmarks. Third, the Static Item Embedding enables scaling to large item banks without the gradient interference that degrades learned embeddings, echoing the static-versus-dynamic separation in the DKVMN memory itself.
+This paper introduced MA-IRT, a modular framework that couples sequential neural backbones with polytomous IRT heads to extend knowledge tracing beyond binary responses. The concrete instantiation, MA-GPCM, pairs a DKVMN backbone that tracks evolving per-concept knowledge states with a GPCM head and demonstrates three main results. First, the GPCM head's ordinal inductive bias matches or exceeds a pure softmax baseline on prediction quality while simultaneously producing interpretable psychometric parameters (discrimination, step thresholds, and dynamic ability) that no prior neural KT model recovers jointly. Second, the framework is backward-compatible. At $K=2$ it reduces to a standard 2PL model and matches existing binary KT baselines, so adoption requires no sacrifice on legacy benchmarks. Third, the StaticItem representation enables scaling to large item banks without the gradient interference that degrades learned embeddings, echoing the static-versus-dynamic separation in the DKVMN memory itself.
 
 Beyond the immediate results, the backbone/head separation establishes a design template for future measurement-aware KT models. Swapping the GPCM head for a GRM or NRM head, or replacing the DKVMN backbone with a Transformer, requires changes to only one module. We hope this modularity lowers the barrier for the AIED community to integrate psychometric rigor into deep sequential models, and for psychometricians to leverage neural architectures without abandoning interpretable measurement constructs.
 
@@ -770,7 +786,7 @@ Figures~\ref{fig:recovery_k2_student}--\ref{fig:recovery_k6_item} present parame
 \section{Learner State Trajectories Across $K$}
 \label{app:trajectories}
 
-Figures~\ref{fig:traj_k2}--\ref{fig:traj_k6} extend the $K=4$ trajectory analysis (Figure~\ref{fig:trajectories}) to all other category resolutions. Each panel shows expected scores $\hat{s}_t$ for all three models alongside the true expected score under the GPCM given each archetype's ground-truth $\theta^*$. Dynamic GPCM reports $\hat{s}_t$ derived from its predicted category probabilities, consistent with DEEP-GPCM and DKVMN+Softmax. The y-axis label is shared across panels within each figure.
+Figures~\ref{fig:traj_k2}--\ref{fig:traj_k6} extend the $K=4$ trajectory analysis (Figure~\ref{fig:trajectories}) to all other category resolutions. Each panel shows expected scores $\hat{s}_t$ for all three models alongside the true expected score under the GPCM given each archetype's ground-truth $\theta^*$. Dynamic GPCM reports $\hat{s}_t$ derived from its predicted category probabilities, consistent with MA-GPCM and DKVMN+Softmax. The y-axis label is shared across panels within each figure.
 
 \begin{figure}[htb!]
 \centering
