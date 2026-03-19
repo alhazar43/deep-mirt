@@ -36,5 +36,8 @@ build/
 Thumbs.db
 *:Zone.Identifier
 
+# Old overleaf folder (deprecated)
+_overleaf_old/
+
 # Claude internal
 .claude/

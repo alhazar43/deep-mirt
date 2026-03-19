@@ -13,3 +13,6 @@
 [submodule "deep-1pl"]
 	path = deep-1pl
 	url = https://github.com/ckyeungac/DeepIRT.git
+[submodule "overleaf-sync"]
+	path = overleaf-sync
+	url = https://git.overleaf.com/698a08a1498be338a24fd941
