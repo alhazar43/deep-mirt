@@ -29,6 +29,36 @@
 - [x] Gitignore data/, outputs/, archive/, legacy dirs (kt-mirt, mirt-dkvmn, deep-gpcm)
 - [x] Untrack old data archives, output archives, generated configs, stale docs
 
+## Cleanup Round 2 (2026-03-29, evening)
+
+### Phase A: Dead code removal
+- [x] Delete 6 superseded scripts (compute_all_recovery_v3, eval_block_and_rw, eval_dynamic_seeds, gen_dynamic_seed_configs, estimate_theta_eap, run_all_dynamic_k)
+- [x] Remove FocalLoss class, simplify CombinedLoss to WOL-only
+- [x] Remove memory_add_activation (inert), embed_dim (unused), DKVMN.n_questions (stored never read)
+- [x] Remove 4 trainer regularization penalty methods (always off)
+- [x] Remove focal_weight, qwk_weight, 4 penalty weight config fields
+- [x] Fix base.yaml stale defaults
+- [x] Tests: 56 pass, smoke train verified
+
+### Phase B: Class renames (BREAKING)
+- [x] DeepGPCM -> MAGPCM, file kt_gpcm.py -> magpcm.py
+- [x] model_type "deepgpcm" -> "magpcm" in 161 YAML configs + dispatch
+- [x] "linear_decay" -> "onehot", LinearDecayEmbedding -> OneHotEmbedding
+- [x] "separable" -> "learned"
+- [x] Update all docstring fossils (Deep-GPCM, memirt, DKVMN-GPCM -> MA-GPCM/MA-IRT)
+- [x] Tests: 56 pass, smoke train verified
+
+### Phase C: Directory restructure
+- [x] Flatten src/kt_gpcm/ to top-level models/, training/, config/, dataloading/
+- [x] Rename kt-gpcm/ to ma-irt/
+- [x] Update all imports (from kt_gpcm.X -> from X)
+- [x] PYTHONPATH now points to ma-irt/ (not ma-irt/src/)
+- [x] Update .gitignore, CLAUDE.md, README.md
+- [x] Tests: 56 pass, smoke train verified
+
+### Validation
+- [x] Static K=4 train+eval: all 4 models match Phase A numbers exactly (zero regression)
+
 ### Data + Training
 
 - [x] Change model defaults: monotonic_betas=False, embedding_type=static_item
