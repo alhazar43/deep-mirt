@@ -61,8 +61,11 @@ kt-gpcm/outputs_archive_*/
 # Datasets (large, regenerable)
 kt-gpcm/data/
 
-# Training outputs (large, reproducible)
-kt-gpcm/outputs/
+# Training outputs (large, reproducible) — except figures
+kt-gpcm/outputs/*/
+kt-gpcm/outputs/*.csv
+kt-gpcm/outputs/*.json
+!kt-gpcm/outputs/figures/
 
 # Plan docs (working notes, not part of codebase)
 EXP_PLAN.md
