@@ -48,6 +48,13 @@ deep-gpcm
 # Archived code (dead scripts, old configs)
 kt-gpcm/archive/
 
+# Generated configs (regenerable via gen scripts)
+kt-gpcm/configs/generated/
+
+# Stale kt-gpcm docs
+kt-gpcm/Q2000_EXECUTIVE_SUMMARY.txt
+kt-gpcm/TODO_alternating_optim.md
+
 # Datasets (large, regenerable)
 kt-gpcm/data/
 
