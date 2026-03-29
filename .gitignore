@@ -51,9 +51,12 @@ kt-gpcm/archive/
 # Generated configs (regenerable via gen scripts)
 kt-gpcm/configs/generated/
 
-# Stale kt-gpcm docs
+# Stale kt-gpcm files
 kt-gpcm/Q2000_EXECUTIVE_SUMMARY.txt
 kt-gpcm/TODO_alternating_optim.md
+kt-gpcm/paper.pdf
+kt-gpcm/data_archive_*/
+kt-gpcm/outputs_archive_*/
 
 # Datasets (large, regenerable)
 kt-gpcm/data/
