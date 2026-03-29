@@ -1,21 +1,15 @@
-# DEEP-GPCM
+# MA-IRT / MA-GPCM
 
-Knowledge tracing with the Generalized Partial Credit Model (GPCM) and a Dynamic Key-Value Memory Network (DKVMN). The model trains on synthetic student response sequences and recovers ground-truth IRT parameters (θ = ability, α = discrimination, β = thresholds).
+Memory-Augmented Item Response Theory for Polytomous Knowledge Tracing. The model trains on synthetic student response sequences and recovers ground-truth IRT parameters (theta = ability, alpha = discrimination, beta = step thresholds).
+
+**Paper**: "MA-IRT: A Memory-Augmented Framework for Polytomous Knowledge Tracing with IRT Parameter Recovery" (target: IJAIED)
 
 ## Environment
 
-Use the `vrec-env` conda environment for all runs:
-
 ```bash
 source ~/anaconda3/etc/profile.d/conda.sh
-conda activate vrec-env
+conda activate research
 ```
-
-## Active Codebase
-
-The active implementation is in `kt-gpcm/`. See [`kt-gpcm/README.md`](kt-gpcm/README.md) for full documentation including configuration reference, project layout, and test instructions.
-
-All scripts expect `PYTHONPATH=kt-gpcm/src` (or `PYTHONPATH=src` when running from inside `kt-gpcm/`).
 
 ## Quick Start
 
@@ -25,74 +19,72 @@ export PYTHONPATH=src
 
 # Generate a synthetic dataset (5000 students, 200 items, 4 categories)
 python scripts/data_gen.py \
-  --name my_dataset --n_students 5000 --n_questions 200 --n_cats 4 \
+  --name v2_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 \
   --min_seq 20 --max_seq 80 --output_dir data
 
-# Train DEEP-GPCM
-python scripts/train.py --config configs/generated/q200_k4_linear_decay.yaml
+# Train MA-GPCM
+python scripts/train.py --config configs/smoke.yaml
 
-# Compute IRT parameter recovery correlations
-KMP_DUPLICATE_LIB_OK=TRUE python scripts/compute_all_recovery.py \
-  --output_csv outputs/recovery_correlations.csv
-
-# Plot recovery scatter plots
-python scripts/plot_recovery.py \
-  --config configs/generated/q200_k4_linear_decay.yaml \
-  --checkpoint outputs/q200_k4_linear_decay/best.pt \
-  --output outputs/q200_k4_linear_decay/recovery_plots
+# Evaluate (prediction metrics + IRT parameter recovery)
+KMP_DUPLICATE_LIB_OK=TRUE python scripts/evaluate.py single \
+  --config configs/smoke.yaml \
+  --checkpoint outputs/smoke/best.pt \
+  --data-dir data/v2_q200_k4
 
 # Plot training curves
 python scripts/plot_metrics.py \
-  --metrics outputs/q200_k4_linear_decay/metrics.csv \
-  --output outputs/q200_k4_linear_decay/metric_plots
+  --metrics outputs/smoke/metrics.csv \
+  --output outputs/smoke/metric_plots
 ```
 
-## Model Variants
+## Models
 
-Four model types are supported via `model.model_type` in the config:
+| Model | Paper name | `model_type` | Description |
+|-------|-----------|-------------|-------------|
+| `DeepGPCM` | MA-GPCM | `deepgpcm` | DKVMN + separated ability pathway + GPCM head |
+| `DeepGPCM` | DKVMN+GPCM | `deepgpcm` | Same but `separate_theta: false` |
+| `DKVMNSoftmax` | DKVMN+Softmax | `dkvmn_softmax` | DKVMN + K-way softmax (no IRT) |
+| `DynamicGPCM` | Dynamic GPCM | `dynamic_gpcm` | Gated recurrent theta + per-item lookup |
+| `StaticGPCM` | GPCM (SGD) | `static_gpcm` | Static theta embedding + per-item params |
+| R `mirt` | GPCM (EM) | N/A | EM calibration via `mirt_baseline_all_k.R` |
 
-| `model_type` | Class | Description |
-|---|---|---|
-| `deepgpcm` (default) | `DeepGPCM` | DKVMN backbone + GPCM head; dynamic θ_t per step |
-| `dkvmn_softmax` | `DKVMNSoftmax` | DKVMN backbone + softmax head; no IRT parameters |
-| `static_gpcm` | `StaticGPCM` | Lookup-table IRT baseline; static per-student θ |
-| `dynamic_gpcm` | `DynamicGPCM` | Recurrent IRT baseline; dynamic θ_t, no memory |
-
-Three item encoding strategies are available via `model.embedding_type`:
+## Item Representations
 
 | `embedding_type` | Description |
-|---|---|
-| `linear_decay` | Triangular-kernel ordinal embedding (Kronecker product) |
-| `separable` | Separable encoding with learned item embeddings |
-| `static_item` | Static Item Embedding (SIE) with frozen random projections |
+|-----------------|-------------|
+| `static_item` (default) | Frozen random unit-norm vectors + learned projection |
+| `linear_decay` | Triangular ordinal kernel (Kronecker product) |
+| `separable` | Learned item embedding + ordinal weights |
+
+## Data Generators
+
+| Script | DGP type | Ability dynamics |
+|--------|----------|-----------------|
+| `data_gen.py` | Static | theta fixed per student |
+| `data_gen_staircase.py` | Staircase | 3-level discrete shifts |
+| `data_gen_randomwalk.py` | Random walk | Continuous drift |
+| `data_gen_block.py` | Block change | Pretest-posttest |
+| `data_gen_imbalanced.py` | Imbalanced | Skewed ability prior |
 
 ## Repository Layout
 
-- `kt-gpcm/`: Active DEEP-GPCM implementation, configs, data, scripts, and tests.
-- `paper.tex`: Research paper (LaTeX source).
-- `figures/`: PDF figures for paper.
-- `TODO.md`: Active task list.
-- `PAPER_PLAN.md`: Venue strategy and writing plan.
-
-## Data and Artifacts
-
-- Synthetic datasets live under `kt-gpcm/data/` and follow `large_q<items>_k<cats>`.
-- Imbalanced datasets follow `large_q<items>_k<cats>_{mild,severe,extreme}_imbalance`.
-- Training outputs (metrics, checkpoints, plots) go in `kt-gpcm/outputs/`.
-- Recovery correlations are aggregated in `kt-gpcm/outputs/recovery_correlations.csv`.
-
-## Paper
-
-The research paper is at `paper.tex` in the repo root. Compile with:
-
-```bash
-pdflatex paper.tex
 ```
-
-Figures are generated by scripts in `kt-gpcm/scripts/` and referenced as PGF files.
+kt-gpcm/
+  src/kt_gpcm/         # Library code (models, training, data, config)
+  scripts/              # Core pipeline scripts (train, evaluate, plot, data gen)
+  configs/              # YAML experiment configs
+    experiments/        # Per-RQ multi-seed configs
+    dynamic_seeds/      # Multi-seed block/rw configs
+  data/                 # Generated datasets
+  outputs/              # Checkpoints, metrics, figures
+  tests/                # Unit tests
+  archive/              # Archived scripts, configs, shell wrappers
+overleaf-sync/          # Paper LaTeX source (synced to Overleaf)
+```
 
 ## Notes
 
-- GPU usage is controlled by `base.device` in each config; training falls back to CPU if CUDA is unavailable.
-- Dataset regeneration must match the current GPCM formulation (K-1 cumulative logits) to keep recovery plots meaningful.
-- Use `KMP_DUPLICATE_LIB_OK=TRUE` on Windows when running recovery computation to avoid MKL conflicts.
+- `base.device` in configs controls GPU usage; falls back to CPU if CUDA unavailable.
+- Use `KMP_DUPLICATE_LIB_OK=TRUE` on Windows to avoid MKL conflicts.
+- Loss: Weighted Ordinal Loss (WOL) only. `training.weighted_ordinal_weight: 1.0`.
+- Step thresholds are unconstrained (no monotonic enforcement).

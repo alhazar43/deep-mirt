@@ -21,85 +21,119 @@ Use `KMP_DUPLICATE_LIB_OK=TRUE` on Windows when running torch-based scripts.
 cd kt-gpcm && PYTHONPATH=src pytest tests/ -v
 ```
 
-**Run a single test file:**
-```bash
-cd kt-gpcm && PYTHONPATH=src pytest tests/test_shapes.py -v
-```
-
-**Generate synthetic data:**
+**Generate synthetic data (static DGP):**
 ```bash
 cd kt-gpcm && PYTHONPATH=src python scripts/data_gen.py \
-  --name large_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 \
+  --name v2_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 \
   --min_seq 20 --max_seq 80 --output_dir data
+```
+
+**Generate dynamic data:**
+```bash
+# Staircase (3-level discrete ability change)
+cd kt-gpcm && PYTHONPATH=src python scripts/data_gen_staircase.py \
+  --name staircase_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 --output_dir data
+
+# Random walk (continuous drift)
+cd kt-gpcm && PYTHONPATH=src python scripts/data_gen_randomwalk.py \
+  --name rw_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 --output_dir data
+
+# Block change (pretest-posttest)
+cd kt-gpcm && PYTHONPATH=src python scripts/data_gen_block.py \
+  --name block_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 --output_dir data
 ```
 
 **Train:**
 ```bash
 cd kt-gpcm && PYTHONPATH=src python scripts/train.py \
-  --config configs/generated/q200_k4_static_item.yaml
+  --config configs/staircase_q200_k4.yaml
 ```
 
-**Compute recovery correlations:**
+**Evaluate (unified, handles all model types and DGPs):**
 ```bash
-cd kt-gpcm && KMP_DUPLICATE_LIB_OK=TRUE PYTHONPATH=src python scripts/compute_all_recovery.py \
-  --output_csv outputs/recovery_correlations.csv
-```
-
-**Plot split recovery (requires all 3 model checkpoints):**
-```bash
-cd kt-gpcm && PYTHONPATH=src python scripts/plot_recovery_split.py \
-  --deepgpcm-config configs/generated/q200_k4_static_item.yaml \
-  --deepgpcm-checkpoint outputs/q200_k4_static_item/best.pt \
-  --static-config configs/baselines/large_q200_k4_static_gpcm.yaml \
-  --static-checkpoint outputs/large_q200_k4_static_gpcm/best.pt \
-  --dynamic-config configs/baselines/large_q200_k4_dynamic_gpcm.yaml \
-  --dynamic-checkpoint outputs/large_q200_k4_dynamic_gpcm/best.pt \
-  --output outputs/q200_k4_static_item/recovery
+cd kt-gpcm && KMP_DUPLICATE_LIB_OK=TRUE PYTHONPATH=src python scripts/evaluate.py single \
+  --config configs/staircase_q200_k4.yaml \
+  --checkpoint outputs/staircase_q200_k4/best.pt \
+  --data-dir data/staircase_q200_k4
 ```
 
 **Plot training curves:**
 ```bash
 cd kt-gpcm && python scripts/plot_metrics.py \
-  --metrics outputs/q200_k4_static_item/metrics.csv \
-  --output outputs/q200_k4_static_item/metric_plots
+  --metrics outputs/staircase_q200_k4/metrics.csv \
+  --output outputs/staircase_q200_k4/metric_plots
 ```
 
 **Compile paper:**
 ```bash
-pdflatex paper.tex
+cd overleaf-sync && pdflatex main.tex
 ```
 
 ## Architecture
 
 The active project is `kt-gpcm/`. Legacy directories (`mirt-dkvmn/`, `deep-gpcm/`) are archived.
+Archived scripts and configs are in `kt-gpcm/archive/`.
 
-**Goal**: Train a neural network on synthetic student response sequences and recover ground-truth IRT parameters (θ = ability, α = discrimination, β = thresholds).
+**Goal**: Train a neural network on synthetic student response sequences and recover ground-truth IRT parameters (theta = ability, alpha = discrimination, beta = step thresholds).
 
-### Data flow
+### Models
+
+Six models are used in the paper:
+
+| Model | Code | Config `model_type` | IRT params | Notes |
+|-------|------|-------------------|------------|-------|
+| **MA-GPCM** (ours) | `DeepGPCM` | `deepgpcm` | theta, alpha, beta | Separated ability pathway + SIE |
+| **DKVMN+GPCM** | `DeepGPCM` | `deepgpcm` | theta, alpha, beta | `separate_theta: false` (shared pathway) |
+| **DKVMN+Softmax** | `DKVMNSoftmax` | `dkvmn_softmax` | none | No IRT structure |
+| **Dynamic GPCM** | `DynamicGPCM` | `dynamic_gpcm` | theta, alpha, beta | Gated recurrence, no memory |
+| **GPCM (SGD)** | `StaticGPCM` | `static_gpcm` | theta, alpha, beta | Static theta per student |
+| **GPCM (EM)** | R `mirt` package | N/A | theta, alpha, beta | `scripts/mirt_baseline_all_k.R` |
+
+### Data flow (MA-GPCM)
 
 ```
 (question_ids, responses)
-→ Embedding (LinearDecay / Separable / StaticItem)
-→ DKVMN memory (attention + read + write)
-→ summary network
-→ IRTParameterExtractor    # produces θ, α, β
-→ GPCMLogits               # K-1 cumulative logits
-→ categorical probabilities
+-> StaticItemEmbedding       # frozen random item vectors + ordinal kernel
+-> DKVMN memory              # attention + read + write
+-> separated ability summary # f_theta from read vector only (no item key)
+-> IRTParameterExtractor     # produces theta, alpha, beta (unconstrained)
+-> GPCMLogits                # K-1 cumulative logits
+-> categorical probabilities
 ```
 
 ### Key source files
 
 | File | Role |
 |------|------|
-| `kt-gpcm/src/kt_gpcm/models/kt_gpcm.py` | Main DeepGPCM model |
-| `kt-gpcm/src/kt_gpcm/models/components/memory.py` | DKVMN key/value memory |
-| `kt-gpcm/src/kt_gpcm/models/components/irt.py` | IRT parameter extraction + GPCM logits |
-| `kt-gpcm/src/kt_gpcm/models/components/embeddings.py` | LinearDecay, Separable, StaticItem embeddings |
-| `kt-gpcm/src/kt_gpcm/models/heads/gpcm.py` | GPCM head |
-| `kt-gpcm/src/kt_gpcm/training/trainer.py` | Training loop, metric logging |
-| `kt-gpcm/src/kt_gpcm/training/losses.py` | FocalLoss, WeightedOrdinalLoss, CombinedLoss |
-| `kt-gpcm/src/kt_gpcm/data/loaders.py` | SequenceDataset, DataModule, collate_sequences |
-| `kt-gpcm/src/kt_gpcm/config/types.py` | Config dataclasses (Base/Model/Training/Data) |
+| `src/kt_gpcm/models/kt_gpcm.py` | DeepGPCM (MA-GPCM and DKVMN+GPCM) |
+| `src/kt_gpcm/models/static_gpcm.py` | StaticGPCM baseline |
+| `src/kt_gpcm/models/dynamic_gpcm.py` | DynamicGPCM baseline |
+| `src/kt_gpcm/models/dkvmn_softmax.py` | DKVMN+Softmax baseline |
+| `src/kt_gpcm/models/components/memory.py` | DKVMN key/value memory |
+| `src/kt_gpcm/models/components/irt.py` | IRT parameter extraction + GPCM logits |
+| `src/kt_gpcm/models/components/embeddings.py` | LinearDecay, Separable, StaticItem embeddings |
+| `src/kt_gpcm/models/heads/gpcm.py` | GPCM head (softmax over cumulative logits) |
+| `src/kt_gpcm/training/trainer.py` | Training loop, metric logging |
+| `src/kt_gpcm/training/losses.py` | WeightedOrdinalLoss, CombinedLoss |
+| `src/kt_gpcm/data/loaders.py` | SequenceDataset, DataModule, collate_sequences |
+| `src/kt_gpcm/config/types.py` | Config dataclasses (Base/Model/Training/Data) |
+
+### Core scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/train.py` | Train any model type |
+| `scripts/evaluate.py` | Unified eval: prediction metrics + IRT recovery |
+| `scripts/data_gen.py` | Generate static-theta GPCM data |
+| `scripts/data_gen_staircase.py` | Generate 3-staircase DGP |
+| `scripts/data_gen_randomwalk.py` | Generate random walk DGP |
+| `scripts/data_gen_block.py` | Generate block-change DGP |
+| `scripts/data_gen_imbalanced.py` | Generate imbalanced data |
+| `scripts/plot_trajectory_comparison.py` | 3-model trajectory figures |
+| `scripts/plot_recovery_split.py` | Item/student recovery scatter |
+| `scripts/plot_theta_temporal.py` | Temporal theta convergence |
+| `scripts/plot_metrics.py` | Training curve plots |
+| `scripts/mirt_baseline_all_k.R` | GPCM(EM) baseline via R mirt |
 
 ### Configuration
 
@@ -108,16 +142,30 @@ Experiments are driven by YAML configs in `kt-gpcm/configs/`. Key parameters:
 - `model.n_questions` — item bank size Q
 - `model.n_categories` — ordinal response categories K
 - `model.n_traits` — latent dimensions (1 for IRT)
-- `model.embedding_type` — `"linear_decay"`, `"separable"`, or `"static_item"`
+- `model.embedding_type` — `"linear_decay"`, `"separable"`, or `"static_item"` (default)
 - `model.model_type` — `"deepgpcm"`, `"static_gpcm"`, `"dynamic_gpcm"`, `"dkvmn_softmax"`
-- `model.monotonic_betas` — enforce β₁ < β₂ < ... < β_{K-1}
-- `training.focal_weight` / `training.weighted_ordinal_weight` — loss composition
+- `model.separate_theta` — `true` (MA-GPCM) or `false` (DKVMN+GPCM)
+- `training.weighted_ordinal_weight` — WOL weight (default 1.0)
 - `base.device` — `"cuda"` or `"cpu"`; falls back to CPU if CUDA unavailable
 
-### Data and artifacts
+### Data naming conventions
 
-- Datasets: `kt-gpcm/data/large_q<items>_k<cats>/`
-  - `sequences.json`, `metadata.json`, `true_irt_parameters.json`
-- Training outputs: `kt-gpcm/outputs/<experiment_name>/`
+- Static DGP: `data/v2_q{Q}_k{K}/`
+- Block change: `data/block_q{Q}_k{K}/`
+- Random walk: `data/rw_q{Q}_k{K}/`
+- Staircase: `data/staircase_q{Q}_k{K}/`
+- Imbalanced: `data/v2_q{Q}_k{K}_{mild,severe,extreme}_imb/`
+
+Each dataset contains: `sequences.json`, `metadata.json`, `true_irt_parameters.json`
+
+### Training outputs
+
+- `kt-gpcm/outputs/<experiment_name>/`
   - `metrics.csv`, `best.pt`, `last.pt`
-- Recovery correlations: `kt-gpcm/outputs/recovery_correlations.csv`
+
+### Paper
+
+The paper source is in `overleaf-sync/` (synced via git to Overleaf).
+- `overleaf-sync/main.tex` — main paper
+- `overleaf-sync/ref.bib` — bibliography
+- `overleaf-sync/figures/` — PDF/PGF figures
