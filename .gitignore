@@ -46,30 +46,30 @@ deep-gpcm
 .claude/
 
 # Archived code (dead scripts, old configs)
-kt-gpcm/archive/
+ma-irt/archive/
 
 # Generated configs (regenerable via gen scripts)
-kt-gpcm/configs/generated/
+ma-irt/configs/generated/
 
-# Stale kt-gpcm files
-kt-gpcm/Q2000_EXECUTIVE_SUMMARY.txt
-kt-gpcm/TODO_alternating_optim.md
-kt-gpcm/paper.pdf
-kt-gpcm/data_archive_*/
-kt-gpcm/outputs_archive_*/
+# Stale files
+ma-irt/Q2000_EXECUTIVE_SUMMARY.txt
+ma-irt/TODO_alternating_optim.md
+ma-irt/paper.pdf
+ma-irt/data_archive_*/
+ma-irt/outputs_archive_*/
 
 # Datasets (large, regenerable)
-kt-gpcm/data/
+ma-irt/data/
 
 # Training outputs (large, reproducible) — except figures
-kt-gpcm/outputs/*/
-kt-gpcm/outputs/*.csv
-kt-gpcm/outputs/*.json
-!kt-gpcm/outputs/figures/
+ma-irt/outputs/*/
+ma-irt/outputs/*.csv
+ma-irt/outputs/*.json
+!ma-irt/outputs/figures/
 
 # Old plan docs (superseded)
 EXP_PLAN.md
 PAPER_PLAN.md
 CODE_CHANGES_*.md
 PAPER_CHANGES_*.md
-kt-gpcm/CLEANUP_PLAN.md
+ma-irt/CLEANUP_PLAN.md
