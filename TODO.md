@@ -4,6 +4,18 @@ Integrated cleanup and bulk retrain plan. See RETRAIN_PLAN.md for full dataset/m
 
 ---
 
+## Pre-flight Validation (2026-03-29)
+
+Static K=4 single-seed validation passed:
+- MA-GPCM: QWK 0.682 (paper 0.685), r_theta 0.953 (0.951), r_alpha 0.621 (0.686 mean+/-0.047), r_beta 0.972 (0.965)
+- DKVMN+Softmax: QWK 0.668 (paper 0.669)
+- Dynamic GPCM: QWK 0.649 (paper 0.647), r_alpha 0.665 (0.666), r_theta 0.943 (0.937)
+- Static GPCM: QWK 0.313 (paper 0.321), r_theta BROKEN (needs MLE, not forward pass)
+
+**Action needed**: Add MLE theta estimation for Static GPCM test students to evaluate.py (the old estimate_theta_eap.py handled this but was archived). Paper used MLE with fixed items for GPCM(SGD) theta.
+
+---
+
 ## Phase A: Dead Code Removal (safe, non-breaking)
 
 - [ ] Delete 6 superseded scripts (compute_all_recovery_v3, eval_block_and_rw, eval_dynamic_seeds, gen_dynamic_seed_configs, estimate_theta_eap, run_all_dynamic_k)
