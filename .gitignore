@@ -36,8 +36,11 @@ build/
 Thumbs.db
 *:Zone.Identifier
 
-# Old overleaf folder (deprecated)
+# Legacy codebases (archived, not active)
 _overleaf_old/
+kt-mirt/
+mirt-dkvmn/
+deep-gpcm
 
 # Claude internal
 .claude/
@@ -51,9 +54,11 @@ kt-gpcm/data/
 # Training outputs (large, reproducible)
 kt-gpcm/outputs/
 
-# Old plan docs (superseded)
+# Plan docs (working notes, not part of codebase)
 EXP_PLAN.md
 PAPER_PLAN.md
 TODO.md
+CODE_CHANGES_*.md
+PAPER_CHANGES_*.md
 kt-gpcm/CLEANUP_PLAN.md
 kt-gpcm/RETRAIN_PLAN.md
