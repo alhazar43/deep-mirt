@@ -67,11 +67,9 @@ kt-gpcm/outputs/*.csv
 kt-gpcm/outputs/*.json
 !kt-gpcm/outputs/figures/
 
-# Plan docs (working notes, not part of codebase)
+# Old plan docs (superseded)
 EXP_PLAN.md
 PAPER_PLAN.md
-TODO.md
 CODE_CHANGES_*.md
 PAPER_CHANGES_*.md
 kt-gpcm/CLEANUP_PLAN.md
-kt-gpcm/RETRAIN_PLAN.md
