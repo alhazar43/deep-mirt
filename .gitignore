@@ -41,3 +41,19 @@ _overleaf_old/
 
 # Claude internal
 .claude/
+
+# Archived code (dead scripts, old configs)
+kt-gpcm/archive/
+
+# Datasets (large, regenerable)
+kt-gpcm/data/
+
+# Training outputs (large, reproducible)
+kt-gpcm/outputs/
+
+# Old plan docs (superseded)
+EXP_PLAN.md
+PAPER_PLAN.md
+TODO.md
+kt-gpcm/CLEANUP_PLAN.md
+kt-gpcm/RETRAIN_PLAN.md
