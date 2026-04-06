@@ -37,12 +37,9 @@ These code renames need corresponding paper updates:
 | `v2_q200_k4` | `static_q200_k4` | "Ordinal-Static" |
 | `block_q200_k4` | `discrete_q200_k4` | Currently "Ordinal-Block", needs update to "Ordinal-Staircase" or "Ordinal-Discrete" |
 | `rw_q200_k4` | `continuous_q200_k4` | "Ordinal-RW" is fine, or update to "Ordinal-Continuous" |
-| (new) | `imbalanced_q200_k4_bimodal` | "Bimodal" condition — needs new row in imbalance table |
 
 **Paper updates needed:**
 - [ ] Ordinal-Block paragraph -> describe 3-staircase DGP instead of 2-block
-- [ ] Add bimodal condition description (mixed-population, theta ~ 0.5*N(-1.5,0.25) + 0.5*N(1.5,0.25))
-- [ ] Add bimodal row to imbalance table (Table 9)
 
 ### Loss simplification
 
@@ -58,7 +55,7 @@ These code renames need corresponding paper updates:
 |-------|--------|
 | Tables 5,7 (dynamic recovery) | Replace GDA with traj RMSE + median traj r |
 | All recovery tables | Numbers will change (new defaults, new data) |
-| Table 9 (imbalance) | Add bimodal row |
+| Table 9 (imbalance) | Three conditions (mild, severe, extreme) |
 
 ### Static GPCM theta recovery
 

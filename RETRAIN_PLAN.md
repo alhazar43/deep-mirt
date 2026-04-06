@@ -74,11 +74,9 @@ Parameters: `--min_seq 40 --max_seq 80 --drift_mean 0.02 --drift_std 0.01 --nois
 | `imbalanced_q200_k4_mild` | 4 | 200 | 5,000 | N(0.5, 1) | 23/19/21/37 |
 | `imbalanced_q200_k4_severe` | 4 | 200 | 5,000 | N(1.0, 1) | 15/16/22/48 |
 | `imbalanced_q200_k4_extreme` | 4 | 200 | 5,000 | N(1.5, 1) | 9/12/20/58 |
-| `imbalanced_q200_k4_bimodal` | 4 | 200 | 5,000 | 0.5·N(-1.5, 0.25) + 0.5·N(1.5, 0.25) | ~34/15/15/35 (U-shaped) |
 
-Generator: `data_gen_imbalanced.py` (add `--bimodal` flag for mixture distribution)
-Bimodal simulates mixed-population assessment (two subgroups with different preparation levels).
-**Total: 4 datasets**
+Generator: `data_gen_imbalanced.py`
+**Total: 3 datasets**
 
 ### 1.5 Binary Benchmarks (existing, no regeneration)
 
@@ -157,8 +155,7 @@ Bimodal simulates mixed-population assessment (two subgroups with different prep
 | MA-GPCM | mild | 5 | 5 |
 | MA-GPCM | severe | 5 | 5 |
 | MA-GPCM | extreme | 5 | 5 |
-| MA-GPCM | bimodal | 5 | 5 |
-| **Subtotal** | | | **20** |
+| **Subtotal** | | | **15** |
 
 #### Binary compatibility (reuse existing or retrain)
 

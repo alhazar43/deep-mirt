@@ -59,8 +59,6 @@ Static K=4 single-seed validation passed:
 - [ ] 5 discrete: discrete_q200_k{2,3,4,5,6} (3-level staircase)
 - [ ] 5 continuous: continuous_q200_k{2,3,4,5,6} (random walk)
 - [ ] 3 imbalanced: imbalanced_q200_k4_{mild,severe,extreme}
-- [ ] 1 bimodal: imbalanced_q200_k4_bimodal (0.5*N(-1.5,0.25) + 0.5*N(1.5,0.25))
-  - Add --bimodal flag to data_gen_imbalanced.py
 
 ## Phase 2: Config Generation
 
