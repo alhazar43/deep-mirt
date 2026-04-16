@@ -2,7 +2,7 @@
 
 ## Overview
 
-This mapping converts binary correctness logs from the ASSISTments 2009
+This mapping converts binary correctness logs from the ASSISTments 2017
 competition dataset into K=4 ordinal response categories. The mapping uses
 five features available per interaction: `correct`, `attemptCount`,
 `hintCount`, `bottomHint`, and `frIsHelpRequest`.
