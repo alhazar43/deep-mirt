@@ -57,6 +57,8 @@ ma-irt/TODO_alternating_optim.md
 ma-irt/paper.pdf
 ma-irt/data_archive_*/
 ma-irt/outputs_archive_*/
+archive_sigma03_*/
+.last_archive_path
 
 # Datasets (large, regenerable)
 ma-irt/data/
