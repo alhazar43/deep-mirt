@@ -1,6 +1,6 @@
 # Cleanup Plan 2026
 
-Procedural, tiered cleanup of the `deep-mirt` repository. Each tier is independently authorizable. Tiers are ordered safe-first. No file is modified until a tier is explicitly approved.
+Procedural, tiered cleanup of the `deep-mirt` repository. Each tier is independently authorizable and tracked with a commit plus a verification note under `docs/cleanup/`. Tiers are ordered safe-first: public behavior is documented and tested before source moves, large deletes, or archive changes.
 
 The active project is `ma-irt/`. Reference paths in this plan are absolute Windows paths so they can be cross-checked without changing directories. The plan assumes that the paper experiments (the six models in `benchmarks.md`) must remain reproducible to within 1% on ACC, AUC, QWK, $r_\alpha$, $r_\beta$, $r_\theta$.
 
@@ -145,39 +145,46 @@ Verification:
 Goal. Test the research contract, not just importability.
 
 Actions:
-- Add tests for dataset generation artifacts and schema validity.
-- Add a smoke training test that verifies checkpoint and metrics artifacts.
-- Add a smoke evaluation test that verifies prediction metrics and recovery metrics when true parameters are available.
-- Add model output contract tests:
+- Add tests for dataset generation artifacts and schema validity. Done in `ma-irt/tests/test_public_pipeline.py`.
+- Add a smoke training test that verifies checkpoint and metrics artifacts. Done for the MA-GPCM public subprocess path.
+- Add a smoke evaluation test that verifies prediction metrics and recovery metrics when true parameters are available. Done for `evaluate.py single` recovery metrics.
+- Add model output contract tests, still pending:
   - `magpcm` shape checks for theta/alpha/beta/logits/probs.
   - `separate_theta=true` and `false` both run.
   - `dkvmn_softmax` prediction path runs without pretending to recover IRT parameters in docs.
-- Add CLI tests for documented invocations.
+- Add CLI tests for documented invocations. Partially done for the generated-data train/evaluate subprocess path; root-level invocation ergonomics remain pending.
 
 Verification:
 - `pytest` exercises the public smoke path.
 - A cleanup change fails tests if it breaks either prediction or recovery outputs.
 
-### T7. Code architecture refactor
+### T7. Architecture refactor readiness
 
-Goal. Improve maintainability after the public behavior is pinned.
+Goal. Improve maintainability only after the public behavior is pinned and the currently dirty core pipeline edits are reconciled.
+
+Current guardrail. As of 2026-06-02, the working tree contains pre-existing uncommitted edits in core files including `ma-irt/scripts/train.py`, `ma-irt/config/loader.py`, `ma-irt/config/types.py`, `ma-irt/models/__init__.py`, `ma-irt/dataloading/loaders.py`, `ma-irt/models/components/irt.py`, and `ma-irt/utils/metrics.py`. Those changes may already alter CV behavior, early stopping, model exports, and metric semantics. A cleanup refactor must not overwrite or silently absorb them.
 
 Actions:
-- Move model construction out of `scripts/train.py` into `models/factory.py` or equivalent, and reuse it from `evaluate.py`.
+- First create a markdown-only refactor map that records current construction/evaluation entry points, affected files, and dependency direction.
+- Reconcile or commit the existing dirty core edits before cleanup-owned refactor commits.
+- Then move model construction out of `scripts/train.py` into `models/factory.py` or equivalent, and reuse it from `evaluate.py`.
 - Split evaluation internals into prediction, recovery, and linking modules while leaving `scripts/evaluate.py` as a CLI wrapper.
 - Formalize model capabilities instead of relying on dummy theta/alpha/beta fields from non-IRT baselines.
 - Extract shared DKVMN ordinal encoder logic where it genuinely reduces duplication between MA-GPCM and DKVMN+Softmax.
 - Add dataset validators for schema, item bounds, response bounds, metadata consistency, and true-parameter shapes.
 
 Verification:
+- Before code edits, `git status --short` has no unresolved user-owned changes in the target files, or the cleanup commit explicitly incorporates and documents them.
+- Full tests pass before and after the refactor.
 - Recovery metrics remain within the tolerances in `CLEANUP_VERIFICATION_2026.md`.
 - Existing checkpoints are either compatible or a checkpoint compatibility note is added.
 
 ### T8. Artifact hygiene and archival cleanup
 
-Goal. Remove noise only after the pipeline contract is documented and tested.
+Goal. Remove noise only after the pipeline contract is documented and tested, and only in small batches with clear paper dependency checks.
 
 Actions:
+- Start with generated runtime artifacts only, such as `__pycache__/` and stray `*.pyc`, because they are regenerated on import and are already marked `GENERATED-CLEANUP`.
 - Define tracked vs ignored policy for:
   - source configs
   - generated fold configs
@@ -185,9 +192,10 @@ Actions:
   - cached benchmark outputs
   - paper figures
   - scratch logs
-- Archive or delete stale planning markdown using the appendix inventory.
+- Archive or delete stale planning markdown using the appendix inventory, but keep this plan, `CLEANUP_VERIFICATION_2026.md`, and the tier evidence notes.
 - Move legacy reference repos only after data-source dependencies are documented.
-- Archive dead scripts/configs only after the script/config manifests are complete.
+- Archive dead scripts/configs only after the script/config manifests are complete and each candidate is checked against `benchmarks.md`, `overleaf-sync/main.tex`, and `docs/script_taxonomy.md`.
+- Do not delete `ma-irt/outputs/` wholesale. Cached benchmark outputs may be needed to compare paper figures and tables.
 
 Verification:
 - No paper table, paper figure, smoke command, or documented reproduction command depends on an archived path.
