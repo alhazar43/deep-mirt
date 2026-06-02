@@ -211,12 +211,14 @@ Training artifacts:
 outputs/<experiment_name>/best.pt
 outputs/<experiment_name>/last.pt
 outputs/<experiment_name>/metrics.csv
-outputs/<experiment_name>/test_metrics.json
+outputs/<experiment_name>/test_metrics.json  # CV mode only
 ```
 
 `best.pt` is saved when the selected early-stop metric improves.
-`last.pt` is saved every epoch. `test_metrics.json` is written by
-`train.py` after loading `best.pt` and evaluating on the test loader.
+`last.pt` is saved every epoch. In CV mode, `test_metrics.json` is written
+by `train.py` after loading `best.pt` and evaluating on the held-out test
+loader. In non-CV smoke runs, prediction/recovery JSON is produced by
+`evaluate.py single`.
 
 ## Model Contract
 

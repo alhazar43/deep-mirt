@@ -167,7 +167,7 @@ python scripts/data_gen.py --name smoke_test --n_questions 20 --n_cats 4 --n_stu
 
 **Tests**
 
-- `cd ma-irt && PYTHONPATH=. pytest tests/ -v`, all five test files must pass (`test_config_loader.py`, `test_heads.py`, `test_losses.py`, `test_optimization_equivalence.py`, `test_shapes.py`).
+- `cd ma-irt && PYTHONPATH=. pytest tests/ -v`, all test files must pass (`test_config_loader.py`, `test_heads.py`, `test_losses.py`, `test_optimization_equivalence.py`, `test_public_pipeline.py`, `test_shapes.py`).
 - For each of the 8 configs above, `python scripts/train.py --config <cfg>` must exit 0 and write `outputs/<exp_name>/best.pt` and `outputs/<exp_name>/metrics.csv` with at least one row.
 
 **Acceptance**, exit code 0 from pytest, and the eight smoke trainings must each produce a `best.pt` plus a `metrics.csv` whose `val_categorical_accuracy` is finite and strictly positive. No regression threshold here, since two-epoch numbers are uninformative.
