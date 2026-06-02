@@ -1,90 +1,87 @@
-# MA-IRT / MA-GPCM
+# deep-mirt
 
-Memory-Augmented Item Response Theory for Polytomous Knowledge Tracing. The model trains on synthetic student response sequences and recovers ground-truth IRT parameters (theta = ability, alpha = discrimination, beta = step thresholds).
+Memory-Augmented Item Response Theory for polytomous knowledge tracing. Trains deep neural networks on student response sequences and recovers ground-truth IRT parameters ($\theta$ ability, $\alpha$ discrimination, $\beta$ step thresholds) in a single forward pass.
 
-**Paper**: "MA-IRT: A Memory-Augmented Framework for Polytomous Knowledge Tracing with IRT Parameter Recovery" (target: IJAIED)
+**Paper**: MA-GPCM, a memory-augmented model for interpretable ordinal knowledge tracing (manuscript under review at IJAIED 2026).
+
+The active codebase is [`ma-irt/`](ma-irt/). See [`ma-irt/README.md`](ma-irt/README.md) for the full usage guide and config reference. Benchmark numbers reproducing the paper tables are in [`benchmarks.md`](benchmarks.md).
 
 ## Environment
 
 ```bash
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate research
+export PYTHONPATH=ma-irt
+# Windows only
+export KMP_DUPLICATE_LIB_OK=TRUE
 ```
 
-## Quick Start
+## Quick start
 
 ```bash
-cd kt-gpcm
-export PYTHONPATH=src
+cd ma-irt
 
 # Generate a synthetic dataset (5000 students, 200 items, 4 categories)
 python scripts/data_gen.py \
-  --name v2_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 \
-  --min_seq 20 --max_seq 80 --output_dir data
+    --name v2_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 \
+    --min_seq 20 --max_seq 80 --output_dir data
 
 # Train MA-GPCM
-python scripts/train.py --config configs/smoke.yaml
+PYTHONPATH=. python scripts/train.py --config configs/v2_q200_k4.yaml
 
 # Evaluate (prediction metrics + IRT parameter recovery)
-KMP_DUPLICATE_LIB_OK=TRUE python scripts/evaluate.py single \
-  --config configs/smoke.yaml \
-  --checkpoint outputs/smoke/best.pt \
-  --data-dir data/v2_q200_k4
+PYTHONPATH=. python scripts/evaluate.py single \
+    --config configs/v2_q200_k4.yaml \
+    --checkpoint outputs/v2_q200_k4/best.pt \
+    --data-dir data/v2_q200_k4
 
 # Plot training curves
 python scripts/plot_metrics.py \
-  --metrics outputs/smoke/metrics.csv \
-  --output outputs/smoke/metric_plots
+    --metrics outputs/v2_q200_k4/metrics.csv \
+    --output outputs/v2_q200_k4/plots
 ```
 
-## Models
+## Models in the paper
 
-| Model | Paper name | `model_type` | Description |
-|-------|-----------|-------------|-------------|
-| `DeepGPCM` | MA-GPCM | `deepgpcm` | DKVMN + separated ability pathway + GPCM head |
-| `DeepGPCM` | DKVMN+GPCM | `deepgpcm` | Same but `separate_theta: false` |
-| `DKVMNSoftmax` | DKVMN+Softmax | `dkvmn_softmax` | DKVMN + K-way softmax (no IRT) |
-| `DynamicGPCM` | Dynamic GPCM | `dynamic_gpcm` | Gated recurrent theta + per-item lookup |
-| `StaticGPCM` | GPCM (SGD) | `static_gpcm` | Static theta embedding + per-item params |
-| R `mirt` | GPCM (EM) | N/A | EM calibration via `mirt_baseline_all_k.R` |
+Six models, selectable via `model.model_type` in the config.
 
-## Item Representations
+| Paper name | `model_type` | IRT params | Notes |
+|---|---|---|---|
+| **MA-GPCM** (ours) | `magpcm` | $\theta, \alpha, \beta$ | DKVMN encoder + separated ability pathway + GPCM head |
+| DKVMN+GPCM | `magpcm` (`separate_theta: false`) | $\theta, \alpha, \beta$ | Shared pathway ablation |
+| DKVMN+Softmax | `dkvmn_softmax` | none | DKVMN + $K$-way softmax, no IRT structure |
+| Dynamic GPCM | `dynamic_gpcm` | $\theta, \alpha, \beta$ | Gated recurrence, no memory |
+| Static GPCM | `static_gpcm` | $\theta, \alpha, \beta$ | Static per-student $\theta$ embedding |
+| GPCM (EM) | (R `mirt` package) | $\theta, \alpha, \beta$ | Offline batch baseline via `scripts/mirt_baseline_all_k.R` |
 
-| `embedding_type` | Description |
-|-----------------|-------------|
-| `static_item` (default) | Frozen random unit-norm vectors + learned projection |
-| `linear_decay` | Triangular ordinal kernel (Kronecker product) |
-| `separable` | Learned item embedding + ordinal weights |
+## Data generators
 
-## Data Generators
-
-| Script | DGP type | Ability dynamics |
-|--------|----------|-----------------|
-| `data_gen.py` | Static | theta fixed per student |
+| Script | DGP | $\theta$ dynamics |
+|---|---|---|
+| `data_gen.py` | Static | Fixed per student |
 | `data_gen_staircase.py` | Staircase | 3-level discrete shifts |
 | `data_gen_randomwalk.py` | Random walk | Continuous drift |
 | `data_gen_block.py` | Block change | Pretest-posttest |
-| `data_gen_imbalanced.py` | Imbalanced | Skewed ability prior |
+| `data_gen_imbalanced.py` | Imbalanced | Skewed $\theta$ prior |
 
-## Repository Layout
+Real-data evaluation uses ASSISTments 2009 and 2017 with five-fold cross-validation.
+
+## Repository layout
 
 ```
-kt-gpcm/
-  src/kt_gpcm/         # Library code (models, training, data, config)
-  scripts/              # Core pipeline scripts (train, evaluate, plot, data gen)
-  configs/              # YAML experiment configs
-    experiments/        # Per-RQ multi-seed configs
-    dynamic_seeds/      # Multi-seed block/rw configs
-  data/                 # Generated datasets
-  outputs/              # Checkpoints, metrics, figures
-  tests/                # Unit tests
-  archive/              # Archived scripts, configs, shell wrappers
-overleaf-sync/          # Paper LaTeX source (synced to Overleaf)
+deep-mirt/
+├── ma-irt/          # Active codebase (see ma-irt/README.md)
+├── overleaf-sync/   # Paper LaTeX source
+├── benchmarks.md    # Paper benchmark tables
+├── CLAUDE.md        # Guidance for Claude Code
+└── README.md        # This file
 ```
 
-## Notes
+Legacy directories (`mirt-dkvmn/`, `deep-gpcm/`, `deep-1pl/`, `dkt-ori`, `dkvmn-ori`, `akt`, `pykt`) are inactive references kept for archival reasons.
 
-- `base.device` in configs controls GPU usage; falls back to CPU if CUDA unavailable.
-- Use `KMP_DUPLICATE_LIB_OK=TRUE` on Windows to avoid MKL conflicts.
-- Loss: Weighted Ordinal Loss (WOL) only. `training.weighted_ordinal_weight: 1.0`.
-- Step thresholds are unconstrained (no monotonic enforcement).
+## See also
+
+- [`ma-irt/README.md`](ma-irt/README.md), full code-usage guide, config reference, project layout, tests
+- [`CLAUDE.md`](CLAUDE.md), commands and architecture summary for Claude Code
+- [`benchmarks.md`](benchmarks.md), paper results tables
+- [`phd_research_proposal.md`](phd_research_proposal.md), doctoral research proposal that builds on this work
