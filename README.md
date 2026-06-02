@@ -1,97 +1,124 @@
 # deep-mirt
 
-Memory-Augmented Item Response Theory for polytomous knowledge tracing. Trains deep neural networks on student response sequences and recovers ground-truth IRT parameters ($\theta$ ability, $\alpha$ discrimination, $\beta$ step thresholds) in a single forward pass.
+Memory-augmented item response theory for ordinal knowledge tracing. The
+active project is **MA-GPCM**, a DKVMN-based model that predicts ordinal
+student responses and recovers interpretable IRT parameters (`theta`,
+`alpha`, `beta`) in a single forward pass.
 
-**Paper**: MA-GPCM, a memory-augmented model for interpretable ordinal knowledge tracing (manuscript under review at IJAIED 2026).
+Paper: **MA-GPCM: A Memory-Augmented Model for Interpretable Ordinal
+Knowledge Tracing**.
 
-The active codebase is [`ma-irt/`](ma-irt/). See [`ma-irt/README.md`](ma-irt/README.md) for the full usage guide and config reference. Benchmark numbers reproducing the paper tables are in [`benchmarks.md`](benchmarks.md).
+The active codebase is [`ma-irt/`](ma-irt/). See
+[`ma-irt/README.md`](ma-irt/README.md) for the full usage guide. Benchmark
+numbers reproducing the paper tables are in [`benchmarks.md`](benchmarks.md).
 
 ## Environment
+
+From the repository root:
 
 ```bash
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate research
 export PYTHONPATH=ma-irt
-# Windows only
-export KMP_DUPLICATE_LIB_OK=TRUE
 ```
 
-## Quick start
+PowerShell:
+
+```powershell
+$env:PYTHONPATH = "ma-irt"
+$env:KMP_DUPLICATE_LIB_OK = "TRUE"
+```
+
+## Quick Start
+
+This smoke path generates synthetic GPCM data, trains MA-GPCM for one epoch,
+and evaluates both prediction metrics and IRT parameter recovery. It is a
+functionality check, not a paper-performance run.
 
 ```bash
 cd ma-irt
+export PYTHONPATH=.
 
-# Generate a synthetic dataset (5000 students, 200 items, 4 categories)
 python scripts/data_gen.py \
-    --name v2_q200_k4 --n_students 5000 --n_questions 200 --n_cats 4 \
-    --min_seq 20 --max_seq 80 --output_dir data
+  --name smoke_test \
+  --n_students 120 \
+  --n_questions 20 \
+  --n_cats 4 \
+  --min_seq 10 \
+  --max_seq 25 \
+  --output_dir data \
+  --seed 42
 
-# Train MA-GPCM
-PYTHONPATH=. python scripts/train.py --config configs/v2_q200_k4.yaml
+python scripts/train.py \
+  --config configs/smoke.yaml \
+  --dataset smoke_test \
+  --epochs 1
 
-# Evaluate (prediction metrics + IRT parameter recovery)
-PYTHONPATH=. python scripts/evaluate.py single \
-    --config configs/v2_q200_k4.yaml \
-    --checkpoint outputs/v2_q200_k4/best.pt \
-    --data-dir data/v2_q200_k4
-
-# Plot training curves
-python scripts/plot_metrics.py \
-    --metrics outputs/v2_q200_k4/metrics.csv \
-    --output outputs/v2_q200_k4/plots
+python scripts/evaluate.py single \
+  --config configs/smoke.yaml \
+  --checkpoint outputs/smoke_test/best.pt \
+  --data-dir data/smoke_test \
+  --batch-size 32
 ```
 
-## Models in the paper
+## Models
 
-Six models, selectable via `model.model_type` in the config.
+Models are selectable via `model.model_type` in YAML configs.
 
-| Paper name | `model_type` | IRT params | Notes |
+| Paper name | Config setting | IRT params | Notes |
 |---|---|---|---|
-| **MA-GPCM** (ours) | `magpcm` | $\theta, \alpha, \beta$ | DKVMN encoder + separated ability pathway + GPCM head |
-| DKVMN+GPCM | `magpcm` (`separate_theta: false`) | $\theta, \alpha, \beta$ | Shared pathway ablation |
-| DKVMN+Softmax | `dkvmn_softmax` | none | DKVMN + $K$-way softmax, no IRT structure |
-| Dynamic GPCM | `dynamic_gpcm` | $\theta, \alpha, \beta$ | Gated recurrence, no memory |
-| Static GPCM | `static_gpcm` | $\theta, \alpha, \beta$ | Static per-student $\theta$ embedding |
-| GPCM (EM) | (R `mirt` package) | $\theta, \alpha, \beta$ | Offline batch baseline via `scripts/mirt_baseline_all_k.R` |
+| MA-GPCM | `model_type: magpcm`, `separate_theta: true` | `theta`, `alpha`, `beta` | Main model |
+| DKVMN+GPCM | `model_type: magpcm`, `separate_theta: false` | `theta`, `alpha`, `beta` | Shared-pathway ablation |
+| DKVMN+Softmax | `model_type: dkvmn_softmax` | none | Prediction baseline |
+| Dynamic GPCM | `model_type: dynamic_gpcm` | `theta`, `alpha`, `beta` | Dynamic IRT baseline |
+| Static GPCM | `model_type: static_gpcm` | `theta`, `alpha`, `beta` | Static IRT baseline |
+| DKT / DKVMN / Deep-IRT | `dkt`, `dkvmn`, `deep_irt` | none | Binary K=2 baselines |
+| GPCM (EM) | R `mirt` package | `theta`, `alpha`, `beta` | Offline batch baseline |
 
-## Data generators
+The central MA-GPCM contribution is the separated ability pathway:
+`separate_theta: true` estimates `theta` from the memory read state only,
+while item parameters remain item-conditioned. The DKVMN+GPCM ablation turns
+that separation off.
 
-| Script | DGP | $\theta$ dynamics |
+## Data Generators
+
+| Script | DGP | Ability dynamics |
 |---|---|---|
-| `data_gen.py` | Static | Fixed per student |
-| `data_gen_staircase.py` | Staircase | 3-level discrete shifts |
+| `data_gen.py` | Static GPCM | Fixed per student |
+| `data_gen_staircase.py` | Staircase | Discrete shifts |
 | `data_gen_randomwalk.py` | Random walk | Continuous drift |
 | `data_gen_block.py` | Block change | Pretest-posttest |
-| `data_gen_imbalanced.py` | Imbalanced | Skewed $\theta$ prior |
+| `data_gen_imbalanced.py` | Imbalanced | Shifted/skewed ability prior |
 
-Real-data evaluation uses ASSISTments 2009 and 2017 with five-fold cross-validation.
+Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets.
 
-## Repository layout
+## Repository Layout
 
-```
+```text
 deep-mirt/
-├── ma-irt/          # Active codebase (see ma-irt/README.md)
-├── overleaf-sync/   # Paper LaTeX source
-├── benchmarks.md    # Paper benchmark tables
-├── CLAUDE.md        # Guidance for Claude Code
-└── README.md        # This file
+  ma-irt/          # Active codebase
+  overleaf-sync/   # Paper LaTeX source
+  docs/            # Cleanup evidence and archived planning notes
+  benchmarks.md    # Paper benchmark tables
+  CLAUDE.md        # Agent/codebase guidance
+  README.md        # This file
 ```
 
-Legacy directories (`mirt-dkvmn/`, `deep-gpcm/`, `deep-1pl/`, `dkt-ori`, `dkvmn-ori`, `akt`, `pykt`) are inactive references kept for archival reasons.
+Legacy directories such as `mirt-dkvmn/`, `deep-gpcm/`, `deep-1pl/`,
+`dkt-ori/`, `dkvmn-ori/`, `akt/`, and `pykt/` are inactive references kept
+for archival or data-source reasons until cleanup verification proves they can
+be moved.
 
-## Research roadmap
+## Research Roadmap
 
-This codebase ships MA-GPCM. The doctoral program building on it has one committed first step (**multidim MA-IRT**, generalizing scalar $\theta_t$ to $\boldsymbol{\theta}_t \in \mathbb{R}^D$ with multidim 2PL/GPCM/DINA decoders, addressing rotational identifiability under streaming and sparse-attention Q-matrix recovery) plus four follow-up directions presented as options rather than as a fixed pipeline.
+This repository ships MA-GPCM. The next committed research step is multidim
+MA-IRT: generalizing scalar `theta_t` to a vector-valued latent state with
+multidimensional IRT decoders and explicit identifiability constraints.
 
-- **A.** Joint multidim MA-IRT and DRL recommender. Shared encoder, joint loss, partial-identification-aware off-policy evaluation. Puts MA-IRT inside the decision loop.
-- **B.** LLM-mediated assessment. LLM raters and item generators as structured contributions to MA-IRT estimates, not as oracles. Identifiability for trait-vs-rater-bias separation.
-- **C.** Learner world model on the MA-IRT state. Long-horizon planning in trait units, causal identifiability for learning dynamics, lifelong measurement under drift.
-- **D.** MA-IRT for AI capability evaluation. AI as test-taker, multidim capability profiling, cross-fine-tune tracking, cross-model DIF.
+## See Also
 
-Cross-cutting theoretical thread, identifiability of streaming neural IRT, runs through all four. Two-year scope realistically delivers multidim MA-IRT plus two to three of A through D. Full proposal in `docs/archive/2026-06-cleanup/phd_research_proposal.md`.
-
-## See also
-
-- [`ma-irt/README.md`](ma-irt/README.md), full code-usage guide, config reference, project layout, tests
-- [`CLAUDE.md`](CLAUDE.md), commands and architecture summary for Claude Code
-- [`benchmarks.md`](benchmarks.md), paper results tables
+- [`ma-irt/README.md`](ma-irt/README.md), full usage guide and project layout
+- [`benchmarks.md`](benchmarks.md), paper benchmark tables
+- [`CLEANUP_PLAN_2026.md`](CLEANUP_PLAN_2026.md), public-repo cleanup plan
+- [`CLEANUP_VERIFICATION_2026.md`](CLEANUP_VERIFICATION_2026.md), paper-critical verification contract
+- [`docs/cleanup/`](docs/cleanup/), cleanup evidence notes
