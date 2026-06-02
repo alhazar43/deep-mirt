@@ -6,7 +6,8 @@ Per `CLEANUP_VERIFICATION_2026.md` Section 5. One row per tier applied.
 |---|---|---|---|---|---|---|---|
 | 2026-06-02 | T0 (build artifacts) | 40f26f1 | e9beb44 | 65/65 pytest in 7.53s | N/A (no source/config touched) | N/A | **PASS** |
 | 2026-06-02 | T1 (stale markdowns) | 40f26f1 | e9beb44 | 65/65 pytest in 7.53s | N/A (move-only, no source/config touched) | N/A | **PASS** |
-| 2026-06-02 | T1.5 (markdown rescan) | 5b8b290 | TBD | 65/65 pytest in 6.47s | N/A (md and gitignored content only) | N/A | **PASS** |
+| 2026-06-02 | T1.5 (markdown rescan) | 5b8b290 | 3ffa3e9 | 65/65 pytest in 6.47s | N/A (md and gitignored content only) | N/A | **PASS** |
+| 2026-06-02 | T1.6 (archive inventory reports) | 3ffa3e9 | TBD | N/A (move-only) | N/A | N/A | **PASS** |
 
 T0 and T1 share commit `e9beb44`. T1.5 (the comprehensive markdown rescan triggered after T1) gets its own commit.
 
@@ -36,6 +37,15 @@ Driven by `MARKDOWN_INVENTORY_2026.md` (ml-system-architect) cross-referenced wi
 
 - T1.5 is named "1.5" because it executes a follow-up rescan that should have been part of T1 but was scoped too narrowly the first time. It is not a separate tier in the original `CLEANUP_PLAN_2026.md` but a tightening of T1.
 - The two reports `MARKDOWN_INVENTORY_2026.md` and `MARKDOWN_CRITICALITY_2026.md` are themselves KEEP, they document the rescan's reasoning.
+
+## T1.6 actions
+
+Tightening pass after the user asked for "extra clean". Moved the two T1.5 inventory artifacts to archive since their purpose is done.
+
+- `MARKDOWN_INVENTORY_2026.md` -> `docs/archive/2026-06-cleanup/`
+- `MARKDOWN_CRITICALITY_2026.md` -> `docs/archive/2026-06-cleanup/`
+
+Root markdowns after T1.6: `README.md`, `CLAUDE.md`, `benchmarks.md`, `phd_research_proposal.md`, `CLEANUP_PLAN_2026.md`, `CLEANUP_VERIFICATION_2026.md`, `cleanup_log.md`. Seven files, all active.
 
 ## Pending
 
