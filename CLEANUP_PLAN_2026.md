@@ -13,10 +13,203 @@ Hard facts established before writing this plan:
 - `ma-irt/outputs/` is 1.7 GB.
 - Top-level `figures/` (188 KB) is not referenced by `overleaf-sync/main.tex`. The paper reads `overleaf-sync/figures/`.
 - The seven candidate legacy repos at the root total 2.3 GB. Among them, `dkvmn-ori/data/synthetic/` and `deep-1pl/data/synthetic/` are read by `ma-irt/scripts/_build_pykt_synthetic5.py` and `_convert_yeung_synthetic.py`. `deep-gpcm/data/assist2009_dkvmn/` is referenced by a docstring in `convert_dkvmn_format.py`. The rest are not imported by any `ma-irt` code.
+- A follow-up paper/README/smoke-run pass on 2026-06-02 established that the cleanup must preserve two first-class contracts: ordinal prediction and IRT parameter recovery. The main model is not merely a DKVMN sequence classifier; MA-GPCM's scientific contribution is the separated ability pathway (`separate_theta=true`) that keeps item identity out of the theta estimator while alpha/beta remain item-conditioned.
+- The minimal executable path is `data_gen.py -> train.py -> evaluate.py single`. A one-epoch CPU probe on a generated 20-item, 4-category synthetic dataset completed end to end. It also exposed a public-usability issue: `train.py` and `evaluate.py` currently require `PYTHONPATH=.` from inside `ma-irt/` or `PYTHONPATH=ma-irt` from the repository root.
 
 ---
 
-## Tier 0. Sanity hygiene
+## Plan v2. Public paper repository sequence
+
+This section supersedes the original tier ordering below. The old tiers are retained as inventory appendices, because their scans are still useful evidence. The execution order is now driven by the scientific pipeline:
+
+`dataset contract -> model contract -> training contract -> evaluation/recovery contract -> reproduction/figures -> archival cleanup`
+
+The repo should be made public by first making the MA-GPCM pipeline understandable, runnable, and verifiable. Only then should large archive moves and dead-code pruning happen.
+
+### T0. Baseline guardrails
+
+Goal. Freeze what "working" means before more cleanup happens.
+
+Actions:
+- Record the current git state and explicitly separate user/unrelated dirty files from cleanup-owned changes.
+- Capture the current canonical smoke command sequence:
+  - `cd ma-irt`
+  - `PYTHONPATH=. python scripts/data_gen.py --name smoke_test ...`
+  - `PYTHONPATH=. python scripts/train.py --config configs/smoke.yaml --dataset smoke_test --epochs 1`
+  - `PYTHONPATH=. python scripts/evaluate.py single --config configs/smoke.yaml --checkpoint outputs/smoke_test/best.pt --data-dir data/smoke_test`
+- Decide whether public instructions will keep `PYTHONPATH` explicit or whether scripts will be made runnable from the repo root.
+- Keep `benchmarks.md`, `CLEANUP_VERIFICATION_2026.md`, `overleaf-sync/main.tex`, `ma-irt/README.md`, and the smoke path in sync.
+
+Verification:
+- `cd ma-irt && PYTHONPATH=. pytest tests -q`
+- One generated smoke run with prediction and recovery metrics present.
+
+### T1. Public entry surface
+
+Goal. Make a first-time reader understand the project without reading source.
+
+Actions:
+- Fix README encoding corruption and stale script references.
+- Rewrite the root README and `ma-irt/README.md` around the actual paper pipeline, not around generic benchmark lists.
+- Add a model-family table:
+  - `magpcm`: MA-GPCM, main model, `separate_theta=true`.
+  - `magpcm` with `separate_theta=false`: DKVMN+GPCM ablation.
+  - `dkvmn_softmax`: prediction baseline with DKVMN encoder and no IRT recovery semantics.
+  - `static_gpcm`: static neural GPCM baseline.
+  - `dynamic_gpcm`: dynamic theta GPCM baseline.
+  - `dkt`, `dkvmn`, `deep_irt`: binary K=2 baselines.
+- Make the quickstart produce both prediction metrics and recovery metrics, because the paper contribution depends on both.
+
+Verification:
+- A fresh user can run the README smoke commands exactly as written.
+- The README states which generated outputs are expected: `metrics.csv`, `best.pt`, `test_metrics.json` if emitted by the path, and `recovery_metrics.json`.
+
+### T2. Scientific pipeline documentation
+
+Goal. Document the data/training/evaluation contract as a reproducible research system.
+
+Create `docs/pipeline.md` with:
+- Dataset layout: `sequences.json`, `metadata.json`, optional `true_irt_parameters.json`.
+- Sequence schema and bounds: 1-based item IDs, response categories `0..K-1`, mask/padding convention.
+- Config behavior: YAML defaults, CLI overrides, metadata-driven synchronization of `n_questions` and `n_categories`.
+- Training artifacts: output directory naming, checkpoint naming, metric CSVs/logs.
+- Evaluation behavior: prediction metrics, recovery metrics, and linking transforms for theta/alpha/beta.
+- Paper experiment flow: synthetic generation, real-data proxy conversion, training, evaluation, aggregation, plotting.
+
+Verification:
+- Every command in `docs/pipeline.md` maps to an existing script or is clearly marked future work.
+- The doc distinguishes synthetic datasets with ground-truth IRT parameters from ASSISTments proxy-ordinal datasets without true IRT parameters.
+
+### T3. Architecture documentation
+
+Goal. Preserve the scientific meaning of MA-GPCM before refactoring it.
+
+Create `docs/architecture.md` with:
+- Input flow: item `q_t`, ordinal response `r_t`.
+- Encoder flow: item/key embedding, response/value embedding, DKVMN attention/read/write.
+- Causal convention: read prior memory state, predict/extract parameters, then write current response.
+- Decoder flow: separated ability summary for theta; item-conditioned summary for alpha and beta; GPCM logits/probabilities.
+- Ablation semantics: `separate_theta=true` is MA-GPCM; `separate_theta=false` is DKVMN+GPCM. This is not a cosmetic flag. It is the identifiability/disentanglement intervention behind the recovery results.
+- Why DKVMN+Softmax can be a strong predictor while remaining irrelevant for IRT parameter recovery.
+
+Verification:
+- The doc can be traced to `ma-irt/models/magpcm.py`, `models/components/memory.py`, `models/components/irt.py`, and `models/heads/gpcm.py`.
+- The architecture doc explicitly connects to the paper's recovery tables and ablation narrative.
+
+### T4. Canonical smoke and CLI ergonomics
+
+Goal. Make the smallest pipeline robust enough to serve as the public repo's health check.
+
+Actions:
+- Add or document a canonical smoke command path for `magpcm`.
+- Add smoke paths for at least `dkvmn_softmax`, `static_gpcm`, `dynamic_gpcm`, and one binary baseline.
+- Fix or document `PYTHONPATH` requirements. Preferred direction: make scripts import correctly when run from `ma-irt/` and when invoked from the repository root.
+- Keep generated smoke artifacts ignored or route them to an explicit generated directory.
+
+Verification:
+- One-command or three-command smoke path completes on CPU.
+- The smoke evaluation proves both prediction and recovery fields for IRT-capable models.
+- Non-IRT baselines are not forced to fake meaningful theta/alpha/beta semantics in public docs.
+
+### T5. Script and config taxonomy
+
+Goal. Classify before moving.
+
+Actions:
+- Create a manifest that classifies every script as one of:
+  - canonical entry point
+  - paper reproduction
+  - data preparation
+  - plotting/figure generation
+  - aggregation/reporting
+  - diagnostic/profiling
+  - legacy/one-off
+  - uncertain
+- Create a config manifest that classifies configs by experiment role:
+  - smoke
+  - synthetic static
+  - dynamic DGP: block/discrete, staircase, random walk/continuous
+  - ASSISTments proxy-ordinal
+  - binary K=2 benchmarks
+  - paper RQ sections
+  - generated fold configs
+  - legacy seeded configs
+- Do not move or delete scripts/configs until the manifests identify which paper table or figure they support.
+
+Verification:
+- Each config family either maps to a paper table/figure, a smoke test, or a documented archive candidate.
+- `dkvmn_gpcm` is documented as a config-level ablation (`magpcm` with `separate_theta=false`), not as a separate model class.
+
+### T6. Reproducibility tests
+
+Goal. Test the research contract, not just importability.
+
+Actions:
+- Add tests for dataset generation artifacts and schema validity.
+- Add a smoke training test that verifies checkpoint and metrics artifacts.
+- Add a smoke evaluation test that verifies prediction metrics and recovery metrics when true parameters are available.
+- Add model output contract tests:
+  - `magpcm` shape checks for theta/alpha/beta/logits/probs.
+  - `separate_theta=true` and `false` both run.
+  - `dkvmn_softmax` prediction path runs without pretending to recover IRT parameters in docs.
+- Add CLI tests for documented invocations.
+
+Verification:
+- `pytest` exercises the public smoke path.
+- A cleanup change fails tests if it breaks either prediction or recovery outputs.
+
+### T7. Code architecture refactor
+
+Goal. Improve maintainability after the public behavior is pinned.
+
+Actions:
+- Move model construction out of `scripts/train.py` into `models/factory.py` or equivalent, and reuse it from `evaluate.py`.
+- Split evaluation internals into prediction, recovery, and linking modules while leaving `scripts/evaluate.py` as a CLI wrapper.
+- Formalize model capabilities instead of relying on dummy theta/alpha/beta fields from non-IRT baselines.
+- Extract shared DKVMN ordinal encoder logic where it genuinely reduces duplication between MA-GPCM and DKVMN+Softmax.
+- Add dataset validators for schema, item bounds, response bounds, metadata consistency, and true-parameter shapes.
+
+Verification:
+- Recovery metrics remain within the tolerances in `CLEANUP_VERIFICATION_2026.md`.
+- Existing checkpoints are either compatible or a checkpoint compatibility note is added.
+
+### T8. Artifact hygiene and archival cleanup
+
+Goal. Remove noise only after the pipeline contract is documented and tested.
+
+Actions:
+- Define tracked vs ignored policy for:
+  - source configs
+  - generated fold configs
+  - generated datasets
+  - cached benchmark outputs
+  - paper figures
+  - scratch logs
+- Archive or delete stale planning markdown using the appendix inventory.
+- Move legacy reference repos only after data-source dependencies are documented.
+- Archive dead scripts/configs only after the script/config manifests are complete.
+
+Verification:
+- No paper table, paper figure, smoke command, or documented reproduction command depends on an archived path.
+- The verification suite passes after each archival commit.
+
+### T9. Large legacy and dead-code moves
+
+Goal. Apply the original cleanup inventories with lower risk.
+
+Actions:
+- Use Appendix C for root legacy repos.
+- Use Appendix D for `ma-irt` script/dead-code candidates.
+- Use Appendix E for config consolidation candidates.
+- Move in small commits with explicit rollback paths.
+
+Verification:
+- Run the Tier 2/Tier 3 verification suite from `CLEANUP_VERIFICATION_2026.md`.
+- Re-run smoke and selected paper-critical configs after every move group.
+
+---
+
+## Appendix A. Previous Tier 0 inventory: sanity hygiene
 
 Files that are unambiguously build artifacts or scratch logs. Zero risk to paper experiments.
 
@@ -74,7 +267,7 @@ Files that are unambiguously build artifacts or scratch logs. Zero risk to paper
 
 ---
 
-## Tier 1. Stale planning markdown
+## Appendix B. Previous Tier 1 inventory: stale planning markdown
 
 Markdown that was once a working plan and is now archeology. The risk is loss of context, not loss of functionality.
 
@@ -129,7 +322,7 @@ Markdown that was once a working plan and is now archeology. The risk is loss of
 
 ---
 
-## Tier 2. Legacy reference repos at root
+## Appendix C. Previous Tier 2 inventory: legacy reference repos at root
 
 Seven vendored repos and one large data dump live alongside `ma-irt/`. Two of them are referenced by `ma-irt` scripts as data sources. The rest are reference reading.
 
@@ -188,7 +381,7 @@ Seven vendored repos and one large data dump live alongside `ma-irt/`. Two of th
 
 ---
 
-## Tier 3. Dead code inside `ma-irt/`
+## Appendix D. Previous Tier 3 inventory: dead code inside `ma-irt/`
 
 Source modules, scripts, and configs that are unreachable from the live entry points. Some are reachable but obsolete (already covered by ma-irt/CLEANUP.md's Phase A; verify whether any survived).
 
@@ -293,7 +486,7 @@ Shell scripts to triage:
 
 ---
 
-## Tier 4. Config consolidation
+## Appendix E. Previous Tier 4 inventory: config consolidation
 
 Once Tier 3 has classified configs, this tier rationalizes the surviving set.
 
@@ -337,7 +530,7 @@ Open questions to settle.
 
 ---
 
-## Tier 5. Deeper code refactoring (optional, document only)
+## Appendix F. Previous Tier 5 notes: deeper code refactoring
 
 Authorized only after Tiers 0 to 4 land and the codebase is stable for at least one full bulk retrain.
 
