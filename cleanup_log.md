@@ -57,4 +57,24 @@ Root markdowns after T1.7: `README.md`, `CLAUDE.md`, `benchmarks.md`, `CLEANUP_P
 
 ## Pending
 
-T2 (legacy reference repos at root), T3 (dead code in `ma-irt/`), T4 (config consolidation), T5 (deeper refactor). Each requires user authorization.
+## T2.0 actions
+
+Stabilization pass before moving or deleting more code. The current working tree had many paper-critical files present on disk but untracked by git, including the DKT/DKVMN/Deep-IRT baselines, smoke configs, benchmark CV configs, and the sweep/aggregation scripts required by `CLEANUP_VERIFICATION_2026.md`.
+
+Committed as `410efed` (`Track paper-critical benchmark assets`):
+
+- Tracked the 300 benchmark configs required by `CLEANUP_VERIFICATION_2026.md` Section 3.3.
+- Tracked `ma-irt/models/{dkt.py,dkvmn.py,deep_irt.py}`.
+- Tracked smoke configs for DKT, DKVMN, and Deep-IRT.
+- Tracked the required sweep/aggregation scripts: `_build_pykt_synthetic5.py`, `_aggregate_pykt_results.py`, `_aggregate_bench.py`, `aggregate_recovery_v5.py`, `_run_pykt_sweep.sh`, `_run_k4_cv_recovery.sh`, `_run_k356_cv_recovery.sh`.
+- Updated `.gitignore` so large legacy/vendor/raw-data trees and standalone manuscript/reference artifacts stop appearing as untracked source.
+
+Verification:
+
+- `python -m py_compile` on the newly tracked Python scripts and baseline model files: pass.
+- `cd ma-irt; PYTHONPATH=. pytest tests -q`: `65 passed`.
+- Regression layer from `CLEANUP_VERIFICATION_2026.md` Section 2.2 was not run; no source behavior was changed in this pass.
+
+## Pending
+
+T2 legacy moves for root reference repos, T3 dead-code/script archive in `ma-irt/`, T4 config consolidation, T5 deeper refactor. The next safe step is T3 reachability archiving of tracked one-off scripts/configs, but only after separating it from the pre-existing uncommitted source/config edits.
