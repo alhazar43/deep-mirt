@@ -79,9 +79,19 @@ deep-mirt/
 
 Legacy directories (`mirt-dkvmn/`, `deep-gpcm/`, `deep-1pl/`, `dkt-ori`, `dkvmn-ori`, `akt`, `pykt`) are inactive references kept for archival reasons.
 
+## Research roadmap
+
+This codebase ships MA-GPCM. The doctoral program building on it has one committed first step (**multidim MA-IRT**, generalizing scalar $\theta_t$ to $\boldsymbol{\theta}_t \in \mathbb{R}^D$ with multidim 2PL/GPCM/DINA decoders, addressing rotational identifiability under streaming and sparse-attention Q-matrix recovery) plus four follow-up directions presented as options rather than as a fixed pipeline.
+
+- **A.** Joint multidim MA-IRT and DRL recommender. Shared encoder, joint loss, partial-identification-aware off-policy evaluation. Puts MA-IRT inside the decision loop.
+- **B.** LLM-mediated assessment. LLM raters and item generators as structured contributions to MA-IRT estimates, not as oracles. Identifiability for trait-vs-rater-bias separation.
+- **C.** Learner world model on the MA-IRT state. Long-horizon planning in trait units, causal identifiability for learning dynamics, lifelong measurement under drift.
+- **D.** MA-IRT for AI capability evaluation. AI as test-taker, multidim capability profiling, cross-fine-tune tracking, cross-model DIF.
+
+Cross-cutting theoretical thread, identifiability of streaming neural IRT, runs through all four. Two-year scope realistically delivers multidim MA-IRT plus two to three of A through D. Full proposal in `docs/archive/2026-06-cleanup/phd_research_proposal.md`.
+
 ## See also
 
 - [`ma-irt/README.md`](ma-irt/README.md), full code-usage guide, config reference, project layout, tests
 - [`CLAUDE.md`](CLAUDE.md), commands and architecture summary for Claude Code
 - [`benchmarks.md`](benchmarks.md), paper results tables
-- [`phd_research_proposal.md`](phd_research_proposal.md), doctoral research proposal that builds on this work
