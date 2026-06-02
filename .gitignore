@@ -66,6 +66,60 @@ ma-irt/archive/
 
 # Generated configs (regenerable via gen scripts)
 ma-irt/configs/generated/
+ma-irt/configs/_archive_s0p5/
+ma-irt/configs/tmp_alpha1/
+ma-irt/configs/bulk/*_chunked*.yaml
+ma-irt/configs/bulk/*_s*.yaml
+ma-irt/configs/bulk/*_learned*.yaml
+ma-irt/configs/bulk/imbalance_*.yaml
+ma-irt/configs/bulk/scalability_*.yaml
+
+# One-off sweep/config/debug scripts outside the verified reproduction path
+ma-irt/scripts/_bench_table_draft.tex
+ma-irt/scripts/_convert_yeung_synthetic.py
+ma-irt/scripts/_emit_k4_tables.py
+ma-irt/scripts/_gen_chunked_bench_configs.py
+ma-irt/scripts/_gen_imb_scale_pykt_configs.py
+ma-irt/scripts/_gen_pykt_configs.py
+ma-irt/scripts/_k4_digest.sh
+ma-irt/scripts/_linking_learned.py
+ma-irt/scripts/_orbit_align_static_experiment.py
+ma-irt/scripts/_reeval_discrete.sh
+ma-irt/scripts/_run_assist2017_binary.sh
+ma-irt/scripts/_run_chunked_bench_seeds.sh
+ma-irt/scripts/_run_chunked_bench_sweep.sh
+ma-irt/scripts/_run_imb_scale_cv.sh
+ma-irt/scripts/_run_softmax_cv.sh
+ma-irt/scripts/_run_synthetic5_shuf_sweep.sh
+ma-irt/scripts/_run_synthetic5_yeung_sweep.sh
+ma-irt/scripts/_verify_bench_configs.py
+ma-irt/scripts/_verify_datasets.py
+ma-irt/scripts/aggregate_recovery_v4.py
+ma-irt/scripts/analyze_threshold_ordering.py
+ma-irt/scripts/compare_alpha1.py
+ma-irt/scripts/convert_dkvmn_format.py
+ma-irt/scripts/diag_alpha_collapse.py
+ma-irt/scripts/eval_and_compare_learned.sh
+ma-irt/scripts/gen_ablation_configs.py
+ma-irt/scripts/gen_ablation_data.sh
+ma-irt/scripts/gen_alpha1_configs.py
+ma-irt/scripts/gen_assist_learned_configs.py
+ma-irt/scripts/gen_bench_configs.py
+ma-irt/scripts/gen_raw_alpha_configs.py
+ma-irt/scripts/investigate_wol_threshold.py
+ma-irt/scripts/resweep_eval_all.sh
+ma-irt/scripts/run_after_imbalance.sh
+ma-irt/scripts/run_assist2009_ord.sh
+ma-irt/scripts/run_bench_phase1.sh
+ma-irt/scripts/run_bench_phase2_queue.sh
+ma-irt/scripts/run_bench_phases_chain.sh
+ma-irt/scripts/run_bench_postphase2.sh
+ma-irt/scripts/run_bench_sweep.sh
+ma-irt/scripts/run_imbalance_extension.sh
+ma-irt/scripts/run_learned_sweep.sh
+ma-irt/scripts/train_ablations.sh
+ma-irt/scripts/train_alpha1.sh
+ma-irt/scripts/train_learned_repr.sh
 
 # Stale files
 ma-irt/Q2000_EXECUTIVE_SUMMARY.txt
