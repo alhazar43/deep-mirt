@@ -151,11 +151,12 @@ Verifies every model class trains for one or two epochs and produces metrics in 
 | 2 | `configs/smoke_dkt.yaml` | DKT | DKT model intact |
 | 3 | `configs/smoke_dkvmn.yaml` | DKVMN | DKVMN baseline intact |
 | 4 | `configs/smoke_deep_irt.yaml` | Deep-IRT | Deep-IRT baseline intact |
-| 5 | A copy of `smoke.yaml` with `model_type: static_gpcm` | Static GPCM | Static IRT baseline forward |
-| 6 | A copy of `smoke.yaml` with `model_type: dynamic_gpcm` | Dynamic GPCM | Dynamic IRT baseline forward |
-| 7 | A copy of `smoke.yaml` with `model_type: dkvmn_softmax` | DKVMN+Softmax | softmax-head DKVMN intact |
+| 5 | `configs/smoke_dkvmn_gpcm.yaml` | DKVMN+GPCM | shared-pathway GPCM ablation intact |
+| 6 | `configs/smoke_static_gpcm.yaml` | Static GPCM | Static IRT baseline forward |
+| 7 | `configs/smoke_dynamic_gpcm.yaml` | Dynamic GPCM | Dynamic IRT baseline forward |
+| 8 | `configs/smoke_dkvmn_softmax.yaml` | DKVMN+Softmax | softmax-head DKVMN intact |
 
-Configs 5..7 are generated on the fly by the verification driver; they are not paper-critical, just smoke fixtures. Two epochs is enough; `smoke.yaml` already specifies `epochs: 2`.
+These smoke configs are not paper-critical, just public smoke fixtures. Two epochs is enough; every `smoke*.yaml` config specifies a short run.
 
 **Prerequisites**, the `smoke_test` dataset must exist. If not, run
 
@@ -167,9 +168,9 @@ python scripts/data_gen.py --name smoke_test --n_questions 20 --n_cats 4 --n_stu
 **Tests**
 
 - `cd ma-irt && PYTHONPATH=. pytest tests/ -v`, all five test files must pass (`test_config_loader.py`, `test_heads.py`, `test_losses.py`, `test_optimization_equivalence.py`, `test_shapes.py`).
-- For each of the 7 configs above, `python scripts/train.py --config <cfg>` must exit 0 and write `outputs/<exp_name>/best.pt` and `outputs/<exp_name>/metrics.csv` with at least one row.
+- For each of the 8 configs above, `python scripts/train.py --config <cfg>` must exit 0 and write `outputs/<exp_name>/best.pt` and `outputs/<exp_name>/metrics.csv` with at least one row.
 
-**Acceptance**, exit code 0 from pytest, and the seven smoke trainings must each produce a `best.pt` plus a `metrics.csv` whose `val_categorical_accuracy` is finite and strictly positive. No regression threshold here, since two-epoch numbers are uninformative.
+**Acceptance**, exit code 0 from pytest, and the eight smoke trainings must each produce a `best.pt` plus a `metrics.csv` whose `val_categorical_accuracy` is finite and strictly positive. No regression threshold here, since two-epoch numbers are uninformative.
 
 ### 2.2 Regression layer, target wall time 2 to 4 hours on a single GPU
 
@@ -555,7 +556,7 @@ Column definitions,
 - **Before git ref**, the commit SHA (short, 7 chars) immediately before the tier was applied.
 - **After git ref**, the commit SHA after the tier landed.
 - **Smoke pytest**, `pass` or `fail (N tests failed)`.
-- **Smoke trainings**, `K/7 pass` where K is the number of the seven smoke configs that produced a valid `best.pt`.
+- **Smoke trainings**, `K/8 pass` where K is the number of the eight smoke configs that produced a valid `best.pt`.
 - **Reg headline deltas**, the max absolute delta across the 15 headline metrics in Section 2.2, written as `max=<delta> on <row_name>`.
 - **Reg recovery deltas**, the max absolute delta across the 12 recovery metrics in Section 2.2.
 - **Full reg (if run)**, either `skipped` or `max=<delta> on <cell>`.
