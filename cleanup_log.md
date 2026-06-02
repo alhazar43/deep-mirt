@@ -77,4 +77,20 @@ Verification:
 
 ## Pending
 
+## T2.1 actions
+
+Follow-up noise reduction after T2.0. Committed as `eb41791` (`Track review notes and ignore generated cleanup noise`):
+
+- Tracked the four research/review documents previously classified as keep-worthy: `ma-irt/NOTES_linking_appendix.md`, `ma-irt/REVIEW_converged.md`, `ma-irt/REVIEW_psychometric.md`, `ma-irt/REVIEW_research_scientist.md`.
+- Added ignore rules for untracked generated config families (`_archive_s0p5`, `tmp_alpha1`, chunked/seeded/learned/imbalance/scalability variants) that are outside the verified headline reproduction set.
+- Added ignore rules for untracked one-off sweep/config/debug scripts outside the verified reproduction path.
+- Rechecked the `CLEANUP_VERIFICATION_2026.md` required benchmark config set after the ignore update: `required_untracked_after_ignore=0`.
+
+Verification:
+
+- No source behavior changed in this pass.
+- The previous T2.0 verification still applies: py_compile pass; `65 passed`.
+
+## Pending
+
 T2 legacy moves for root reference repos, T3 dead-code/script archive in `ma-irt/`, T4 config consolidation, T5 deeper refactor. The next safe step is T3 reachability archiving of tracked one-off scripts/configs, but only after separating it from the pre-existing uncommitted source/config edits.
