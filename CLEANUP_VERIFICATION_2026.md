@@ -130,7 +130,7 @@ These files must remain functional after cleanup. See Section 3 for the hard-sto
 
 - Models, `magpcm.py`, `static_gpcm.py`, `dynamic_gpcm.py`, `dkvmn_softmax.py`, `dkt.py`, `dkvmn.py`, `deep_irt.py`, plus components and heads.
 - Library, `config/{types.py,loader.py,__init__.py}`, `dataloading/loaders.py`, `training/{trainer.py,losses.py}`, `utils/metrics.py`.
-- Scripts, `train.py`, `evaluate.py`, `data_gen.py`, `convert_assistments.py`, `convert_assistments_2009.py`, `_build_pykt_synthetic5.py`, `_aggregate_pykt_results.py`, `_aggregate_bench.py`, `aggregate_recovery_v5.py`, `mirt_baseline_all_k.R`, `mirt_predict.R`.
+- Scripts, `train.py`, `evaluate.py`, `data_gen.py`, `convert_assistments.py`, `convert_assistments_2009.py`, `_build_pykt_synthetic5.py`, `_aggregate_pykt_results.py`, `aggregate_recovery_v5.py`, `mirt_baseline_all_k.R`, `mirt_predict.R`. (`_aggregate_bench.py` was on this list but has been archived under `ma-irt/archive/scripts/`; no canonical orchestrator on the `benchmarks.md` path consumes it.)
 - Sweep drivers, `_run_pykt_sweep.sh`, `_run_k4_cv_recovery.sh`, `_run_k356_cv_recovery.sh`.
 
 ---
@@ -321,7 +321,6 @@ ma-irt/scripts/convert_assistments.py
 ma-irt/scripts/convert_assistments_2009.py
 ma-irt/scripts/_build_pykt_synthetic5.py
 ma-irt/scripts/_aggregate_pykt_results.py
-ma-irt/scripts/_aggregate_bench.py
 ma-irt/scripts/aggregate_recovery_v5.py
 ma-irt/scripts/mirt_baseline_all_k.R
 ma-irt/scripts/mirt_predict.R

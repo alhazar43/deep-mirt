@@ -114,4 +114,4 @@ See [`ma-irt/README.md`](ma-irt/README.md) and the per-model configs in `ma-irt/
 - `_run_pykt_sweep.sh`, the 240-run binary plus ordinal-ASSIST 5-fold CV sweep (Table 2 here)
 - `_run_k4_cv_recovery.sh` and `_run_k356_cv_recovery.sh`, the ordinal Synthetic-Static and dynamic-DGP CV sweeps
 
-Each table is aggregated by `_aggregate_pykt_results.py` (Table 2, fold-based protocol) or by `_aggregate_bench.py` (the older seed-based protocol).
+Each table is aggregated by `_aggregate_pykt_results.py` (Table 2, fold-based protocol). The older seed-based aggregator `_aggregate_bench.py` has been moved to `ma-irt/archive/scripts/` and is no longer on the headline reproduction path.
