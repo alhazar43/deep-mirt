@@ -64,12 +64,14 @@ ma-irt/archive/
 docs/cleanup/
 docs/archive/
 
-# Root-level planning/working markdowns. Public-facing root .md
-# (README.md, CONTRIBUTING.md, benchmarks.md) stay tracked.
+# Root-level planning/working markdowns. Only README.md stays
+# tracked as the public-facing entry point.
 CLAUDE.md
 CLEANUP_PLAN_2026.md
 CLEANUP_VERIFICATION_2026.md
 cleanup_log.md
+CONTRIBUTING.md
+benchmarks.md
 
 # Generated configs (regenerable via gen scripts)
 ma-irt/configs/generated/
