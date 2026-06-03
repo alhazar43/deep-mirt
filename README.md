@@ -94,8 +94,10 @@ the static GPCM default.
 | `--dgp block` | `dataloading/dgps/block.py` | Pretest-posttest |
 | `--dgp imbalanced` | `dataloading/dgps/imbalanced.py` | Shifted/skewed ability prior |
 
-Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets,
-converted through `python scripts/convert.py assistments_{2009,2017}`.
+Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets
+that already sit under `data/` in the canonical sequence format. The
+one-time raw-corpus converters live under `ma-irt/archive/converters/` for
+reproducibility but are not part of the runtime path.
 Paper figures live under `plotting/` and are reached through
 `python scripts/plot.py <figure>`.
 
