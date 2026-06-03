@@ -93,7 +93,7 @@ Six models are used in the paper:
 
 ```
 (question_ids, responses)
--> StaticItemEmbedding       # frozen random item vectors + ordinal kernel
+-> LearnedEmbedding          # learned per-item vectors (default; static_item also available)
 -> DKVMN memory              # attention + read + write
 -> separated ability summary # f_theta from read vector only (no item key)
 -> IRTParameterExtractor     # produces theta, alpha, beta (unconstrained)
@@ -142,7 +142,7 @@ Experiments are driven by YAML configs in `ma-irt/configs/`. Key parameters:
 - `model.n_questions` — item bank size Q
 - `model.n_categories` — ordinal response categories K
 - `model.n_traits` — latent dimensions (1 for IRT)
-- `model.embedding_type` — `"onehot"`, `"learned"`, or `"static_item"` (default)
+- `model.embedding_type` — `"onehot"`, `"learned"` (default), or `"static_item"`
 - `model.model_type` — `"magpcm"`, `"static_gpcm"`, `"dynamic_gpcm"`, `"dkvmn_softmax"`
 - `model.separate_theta` — `true` (MA-GPCM) or `false` (DKVMN+GPCM)
 - `training.weighted_ordinal_weight` — WOL weight (default 1.0)
