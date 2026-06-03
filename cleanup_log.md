@@ -155,3 +155,81 @@ T3 (dead code archive in `ma-irt/`), T4 (config consolidation), T5
 `configs/dynamic_seeds/`, `configs/experiments/`, `configs/tmp_alpha1/`,
 `configs/_archive_s0p5/` trees are still on disk and gitignored, ready
 to be archived in a follow-up tier.
+
+## Session 2026-06-03 night (Archive, Migrate, Consolidate)
+
+Continuation of the overnight workflow. Three phases landed back to back,
+fifteen forward commits, full pytest 119 passed and 1 skipped at HEAD.
+
+**Phase Archive (C1 to C5).** Dead code drained out of `ma-irt/scripts/`
+into `ma-irt/archive/scripts/`. Deprecated config trees followed the
+same route into `ma-irt/archive/configs/`.
+
+**Phase Migrate (P2.1 to P2.6).** Every production model class moved
+onto the `EncoderBackbone` plus `ResponseDecoder` contract introduced in
+`P2.b` (commit `8c8ceb7`). Trainer and evaluator dispatch reads
+encoder/decoder attributes off the model rather than branching on
+`model_type` strings.
+
+**Phase Consolidate (C1 to C3, doc refresh).** Plot scripts collapsed
+into a `plotting/` package, ASSIST converters into
+`dataloading/converters/`, and the five synthetic DGPs into
+`dataloading/dgps/`. The user-facing CLI was kept stable through thin
+dispatchers (`scripts/plot.py`, `scripts/convert.py`,
+`scripts/data_gen.py --dgp <name>`).
+
+| Commit | Phase | Summary | Result |
+|---|---|---|---|
+| `22d9f59` | Archive C1 | archive deprecated linking script | 107 + 1 skip |
+| `e2ca5df` | Archive C2 | archive diagnostic scripts | 107 + 1 skip |
+| `df68e93` | Archive C3 | archive deprecated aggregators | 107 + 1 skip |
+| `8bdfbb7` | Archive C4 | archive stale config trees | 107 + 1 skip |
+| `91adef1` | Archive C5 | archive remaining deprecated-by-refactor scripts | 107 + 1 skip |
+| `31fefb3` | Migrate P2.1 | dkvmn_softmax onto EncoderBackbone plus ResponseDecoder | 107 + 1 skip |
+| `0fa9c63` | Migrate P2.2 | dkvmn binary baseline onto encoder plus decoder | 107 + 1 skip |
+| `a145948` | Migrate P2.3 | Deep-IRT onto encoder plus RaschDecoder | 107 + 1 skip |
+| `05bd2c6` | Migrate P2.4 | DKT onto DKTEncoder plus DKTBinaryDecoder | 107 + 1 skip |
+| `3e71d51` | Migrate P2.5 | MA-GPCM both ablations onto encoder plus GPCMDecoder | 107 + 1 skip |
+| `a06175a` | Migrate P2.6 | trainer plus evaluator dispatch via model attributes | 107 + 1 skip |
+| `85ed7c7` | Consolidate C1 | eight plot scripts move into `plotting/` | 119 + 1 skip |
+| `0a94f53` | Consolidate C2 | ASSIST converters move into `dataloading/converters/` | 119 + 1 skip |
+| `7f297ac` | Consolidate C3 | five generators move into `dataloading/dgps/` | 119 + 1 skip |
+| `d2dd518` | docs | refresh READMEs for `plotting/`, `converters/`, `dgps/` | 119 + 1 skip |
+
+Final pytest at HEAD, 119 passed and 1 skipped. The skip is the
+documented sidecar Kendall tau structural gap from
+`BASELINE_2026-06-02.md`, not a regression. R2 baseline gate at HEAD,
+9 passed and 1 skipped, every gate-sensitive metric inside tolerance for
+both Synthetic-Static K=4 and ASSIST2009 K=2.
+
+Final `ma-irt/scripts/` count is sixteen entries (fifteen scripts plus
+`__pycache__`). The active surface is `train.py`, `evaluate.py`,
+`data_gen.py`, `convert.py`, `plot.py`, `mirt_baseline_all_k.R`,
+`mirt_predict.R`, plus the named sweep and aggregation orchestrators
+(`_run_pykt_sweep.sh`, `_run_k4_cv_recovery.sh`,
+`_run_k356_cv_recovery.sh`, `run_bulk_retrain.sh`,
+`_aggregate_pykt_results.py`, `aggregate_recovery_v5.py`,
+`_build_pykt_synthetic5.py`, `_extract_row.py`).
+
+Final `ma-irt/models/` surface is the model files (`magpcm.py`,
+`dynamic_gpcm.py`, `static_gpcm.py`, `dkvmn_softmax.py`, `dkvmn.py`,
+`deep_irt.py`, `dkt.py`) plus four subpackages, `encoders/`,
+`decoders/`, `components/`, `heads/`, plus `registry.py` and
+`__init__.py`.
+
+Final `ma-irt/archive/` top-level is two directories, `configs/` and
+`scripts/`.
+
+## What was NOT done (defer to live supervision)
+
+- **P3 backbone integration** (SAKT/SAINT+/AKT/SimpleKT ports). The
+  encoder/decoder contract is now load-bearing across every production
+  model, so the port surface is stable. The work itself remains.
+- **P4 decoder family** (GRM, PCM, MIRT, DINA). The `decoders/` package
+  is in place to receive them.
+- **P5 computational optimizations** (AMP, `torch.compile`, batched
+  recovery accumulator). Still gated behind config flags per the plan
+  and still defer-to-focused-session.
+- **T3 to T5 tier work.** With Archive and Consolidate complete, the
+  surviving stale trees are inside `ma-irt/archive/`. The remaining tier
+  work is mostly cosmetic.
