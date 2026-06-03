@@ -25,7 +25,6 @@ deep-mirt/
     ├── train.py            # entry point: train a model
     ├── evaluate.py         # entry point: prediction metrics + IRT recovery
     ├── data_gen.py         # entry point: generate a synthetic dataset
-    ├── conftest.py         # pytest bootstrap (no setup needed by the user)
     ├── requirements.txt    # Python dependencies
     ├── configs/            # YAML recipes (1 smoke config + bulk sweep)
     ├── models/             # MA-GPCM + baselines, components, trainer
@@ -137,8 +136,9 @@ Writes `data/<name>/{sequences.json, metadata.json, true_irt_parameters.json}`.
 pytest tests/
 ```
 
-`conftest.py` at `ma-irt/` injects the project directory into `sys.path`,
-so no `PYTHONPATH` or editable install is needed. The 104-test suite
+No `PYTHONPATH` or editable install is needed; `tests/__init__.py` makes
+`tests/` a package and pytest sets the project root automatically. The
+104-test suite
 covers shape/contract checks, the YAML loader, the 5 migration regression
 snapshots, the GPCM head, and an end-to-end public-pipeline smoke
 (data_gen → train → evaluate).
