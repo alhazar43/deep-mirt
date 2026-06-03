@@ -1,0 +1,89 @@
+# PEP 621 metadata for the deep-mirt project.
+#
+# Active code lives in ma-irt/. This pyproject.toml exposes ma-irt as an
+# importable package for the rest of the repo (tests, scripts, paper code)
+# without requiring an explicit `pip install -e ma-irt/` from a subdirectory.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deep-mirt"
+version = "0.1.0"
+description = "Memory-Augmented Item Response Theory for polytomous knowledge tracing"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+  { name = "Wenrui Yuan" },
+]
+keywords = ["knowledge-tracing", "irt", "psychometrics", "deep-learning"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Runtime dependencies match ma-irt/requirements.txt. PyTorch is pinned out of
+# band so the CUDA build can be selected at install time, see CONTRIBUTING.md.
+dependencies = [
+  "torch>=1.13.0",
+  "numpy>=1.21.0",
+  "matplotlib>=3.5.0",
+  "pyyaml>=6.0",
+  "scipy>=1.10.0",
+  "scikit-learn>=1.2.0",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=7.0",
+]
+dev = [
+  "pytest>=7.0",
+  "ruff>=0.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/alhazar43/deep-mirt"
+Issues = "https://github.com/alhazar43/deep-mirt/issues"
+
+# ---------------------------------------------------------------------------
+# Tool config
+# ---------------------------------------------------------------------------
+
+[tool.setuptools]
+package-dir = { "" = "ma-irt" }
+
+[tool.setuptools.packages.find]
+where = ["ma-irt"]
+exclude = ["tests*", "scripts*", "configs*", "data*", "outputs*", "archive*"]
+
+[tool.pytest.ini_options]
+testpaths = ["ma-irt/tests"]
+addopts = "-v"
+# The MA-GPCM training scripts set this environment variable, mirror it here
+# so pytest picks it up on Windows.
+env = ["KMP_DUPLICATE_LIB_OK=TRUE"]
+markers = [
+  "smoke: smoke train check (under 30 s)",
+  "regression: baseline reproduction (uses cached checkpoints)",
+  "slow: runs longer than one minute",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Keep the default ruff selection plus pyflakes' undefined-name check.
+select = ["E", "F", "W", "I"]
+ignore = [
+  "E501",  # Line length is enforced by formatter, not the linter.
+]
