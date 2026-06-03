@@ -1,6 +1,7 @@
 # DRL-MAIRT Recommender Proposal
 
-Date: 2026-06-04.
+Date: 2026-06-04. Revised after deeper local and external background
+inspection.
 
 This document proposes a new research and development track for a realtime
 decision system built on the current MA-IRT codebase. The working name is
@@ -18,6 +19,13 @@ The design goal is not to bolt a recommender onto a final test score. The
 system should update after each response, expose psychometric and deep sequence
 state immediately, and let the decision policy use that state before the next
 action.
+
+This plan should be read together with
+[`docs/drl_mairt_background.md`](drl_mairt_background.md), which records the
+local MA-IRT inspection, local CaRReL inspection, ExRec code inspection, and
+related-work implications. The core design below is intentionally research
+first: the first deliverable is a defensible framework specification and parity
+test, not an RL algorithm bolted onto `theta_t`.
 
 ## Executive Position
 
@@ -47,6 +55,13 @@ So the first publishable framework should be **coupled but modular**:
 4. The resulting response/engagement event updates MA-IRT state.
 5. Optional later stages allow policy gradients or auxiliary losses to influence
    selected representation layers under strict MA-GPCM regression gates.
+
+The starting claim should be modest and testable:
+
+> Rich online MA-IRT state is a better decision state than theta alone.
+
+This directly addresses the weakness of the earlier CaRReL-style attempt. Only
+after that claim is tested should the project move toward full joint training.
 
 ## Current Codebase Fit
 
@@ -139,7 +154,18 @@ What should not be ported directly:
   MA-IRT.
 
 CaRReL should be treated as a sandbox for action semantics and DQN mechanics,
-not as the foundation.
+not as the foundation. Its most important role in this project is as a
+negative/ablative baseline:
+
+```text
+theta-only DQN / slate-DQN baseline
+vs.
+full MA-IRT state DQN / conservative offline RL policy
+```
+
+If the full-state policy does not outperform the theta-only policy in a
+controlled environment, the proposed framework has not justified its
+complexity.
 
 ## Related Work Direction
 
@@ -148,6 +174,22 @@ tracing model into an RL environment and optimizes exercise recommendation
 policies for knowledge gain. Its useful ideas are KT-as-environment,
 semantically grounded item/KC embeddings, model-based value estimation, and
 multiple pedagogical reward definitions.
+
+After inspecting the cloned ExRec repo at `C:\tmp\ExRec`, the most concrete
+design ideas to adapt are:
+
+- Gymnasium-style environments under `exercise_recommender/envs/`.
+- A KT wrapper with `init_states`, `predict_in_rl`, and `update_hidden_state`.
+- Continuous action embeddings projected to real questions through a
+  FAISS-backed `QuestionBank`.
+- Multiple reward-task environments: global, practiced, upcoming, and weakest
+  KC improvement.
+- Separate wrappers for DQN/PPO/SAC/TD3/TRPO-style algorithms.
+- Model-based value estimation using KT components to evaluate possible
+  response outcomes.
+
+DRL-MAIRT should borrow this separation, but replace calibrated QDKT/KC mastery
+with online MA-GPCM psychometric state and ordinal response probabilities.
 
 Other useful directions:
 
@@ -158,6 +200,13 @@ Other useful directions:
   recommendation, counterfactual policy evaluation, and simulator design.
 - **Offline RL for learning paths**: important because education logs are
   policy-biased and live exploration with students is risky.
+
+Two evaluation warnings matter enough to shape the plan:
+
+- Offline RL recommenders cannot be evaluated credibly by next-item prediction
+  alone; that protocol can hide policy failures.
+- A KT/IRT simulator can be useful for policy training, but a policy trained
+  only in the simulator may exploit simulator artifacts.
 
 The research gap for this repo:
 
@@ -402,6 +451,7 @@ ma-irt/
     state.py              # OnlineLearnerState dataclass
     magpcm_session.py     # read/score/write wrapper around MAGPCM
     candidate_scoring.py  # expected score, entropy, information proxies
+    item_bank.py          # discrete + embedding action support
 
   recommenders/
     envs/
@@ -415,6 +465,7 @@ ma-irt/
     rewards.py
     replay.py
     features.py
+    action_spaces.py      # item id, embedding, slate, resource/path actions
 
   scripts/
     train_recommender.py
@@ -453,6 +504,13 @@ state = session.observe_response(state, item_id=action.item_id, response=r_t)
 - `joint_summary`;
 - `attention`;
 - optional item/content metadata.
+
+The API should support two action styles from the start:
+
+- **Discrete**: action is an existing item/resource ID.
+- **Continuous/parametric**: action is an embedding or state-action feature
+  vector, projected back to the valid item/resource bank. This borrows ExRec's
+  question-bank idea and allows generalization to unseen content.
 
 Implementation detail:
 
@@ -524,15 +582,42 @@ restore the frozen MA-GPCM behavior before proceeding.
 
 ## Development Roadmap
 
+### Phase -1: Background And Design Lock
+
+Goal: finish the research specification before writing source code.
+
+Actions:
+
+- Maintain the background dossier in `docs/drl_mairt_background.md`.
+- Build a comparison table:
+  CaRReL theta-only DRL-IRT vs ExRec KT-as-environment vs proposed DRL-MAIRT.
+- Define the first task precisely. Recommended first task:
+  assessment-item recommendation, because MA-IRT can score and update from the
+  resulting response immediately.
+- Define the first reward formula and keep each reward component logged
+  separately.
+- Decide whether continuous item embeddings come from MA-IRT item embeddings,
+  text/semantic metadata, or both.
+- Define MA-GPCM non-regression gates before any core edits.
+
+Deliverable: revised proposal, background dossier, and implementation
+checklist. No source edits yet.
+
 ### Phase 0: Proposal And Audit
 
-- Record this design.
+Goal: determine if the local repository can support the first experiment.
+
+Actions:
+
 - Audit current MA-IRT tests that protect `MAGPCM`.
 - Confirm which datasets can support sequential recommendation evaluation.
-- Inspect ExRec code more deeply and decide whether to vendor ideas only or
-  create a small adapter.
+- Identify candidate datasets for logged-policy/offline RL transitions.
+- Inspect whether existing item IDs can be mapped to skills/KCs/content
+  metadata; if not, define a minimal synthetic skill graph.
+- Decide whether ExRec remains only a design reference or whether a small
+  compatibility experiment should be run in `C:\tmp`, outside this repo.
 
-Deliverable: proposal document and implementation checklist.
+Deliverable: implementation checklist with pass/fail criteria.
 
 ### Phase 1: Online MA-IRT State Adapter
 
@@ -598,9 +683,11 @@ The first code skeleton should be deliberately small:
 
 1. `ma-irt/online/state.py`
 2. `ma-irt/online/magpcm_session.py`
-3. `ma-irt/recommenders/features.py`
-4. `ma-irt/recommenders/policies/heuristic.py`
-5. `ma-irt/tests/test_online_magpcm.py`
+3. `ma-irt/online/item_bank.py`
+4. `ma-irt/recommenders/features.py`
+5. `ma-irt/recommenders/action_spaces.py`
+6. `ma-irt/recommenders/policies/heuristic.py`
+7. `ma-irt/tests/test_online_magpcm.py`
 
 Do not implement PPO or CQL first. The first success criterion is stricter and
 simpler:
@@ -632,6 +719,8 @@ Once this is true, RL can be added without guessing the state interface.
   `ma-irt/models/registry.py`, `ma-irt/models/base.py`,
   `ma-irt/models/magpcm.py`, `ma-irt/models/encoders/dkvmn.py`,
   `ma-irt/models/decoders/gpcm.py`, `ma-irt/utils/dataloader.py`.
+- Background dossier:
+  [`docs/drl_mairt_background.md`](drl_mairt_background.md).
 - Local CaRReL clone:
   `C:\Users\steph\Documents\CaRReL\model\env.py`,
   `model\agent.py`, `model\agentv2.py`, `model\networks.py`,
@@ -642,4 +731,3 @@ Once this is true, RL can be added without guessing the state interface.
 - CSEAL: https://arxiv.org/abs/1905.12470.
 - RL4RS: https://github.com/fuxiAIlab/RL4RS and
   https://arxiv.org/abs/2110.11073.
-
