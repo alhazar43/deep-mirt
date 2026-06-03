@@ -37,25 +37,12 @@ build/
 Thumbs.db
 *:Zone.Identifier
 
-# Legacy codebases (archived, not active)
-_overleaf_old/
-kt-mirt/
-mirt-dkvmn/
-deep-gpcm/
-akt/
-deep-1pl/
-dkt-ori/
-dkvmn-ori/
-pykt/
-assisstment-raw/
-archive_sigma03_*/
-submission_2026-*/
-elsarticle/
-figures/
+# Legacy codebases, archives, and reference reading.
+# All of these now live under legacy/ at the repo root and are kept out of
+# the public repo. Anything moved under legacy/ is automatically ignored.
+legacy/
 
 # Manuscript/reference artifacts outside the tracked paper tree
-IJAIED-sub.zip
-recsys25_v1_3.pdf
 ma-irt/*.pdf
 
 # Claude internal

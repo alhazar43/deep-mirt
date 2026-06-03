@@ -98,16 +98,21 @@ Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets.
 deep-mirt/
   ma-irt/          # Active codebase
   overleaf-sync/   # Paper LaTeX source
-  docs/            # Cleanup evidence and archived planning notes
+  docs/            # Architecture, pipeline, cleanup records
+  legacy/          # Vendored upstream repos and archives (gitignored)
   benchmarks.md    # Paper benchmark tables
   CLAUDE.md        # Agent/codebase guidance
+  CONTRIBUTING.md  # Test gates, encoder/decoder extension recipes
+  LICENSE          # MIT
+  pyproject.toml   # PEP 621 packaging
   README.md        # This file
 ```
 
-Legacy directories such as `mirt-dkvmn/`, `deep-gpcm/`, `deep-1pl/`,
-`dkt-ori/`, `dkvmn-ori/`, `akt/`, and `pykt/` are inactive references kept
-for archival or data-source reasons until cleanup verification proves they can
-be moved.
+`legacy/` collects the inactive reference repos (`akt`, `deep-1pl`,
+`deep-gpcm`, `dkt-ori`, `dkvmn-ori`, `mirt-dkvmn`, `pykt`, `kt-mirt`), the
+archived sigma sweep, the IJAIED submission archive, and the upstream
+LaTeX class. The directory is gitignored so it does not enter the public
+repo.
 
 ## Research Roadmap
 
