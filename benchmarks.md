@@ -110,8 +110,8 @@ Recovery of $\alpha$, $\beta$, $\theta$ against ground truth at $K \in \{3, 4, 5
 
 See [`ma-irt/README.md`](ma-irt/README.md) and the per-model configs in `ma-irt/configs/`. The active sweep orchestrators in `ma-irt/scripts/` are:
 
-- `run_bulk_retrain.sh`, iterates `configs/bulk/` for the ordinal Synthetic-Static and dynamic-DGP experiments (Tables 1 and 3 here)
-- `_run_pykt_sweep.sh`, the 240-run binary plus ordinal-ASSIST 5-fold CV sweep (Table 2 here)
-- `_run_k4_cv_recovery.sh` and `_run_k356_cv_recovery.sh`, the ordinal Synthetic-Static and dynamic-DGP CV sweeps
+- `run_bulk_retrain.sh`, iterates `configs/bulk/` for the ordinal static and dynamic generator experiments (Tables 1 and 3 here)
+- `_run_cv_sweep.sh`, the 240-run binary plus ordinal-ASSIST 5-fold CV sweep (Table 2 here)
+- `_run_k4_cv_recovery.sh` and `_run_k356_cv_recovery.sh`, the ordinal static and dynamic generator CV sweeps
 
-Each table is aggregated by `_aggregate_pykt_results.py` (Table 2, fold-based protocol). The older seed-based aggregator `_aggregate_bench.py` has been moved to `ma-irt/archive/scripts/` and is no longer on the headline reproduction path.
+Each table is aggregated by `_aggregate_cv_results.py` (Table 2, fold-based protocol). The older seed-based aggregator `_aggregate_bench.py` has been moved to `ma-irt/archive/scripts/` and is no longer on the headline reproduction path.

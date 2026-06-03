@@ -31,7 +31,7 @@ $env:KMP_DUPLICATE_LIB_OK = "TRUE"
 
 ## Quick Start
 
-This smoke path generates synthetic GPCM data, trains MA-GPCM for one epoch,
+This smoke path generates GPCM data, trains MA-GPCM for one epoch,
 and evaluates both prediction metrics and IRT parameter recovery. It is a
 functionality check, not a paper-performance run.
 
@@ -82,17 +82,16 @@ that separation off.
 
 ## Data Generators
 
-All five synthetic generators sit under `ma-irt/synthetic/` and are
-reached through the `scripts/data_gen.py` dispatcher. Omitting `--dgp`
-reproduces the static GPCM default.
+All five data-gen modules sit under `ma-irt/datagen/` and are reached
+through the `scripts/data_gen.py` dispatcher with a positional name.
 
-| DGP flag | Module | Ability dynamics |
+| Command | Module | Ability dynamics |
 |---|---|---|
-| (default) or `--dgp static` | `synthetic/static.py` | Fixed per student |
-| `--dgp staircase` | `synthetic/staircase.py` | Discrete shifts |
-| `--dgp randomwalk` | `synthetic/randomwalk.py` | Continuous drift |
-| `--dgp block` | `synthetic/block.py` | Pretest-posttest |
-| `--dgp imbalanced` | `synthetic/imbalanced.py` | Shifted/skewed ability prior |
+| `python scripts/data_gen.py static ...` (default) | `datagen/static.py` | Fixed per student |
+| `python scripts/data_gen.py staircase ...` | `datagen/staircase.py` | Discrete shifts |
+| `python scripts/data_gen.py randomwalk ...` | `datagen/randomwalk.py` | Continuous drift |
+| `python scripts/data_gen.py block ...` | `datagen/block.py` | Pretest-posttest |
+| `python scripts/data_gen.py imbalanced ...` | `datagen/imbalanced.py` | Shifted/skewed ability prior |
 
 Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets
 that already sit under `data/` in the canonical sequence format. The
@@ -118,7 +117,7 @@ deep-mirt/
 ```
 
 `legacy/` collects the inactive reference repos (`akt`, `deep-1pl`,
-`deep-gpcm`, `dkt-ori`, `dkvmn-ori`, `mirt-dkvmn`, `pykt`, `kt-mirt`), the
+`deep-gpcm`, `dkt-ori`, `dkvmn-ori`, `mirt-dkvmn`, `kt-mirt`), the
 archived sigma sweep, the IJAIED submission archive, and the upstream
 LaTeX class. The directory is gitignored so it does not enter the public
 repo.
