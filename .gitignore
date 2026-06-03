@@ -58,6 +58,12 @@ ma-irt/*.pdf
 # everything else under archive/ stays out.
 ma-irt/archive/
 
+# Working documents and planning markdowns (session notes, design
+# drafts, refactor TODO lists). Top-level docs/*.md (architecture,
+# pipeline, taxonomy) stay tracked as public-facing reference docs.
+docs/cleanup/
+docs/archive/
+
 # Generated configs (regenerable via gen scripts)
 ma-irt/configs/generated/
 ma-irt/configs/_archive_s0p5/
