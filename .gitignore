@@ -64,6 +64,13 @@ ma-irt/archive/
 docs/cleanup/
 docs/archive/
 
+# Root-level planning/working markdowns. Public-facing root .md
+# (README.md, CONTRIBUTING.md, benchmarks.md) stay tracked.
+CLAUDE.md
+CLEANUP_PLAN_2026.md
+CLEANUP_VERIFICATION_2026.md
+cleanup_log.md
+
 # Generated configs (regenerable via gen scripts)
 ma-irt/configs/generated/
 ma-irt/configs/_archive_s0p5/
