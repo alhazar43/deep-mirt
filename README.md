@@ -82,15 +82,22 @@ that separation off.
 
 ## Data Generators
 
-| Script | DGP | Ability dynamics |
-|---|---|---|
-| `data_gen.py` | Static GPCM | Fixed per student |
-| `data_gen_staircase.py` | Staircase | Discrete shifts |
-| `data_gen_randomwalk.py` | Random walk | Continuous drift |
-| `data_gen_block.py` | Block change | Pretest-posttest |
-| `data_gen_imbalanced.py` | Imbalanced | Shifted/skewed ability prior |
+All five synthetic generators sit under `dataloading/dgps/` and are reached
+through the `scripts/data_gen.py` dispatcher. Omitting `--dgp` reproduces
+the static GPCM default.
 
-Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets.
+| DGP flag | Module | Ability dynamics |
+|---|---|---|
+| (default) or `--dgp static` | `dataloading/dgps/static.py` | Fixed per student |
+| `--dgp staircase` | `dataloading/dgps/staircase.py` | Discrete shifts |
+| `--dgp randomwalk` | `dataloading/dgps/randomwalk.py` | Continuous drift |
+| `--dgp block` | `dataloading/dgps/block.py` | Pretest-posttest |
+| `--dgp imbalanced` | `dataloading/dgps/imbalanced.py` | Shifted/skewed ability prior |
+
+Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets,
+converted through `python scripts/convert.py assistments_{2009,2017}`.
+Paper figures live under `plotting/` and are reached through
+`python scripts/plot.py <figure>`.
 
 ## Repository Layout
 
