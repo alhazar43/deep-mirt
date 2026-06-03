@@ -82,17 +82,17 @@ that separation off.
 
 ## Data Generators
 
-All five synthetic generators sit under `dataloading/dgps/` and are reached
-through the `scripts/data_gen.py` dispatcher. Omitting `--dgp` reproduces
-the static GPCM default.
+All five synthetic generators sit under `ma-irt/synthetic/` and are
+reached through the `scripts/data_gen.py` dispatcher. Omitting `--dgp`
+reproduces the static GPCM default.
 
 | DGP flag | Module | Ability dynamics |
 |---|---|---|
-| (default) or `--dgp static` | `dataloading/dgps/static.py` | Fixed per student |
-| `--dgp staircase` | `dataloading/dgps/staircase.py` | Discrete shifts |
-| `--dgp randomwalk` | `dataloading/dgps/randomwalk.py` | Continuous drift |
-| `--dgp block` | `dataloading/dgps/block.py` | Pretest-posttest |
-| `--dgp imbalanced` | `dataloading/dgps/imbalanced.py` | Shifted/skewed ability prior |
+| (default) or `--dgp static` | `synthetic/static.py` | Fixed per student |
+| `--dgp staircase` | `synthetic/staircase.py` | Discrete shifts |
+| `--dgp randomwalk` | `synthetic/randomwalk.py` | Continuous drift |
+| `--dgp block` | `synthetic/block.py` | Pretest-posttest |
+| `--dgp imbalanced` | `synthetic/imbalanced.py` | Shifted/skewed ability prior |
 
 Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets
 that already sit under `data/` in the canonical sequence format. The
