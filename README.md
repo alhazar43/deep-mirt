@@ -1,137 +1,132 @@
 # deep-mirt
 
 Memory-augmented item response theory for ordinal knowledge tracing. The
-active project is **MA-GPCM**, a DKVMN-based model that predicts ordinal
-student responses and recovers interpretable IRT parameters (`theta`,
-`alpha`, `beta`) in a single forward pass.
+flagship model is **MA-GPCM**, a DKVMN-based architecture that predicts
+ordinal student responses and recovers interpretable IRT parameters
+(`theta`, `alpha`, `beta`) in a single forward pass.
 
-Paper: **MA-GPCM: A Memory-Augmented Model for Interpretable Ordinal
-Knowledge Tracing**.
+Paper: *MA-GPCM: A Memory-Augmented Model for Interpretable Ordinal
+Knowledge Tracing*. Benchmarks reproducing the paper tables are in
+[`benchmarks.md`](benchmarks.md).
 
-The active codebase is [`ma-irt/`](ma-irt/). See
-[`ma-irt/README.md`](ma-irt/README.md) for the full usage guide. Benchmark
-numbers reproducing the paper tables are in [`benchmarks.md`](benchmarks.md).
-
-## Environment
-
-From the repository root:
+## Install
 
 ```bash
-source ~/anaconda3/etc/profile.d/conda.sh
-conda activate research
-export PYTHONPATH=ma-irt
+git clone https://github.com/alhazar43/deep-mirt
+cd deep-mirt/ma-irt
+pip install -e .
 ```
 
-PowerShell:
+That puts the `models` and `utils` packages on `sys.path`, so the three
+entry-point scripts run by name from this directory. No `PYTHONPATH`
+needed.
 
-```powershell
-$env:PYTHONPATH = "ma-irt"
-$env:KMP_DUPLICATE_LIB_OK = "TRUE"
-```
+PyTorch is listed in the dependencies generically; pick the CUDA build
+that matches your driver from the [PyTorch install guide](https://pytorch.org/get-started/locally/)
+if you need GPU.
 
-## Quick Start
+## Quick start
 
-This smoke path generates GPCM data, trains MA-GPCM for one epoch,
-and evaluates both prediction metrics and IRT parameter recovery. It is a
-functionality check, not a paper-performance run.
+A 1-epoch smoke run on a tiny generated dataset, validating the full
+data-gen, train, evaluate loop end-to-end.
 
 ```bash
 cd ma-irt
-export PYTHONPATH=.
-
-python scripts/data_gen.py \
-  --name smoke_test \
-  --n_students 120 \
-  --n_questions 20 \
-  --n_cats 4 \
-  --min_seq 10 \
-  --max_seq 25 \
-  --output_dir data \
-  --seed 42
-
-python scripts/train.py \
-  --config configs/smoke.yaml \
-  --dataset smoke_test \
-  --epochs 1
-
-python scripts/evaluate.py single \
-  --config configs/smoke.yaml \
-  --checkpoint outputs/smoke_test/best.pt \
-  --data-dir data/smoke_test \
-  --batch-size 32
+python data_gen.py static --name smoke_test \
+    --n_students 120 --n_questions 20 --n_cats 4 \
+    --min_seq 10 --max_seq 25 --output_dir data --seed 42
+python train.py --config configs/smoke.yaml --dataset smoke_test --epochs 1
+python evaluate.py single --config configs/smoke.yaml \
+    --checkpoint outputs/smoke_test/best.pt --data-dir data/smoke_test
 ```
+
+`outputs/smoke_test/best.pt`, `metrics.csv`, and `recovery_metrics.json`
+appear at the end. Both `data/` and `outputs/` are gitignored — the
+public repo ships only the source and the configs.
 
 ## Models
 
-Models are selectable via `model.model_type` in YAML configs.
+Selected via `model.model_type` in YAML configs.
 
-| Paper name | Config setting | IRT params | Notes |
+| Paper name | Config | IRT params | Notes |
 |---|---|---|---|
-| MA-GPCM | `model_type: magpcm`, `separate_theta: true` | `theta`, `alpha`, `beta` | Main model |
-| DKVMN+GPCM | `model_type: magpcm`, `separate_theta: false` | `theta`, `alpha`, `beta` | Shared-pathway ablation |
-| DKVMN+Softmax | `model_type: dkvmn_softmax` | none | Prediction baseline |
-| Dynamic GPCM | `model_type: dynamic_gpcm` | `theta`, `alpha`, `beta` | Dynamic IRT baseline |
-| Static GPCM | `model_type: static_gpcm` | `theta`, `alpha`, `beta` | Static IRT baseline |
-| DKT / DKVMN / Deep-IRT | `dkt`, `dkvmn`, `deep_irt` | none | Binary K=2 baselines |
-| GPCM (EM) | R `mirt` package | `theta`, `alpha`, `beta` | Offline batch baseline |
+| MA-GPCM | `magpcm`, `separate_theta: true` | θ, α, β | Main model |
+| DKVMN+GPCM | `magpcm`, `separate_theta: false` | θ, α, β | Shared-pathway ablation |
+| DKVMN+Softmax | `dkvmn_softmax` | none | Prediction baseline |
+| Dynamic GPCM | `dynamic_gpcm` | θ, α, β | Sequential IRT baseline |
+| Static GPCM | `static_gpcm` | θ, α, β | Per-student IRT baseline |
+| DKT, DKVMN, Deep-IRT | `dkt`, `dkvmn`, `deep_irt` | none | Binary K=2 baselines |
+| GPCM (EM) | R `mirt` package | θ, α, β | Archived under `archive/scripts/` |
 
-The central MA-GPCM contribution is the separated ability pathway:
-`separate_theta: true` estimates `theta` from the memory read state only,
-while item parameters remain item-conditioned. The DKVMN+GPCM ablation turns
-that separation off.
+The MA-GPCM contribution is the separated ability pathway, set with
+`separate_theta: true`, which estimates `theta` from the memory read
+state only while item parameters remain item-conditioned. The
+`separate_theta: false` ablation reverts to the shared pathway.
 
-## Data Generators
+## Entry points
 
-All five data-gen modules sit under `ma-irt/datagen/` and are reached
-through the `scripts/data_gen.py` dispatcher with a positional name.
+| Script | Purpose |
+|---|---|
+| `python data_gen.py <name> ...` | Generate a synthetic dataset (`static`, `block`, `randomwalk`, `staircase`, `imbalanced`) |
+| `python train.py --config <yaml>` | Train any model on any dataset |
+| `python evaluate.py single --config <yaml> --checkpoint <pt> --data-dir <dir>` | Prediction metrics + IRT recovery (when a ground-truth file is present) |
 
-| Command | Module | Ability dynamics |
-|---|---|---|
-| `python scripts/data_gen.py static ...` (default) | `datagen/static.py` | Fixed per student |
-| `python scripts/data_gen.py staircase ...` | `datagen/staircase.py` | Discrete shifts |
-| `python scripts/data_gen.py randomwalk ...` | `datagen/randomwalk.py` | Continuous drift |
-| `python scripts/data_gen.py block ...` | `datagen/block.py` | Pretest-posttest |
-| `python scripts/data_gen.py imbalanced ...` | `datagen/imbalanced.py` | Shifted/skewed ability prior |
+All three are at `ma-irt/` top level. They read from `configs/` and
+write to `outputs/<experiment_name>/`.
 
-Real-data evaluation uses proxy-ordinal ASSISTments 2009 and 2017 datasets
-that already sit under `data/` in the canonical sequence format. The
-one-time raw-corpus converters live under `ma-irt/archive/converters/` for
-reproducibility but are not part of the runtime path.
-Paper figures live under `plotting/` and are reached through
-`python scripts/plot.py <figure>`.
+## Repository layout
 
-## Repository Layout
+The portable library is exactly three folders. Everything else is
+either an input recipe (`configs/`), test plumbing (`tests/`), or
+generated at runtime (`data/`, `outputs/`).
 
-```text
+```
 deep-mirt/
-  ma-irt/          # Active codebase
-  overleaf-sync/   # Paper LaTeX source
-  docs/            # Architecture, pipeline, cleanup records
-  legacy/          # Vendored upstream repos and archives (gitignored)
-  benchmarks.md    # Paper benchmark tables
-  CLAUDE.md        # Agent/codebase guidance
-  CONTRIBUTING.md  # Test gates, encoder/decoder extension recipes
-  LICENSE          # MIT
-  pyproject.toml   # PEP 621 packaging
-  README.md        # This file
+├── README.md
+├── benchmarks.md           # paper benchmark tables
+├── CLAUDE.md               # codebase guidance
+└── ma-irt/
+    ├── pyproject.toml      # pip install -e . target
+    ├── LICENSE             # MIT
+    ├── README.md           # short pointer back here
+    ├── requirements.txt
+    ├── train.py            # entry point
+    ├── evaluate.py         # entry point
+    ├── data_gen.py         # entry point
+    ├── models/             # MA-GPCM + baselines, components, trainer
+    ├── utils/              # config, dataloader, metrics, losses, datagen
+    ├── configs/            # YAML recipes (smoke + bulk sweep)
+    ├── data/               # datasets, gitignored
+    ├── outputs/            # training artifacts, gitignored
+    ├── tests/              # pytest
+    └── archive/            # paper-only sweeps, plotting, R baseline, gitignored
 ```
 
-`legacy/` collects the inactive reference repos (`akt`, `deep-1pl`,
-`deep-gpcm`, `dkt-ori`, `dkvmn-ori`, `mirt-dkvmn`, `kt-mirt`), the
-archived sigma sweep, the IJAIED submission archive, and the upstream
-LaTeX class. The directory is gitignored so it does not enter the public
-repo.
+After `pip install -e .`, `import models`, `import utils`,
+`from utils.datagen.static import GPCMDataGenerator`, etc. resolve from
+anywhere.
 
-## Research Roadmap
+## Tests
 
-This repository ships MA-GPCM. The next committed research step is multidim
-MA-IRT: generalizing scalar `theta_t` to a vector-valued latent state with
-multidimensional IRT decoders and explicit identifiability constraints.
+```bash
+cd ma-irt
+pytest tests/
+```
 
-## See Also
+The R2 baseline gate (`tests/test_baseline_reproduction.py`) verifies
+the MA-GPCM K=4 and ASSIST2009 K=2 cached metrics within the published
+tolerance band when those checkpoint directories are present under
+`outputs/`. Without them, the test cleanly skips.
 
-- [`ma-irt/README.md`](ma-irt/README.md), full usage guide and project layout
-- [`benchmarks.md`](benchmarks.md), paper benchmark tables
-- [`CLEANUP_PLAN_2026.md`](CLEANUP_PLAN_2026.md), public-repo cleanup plan
-- [`CLEANUP_VERIFICATION_2026.md`](CLEANUP_VERIFICATION_2026.md), paper-critical verification contract
-- [`docs/cleanup/`](docs/cleanup/), cleanup evidence notes
+## Reproducing the paper benchmarks
+
+The 240-run 5-fold CV sweep and the K=3,4,5,6 recovery sweeps were
+driven by shell scripts that now live under
+`ma-irt/archive/scripts/`. The aggregated table generators and the R
+`mirt` GPCM(EM) baseline are archived alongside. See
+[`benchmarks.md`](benchmarks.md) for the cell-by-cell mapping of
+configs to table cells.
+
+## License
+
+[MIT](LICENSE).
