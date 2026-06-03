@@ -136,3 +136,9 @@ PAPER_PLAN.md
 CODE_CHANGES_*.md
 PAPER_CHANGES_*.md
 ma-irt/CLEANUP_PLAN.md
+
+# Developer-only directories (paper-only sweeps, figures, internal scripts)
+# kept locally for ongoing research but not part of the public clone.
+ma-irt/plotting/
+ma-irt/plot.py
+ma-irt/ma_irt.egg-info/
