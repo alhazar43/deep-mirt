@@ -91,6 +91,67 @@ Verification:
 - No source behavior changed in this pass.
 - The previous T2.0 verification still applies: py_compile pass; `65 passed`.
 
-## Pending
+## Overnight session 2026-06-03 (T7-prep + P1 + P2 foundation + T2 + P6)
 
-T2 legacy moves for root reference repos, T3 dead-code/script archive in `ma-irt/`, T4 config consolidation, T5 deeper refactor. The next safe step is T3 reachability archiving of tracked one-off scripts/configs, but only after separating it from the pre-existing uncommitted source/config edits.
+User granted full edit approval before going to sleep. Executed the
+investigate-baseline-plan-design workflow (artifacts in
+`docs/cleanup/`), then proceeded with the safest items of the
+synthesized `PIPELINE_OPT_PLAN.md`. Ten new forward commits, 107 passed
+and 1 skipped in every commit's pytest run.
+
+| Commit | Phase | Summary | Result |
+|---|---|---|---|
+| `613b812` | T7-prep A | `alpha_log_scale` config consistency, `alpha_from_raw` helper | 68/68 |
+| `92b3f47` | T7-prep B | CV/early-stop infra (config, loader, dataloader) | 68/68 |
+| `0701d1a` | T7-prep C | K=2 AUC, DKT/DKVMN/DeepIRT dispatch, plot scripts | 68/68 |
+| `cb0cf1e` | P1.a | extract `utils/linking.py` plus 15-test regression hash | 83/83 |
+| `cdb78ad` | P1.b | unify `build_model` in `models/__init__.py` | 83/83 |
+| `1c9ac7c` | P1.e | lift `scipy.stats.spearmanr` to module scope | 83/83 |
+| `26047f4` | P2.a R2 gate | `tests/test_baseline_reproduction.py` | 92 + 1 skip |
+| `8c8ceb7` | P2.b | `models/registry.py` (Encoder/Decoder ABCs + registry) + 15-test contract | 107 + 1 skip |
+| `4115fd9` | P6.a-e | LICENSE (MIT), CONTRIBUTING.md, pyproject.toml, `.github/workflows/ci.yml`, move planning artifacts to `docs/cleanup/` | 107 + 1 skip |
+| `2bf87ff` | T2 | move 14 legacy roots plus `IJAIED-sub.zip` and `recsys25_v1_3.pdf` into `legacy/`, collapse `.gitignore` to a single `legacy/` rule | 107 + 1 skip |
+
+Final pytest at HEAD: 107 passed, 1 skipped, 0 failed. R2 baseline gate
+(Synthetic-Static K=4 fold0 sidecar plus ASSIST2009 K=2 fold0 sidecar)
+PASS on every gate-sensitive metric. Kendall tau column skip is the
+documented sidecar-convention gap from `BASELINE_2026-06-02.md`, not a
+regression.
+
+Root tree after the session (ten entries):
+
+```
+deep-mirt/
+├── .github/workflows/ci.yml
+├── docs/             (architecture, pipeline, cleanup/)
+├── legacy/           (gitignored, all vendored upstream content)
+├── ma-irt/           (active codebase)
+├── overleaf-sync/    (paper LaTeX)
+├── CLAUDE.md, CONTRIBUTING.md, LICENSE, README.md, benchmarks.md,
+│   cleanup_log.md, pyproject.toml, plus CLEANUP_PLAN_2026 and
+│   CLEANUP_VERIFICATION_2026
+```
+
+## What was NOT done (defer to live supervision)
+
+- **P2 model migration.** The `EncoderBackbone`/`ResponseDecoder` ABCs
+  and registry are in place but no production model subclasses them yet.
+  Migration of `MAGPCM`, `DKVMN`, `StaticGPCM`, `DynamicGPCM`,
+  `DKVMNSoftmax`, `DKT`, `DeepIRT` to the new pattern is the natural
+  next step. The R2 baseline gate is the mechanical safeguard for that
+  future work.
+- **P3 backbone integration** (SAKT/SAINT+/AKT/SimpleKT ports).
+  Requires P2 migration to land first.
+- **P4 decoder family** (GRM/PCM/MIRT/DINA).
+- **P5 computational optimizations.** AMP, `torch.compile`, batched
+  recovery accumulator. Gated behind config flags per the plan but
+  performance-sensitive, defer to a focused session.
+
+## Pending tier work from `CLEANUP_PLAN_2026.md`
+
+T3 (dead code archive in `ma-irt/`), T4 (config consolidation), T5
+(deeper refactor) remain. The active config matrix
+(`configs/bulk/*_pykt_fold*.yaml`) is clean. The stale
+`configs/dynamic_seeds/`, `configs/experiments/`, `configs/tmp_alpha1/`,
+`configs/_archive_s0p5/` trees are still on disk and gitignored, ready
+to be archived in a follow-up tier.
