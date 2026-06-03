@@ -52,7 +52,10 @@ ma-irt/*.pdf
 # Claude internal
 .claude/
 
-# Archived code (dead scripts, old configs)
+# Archived code (dead scripts, old configs).
+# Specific files inside (e.g. archive/models/components/embeddings.py)
+# are force-added with `git add -f` so they ship in the public repo;
+# everything else under archive/ stays out.
 ma-irt/archive/
 
 # Generated configs (regenerable via gen scripts)
