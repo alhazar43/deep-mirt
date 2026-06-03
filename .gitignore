@@ -13,9 +13,13 @@ build/
 .env
 .venv/
 
-# PyTorch checkpoints (large binaries — keep in outputs but not in git)
+# PyTorch checkpoints (large binaries, keep in outputs but not in git)
 *.pt
 *.pth
+
+# Migration regression snapshots are tiny (<1 MB each) and need to ship
+# with the test suite, so they override the *.pt ignore above.
+!ma-irt/tests/snapshots/*.pt
 
 # LaTeX build artifacts
 *.aux
