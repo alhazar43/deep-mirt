@@ -1,7 +1,7 @@
 """Job pool loader and JobPoolSpec dataclass.
 
 Per the v1 plan, Section 6.4 and 6.5, a JobPoolSpec is the in-memory
-representation of an entire pool of jobs. The ItemTower consumes it and
+representation of an entire pool of jobs. The JobTower consumes it and
 emits one vector per job. The RetrievalIndex consumes those vectors. The
 spec also exposes the GPCM-style difficulty parameter ``delta_j`` so
 downstream belief and policy code can read it without knowing about
@@ -43,12 +43,12 @@ class JobPoolSpec:
         Length ``n_jobs`` list of task statements joined by " | ".
     structured_features
         Float array of shape ``(n_jobs, 8)`` with the structured input
-        for the ItemTower. The columns are
+        for the JobTower. The columns are
         ``[work_zone_scaled, education_zscore, education_mask,
         riasec_R, riasec_I, riasec_A, riasec_S, riasec_E]``.
         We carry only 5 of the 6 RIASEC dimensions in this slot because
         the eighth column is reserved for ``education_mask``. The
-        ItemTower expands the riasec_code to a 6-dim weighted vector
+        JobTower expands the riasec_code to a 6-dim weighted vector
         internally from ``riasec_codes`` below.
     riasec_codes
         Length ``n_jobs`` list of 3-letter RIASEC strings (e.g. "RIA")
@@ -147,14 +147,14 @@ class JobPoolSpec:
         riasec_codes = df["riasec_code"].fillna("").astype(str).tolist()
 
         # Build a 5-dim slot from the first five riasec letters. The
-        # sixth dimension is computed by the ItemTower because the full
+        # sixth dimension is computed by the JobTower because the full
         # vector lives there. We still need a structured_features matrix
         # that downstream code can introspect, so we pack the first five
         # weighted riasec slots here and leave the C dimension to the
-        # ItemTower.
+        # JobTower.
         riasec_5 = np.zeros((n, 5), dtype=np.float32)
         # R, I, A, S, E mapping (Conventional is the 6th and is appended
-        # by ItemTower at forward time).
+        # by JobTower at forward time).
         letter_to_col = {"R": 0, "I": 1, "A": 2, "S": 3, "E": 4}
         weights = (0.6, 0.3, 0.1)
         for row_idx, code in enumerate(riasec_codes):

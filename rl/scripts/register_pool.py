@@ -1,9 +1,9 @@
 """Embed a job pool parquet and dump v_j + job_ids.
 
-Per the v1 plan, Section 6.4, the ItemTower is trained at M5; for
+Per the v1 plan, Section 6.4, the JobTower is trained at M5; for
 M2 we just need a frozen forward pass over the O*NET pool so the
 RetrievalIndex has something to serve. The script loads the parquet,
-builds a JobPoolSpec, runs the ItemTower in eval mode, and saves the
+builds a JobPoolSpec, runs the JobTower in eval mode, and saves the
 matrix as float32 numpy plus an ordered JSON of occupation codes.
 
 Example
@@ -33,7 +33,7 @@ _RL_SRC = _HERE.parent / "src"
 if str(_RL_SRC) not in sys.path:
     sys.path.insert(0, str(_RL_SRC))
 
-from irtrec.retrieval import ItemTower, load_onet_pool  # noqa: E402
+from irtrec.retrieval import JobTower, load_onet_pool  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +61,7 @@ def parse_args() -> argparse.Namespace:
         "--device",
         type=str,
         default="cpu",
-        help="Torch device for the ItemTower forward pass.",
+        help="Torch device for the JobTower forward pass.",
     )
     parser.add_argument(
         "--force-fallback",
@@ -77,7 +77,7 @@ def main() -> int:
     print(f"[register_pool] loaded {pool.n_jobs} jobs from {args.parquet}", flush=True)
 
     torch.manual_seed(42)
-    tower = ItemTower(d=args.d, device=args.device, force_fallback=args.force_fallback)
+    tower = JobTower(d=args.d, device=args.device, force_fallback=args.force_fallback)
     tower.eval()
     print(
         f"[register_pool] text encoder: {tower.text_info.name} "
