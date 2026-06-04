@@ -159,3 +159,12 @@ ma-irt/CLEANUP_PLAN.md
 # kept locally for ongoing research but not part of the public clone.
 ma-irt/plotting/
 ma-irt/plot.py
+
+# DRL-MAIRT rl/ artifacts (large binaries). Provenance markdown stays tracked.
+rl/artifacts/*.parquet
+rl/artifacts/*.npy
+rl/artifacts/*.npz
+rl/artifacts/*.pt
+rl/artifacts/*.bin
+rl/results/*/data/
+!rl/results/v1/plots/

@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "irtrec"
+version = "0.1.0"
+description = "DRL-MAIRT, realtime interactive job recommender built on the ma-irt deep IRT belief tracker."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Wenrui Yuan" },
+]
+license = { text = "Proprietary" }
+keywords = ["irt", "recommender", "deep-learning", "job-recommendation", "reinforcement-learning"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.0",
+    "numpy",
+    "pandas",
+    "scipy",
+    "fastapi",
+    "uvicorn",
+    "pyyaml",
+    "sentence-transformers",
+    "faiss-cpu",
+    "pyarrow",
+    "pytest",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "black",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
