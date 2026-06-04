@@ -1,8 +1,15 @@
-"""Synthetic user side of the v1 generator.
+"""Synthetic user side of the v1 + v2 generator.
 
-Draws ``N`` synthetic users with 1D ``theta`` ~ N(0, 1) and generates a
-full-questionnaire response per user against a mixed 2PL + GPCM bank
-matching Section 5.1 of the v1 plan.
+v1 (M3) draws ``N`` synthetic users with 1D ``theta`` ~ N(0, 1) and
+generates a full-questionnaire response per user against a mixed 2PL +
+GPCM bank matching Section 5.1 of the v1 plan.
+
+v2 (M4-RL) adds per-user discrimination heterogeneity by sampling
+``lambda_u`` ~ LogNormal(log 1.5, 0.4) alongside ``theta`` and exposes
+:func:`sample_users_v2` and :func:`stratified_split` helpers. The
+engagement-mixture concept from v1 (rejecter / engaged) is dropped;
+all v2 users are treated as engaged and emit K=5 GPCM ordinal
+responses inside :mod:`synth_likes`.
 
 Item bank composition
 
@@ -245,3 +252,114 @@ def sample_users(
     """
     rng = np.random.default_rng(seed)
     return rng.standard_normal(int(n_users)).astype(np.float64)
+
+
+# ---------------------------------------------------------------------
+# v2 helpers (M4-RL).
+# ---------------------------------------------------------------------
+
+
+# v2 lambda_u prior. LogNormal(log 1.5, 0.4) has median 1.5, mean ~1.62,
+# and a long right tail to capture high-discrimination users.
+LAMBDA_U_LOG_MEAN: float = float(np.log(1.5))
+LAMBDA_U_LOG_SIGMA: float = 0.4
+
+
+def sample_users_v2(
+    *,
+    n_users: int,
+    theta_seed: int = 0,
+    lambda_seed: int = 1,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Draw v2 user-level latent variables.
+
+    Returns ``(theta, lambda_u)`` where
+
+    - ``theta`` ~ N(0, 1) per user (1D ability scalar).
+    - ``lambda_u`` ~ LogNormal(log 1.5, 0.4) per user
+      (positive discrimination scalar).
+
+    The two RNG streams are seeded independently so swapping one prior
+    does not perturb the other set of draws.
+
+    Parameters
+    ----------
+    n_users
+        Number of users to sample.
+    theta_seed
+        Seed for the ``theta`` RNG.
+    lambda_seed
+        Seed for the ``lambda_u`` RNG. Must differ from ``theta_seed``
+        so the two draws are independent.
+
+    Returns
+    -------
+    theta, lambda_u
+        Both shape ``(n_users,)`` and dtype float64.
+    """
+    if theta_seed == lambda_seed:
+        raise ValueError(
+            "theta_seed and lambda_seed must differ for independent draws"
+        )
+    theta_rng = np.random.default_rng(theta_seed)
+    lam_rng = np.random.default_rng(lambda_seed)
+    theta = theta_rng.standard_normal(int(n_users)).astype(np.float64)
+    lambda_u = lam_rng.lognormal(
+        mean=LAMBDA_U_LOG_MEAN,
+        sigma=LAMBDA_U_LOG_SIGMA,
+        size=int(n_users),
+    ).astype(np.float64)
+    return theta, lambda_u
+
+
+def stratified_split(
+    *,
+    n_users: int,
+    train_frac: float = 0.80,
+    val_frac: float = 0.10,
+    test_frac: float = 0.10,
+    seed: int = 0,
+) -> dict[str, np.ndarray]:
+    """Stratified 80 / 10 / 10 split of user IDs.
+
+    The split is exact-count: we round ``train_frac`` and ``val_frac``
+    to integer counts and assign the remainder to ``test`` so the union
+    covers all users exactly once. The order of user IDs is shuffled
+    with the provided seed so future splits can be reproduced from the
+    same seed.
+
+    Parameters
+    ----------
+    n_users
+        Total number of users to split.
+    train_frac, val_frac, test_frac
+        Target proportions. Must sum to 1.0 within 1e-6.
+    seed
+        Seed for the user-ID shuffle.
+
+    Returns
+    -------
+    dict
+        Mapping ``"train" / "val" / "test"`` to int64 arrays of user IDs.
+    """
+    total = train_frac + val_frac + test_frac
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError(
+            f"split fractions must sum to 1.0, got {total:.6f}"
+        )
+    rng = np.random.default_rng(seed)
+    ids = np.arange(int(n_users), dtype=np.int64)
+    rng.shuffle(ids)
+    n_train = int(round(train_frac * n_users))
+    n_val = int(round(val_frac * n_users))
+    # Clip and let the test partition take the remainder.
+    n_train = max(0, min(n_users, n_train))
+    n_val = max(0, min(n_users - n_train, n_val))
+    train_ids = np.sort(ids[:n_train])
+    val_ids = np.sort(ids[n_train : n_train + n_val])
+    test_ids = np.sort(ids[n_train + n_val :])
+    return {
+        "train": train_ids.astype(np.int64),
+        "val": val_ids.astype(np.int64),
+        "test": test_ids.astype(np.int64),
+    }

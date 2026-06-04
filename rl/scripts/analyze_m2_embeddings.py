@@ -356,7 +356,7 @@ def pool_swap_smoke() -> dict:
     """
 
     sys.path.insert(0, str(REPO / "rl" / "src"))
-    from irtrec.retrieval.item_tower import ItemTower  # type: ignore
+    from irtrec.retrieval.job_tower import JobTower  # type: ignore
     from irtrec.retrieval.pool import JobPoolSpec  # type: ignore
     from irtrec.retrieval.index import RetrievalIndex  # type: ignore
 
@@ -399,7 +399,7 @@ def pool_swap_smoke() -> dict:
         source="synthetic:pool_swap_smoke",
     )
 
-    tower = ItemTower(d=64, force_fallback=True)
+    tower = JobTower(d=64, force_fallback=True)
     import torch
 
     with torch.no_grad():

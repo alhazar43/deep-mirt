@@ -1,24 +1,36 @@
-"""Synthetic like / dislike side of the v1 generator.
+"""Synthetic like / dislike side of the v1 + v2 generator.
 
-Implements the Option A preference model from Section 5.3 of the v1
-plan. Engaged users like a job ``j`` with probability
+v1 (M3) implements the Option A binary preference model from Section
+5.3 of the v1 plan. Engaged users like a job ``j`` with probability
 
 .. math::
 
     P(\\text{IsLiked} = 1 \\mid u, j) = \\sigma(\\lambda (\\theta_u - \\delta_j) - b)
 
-where ``lambda`` and ``bias`` are calibrated jointly to hit a target
-overall like rate over the engaged-user subset of the long-form likes
-table. Rejecter users always emit IsLiked = 0.
+Rejecter users always emit IsLiked = 0. lambda and bias are calibrated
+jointly to hit a target overall like rate.
+
+v2 (M4-RL) replaces the binary sigmoid with a K=5 GPCM ordinal
+response. Each user has a positive discrimination scalar
+``lambda_u`` (drawn upstream in :mod:`synth_users`) and emits a
+category ``y in {0, 1, 2, 3, 4}`` per candidate job under
+
+.. math::
+
+    y_{uj} \\sim \\text{GPCM}(\\lambda_u \\theta_u - \\delta_j,
+                              \\beta = (-1.5, -0.5, 0.5, 1.5))
+
+A backward-compatible ``IsLiked = 1[y >= 3]`` is derived for v1 columns.
+The oracle :func:`oracle_like_prob` returns ``P(y >= 3)`` for use
+inside StudentEnv in M5-RL only; it must never be exposed as state.
 
 The candidate-set size ``n_u`` for each user is drawn from a clipped
-negative binomial. Empirically realistic deployments have a long tail
-of users who rate many jobs and a head of users who rate few; the
-NegBinom(r=2, p=0.05, clip=[1, 200]) preset matches that shape.
+negative binomial. The NegBinom(r=2, p=0.05, clip=[1, 200]) preset
+matches the empirically observed shape of real recommender feedback.
 
-This module exposes the high-level helper :func:`build_likes_table`
-that returns a list of long-form like records ready for
-``likes.json``.
+This module exposes :func:`build_likes_table` (v1) and
+:func:`build_likes_table_v2` (v2) returning long-form like records
+ready for ``likes.json``.
 """
 
 from __future__ import annotations
@@ -375,3 +387,211 @@ def build_likes_table(
             )
     records.sort(key=lambda r: (r["user_id"], r["job_id"]))
     return records, float(lam), float(bias)
+
+
+# ---------------------------------------------------------------------
+# v2 helpers (M4-RL): K=5 GPCM ordinal response.
+# ---------------------------------------------------------------------
+
+
+# v2 step thresholds. K=5 categories means K-1=4 thresholds.
+GPCM_K: int = 5
+GPCM_BETA: tuple[float, float, float, float] = (-1.5, -0.5, 0.5, 1.5)
+GPCM_LIKED_CATEGORY: int = 3  # y >= GPCM_LIKED_CATEGORY counts as IsLiked = 1.
+
+
+def gpcm_category_probs(
+    *,
+    theta: float,
+    lam: float,
+    delta_j: np.ndarray,
+    beta: tuple[float, ...] = GPCM_BETA,
+) -> np.ndarray:
+    """Vectorised GPCM category probabilities for one user vs. many jobs.
+
+    Cumulative-logit form for K categories with discrimination
+    ``lambda_u`` and step thresholds shifted by per-job ``delta_j``,
+
+    .. math::
+
+        \\phi_{j,0} &= 0 \\\\
+        \\phi_{j,k} &= \\sum_{h=0}^{k-1}
+            [\\lambda_u \\theta_u - (\\beta_h + \\delta_j)],
+            \\quad k = 1, \\dots, K - 1 \\\\
+        P(Y_{uj} = k) &= \\frac{\\exp(\\phi_{j,k})}
+                              {\\sum_{l=0}^{K-1} \\exp(\\phi_{j,l})}.
+
+    Parameters
+    ----------
+    theta
+        Scalar ability for one user.
+    lam
+        Positive discrimination scalar for the user.
+    delta_j
+        Per-job difficulty array, shape ``(n_jobs,)``.
+    beta
+        K-1 step thresholds, ascending. Defaults to :data:`GPCM_BETA`.
+
+    Returns
+    -------
+    np.ndarray
+        Probability matrix of shape ``(n_jobs, K)``, rows sum to 1.
+    """
+    beta_arr = np.asarray(beta, dtype=np.float64)
+    K = beta_arr.shape[0] + 1
+    n_jobs = delta_j.shape[0]
+    psi = np.zeros((n_jobs, K), dtype=np.float64)
+    cumsum = np.zeros(n_jobs, dtype=np.float64)
+    for k in range(1, K):
+        cumsum = cumsum + lam * theta - (beta_arr[k - 1] + delta_j)
+        psi[:, k] = cumsum
+    # Stable softmax.
+    psi -= psi.max(axis=1, keepdims=True)
+    p = np.exp(psi)
+    p /= p.sum(axis=1, keepdims=True)
+    return p
+
+
+def oracle_like_prob(
+    *,
+    theta: float,
+    lam: float,
+    delta_j: np.ndarray,
+    beta: tuple[float, ...] = GPCM_BETA,
+    liked_category: int = GPCM_LIKED_CATEGORY,
+) -> np.ndarray:
+    """Oracle ``P(y >= liked_category | theta, j)`` under the v2 GPCM.
+
+    Returns the per-job probability mass at the "liked" tail of the
+    response distribution. Used inside :class:`StudentEnv` (M5-RL) for
+    Bayes-ceiling diagnostics and reward shaping. **Must never be
+    exposed to the policy as state input**, otherwise the policy could
+    inflate its own reward by reading the oracle.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(n_jobs,)``, values in ``[0, 1]``.
+    """
+    if liked_category < 1 or liked_category >= GPCM_K:
+        raise ValueError(
+            f"liked_category must be in [1, {GPCM_K - 1}], got {liked_category}"
+        )
+    p = gpcm_category_probs(theta=theta, lam=lam, delta_j=delta_j, beta=beta)
+    return p[:, liked_category:].sum(axis=1)
+
+
+def sample_gpcm_response(
+    *,
+    theta: float,
+    lam: float,
+    delta_j: np.ndarray,
+    rng: np.random.Generator,
+    beta: tuple[float, ...] = GPCM_BETA,
+) -> np.ndarray:
+    """Sample one K=5 ordinal response per job for a single user.
+
+    Parameters
+    ----------
+    theta
+        Scalar ability for the user.
+    lam
+        Positive discrimination scalar for the user.
+    delta_j
+        Per-job difficulty, shape ``(n_jobs,)``.
+    rng
+        Generator to draw uniforms from. The caller controls seeding.
+    beta
+        K-1 step thresholds.
+
+    Returns
+    -------
+    np.ndarray
+        Integer category array of shape ``(n_jobs,)`` in ``{0, ..., K-1}``.
+    """
+    p = gpcm_category_probs(theta=theta, lam=lam, delta_j=delta_j, beta=beta)
+    cum = np.cumsum(p, axis=1)
+    u = rng.uniform(size=delta_j.shape[0])
+    y = (u[:, None] > cum).sum(axis=1).astype(np.int64)
+    # The expression above can produce K for u == 1.0 exactly; clip to K-1.
+    np.clip(y, 0, GPCM_K - 1, out=y)
+    return y
+
+
+def build_likes_table_v2(
+    *,
+    theta: np.ndarray,
+    lambda_u: np.ndarray,
+    candidate_sets: List[np.ndarray],
+    delta_j: np.ndarray,
+    beta: tuple[float, ...] = GPCM_BETA,
+    seed: int = 0,
+) -> List[dict]:
+    """Assemble the long-form v2 likes table with K=5 ordinal responses.
+
+    Each (user, candidate-job) pair gets a sampled ``y in {0, ..., 4}``
+    under the per-user GPCM and a backward-compatible ``IsLiked = 1[y
+    >= 3]`` field. The simulator's oracle like-probability ``prob =
+    P(y >= 3)`` is also recorded for downstream diagnostics; the
+    policy must not consume it as state.
+
+    Parameters
+    ----------
+    theta
+        Per-user 1D theta, shape ``(N,)``.
+    lambda_u
+        Per-user positive discrimination, shape ``(N,)``.
+    candidate_sets
+        Per-user candidate job ID arrays, length N.
+    delta_j
+        Per-job difficulty, shape ``(n_jobs,)``.
+    beta
+        K-1 step thresholds. Defaults to :data:`GPCM_BETA`.
+    seed
+        Seed for the response RNG.
+
+    Returns
+    -------
+    list of dict
+        Long-form table sorted by ``(user_id, job_id)`` with keys
+        ``user_id, job_id, y, IsLiked, prob``.
+    """
+    n_users = int(theta.shape[0])
+    if lambda_u.shape[0] != n_users:
+        raise ValueError("theta and lambda_u must have matching length")
+    if len(candidate_sets) != n_users:
+        raise ValueError("candidate_sets length must match theta length")
+
+    rng = np.random.default_rng(seed)
+    records: List[dict] = []
+    for uid in range(n_users):
+        cand = candidate_sets[uid]
+        if cand.size == 0:
+            continue
+        cand_deltas = delta_j[cand]
+        probs = oracle_like_prob(
+            theta=float(theta[uid]),
+            lam=float(lambda_u[uid]),
+            delta_j=cand_deltas,
+            beta=beta,
+        )
+        y = sample_gpcm_response(
+            theta=float(theta[uid]),
+            lam=float(lambda_u[uid]),
+            delta_j=cand_deltas,
+            rng=rng,
+            beta=beta,
+        )
+        is_liked = (y >= GPCM_LIKED_CATEGORY).astype(np.int64)
+        for k in range(cand.size):
+            records.append(
+                {
+                    "user_id": int(uid),
+                    "job_id": int(cand[k]),
+                    "y": int(y[k]),
+                    "IsLiked": int(is_liked[k]),
+                    "prob": float(probs[k]),
+                }
+            )
+    records.sort(key=lambda r: (r["user_id"], r["job_id"]))
+    return records

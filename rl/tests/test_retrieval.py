@@ -1,12 +1,13 @@
 r"""Tests for the M2 retrieval pillar.
 
 Covers JobPoolSpec.from_dataframe / load_onet_pool, RetrievalIndex
-deterministic top-k with and without masks, ItemTower forward shape
-and L2 normalisation, and a pool-swap test that proves the system
-treats the pool as a value-type input rather than a baked-in constant.
+deterministic top-k with and without masks, JobTower forward shape
+and L2 normalisation, the ``ItemTower`` deprecation shim, and a
+pool-swap test that proves the system treats the pool as a value-type
+input rather than a baked-in constant.
 
 The tests use the deterministic fallback text encoder by default
-(``ItemTower(force_fallback=True)``) so they do not require a live
+(``JobTower(force_fallback=True)``) so they do not require a live
 sentence-transformers download. The real BGE path is exercised by
 ``rl/scripts/register_pool.py``.
 """
@@ -31,8 +32,9 @@ if str(_RL_SRC) not in sys.path:
     sys.path.insert(0, str(_RL_SRC))
 
 from irtrec.retrieval import (  # noqa: E402
-    ItemTower,
+    ItemTower,  # deprecated alias kept for shim test, remove in M8-RL
     JobPoolSpec,
+    JobTower,
     RetrievalIndex,
     load_onet_pool,
 )
@@ -124,13 +126,13 @@ def test_education_mask_set_for_missing_values() -> None:
 
 
 # ---------------------------------------------------------------------
-# ItemTower forward
+# JobTower forward
 # ---------------------------------------------------------------------
 
 
-def test_item_tower_forward_l2_normalised(tiny_pool: JobPoolSpec) -> None:
+def test_job_tower_forward_l2_normalised(tiny_pool: JobPoolSpec) -> None:
     torch.manual_seed(0)
-    tower = ItemTower(d=64, device="cpu", force_fallback=True)
+    tower = JobTower(d=64, device="cpu", force_fallback=True)
     tower.eval()
     with torch.no_grad():
         v_j = tower(tiny_pool)
@@ -139,13 +141,21 @@ def test_item_tower_forward_l2_normalised(tiny_pool: JobPoolSpec) -> None:
     assert torch.allclose(norms, torch.ones_like(norms), atol=1e-5)
 
 
-def test_item_tower_text_encoder_is_frozen() -> None:
+def test_job_tower_text_encoder_is_frozen() -> None:
     torch.manual_seed(0)
-    tower = ItemTower(d=64, device="cpu", force_fallback=True)
+    tower = JobTower(d=64, device="cpu", force_fallback=True)
     fallback = tower.text_fallback
     assert fallback is not None
     for param in fallback.parameters():
         assert not param.requires_grad
+
+
+def test_item_tower_deprecation_shim_is_jobtower() -> None:
+    """The legacy ``ItemTower`` alias must be the same class as ``JobTower``."""
+    assert ItemTower is JobTower
+    torch.manual_seed(0)
+    tower = ItemTower(d=8, device="cpu", force_fallback=True)
+    assert isinstance(tower, JobTower)
 
 
 # ---------------------------------------------------------------------
@@ -205,7 +215,7 @@ def test_retrieval_topk_validates_inputs() -> None:
 
 def test_pool_swap_round_trip(big_synth_pool: JobPoolSpec) -> None:
     torch.manual_seed(0)
-    tower = ItemTower(d=64, device="cpu", force_fallback=True)
+    tower = JobTower(d=64, device="cpu", force_fallback=True)
     tower.eval()
     with torch.no_grad():
         v_j = tower(big_synth_pool).cpu().numpy()

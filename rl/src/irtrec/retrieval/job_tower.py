@@ -1,14 +1,19 @@
-"""ItemTower module.
+"""JobTower module.
 
-Per the v1 plan, Section 6.4, the ItemTower maps each occupation to a
-fixed-dimensional vector. Text is encoded by a frozen sentence
-transformer (``BAAI/bge-small-en-v1.5``, 384 dims), structured features
-by a small linear head, and the two are concatenated through a linear
-projection and L2-normalised.
+Per the v1 plan, Section 6.4, the JobTower (formerly ItemTower; the v2
+naming aligns with the broader DRL-MAIRT job-recommender vocabulary)
+maps each occupation to a fixed-dimensional vector. Text is encoded by
+a frozen sentence transformer (``BAAI/bge-small-en-v1.5``, 384 dims),
+structured features by a small linear head, and the two are
+concatenated through a linear projection and L2-normalised.
 
 The text encoder is frozen. If the BGE checkpoint cannot be downloaded
 (no network) we fall back to a deterministic hash-bucketed random
 projection encoder. Real BGE is strongly preferred.
+
+A deprecated alias ``ItemTower = JobTower`` is exported from
+:mod:`irtrec.retrieval` for backward compatibility. The alias is
+scheduled for removal in M8-RL.
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ from .pool import JobPoolSpec
 
 
 __all__ = [
-    "ItemTower",
+    "JobTower",
     "TextEncoderInfo",
     "BGE_MODEL_NAME",
     "FALLBACK_BUCKETS",
@@ -121,7 +126,7 @@ def _try_load_bge(device: torch.device):
     return model, info
 
 
-class ItemTower(nn.Module):
+class JobTower(nn.Module):
     """Map a JobPoolSpec to a matrix ``v_j`` of shape ``(n_jobs, d)``.
 
     Architecture
