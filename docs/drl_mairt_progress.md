@@ -11,16 +11,19 @@ this file first and appends new entries.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-04
-- **Date last updated.** 2026-06-04 08:00
-- **Current state.** M0, M2, M3 complete on `main` with a preliminary
-  results report plus a headline synthesis figure
-  (`rl/results/v1/plots/headline_v1.png`). M1 implemented on
+- **Date last updated.** 2026-06-04 09:30
+- **Current state.** M0, M2, M3, M4-RL complete on `main`. v2
+  simulator (continuous delta_j, K=5 GPCM, lambda_u heterogeneity)
+  is merged and validated with a preliminary results report at
+  `rl/results/v2/RESULTS.md`. M1 implemented on
   `feat/online-step-api`, awaiting user review before merge.
-- **Active branch.** `main` carries M0, M2, M3, prelim, and the
-  headline append. `feat/online-step-api` carries the M1 work, six
-  commits, tip `dd1d8bf`.
-- **Next milestone.** M1 merge after user review, then M4
-  (UserTower + BeliefTracker + trained retrieval) on `main`.
+- **Active branch.** `main` carries M0, M2, M3, v1 prelim, the
+  headline append, the M4-RL merge (`f2fa629`), and the v2 prelim
+  results (`fed5db2`). `feat/online-step-api` carries the M1 work,
+  six commits, tip `dd1d8bf`.
+- **Next milestone.** M1 merge after user review, then M5-RL
+  (StudentEnv + UserTower training against the v2 simulator) on
+  `main`.
 - **Eight locked decisions.** D1 subdir `deep-mirt/rl/`, D2 1D theta, D3 O*NET
   2024, D4 textless items, D5 binary ratings, D6 heuristic DecisionController,
   D7 replay simulator, D8 Option A preference model. See plan Section 2.
@@ -35,9 +38,9 @@ this file first and appends new entries.
 | **M1**, ma-irt online step API | in_review | `feat/online-step-api` (`dd1d8bf`) | `EncoderDecoderModel.step`, `StepState`, `forward_with_state` per encoder, `compute_logits_from_state` per decoder, `freeze_irt`, `test_step_api.py`, `test_step_microbenchmark.py`, `step_api.md` | met | 13/13 parity tests pass to atol=1e-5 on DKVMN, LSTM, Transformer. 3/3 CPU latency budgets met (plan section 6.1). Full ma-irt suite: 150 passed, 12 skipped (pre-existing slow/artifact skips), 0 failed. Awaiting user review then merge to `main`. |
 | **M2**, rl/ skeleton + ItemTower + RetrievalIndex | complete | `main` (`98c07c9`) | `item_tower.py`, `index.py`, `pool.py`, `register_pool.py`, `onet_v1_embed.npy`, `test_retrieval.py` | met | Frozen BGE-small-en-v1.5 + 8-dim structured branch over (work_zone, education_zscore, weighted RIASEC), L2-norm at the head output. 9/9 retrieval tests pass, pool-swap smoke green. UMAP plus nearest neighbor spot checks live at `rl/results/v1/`. |
 | **M3**, synthetic data generator (Option A) | complete | `main` (`2bff5ae`) | `synth_users.py`, `synth_likes.py`, `onet_pool_attach.py`, two YAML configs, `build_synthetic_dataset.py`, `test_synth_generator.py` | met | Two presets, dev N=500 and recovery N=5000. EAP theta recovery on true items hits r=0.978 RMSE=0.207 at recovery and r=0.975 RMSE=0.224 at dev. Like rate lands at 0.202 (target 0.20). 16/16 synth generator tests pass. |
-| **M4**, UserTower + BeliefTracker + trained retrieval | next | `main` | `tracker.py`, `user_tower.py`, `train_user_tower.py`, `user_tower_v1.pt` | not met | Hit@10 floor 0.263 (popularity), 1D oracle ceiling 0.158 on v1 sim. Unblocked. Target +20% over popularity on held-out users. |
-| **M5**, policy + service + E2E smoke | blocked | `main` | `fisher_selector.py`, `reflection.py`, `heuristic.py` controller, `app.py`, four test files | not met | Blocked by M4. E2E test drives one student through respond/rate/stop. |
-| **M6**, evaluation harness + headline plots | blocked | `main` | three `eval_*.py` scripts, `RESULTS.md`, plots | not met | Blocked by M5. Three buckets per plan Section 9, sensitivity sweep on five DecisionController thresholds. |
+| **M4-RL**, v2 simulator (continuous delta_j + K=5 GPCM + lambda_u) | complete | `main` (`f2fa629` merge, `fed5db2` prelim) | continuous delta_j composite, K=5 GPCM in `synth_likes.py`, engagement mixture removed, `lambda_u` per user, `JobTower` rename with shim, `generate_v2.py` entrypoint, `test_delta_j_continuity.py`, prelim plots and `RESULTS.md` at `rl/results/v2/` | met | 923/923 unique delta_j values, std 1.0. 1D Bayes-ceiling Hit@10 lifts from v1's 0.158 to 0.261. Popularity drops from 0.263 to 0.236, restoring the expected oracle > popularity ordering. theta_hat r=0.974 RMSE=0.222 on v2 GPCM responses. |
+| **M5-RL**, StudentEnv + UserTower trained on v2 | next | `main` | `student_env.py`, `tracker.py`, `user_tower.py`, `train_user_tower.py`, `user_tower_v2.pt` | not met | Hit@10 floor 0.261 (v2 1D oracle), popularity 0.236. Unblocked by M4-RL prelim. Headroom above the scalar delta_j must come from multi-dimensional matching the JobTower embedding can support. |
+| **M6**, evaluation harness + headline plots | blocked | `main` | three `eval_*.py` scripts, `RESULTS.md`, plots | not met | Blocked by M5-RL. Three buckets per plan Section 9, sensitivity sweep on five DecisionController thresholds. |
 
 M7 (LLM simulator) and M8 (bandit controller) are deferred to v2. See plan
 Section 10.
@@ -78,6 +81,37 @@ three. M5 follows M4. M6 closes the v1 cycle.
 
 Reverse chronological. Most recent entry first.
 
+- **2026-06-04 09:30.** M4-RL lands on `main` with a preliminary
+  results report at `rl/results/v2/`. Three commits since the v1
+  prelim. The merge commit `f2fa629` brings `feat/v2-simulator-delta-j`
+  (tip `bd23b4f`) onto main. The v2 simulator carries four functional
+  changes plus one rename. First, `onet_pool_attach.py` now produces a
+  continuous `delta_j` composite, a z-scored sum of work_zone (0.45),
+  education_zscore (0.35), and a complexity composite from work
+  activity categories (0.20), plus N(0, 0.30) seeded noise,
+  re-standardised to unit variance. Second, `synth_likes.py` switched
+  from the binary sigmoid to a K=5 GPCM with step thresholds beta
+  = (-1.5, -0.5, 0.5, 1.5), with `IsLiked = 1[y >= 3]` kept for
+  backward compatibility. Third, the engagement mixture is gone, all
+  users are engaged and heterogeneous via `lambda_u` ~ LogNormal(log
+  1.5, 0.4). Fourth, `ItemTower` is renamed to `JobTower` with a
+  shim. Fifth, `generate_v2.py` is the new entrypoint, dev preset
+  N=2000. Commit `fed5db2` is the prelim, nine files, five plots,
+  RESULTS.md, `eval_v2_baselines.py`, `build_v2_plots.py`, and
+  `test_delta_j_continuity.py`. Headline v2 numbers, n_unique = 923
+  of 923 jobs (v1 had 4), delta_j mean 0, std 1, range [-2.16, 2.58].
+  Bayes-ceiling Hit@10 = 0.287 on the held-out test partition, 1D
+  oracle Hit@10 = 0.261 under the v1-matched 80/20 protocol on the
+  v2 dev N=2000 cohort, popularity Hit@10 = 0.236, random 0.157,
+  theta-hat 1D = 0.261. Popularity now sits below the oracle, the
+  expected ordering that v1's 4-bucket delta_j had inverted. EAP
+  theta recovery on v2 GPCM responses lands at r=0.974 RMSE=0.222.
+  The continuity test passes its three checks (unique-near-pool,
+  zscored-and-finite, Bayes-ceiling > 0.20 floor). Implication for
+  M5-RL, the trained UserTower must clear Hit@10 = 0.261 (v2 1D
+  oracle) on held-out users and headroom above that must come from
+  multi-dimensional matching the JobTower embedding can support but
+  the scalar delta_j cannot.
 - **2026-06-04 07:30.** M2 and M3 land on `main` together with a
   preliminary results report. Four commits total. `98c07c9` is the
   M2 retrieval pillar, `rl/src/irtrec/retrieval/{pool,item_tower,
