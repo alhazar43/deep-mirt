@@ -403,6 +403,41 @@ is flagged for future work.
   simulator robustness (train inside DKVMN-based ma-irt, evaluate
   inside Transformer-based ma-irt) is the v2 integrity check.
 
+## Recommendation Quality Over Time
+
+This is the within-session analog of the CaRReL "relevance over time"
+curve on v2 dev. We walk each held-out user's response sequence,
+incrementally EAP-update theta on a 91-point grid in [-4.5, 4.5] with
+a unit Gaussian prior, and at every step t rank all 923 jobs by
+``P(y >= 3 | theta_hat_t, lambda_u, delta_j)`` under the v2 GPCM. The
+variable-cohort curve (every user still in session at t) appears to
+climb from Hit@10 = 0.261 at t=1 to 0.353 at t=66, peaking near 0.471
+at t=54, while the fixed-cohort curve (n = 51 users with T_u >= 66) is
+dead flat at Hit@10 = 0.353 with slope = 0 from t=1 to t=66.
+
+![rec_over_time](../rl/results/v2/plots/m4rl_recommendation_over_time.png)
+
+Variable-cohort Hit@10 across policies.
+
+| t | random | theta-true oracle | theta-hat EAP | n_valid |
+|---|---|---|---|---|
+| 1 | 0.163 | 0.261 | 0.261 | 356 |
+| 10 | 0.176 | 0.285 | 0.285 | 323 |
+| 25 | 0.210 | 0.343 | 0.343 | 233 |
+| 66 | 0.351 | 0.353 | 0.353 | 51 |
+
+The fixed-cohort flatness has a structural cause. Under the
+cumulative-logit GPCM, the per-user ranking of jobs by
+``P(y >= 3 | theta, lambda_u, delta_j)`` is a monotone function of
+``-delta_j`` alone, so updating theta_hat tightens the posterior but
+cannot move the ranking. The variable-cohort rise is therefore a
+selection effect, long-T users have wider candidate sets and more
+positives. The implication is that any honest within-session lift must
+break the 1D theta-invariance, which is what a multi-dimensional
+JobTower embedding can do and a scalar EAP cannot. The v2 1D simulator
+establishes the Hit@10 floor (0.261 at t = T) and the ceiling on what
+scalar EAP gains over t (zero). M5-RL must climb above both.
+
 ## References
 
 Bassen, J. et al. (2020). Reinforcement learning for the adaptive

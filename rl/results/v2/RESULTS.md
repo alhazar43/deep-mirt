@@ -75,3 +75,38 @@ The v2 simulator gives later milestones three things v1 could not.
 3. Per-user discrimination. ``lambda_u`` heterogeneity is the natural target for the UserTower to learn from sequence history, since users with high lambda_u have sharper preference functions and should be ranked differently from low-lambda users at the same theta. This is the win that the M5-RL contrastive head is designed to exploit.
 
 Floor for M5-RL training, Hit@10 > 0.261 (the v2 1D oracle). Headroom above the oracle must come from multi-dimensional matching that the JobTower embedding can support but the scalar ``delta_j`` cannot.
+
+## Recommendation Quality Over Time
+
+This is the within-session analog of the CaRReL "relevance over time" curve, on v2 dev. Same 80/20 user split, seed=0, and same eval cohort as the baselines section (n_eval = 356). For each held-out user we walk their response sequence, run an incremental Bayesian EAP update of theta on a 91-point grid in [-4.5, 4.5] with a unit Gaussian prior, then at every step t rank all 923 jobs by ``P(y >= 3 | theta_hat_t, lambda_u, delta_j)``. Hit@10(u, t) is 1 if any IsLiked positive lands in the top 10, NDCG@10(u, t) uses the simulator's true ``P(y >= 3 | theta_true_u)`` as graded relevance.
+
+The figure ``rl/results/v2/plots/m4rl_recommendation_over_time.png`` has two panels. The left panel is the variable-cohort view, every user still in-session at t contributes. The right panel is the fixed cohort, only users with T_u >= T_fixed = 66 (n = 51, the deepest t at which at least 50 users are still in-session).
+
+![rec_over_time](plots/m4rl_recommendation_over_time.png)
+
+Variable-cohort numbers (Hit@10 across policies, IQR is the same (0, 1) unit interval at every t because Hit@10 is binary per user).
+
+| t | random | theta-true oracle | theta-hat EAP | n_valid |
+|---|---|---|---|---|
+| 1 | 0.163 | 0.261 | 0.261 | 356 |
+| 5 | 0.168 | 0.270 | 0.270 | 345 |
+| 10 | 0.176 | 0.285 | 0.285 | 323 |
+| 25 | 0.210 | 0.343 | 0.343 | 233 |
+| 66 | 0.351 | 0.353 | 0.353 | 51 |
+
+Slope t=1 to t=10 is +0.024 for theta-hat EAP, slope t=10 to t=66 is +0.068. The curve rises and peaks at 0.471 around t=54 before drifting back as the tail thins. Theta-hat EAP tracks the theta-true oracle exactly at three decimal places at every t, because the v2 theta recovery is r = 0.974 and the per-user job ranking under a 1D model is theta-invariant up to scale (see structural note below). The random baseline also climbs over t, from 0.163 to 0.351, which is itself a selection effect, not a learning effect.
+
+Fixed-cohort numbers (Hit@10 theta-hat EAP, n = 51).
+
+| t | mean | IQR width | random | theta-true oracle |
+|---|---|---|---|---|
+| 1 | 0.353 | 1.000 | 0.353 | 0.353 |
+| 10 | 0.353 | 1.000 | 0.353 | 0.353 |
+| 25 | 0.353 | 1.000 | 0.353 | 0.353 |
+| 66 | 0.353 | 1.000 | 0.353 | 0.353 |
+
+The fixed-cohort curve is dead flat. Slope t=1 to t=66 is 0. NDCG@10 is also constant at 1.000 across t.
+
+The flatness has a clean structural explanation. For a fixed user with positive lambda_u, the ranking of jobs by ``P(y >= 3 | theta, lambda_u, delta_j)`` under the cumulative-logit GPCM is a monotone function of ``lambda_u * theta - delta_j``, which is monotone in ``-delta_j``. The ranking depends on delta_j but not on theta. Updating theta_hat as more responses arrive moves the per-user posterior but not the per-user ranking, so Hit@10 and NDCG@10 cannot change over t for any fixed user under any 1D scoring rule of this form. The variable-cohort rise is therefore a selection effect, long-T users have more positives in their candidate set, more chances to hit one in top-10, and contribute disproportionately to later t. The random baseline in the fixed cohort happens to land at 0.353 because the 51 long-T users have wide candidate sets (mean |positives| = 34) so random top-10 hits a positive about a third of the time.
+
+The implication for M5-RL is that any within-session lift must come from a representation that breaks the 1D theta-invariance. Multi-dimensional theta in a JobTower embedding space lets theta direction reshape the per-user ranking, which is what classical Fisher-only CAT cannot exploit and what the DRL value proposition rests on. The 1D v2 simulator establishes the floor and reveals the theoretical ceiling on what scalar EAP can do, namely nothing on top-K beyond the terminal number.
