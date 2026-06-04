@@ -2,37 +2,236 @@
 
 ## Abstract
 
-DRL-MAIRT extends the MA-IRT deep ordinal item-response model into a real-time interactive job recommender. The central design problem is to elicit a latent learner state (ability theta and discrimination-difficulty-keyed preferences) within a budgeted interactive session and to convert that estimated state into a high-quality recommendation slate. We pose this as a sequential decision problem with a partially observed posterior over theta as the agent's belief, and we claim that a policy trained against potential-shaped information gain plus a grounded terminal slate utility yields stronger top-K recommendations than greedy maximum-Fisher selection while preserving the calibration of the underlying IRT belief.
+DRL-MAIRT extends MA-IRT, a deep ordinal item-response model with strong
+recovery on synthetic GPCM data, into a real-time interactive job
+recommender. The central design problem is to elicit a latent learner
+state inside a budgeted interactive session (the user's ability and
+preference profile under a 1D GPCM IRT model) and to convert that state
+into a high-quality recommendation slate over an O\*NET occupation pool.
+We pose this as a sequential decision problem with a partially observed
+posterior on theta as the agent's belief, and we claim that a policy
+trained against potential-shaped information gain plus a grounded
+terminal slate utility yields stronger top-K recommendations than greedy
+maximum-Fisher selection while preserving the calibration of the
+underlying IRT belief. This brief covers the project state through M0
+to M3 plus M1 step API plus M4-RL v2 simulator, summarizes the v1
+preliminary results, and outlines the M5-RL to M8-RL roadmap.
 
-## What has been done
+## Background and motivation
 
-The v1 simulator and infrastructure are committed on `main` through M0 through M3, with the M1 online step API parked on `feat/online-step-api`. The synthesis in `docs/drl_mairt_plan_v1.md` consolidates the retrieval scaffold (`rl/src/irtrec/retrieval/`), the v1 synthetic generator (`rl/src/irtrec/datagen/`), and the O*NET pool attachment (`rl/artifacts/onet_v1.parquet`). Unit tests cover retrieval and generation. The v1 recovery study revealed a critical failure mode. The job-difficulty delta_j was computed as a discrete bin over work-zone alone, producing only four unique values across 923 items. Under this degenerate preference field, popularity ranking matched the Bayes-oracle 1D theta at Hit@10, leaving no measurable headroom for IRT-style elicitation. The artifact, not the IRT formulation, was the cause.
+Adaptive testing has a five-decade tradition of Bayesian item selection
+under IRT (Lord 1980, Owen 1975), but classical CAT does not extend
+cleanly to downstream-decision settings where the recommender's value
+depends on multi-step trade-offs between elicitation and action. A
+prior in-house attempt, CaRReL, paired a DQN with a 2D MLE theta and a
+cosine-similarity reward against fixed job embeddings. The post-mortem
+identified the failure mode. The reward was a closed-form function of
+the policy's own state representation, so the optimal action was
+deterministic, leaving the agent nothing to learn. We retain CaRReL only
+as a reference-negative example.
 
-## What is being planned and why
+MA-IRT provides a deep belief tracker with calibrated theta recovery
+(r=0.96 on synthetic K=4 paper headlines), per-step posterior variance
+via observed Fisher information, and a frozen GPCM head whose item
+parameters are recoverable. The recommendation question becomes how to
+build a policy on top of this belief that does work classical CAT
+cannot do alone.
 
-Milestone M4-RL replaces the v1 simulator with a v2 generative process whose preference field is genuinely informative. Each job receives a continuous delta_j composed of work-zone, education z-score, and an O*NET complexity composite (the mean z-score across importance-weighted work-activity fields), plus Gaussian noise at fixed seed. The engagement mixture is removed and replaced by a per-user log-normal scale lambda_u, the population is grown to 100k with a stratified 80k/10k/10k split, and responses become K=5 GPCM ordinal observations with fixed thresholds at (-1.5, -0.5, 0.5, 1.5). Backward-compatible binary IsLiked is preserved as 1[y >= 3]. ItemTower is renamed JobTower across `rl/` to match the domain. The policy is PPO (Schulman et al., 2017) with behavioral cloning warm-start from a 50/30/20 mix of max-Fisher, ReflectionLayer-greedy, and Thompson rollouts. The per-step reward is potential-based shaping phi(s_t) - phi(s_{t-1}) with phi defined as the negative differential entropy of the Gaussian posterior on theta, plus an ask cost c_ask and an exposure penalty. The terminal reward combines a slate-lift term against the simulator's hidden true preference and a posterior-predictive log-likelihood on a held-out probe set. Potential-based shaping is policy-invariant by the Ng, Harada, Russell (1999) theorem, so the dense per-step signal does not bias the optimum. The information-gain potential follows Bayesian sequential design (Lindley 1956, Owen 1975) and the classical Fisher-information formulation of CAT (Lord 1980). Terminal grounding in slate-lift forces the policy to drive theta_hat toward theta_true rather than toward self-consistency under MA-IRT.
+## System architecture
+
+The pipeline has six components on top of frozen ma-irt. **BeliefTracker**
+wraps the online step API to maintain a per-session posterior
+`{theta_t, sigma_t, h_t}`. **JobTower** (formerly ItemTower) embeds 923
+O\*NET occupations into a 64-dim L2-normalized space via a frozen
+BGE-small-en-v1.5 text branch plus a small structured-feature head.
+**RetrievalIndex** serves cosine top-K from the precomputed
+embedding bank. **FisherItemSelector** is the classical CAT baseline
+for next-item selection. **ReflectionLayer** updates the per-session
+query vector from in-session likes and dislikes with a 0.2 cosine-shift
+cap, never touching ma-irt. **DecisionController** is the heuristic v1
+controller that arbitrates ask vs recommend vs terminate, scheduled
+for replacement by a PPO policy in M8-RL.
+
+## What has been accomplished
+
+M0 landed the rl/ subdirectory scaffold, the eight locked decisions in
+`rl/docs/spec.md`, and the O\*NET 2024 occupation pool (923 occupations
+with title, description, tasks, work_zone, education, RIASEC). M1
+implemented the ma-irt online step API on `feat/online-step-api` with
+parity to atol=1e-5 across DKVMN, LSTM, and Transformer encoders and
+CPU step latencies of 7 to 38 ms at t=200, all under budget. M2 built
+JobTower, RetrievalIndex, and the pool-registration helper, with a
+50-occupation pool-swap smoke test confirming pool-agnostic operation.
+M3 produced the v1 synthetic generator with the mixed K questionnaire
+bank and engagement mixture. M4-RL on `feat/v2-simulator-delta-j`
+replaces v1 with a continuous-delta_j composite, K=5 ordinal responses,
+removes the engagement mixture, and bumps N to 100k.
+
+Preliminary results on the v1 synthetic cohort (sim_v1_dev, N=500).
+
+| Metric | Value |
+|---|---|
+| Theta recovery (recovery preset N=5000, EAP on true items) | Pearson r = 0.978, RMSE = 0.207 |
+| Theta recovery (dev preset N=500) | Pearson r = 0.975, RMSE = 0.224 |
+| Overall like rate | 0.202 (target 0.20) |
+| Engaged users mean like rate | 0.337 |
+| O\*NET embedding mean pairwise cosine (d=64) | 0.64 |
+| RIASEC primary silhouette | 0.18 |
+| Work-zone silhouette | 0.32 |
+
+Recommender baselines, Hit@10 over 57 held-out evaluable users from a
+100-user test split, with 500-bootstrap CIs.
+
+| Baseline | Hit@10 |
+|---|---|
+| Random | 0.070 [0.018, 0.140] |
+| Popularity (train likes) | 0.263 [0.140, 0.378] |
+| 1D theta-true match (Bayes oracle) | 0.158 [0.070, 0.263] |
+| 1D theta-hat match (realistic) | 0.158 [0.070, 0.263] |
+
+The headline figure at `rl/results/v1/plots/headline_v1.png` shows the
+recovery scatter, the baseline bar chart, the like distribution by
+engagement class, and the O\*NET UMAP colored by RIASEC primary code.
+
+## V1 finding, the 4-valued delta_j artifact
+
+The v1 simulator computed `delta_j` as z-scored `work_zone` alone.
+O\*NET work_zone takes 4 distinct integer values across the 923-job
+pool (zones 2 through 5). The preference function
+`P(like | u, j) = sigmoid(lambda * (theta_u - delta_j) + bias)`
+therefore collapses to 4 distinct score values for any user. Both the
+oracle and the realistic theta-hat baselines pick the same equivalence
+class (lowest delta_j, highest score) and tie-break uniformly at
+random. Popularity exploits its deterministic tie-breaking. The
+popularity-versus-oracle gap of 0.105 absolute is a tie-breaking
+artifact, not a measurement of policy quality. The CIs overlap. This
+diagnosis directly motivates M4-RL.
+
+## V2 design and the M4-RL milestone
+
+The v2 simulator replaces work_zone with a continuous composite,
+
+```
+delta_j = 0.45 * z(work_zone)
+        + 0.35 * z(education_zscore)
+        + 0.20 * z(complexity_composite)
+        + epsilon, epsilon ~ N(0, 0.30) at fixed seed
+```
+
+where `complexity_composite` is the mean z-score across the O\*NET
+work_activities importance fields. The target is at least 900 unique
+delta_j values across the 923-job pool, standard deviation in
+[0.9, 1.1], and a 1D Bayes-oracle Hit@10 above 0.40 (versus v1's 0.158).
+The engagement mixture is removed and replaced by a per-user
+heterogeneity term `lambda_u ~ LogNormal(log 1.5, 0.4)`. Responses
+become K=5 GPCM ordinal observations
+`y ~ GPCM(lambda_u * theta - delta_j, beta)` with fixed step thresholds
+`beta = (-1.5, -0.5, 0.5, 1.5)`. Backward-compatible binary
+`IsLiked = 1[y >= 3]` is preserved. ItemTower is renamed JobTower
+across `rl/`.
+
+The policy is PPO (Schulman et al. 2017) with behavioral cloning
+warm-start from a 50/30/20 mixture of max-Fisher, ReflectionLayer-greedy,
+and Thompson-sampling rollouts. The reward function decomposes into
+four pieces.
+
+```
+r_t = (phi(s_t) - phi(s_{t-1}))                      potential shaping
+    - c_ask * 1[a_t = ask]                           ask cost
+    - c_exposure * max(0, rate(q_t) - r_max) * 1[ask] exposure penalty
+    + 1[t = T] * (w_sl * r_SlateLift + w_pp * r_PPLL) terminal anchor
+
+phi(s_t) = -0.5 * log(2 * pi * e * sigma_t^2)         capped at sigma_floor
+r_SlateLift = U_sim(TopK_10(theta_hat_T)) - U_sim(TopK_10(theta_hat_0))
+              under the simulator's hidden p_sim_like
+r_PPLL = mean log P_GPCM(y_j_sim | theta_hat_T) over a session-fresh
+              held-out probe set Probe_u of 20 jobs
+```
+
+with weights `w_sl = 1.0, w_pp = 0.5, c_ask = 0.02, c_exposure = 0.5,
+r_max = 0.20, sigma_floor = 0.15`, all reward components normalized by
+RunningMeanStd on the first 1000 rollouts then frozen. The state is a
+96-dim vector concatenating `(theta_hat_t, log sigma_t, joint summary,
+used-mask sketch, exposure-tally sketch, t/T, n_asked, n_likes,
+n_dislikes)`. The action space is discrete of size 925 (923 ask actions
+masked by no-repeat, probe-leakage, exposure-cap, plus recommend, plus
+terminate). Horizon T_max = 30 with policy-initiated early termination,
+gamma = 0.99, GAE lambda = 0.95.
 
 ## Theoretical position
 
-This is not classical CAT with an RL wrapper. Greedy maximum-Fisher selection is Bayes-optimal only when the per-step ask cost is zero and the terminal objective decomposes additively over items. A strict c_ask=0.02 and a terminal slate-lift that depends on the full posterior at horizon T break both conditions. The optimal policy must trade immediate information gain against the marginal value of the asked item to the final slate, a non-myopic decision with no closed-form greedy solution. Multi-step credit assignment therefore has real work to do. The claim regime is bounded to synthetic data. Sim-to-real transfer to real labor-market interaction is flagged for future work.
+This is not classical CAT with an RL wrapper. Greedy maximum-Fisher
+selection is Bayes-optimal only when the per-step ask cost is zero and
+the terminal objective decomposes additively over items. Both
+conditions are violated. A strictly positive `c_ask = 0.02` makes
+asking marginal items strictly suboptimal once their information return
+falls below the cost. The terminal slate-lift depends on the full
+posterior at horizon T, not on any per-item contribution, so the
+optimal trajectory requires non-myopic credit assignment. The
+potential-shaping term is policy-invariant by the Ng, Harada, Russell
+(1999) theorem, so it densifies gradients without biasing the optimum.
+The slate-lift term depends on the simulator's hidden true preference
+function (parametrized by `theta_true_u` and the continuous `delta_j`
+field), which the policy never observes, breaking circularity. The
+predictive-log-likelihood probe uses fresh per-session jobs masked from
+the candidate pool, so the policy cannot inflate it by self-consistency.
+The claim regime is bounded to synthetic data. Sim-to-real transfer is
+flagged for future work.
+
+## Roadmap
+
+| Label | Scope | Status |
+|---|---|---|
+| M4-RL | v2 simulator, continuous delta_j, K=5, no engagement, JobTower rename | merged on main, prelim eval in flight |
+| M5-RL | StudentEnv gym wrapper with reward harness and probe sampling | next |
+| M6-RL | BC warm-start, heuristic ensemble teachers | sequential |
+| M7-RL | PPO trainer, 100k-user run, ablations on each reward component | sequential, ~6 GPU hours |
+| M8-RL | DecisionController integration, end-to-end Pareto eval on (Hit@10, session length, exposure entropy) | final |
 
 ## Risks and open questions
 
-- Reward magnitude drift between the per-step potential and the terminal slate-lift may cause one term to dominate. We will monitor returns decomposition during PPO updates and rescale via r_max clipping.
-- Simulator-policy collusion. The probe set must be held out from both the candidate pool and the MA-IRT update, otherwise the policy can self-confirm through the probe.
-- Greedy maximum-Fisher and ReflectionLayer-greedy baselines may tie PPO at low ask budgets. We need budget-stratified evaluation to expose the multi-step advantage.
-- External validity. All headroom claims are conditional on the v2 simulator's preference field, not on real user behavior.
+- **Reward magnitude drift.** The potential-shaping signal collapses as
+  the posterior tightens (`sigma_t` approaches `sigma_floor`). The
+  terminal anchor must dominate at termination. Per-component
+  RunningMeanStd standardization is the mitigation, with a hard
+  constraint that no component exceeds 70 percent or falls under 5
+  percent of absolute reward in expectation.
+- **Simulator-policy collusion.** The probe set must be held out from
+  both the candidate pool and the ma-irt update. A runtime assertion in
+  StudentEnv enforces this; a unit test in M5-RL asserts that random
+  rollouts never select a probe job.
+- **Greedy max-Fisher tying PPO on Hit@10 alone.** If `c_ask` ends up
+  being the only thing making PPO beat MFI, the DRL contribution
+  narrows to "cost-aware stopping". The eval reports Pareto
+  performance over (Hit@10, session length, exposure entropy) jointly.
+- **External validity.** All headroom claims are conditional on the v2
+  simulator's preference field, not on real user behavior. Cross-
+  simulator robustness (train inside DKVMN-based ma-irt, evaluate
+  inside Transformer-based ma-irt) is the v2 integrity check.
 
 ## References
 
-Lindley, D. V. (1956). On a measure of the information provided by an experiment. *Annals of Mathematical Statistics*.
+Bassen, J. et al. (2020). Reinforcement learning for the adaptive
+scheduling of educational activities. *CHI*.
 
-Lord, F. M. (1980). *Applications of Item Response Theory to Practical Testing Problems*. Erlbaum.
+Lindley, D. V. (1956). On a measure of the information provided by
+an experiment. *Annals of Mathematical Statistics*.
 
-Ng, A. Y., Harada, D., and Russell, S. (1999). Policy invariance under reward transformations. *ICML*.
+Lord, F. M. (1980). *Applications of Item Response Theory to Practical
+Testing Problems*. Erlbaum.
 
-Owen, R. J. (1975). A Bayesian sequential procedure for quantal response. *JASA*.
+Muraki, E. (1992). A generalized partial credit model. *Applied
+Psychological Measurement* 16(2), 159 to 176.
 
-Schulman, J., Wolski, F., Dhariwal, P., Radford, A., and Klimov, O. (2017). Proximal Policy Optimization Algorithms. *arXiv:1707.06347*.
+Ng, A. Y., Harada, D., and Russell, S. (1999). Policy invariance under
+reward transformations. *ICML*.
 
-Bassen, J. et al. (2020). Reinforcement learning for the adaptive scheduling of educational activities. *CHI*.
+Owen, R. J. (1975). A Bayesian sequential procedure for quantal
+response. *JASA*.
+
+Schulman, J., Wolski, F., Dhariwal, P., Radford, A., and Klimov, O.
+(2017). Proximal Policy Optimization Algorithms. *arXiv:1707.06347*.
+
+Sympson, J. B., and Hetter, R. D. (1985). Controlling item-exposure
+rates in computerized adaptive testing. *Proceedings of the Military
+Testing Association*.
