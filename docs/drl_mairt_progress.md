@@ -11,13 +11,15 @@ this file first and appends new entries.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-04
-- **Date last updated.** 2026-06-04 05:35
-- **Current state.** M0 complete on `main`. M1 implemented on
-  `feat/online-step-api`, awaiting user review before merge.
-- **Active branch.** `main` (M0, progress log). `feat/online-step-api`
-  carries the M1 work, six commits, tip `dd1d8bf`.
-- **Next milestone.** M1 merge after user review, then M2 and M3 fan
-  out in parallel from `main`.
+- **Date last updated.** 2026-06-04 07:30
+- **Current state.** M0, M2, M3 complete on `main` with a preliminary
+  results report. M1 implemented on `feat/online-step-api`, awaiting
+  user review before merge.
+- **Active branch.** `main` carries M0, M2, M3, and prelim
+  (tip `fb973eb`). `feat/online-step-api` carries the M1 work, six
+  commits, tip `dd1d8bf`.
+- **Next milestone.** M1 merge after user review, then M4
+  (UserTower + BeliefTracker + trained retrieval) on `main`.
 - **Eight locked decisions.** D1 subdir `deep-mirt/rl/`, D2 1D theta, D3 O*NET
   2024, D4 textless items, D5 binary ratings, D6 heuristic DecisionController,
   D7 replay simulator, D8 Option A preference model. See plan Section 2.
@@ -30,9 +32,9 @@ this file first and appends new entries.
 |---|---|---|---|---|---|
 | **M0**, spec lock + O*NET data prep | complete | `main` (`8a0cb4c`) | spec.md, `build_onet_pool.py`, `onet_v1.parquet` | met | `rl/` scaffold landed in `1c6386a`; planning docs and progress log landed in `8a0cb4c`. 9/9 rl tests pass. |
 | **M1**, ma-irt online step API | in_review | `feat/online-step-api` (`dd1d8bf`) | `EncoderDecoderModel.step`, `StepState`, `forward_with_state` per encoder, `compute_logits_from_state` per decoder, `freeze_irt`, `test_step_api.py`, `test_step_microbenchmark.py`, `step_api.md` | met | 13/13 parity tests pass to atol=1e-5 on DKVMN, LSTM, Transformer. 3/3 CPU latency budgets met (plan section 6.1). Full ma-irt suite: 150 passed, 12 skipped (pre-existing slow/artifact skips), 0 failed. Awaiting user review then merge to `main`. |
-| **M2**, rl/ skeleton + ItemTower + RetrievalIndex | blocked | `main` (downstream of M0) | `item_tower.py`, `index.py`, `pool.py`, `register_pool.py`, `onet_v1_embed.npy`, `test_retrieval.py` | not met | Frozen BGE-small-en-v1.5 + Linear head; L2-norm at the head output. Pool-swap smoke test required. |
-| **M3**, synthetic data generator (Option A) | blocked | `main` (downstream of M0) | `synth_users.py`, `synth_likes.py`, `onet_pool_attach.py`, two YAML configs, `build_synthetic_dataset.py`, `test_synth_generator.py` | not met | Two presets, dev N=500 and recovery N=5000. All Section 5.5 sanity checks must pass at the recovery preset. |
-| **M4**, UserTower + BeliefTracker + trained retrieval | blocked | `main` | `tracker.py`, `user_tower.py`, `train_user_tower.py`, `user_tower_v1.pt` | not met | Blocked by M1, M2, M3. Target +20% Hit@10 over theta-only retrieval on held-out users. |
+| **M2**, rl/ skeleton + ItemTower + RetrievalIndex | complete | `main` (`98c07c9`) | `item_tower.py`, `index.py`, `pool.py`, `register_pool.py`, `onet_v1_embed.npy`, `test_retrieval.py` | met | Frozen BGE-small-en-v1.5 + 8-dim structured branch over (work_zone, education_zscore, weighted RIASEC), L2-norm at the head output. 9/9 retrieval tests pass, pool-swap smoke green. UMAP plus nearest neighbor spot checks live at `rl/results/v1/`. |
+| **M3**, synthetic data generator (Option A) | complete | `main` (`2bff5ae`) | `synth_users.py`, `synth_likes.py`, `onet_pool_attach.py`, two YAML configs, `build_synthetic_dataset.py`, `test_synth_generator.py` | met | Two presets, dev N=500 and recovery N=5000. EAP theta recovery on true items hits r=0.978 RMSE=0.207 at recovery and r=0.975 RMSE=0.224 at dev. Like rate lands at 0.202 (target 0.20). 16/16 synth generator tests pass. |
+| **M4**, UserTower + BeliefTracker + trained retrieval | next | `main` | `tracker.py`, `user_tower.py`, `train_user_tower.py`, `user_tower_v1.pt` | not met | Hit@10 floor 0.263 (popularity), 1D oracle ceiling 0.158 on v1 sim. Unblocked. Target +20% over popularity on held-out users. |
 | **M5**, policy + service + E2E smoke | blocked | `main` | `fisher_selector.py`, `reflection.py`, `heuristic.py` controller, `app.py`, four test files | not met | Blocked by M4. E2E test drives one student through respond/rate/stop. |
 | **M6**, evaluation harness + headline plots | blocked | `main` | three `eval_*.py` scripts, `RESULTS.md`, plots | not met | Blocked by M5. Three buckets per plan Section 9, sensitivity sweep on five DecisionController thresholds. |
 
@@ -75,6 +77,32 @@ three. M5 follows M4. M6 closes the v1 cycle.
 
 Reverse chronological. Most recent entry first.
 
+- **2026-06-04 07:30.** M2 and M3 land on `main` together with a
+  preliminary results report. Four commits total. `98c07c9` is the
+  M2 retrieval pillar, `rl/src/irtrec/retrieval/{pool,item_tower,
+  index}.py` plus `register_pool.py` and `test_retrieval.py`, frozen
+  BGE-small-en-v1.5 with an 8-dim structured branch over work_zone,
+  education_zscore, and a weighted RIASEC code, output L2-normalised,
+  precomputed v_j for the 923 occupation O*NET pool persisted to
+  `rl/artifacts/onet_v1_embed.npy` (gitignored). `2bff5ae` is the M3
+  synthetic data generator, mixed 2PL plus GPCM bank (25 K=2, 15 K=3,
+  8 K=5, 2 K=6), Option A preference model with lambda and bias
+  calibrated by bisection to a target overall like rate of 0.20, two
+  presets at `rl/configs/sim_v1_{dev,recovery}.yaml` for N=500 and
+  N=5000. `fb973eb` is the prelim results commit. UMAP of the 923
+  O*NET embeddings, theta recovery diagnostics, like rate by
+  engagement class, K distribution, delta_j distribution, plus a
+  four baseline recommender comparison (random, popularity,
+  theta-true 1D, theta-hat 1D) under an 80/20 user split with 500
+  bootstrap CIs. M2 retrieval tests 9/9 pass, M3 synth tests 16/16
+  pass. Headline preliminary numbers, EAP theta r=0.978 RMSE=0.207
+  at recovery preset, like rate 0.202 (target 0.20), Hit@10 random
+  0.070, popularity 0.263, theta-true 1D oracle 0.158, theta-hat 1D
+  0.158. Popularity beats both 1D matchers, an artefact of the v1
+  simulator's 4-valued delta_j (work_zone driven) on a 923 item pool
+  rather than a flaw in theta recovery. Implication for M4, the
+  trained UserTower must clear Hit@10 = 0.263 (popularity) to claim
+  value and must leave the single ability axis to do so.
 - **2026-06-04 05:35.** M1 work-in-progress on `feat/online-step-api`,
   branch tip `dd1d8bf`. Six commits land the online step API end to
   end. The encoder ABC gains `forward_with_state`, implemented for
@@ -120,8 +148,8 @@ the test runs and asserts the documented behavior.
 |---|---|---|---|
 | `ma-irt/tests/test_step_api.py` | M1 | Iterated `step()` parity vs batched `forward()` to atol=1e-5 on logits/probs/theta/alpha/beta, initial-state sigma equals prior, freeze_irt grad toggling, item_log accumulation, DKVMN value-memory mutation. 13 parametrized cases across DKVMN, LSTM, Transformer. | passing on `feat/online-step-api` (13/13) |
 | `ma-irt/tests/test_step_microbenchmark.py` | M1 | CPU per-step latency at t=200 under budgets DKVMN <20ms, LSTM <10ms, Transformer <40ms. Marked `@pytest.mark.benchmark`. | passing on `feat/online-step-api` (3/3) |
-| `rl/tests/test_retrieval.py` | M2 | Cosine retrieval correctness on toy vectors; mask correctness; top-K determinism; reproducible retrieval over a fixed pool; pool-swap smoke (100-occupation fake pool returns sane top-K with no head retrain). | not yet implemented |
-| `rl/tests/test_synth_generator.py` | M3 | All Section 5.5 sanity checks (`corr(theta_hat, theta_true) > 0.85` at recovery preset, like rate within +/-0.02 of target, engagement class shares within +/-0.02, work_zone in [1,5], per-user response count >= 30, byte-identical reruns at fixed seed). | not yet implemented |
+| `rl/tests/test_retrieval.py` | M2 | Pool schema load, attach_text format, education mask invariant, ItemTower output L2-normalised, text encoder is frozen, top-K determinism over a fixed pool, top-K respects mask, input validation, pool-swap round trip on a 50 occupation fake pool. 9 cases. | passing on `main` (9/9) |
+| `rl/tests/test_synth_generator.py` | M3 | All Section 5.5 sanity checks. Schema files exist, sequences/jobs/likes/true_irt_parameters/true_preference_parameters/metadata schemas, byte-identical reruns at fixed seed, like rate within +/-0.02 of target, engagement class shares within +/-0.02, K distribution matches config, per-user response count >= 30, finite delta_j, rejecter users emit only zero likes, per-user candidate set sizes in the configured clip. 16 cases. | passing on `main` (16/16) |
 | `rl/tests/test_belief_tracker.py` | M4 | ma-irt `state_dict` byte-equal before and after 100 `on_rate` calls (ratings never reach ma-irt, Section 3.3 rule); debounce policy fires correctly on contrived theta and h_t trajectories. | not yet implemented |
 | `rl/tests/test_reflection_cap.py` | M5 | Adversarial dislike-every-recommendation trajectory does not collapse q_t to last v_j; cosine-shift cap at 0.2 fires; per-session reset clears prior likes. | not yet implemented |
 | `rl/tests/test_fisher_selector.py` | M5 | Toy IRT bank with known optimal items, MFI picks them at t>=5; KL-info cold-start fallback fires for t<5; randomesque exposure mask picks from top n=5. | not yet implemented |
