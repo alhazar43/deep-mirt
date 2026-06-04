@@ -168,3 +168,5 @@ rl/artifacts/*.pt
 rl/artifacts/*.bin
 rl/results/*/data/
 !rl/results/v1/plots/
+rl/data/
+
