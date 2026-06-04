@@ -2,6 +2,22 @@
 
 ## Generated 2026-06-04
 
+## Headline summary
+
+![Headline](plots/headline_v1.png)
+
+Three takeaways from the M2 + M3 + baseline run on the synthetic v1 cohort.
+
+1. **Theta recovery is excellent and not the bottleneck.** EAP on true items hits Pearson r 0.978 and RMSE 0.207 at the recovery preset (N=5000), comfortably above the > 0.85 target. The 1D theta-true oracle and the realistic theta-hat collapse to identical Hit@10 (0.158), so going from MLE to MAP to deep IRT buys nothing on this preset. Whatever M4 wins, it does not win from better ability estimation.
+
+2. **Popularity beats 1D theta matching by a wide margin.** Popularity reaches Hit@10 = 0.263 against the 1D-matching ceiling of 0.158. This is structural rather than methodological. The v1 simulator's `delta_j` is z-scored `work_zone` and `work_zone` takes only 4 distinct values across the 923 O\*NET occupations (zones 2-5). Any 1D scorer therefore partitions the pool into 4 equivalence classes and within each class the order is uniform random. Popularity exploits the unevenness across classes and wins.
+
+3. **M4 must beat Hit@10 = 0.263 by leaving the 1D axis.** The trained UserTower has to extract signal beyond ability matching. The intended mechanism is the full O\*NET text-and-structured embedding (M2) interacting with sequence-level user history (the encoder hidden h_t), driving the score above the popularity floor. The 0.158 oracle stays as the credible 1D ceiling; anything between 0.158 and 0.263 is a within-bucket reranking that has not actually used the multi-dim job geometry.
+
+A v2 simulator with a continuous text-driven `delta_j` and higher `lambda` would lift the 1D oracle above popularity and make ablations cleaner to read. It is queued behind M4 rather than blocking it, because beating popularity is the bar regardless of simulator version.
+
+Per-figure summary panels above show, clockwise from top-left, theta recovery (sim_v1_recovery N=5000), recommender baselines with bootstrap CIs (sim_v1_dev, 57 evaluable held-out users), O\*NET embedding UMAP colored by RIASEC primary, and the per-user like rate split by engagement class.
+
 ## M2 + M3 Validation
 
 M2 ItemTower embedding analysis.

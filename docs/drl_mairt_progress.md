@@ -11,12 +11,13 @@ this file first and appends new entries.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-04
-- **Date last updated.** 2026-06-04 07:30
+- **Date last updated.** 2026-06-04 08:00
 - **Current state.** M0, M2, M3 complete on `main` with a preliminary
-  results report. M1 implemented on `feat/online-step-api`, awaiting
-  user review before merge.
-- **Active branch.** `main` carries M0, M2, M3, and prelim
-  (tip `fb973eb`). `feat/online-step-api` carries the M1 work, six
+  results report plus a headline synthesis figure
+  (`rl/results/v1/plots/headline_v1.png`). M1 implemented on
+  `feat/online-step-api`, awaiting user review before merge.
+- **Active branch.** `main` carries M0, M2, M3, prelim, and the
+  headline append. `feat/online-step-api` carries the M1 work, six
   commits, tip `dd1d8bf`.
 - **Next milestone.** M1 merge after user review, then M4
   (UserTower + BeliefTracker + trained retrieval) on `main`.
