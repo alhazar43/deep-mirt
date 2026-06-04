@@ -158,6 +158,61 @@ masked by no-repeat, probe-leakage, exposure-cap, plus recommend, plus
 terminate). Horizon T_max = 30 with policy-initiated early termination,
 gamma = 0.99, GAE lambda = 0.95.
 
+## Preliminary v2 results
+
+The M4-RL prelim experiment (workflow `waawjc9wt`) validated the
+continuous-`delta_j` simulator on a 2000-user dev cohort (1600 train,
+400 test, 356 evaluable held-out users with at least one positive). The
+diagnostic gate passed.
+
+| Quantity | v1 (sim_v1_dev) | v2 (sim_v2_dev) | Change |
+|---|---|---|---|
+| Unique `delta_j` values | 4 (of 923 jobs) | **923 (of 923 jobs)** | continuous |
+| `delta_j` standard deviation | 1.0 | 1.0 | preserved |
+| `delta_j` range | discrete bands | [-2.16, 2.58] | non-degenerate |
+| Theta recovery Pearson r | 0.975 | 0.974 | preserved |
+| Theta recovery RMSE | 0.224 | 0.222 | preserved |
+| Overall IsLiked rate | 0.20 | 0.39 | denser positive signal |
+| Hit@10, random | 0.070 | 0.157 | higher density of positives in larger candidate sets |
+| Hit@10, popularity | 0.263 | 0.236 | popularity drops as likes spread across heterogeneous `lambda_u` |
+| **Hit@10, 1D oracle (theta-true)** | **0.158** | **0.261** | **1.65x lift, expected ordering restored** |
+| Hit@10, theta-hat (realistic) | 0.158 | 0.261 | ties oracle, EAP recovery is precise |
+
+The headline reversal is that the v1 anomaly (popularity beats 1D
+oracle at Hit@10) is **gone in v2**. Oracle (0.261) now sits above
+popularity (0.236), random (0.157), and the difference is preserved
+under bootstrap (the oracle and theta-hat 95 percent CIs are
+[0.219, 0.305] versus popularity's [0.194, 0.278], with limited
+overlap). The continuous `delta_j` composite gives each user a 923-way
+ranked pool instead of 4 tied equivalence classes, so 1D matching has
+actual granularity to discriminate and the oracle-versus-popularity
+ordering becomes diagnostic again.
+
+EAP theta recovery on the K=5 GPCM responses against the true
+`delta_j` and `lambda_u` gives r = 0.974 RMSE = 0.222, essentially
+identical to v1's r = 0.975 despite the swap from a binary sigmoid to
+a per-user-discrimination GPCM with five ordinal categories. The K=5
+response distribution is well-balanced (category counts roughly
+15.5k/14.6k/15.0k/14.2k/14.8k across the 74k administered items).
+
+Plots at `rl/results/v2/plots/`.
+
+- `m4rl_delta_j_distribution.png`, the continuous distribution
+  versus the v1 4-bucket staircase.
+- `m4rl_theta_recovery.png`, EAP recovery scatter on v2 GPCM
+  responses.
+- `m4rl_baselines.png`, Hit@10 with bootstrap CIs on the four
+  baselines.
+- `m4rl_v1_vs_v2_baselines.png`, side-by-side comparison.
+- `m4rl_response_distribution.png`, K=5 category histogram.
+
+Implication for M5-RL. The trained UserTower must clear
+**Hit@10 = 0.261** (v2 1D oracle) on held-out users to claim
+contribution. Any headroom above that ceiling must come from
+multi-dimensional matching against the JobTower embedding plus
+sequence-level encoder history plus per-user `lambda_u` heterogeneity,
+none of which a scalar `delta_j` 1D matcher can use.
+
 ## Mathematical formulation
 
 ### Item response model
