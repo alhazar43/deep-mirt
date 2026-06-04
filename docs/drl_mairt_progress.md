@@ -12,7 +12,7 @@ this file first and appends new entries.
 
 - **Date created.** 2026-06-04
 - **Date last updated.** 2026-06-04
-- **Current state.** M0 in progress
+- **Current state.** M0 complete, committed at `8a0cb4c`
 - **Active branch.** `main` (M0 work), `feat/online-step-api` forthcoming for M1
 - **Next milestone.** M1, ma-irt online step API
 - **Eight locked decisions.** D1 subdir `deep-mirt/rl/`, D2 1D theta, D3 O*NET
@@ -25,8 +25,8 @@ this file first and appends new entries.
 
 | Milestone | Status | Branch | Tasks | DoD status | Notes |
 |---|---|---|---|---|---|
-| **M0**, spec lock + O*NET data prep | in_progress | `main` | spec.md, `build_onet_pool.py`, `onet_v1.parquet` | not met | First step is scaffolding `rl/` per plan Section 12, then ingesting the 2024 O*NET release. |
-| **M1**, ma-irt online step API | blocked | `feat/online-step-api` (to be created) | `EncoderDecoderModel.step`, `StepState`, `forward_with_state` per encoder, `compute_logits_from_state` per decoder, `freeze_irt`, `test_step_api.py`, `step_api.md` | not met | Critical-path PR. Single load-bearing prerequisite for M4 onward. Parity to atol=1e-5 and latency budgets per plan Section 6.1. |
+| **M0**, spec lock + O*NET data prep | complete | `main` (`8a0cb4c`) | spec.md, `build_onet_pool.py`, `onet_v1.parquet` | met | `rl/` scaffold landed in `1c6386a`; planning docs and progress log landed in `8a0cb4c`. 9/9 rl tests pass. |
+| **M1**, ma-irt online step API | ready | `feat/online-step-api` (to be created) | `EncoderDecoderModel.step`, `StepState`, `forward_with_state` per encoder, `compute_logits_from_state` per decoder, `freeze_irt`, `test_step_api.py`, `step_api.md` | not met | Critical-path PR. Single load-bearing prerequisite for M4 onward. Parity to atol=1e-5 and latency budgets per plan Section 6.1. |
 | **M2**, rl/ skeleton + ItemTower + RetrievalIndex | blocked | `main` (downstream of M0) | `item_tower.py`, `index.py`, `pool.py`, `register_pool.py`, `onet_v1_embed.npy`, `test_retrieval.py` | not met | Frozen BGE-small-en-v1.5 + Linear head; L2-norm at the head output. Pool-swap smoke test required. |
 | **M3**, synthetic data generator (Option A) | blocked | `main` (downstream of M0) | `synth_users.py`, `synth_likes.py`, `onet_pool_attach.py`, two YAML configs, `build_synthetic_dataset.py`, `test_synth_generator.py` | not met | Two presets, dev N=500 and recovery N=5000. All Section 5.5 sanity checks must pass at the recovery preset. |
 | **M4**, UserTower + BeliefTracker + trained retrieval | blocked | `main` | `tracker.py`, `user_tower.py`, `train_user_tower.py`, `user_tower_v1.pt` | not met | Blocked by M1, M2, M3. Target +20% Hit@10 over theta-only retrieval on held-out users. |
@@ -72,6 +72,12 @@ three. M5 follows M4. M6 closes the v1 cycle.
 
 Reverse chronological. Most recent entry first.
 
+- **2026-06-04 05:15.** M0 committed at `8a0cb4c`. Planning docs
+  (plan v1, synthesis, evidence, track assessment, track
+  recommendation) and the progress log are now under version
+  control. The `rl/` scaffold and O*NET pool landed earlier in
+  commit `1c6386a`. Working tree is clean of DRL-MAIRT changes;
+  ready to branch `feat/online-step-api` for M1.
 - **2026-06-04.** Progress log initialized. See
   [`drl_mairt_plan_v1.md`](drl_mairt_plan_v1.md) for the full spec.
 - **2026-06-04.** Plan v1 locked. Eight decisions committed. See
