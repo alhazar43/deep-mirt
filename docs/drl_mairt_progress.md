@@ -11,10 +11,13 @@ this file first and appends new entries.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-04
-- **Date last updated.** 2026-06-04
-- **Current state.** M0 complete, committed at `8a0cb4c`
-- **Active branch.** `main` (M0 work), `feat/online-step-api` forthcoming for M1
-- **Next milestone.** M1, ma-irt online step API
+- **Date last updated.** 2026-06-04 05:35
+- **Current state.** M0 complete on `main`. M1 implemented on
+  `feat/online-step-api`, awaiting user review before merge.
+- **Active branch.** `main` (M0, progress log). `feat/online-step-api`
+  carries the M1 work, six commits, tip `dd1d8bf`.
+- **Next milestone.** M1 merge after user review, then M2 and M3 fan
+  out in parallel from `main`.
 - **Eight locked decisions.** D1 subdir `deep-mirt/rl/`, D2 1D theta, D3 O*NET
   2024, D4 textless items, D5 binary ratings, D6 heuristic DecisionController,
   D7 replay simulator, D8 Option A preference model. See plan Section 2.
@@ -26,7 +29,7 @@ this file first and appends new entries.
 | Milestone | Status | Branch | Tasks | DoD status | Notes |
 |---|---|---|---|---|---|
 | **M0**, spec lock + O*NET data prep | complete | `main` (`8a0cb4c`) | spec.md, `build_onet_pool.py`, `onet_v1.parquet` | met | `rl/` scaffold landed in `1c6386a`; planning docs and progress log landed in `8a0cb4c`. 9/9 rl tests pass. |
-| **M1**, ma-irt online step API | ready | `feat/online-step-api` (to be created) | `EncoderDecoderModel.step`, `StepState`, `forward_with_state` per encoder, `compute_logits_from_state` per decoder, `freeze_irt`, `test_step_api.py`, `step_api.md` | not met | Critical-path PR. Single load-bearing prerequisite for M4 onward. Parity to atol=1e-5 and latency budgets per plan Section 6.1. |
+| **M1**, ma-irt online step API | in_review | `feat/online-step-api` (`dd1d8bf`) | `EncoderDecoderModel.step`, `StepState`, `forward_with_state` per encoder, `compute_logits_from_state` per decoder, `freeze_irt`, `test_step_api.py`, `test_step_microbenchmark.py`, `step_api.md` | met | 13/13 parity tests pass to atol=1e-5 on DKVMN, LSTM, Transformer. 3/3 CPU latency budgets met (plan section 6.1). Full ma-irt suite: 150 passed, 12 skipped (pre-existing slow/artifact skips), 0 failed. Awaiting user review then merge to `main`. |
 | **M2**, rl/ skeleton + ItemTower + RetrievalIndex | blocked | `main` (downstream of M0) | `item_tower.py`, `index.py`, `pool.py`, `register_pool.py`, `onet_v1_embed.npy`, `test_retrieval.py` | not met | Frozen BGE-small-en-v1.5 + Linear head; L2-norm at the head output. Pool-swap smoke test required. |
 | **M3**, synthetic data generator (Option A) | blocked | `main` (downstream of M0) | `synth_users.py`, `synth_likes.py`, `onet_pool_attach.py`, two YAML configs, `build_synthetic_dataset.py`, `test_synth_generator.py` | not met | Two presets, dev N=500 and recovery N=5000. All Section 5.5 sanity checks must pass at the recovery preset. |
 | **M4**, UserTower + BeliefTracker + trained retrieval | blocked | `main` | `tracker.py`, `user_tower.py`, `train_user_tower.py`, `user_tower_v1.pt` | not met | Blocked by M1, M2, M3. Target +20% Hit@10 over theta-only retrieval on held-out users. |
@@ -72,6 +75,27 @@ three. M5 follows M4. M6 closes the v1 cycle.
 
 Reverse chronological. Most recent entry first.
 
+- **2026-06-04 05:35.** M1 work-in-progress on `feat/online-step-api`,
+  branch tip `dd1d8bf`. Six commits land the online step API end to
+  end. The encoder ABC gains `forward_with_state`, implemented for
+  DKVMN, LSTM, and Transformer. The decoder ABC gains
+  `compute_logits_from_state` (default delegates to `forward`) and
+  `irt_parameters()` overrides for GPCM and Rasch.
+  `EncoderDecoderModel.step(item_id, response, state, sigma_prior)`
+  drives the encoder plus decoder for one timestep and returns a
+  fresh `StepState` carrying theta_t, sigma_t, the encoder carry,
+  the running alpha_log and beta_log, and the item_log audit trail.
+  Sigma_t is computed via observed Fisher
+  (`gpcm_observed_fisher` in `components/irt.py`) so each step costs
+  O(1) rather than O(t). `freeze_irt(flag)` flips requires_grad on
+  decoder IRT sub-networks only. Spec doc at
+  `ma-irt/docs/step_api.md`. Tests: 13 parity assertions in
+  `tests/test_step_api.py` (theta, alpha, beta, logits, probs match
+  batched forward to atol=1e-5 across all three encoders; sigma at
+  init is prior std; freeze_irt toggles grads; item_log accumulates;
+  DKVMN value memory mutates). All pass. CPU latency at t=200 in
+  `tests/test_step_microbenchmark.py` is well inside budgets
+  (DKVMN <20ms, LSTM <10ms, Transformer <40ms). All pass.
 - **2026-06-04 05:15.** M0 committed at `8a0cb4c`. Planning docs
   (plan v1, synthesis, evidence, track assessment, track
   recommendation) and the progress log are now under version
@@ -94,7 +118,8 @@ the test runs and asserts the documented behavior.
 
 | Test file | Milestone | Coverage | Status |
 |---|---|---|---|
-| `ma-irt/tests/test_step_api.py` | M1 | Iterated `step()` parity vs batched `forward()` to atol=1e-5 on logits, probs, theta, alpha, beta; CPU per-step latency budgets (DKVMN <20ms, LSTM <10ms, Transformer <40ms at t=200). | not yet implemented |
+| `ma-irt/tests/test_step_api.py` | M1 | Iterated `step()` parity vs batched `forward()` to atol=1e-5 on logits/probs/theta/alpha/beta, initial-state sigma equals prior, freeze_irt grad toggling, item_log accumulation, DKVMN value-memory mutation. 13 parametrized cases across DKVMN, LSTM, Transformer. | passing on `feat/online-step-api` (13/13) |
+| `ma-irt/tests/test_step_microbenchmark.py` | M1 | CPU per-step latency at t=200 under budgets DKVMN <20ms, LSTM <10ms, Transformer <40ms. Marked `@pytest.mark.benchmark`. | passing on `feat/online-step-api` (3/3) |
 | `rl/tests/test_retrieval.py` | M2 | Cosine retrieval correctness on toy vectors; mask correctness; top-K determinism; reproducible retrieval over a fixed pool; pool-swap smoke (100-occupation fake pool returns sane top-K with no head retrain). | not yet implemented |
 | `rl/tests/test_synth_generator.py` | M3 | All Section 5.5 sanity checks (`corr(theta_hat, theta_true) > 0.85` at recovery preset, like rate within +/-0.02 of target, engagement class shares within +/-0.02, work_zone in [1,5], per-user response count >= 30, byte-identical reruns at fixed seed). | not yet implemented |
 | `rl/tests/test_belief_tracker.py` | M4 | ma-irt `state_dict` byte-equal before and after 100 `on_rate` calls (ratings never reach ma-irt, Section 3.3 rule); debounce policy fires correctly on contrived theta and h_t trajectories. | not yet implemented |
@@ -113,7 +138,27 @@ become useful and tracked here as a single "rl smoke" row.
 
 ## 5. Known issues and open decisions
 
-*Empty at initialization.* Populated as M0+ work surfaces them.
+- **Open decision, M1.** Transformer `forward_with_state` uses
+  prefix-recompute over the accumulated `v_history` and
+  `q_signal_history`. Parity to the batched forward is by construction
+  but per-step cost is O(t), per-session cost O(T^2). The plan section
+  6.1 latency budget at t=200 is met empirically on CPU. A true
+  KV-cache implementation drops the constant factor but requires a
+  custom attention layer that exposes the cache. Deferred to v2 once
+  the latency budget is load-bearing at higher T or on real users.
+- **Open decision, M1.** Sigma_t assumes D=1. Multidimensional Fisher
+  information at theta is a v2 concern (plan section 10.5), aligned
+  with locked decision D2 (1D theta in v1).
+- **Limitation, M1.** Encoders without `forward_with_state`
+  (currently `dkt_gru`) raise `NotImplementedError` from the Encoder
+  ABC default. Add the method per encoder as the recommender takes on
+  new backbones. The three encoders supported by M1 (DKVMN, LSTM,
+  Transformer) cover all paper-equivalent configurations.
+- **Limitation, M1.** Decoders without IRT parameters (binary,
+  softmax) return `theta_t=0`, `sigma_t=inf`, empty `alpha_log` and
+  `beta_log`. Logits and probs are still populated; IRT fields are
+  placeholders. The DRL-MAIRT recommender uses GPCM, so this does not
+  affect the v1 path.
 
 Expected categories.
 
