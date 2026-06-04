@@ -158,25 +158,164 @@ masked by no-repeat, probe-leakage, exposure-cap, plus recommend, plus
 terminate). Horizon T_max = 30 with policy-initiated early termination,
 gamma = 0.99, GAE lambda = 0.95.
 
+## Mathematical formulation
+
+### Item response model
+
+Every questionnaire item j is parameterized by a discrimination
+`alpha_j > 0` and `K - 1 = 4` ordered step thresholds
+`beta_j = (beta_{j,1}, ..., beta_{j,4})`. Given a learner ability
+`theta`, the probability that the response `y in {0, 1, ..., 4}` lands
+in category k under the generalized partial credit model (Muraki 1992)
+is
+
+```
+                exp( sum_{m=1..k} alpha_j (theta - beta_{j,m}) )
+P(y = k | theta, alpha_j, beta_j) = --------------------------------------
+                sum_{l=0..4} exp( sum_{m=1..l} alpha_j (theta - beta_{j,m}) )
+```
+
+with the empty inner sum equal to zero by convention so that category 0
+has probability 1 over the denominator.
+
+### Posterior on theta and observed Fisher information
+
+Under a Gaussian prior `theta ~ N(0, 1)` and the GPCM likelihood, the
+posterior on theta given a response history `H_t = ((j_1, y_1), ...,
+(j_t, y_t))` admits a Laplace approximation at the maximum a posteriori
+estimate `theta_hat_t`. The observed Fisher information at theta_hat_t
+is
+
+```
+I(theta_hat_t) = sum_{s=1..t} alpha_{j_s}^2 * Var(Y_{j_s} | theta_hat_t)
+```
+
+where `Var(Y | theta)` is the category-response variance for the GPCM.
+The posterior precision absorbing the unit Gaussian prior is
+`I(theta_hat_t) + 1`, and the Laplace posterior standard deviation
+emitted by the ma-irt step API is
+
+```
+sigma_t = 1 / sqrt( I(theta_hat_t) + 1 + jitter ),  jitter = 1e-6.
+```
+
+This is the quantity ma-irt's online step API returns alongside
+`theta_hat_t` and the encoder hidden `h_t`.
+
+### Preference field and slate utility
+
+In the v2 simulator, the latent like rate for user u on job j is the
+GPCM-implied tail probability of an ordinal response of 3 or 4,
+
+```
+p_sim_like(theta_u, j) = sum_{k=3..4} P(y = k | lambda_u * theta_u - delta_j, beta)
+                       = P_GPCM(y >= 3 | lambda_u theta_u, delta_j, beta).
+```
+
+The slate utility of a recommended set S of K = 10 jobs is
+
+```
+U_sim(S, theta_u) = (1 / |S|) * sum_{j in S} p_sim_like(theta_u, j).
+```
+
+The terminal slate-lift reward compares the policy's final slate to the
+slate that a system with no information about the user would construct,
+
+```
+r_SlateLift = U_sim( argtopK( q_phi(theta_hat_T, j) | j in pool ), theta_true_u )
+            - U_sim( argtopK( q_phi(theta_hat_0, j) | j in pool ), theta_true_u )
+```
+
+where `q_phi` is the policy's job-scoring head and `theta_true_u` is
+the simulator's hidden user parameter (never exposed to the policy).
+
+### MDP
+
+The decision process is `(S, A, P, R, gamma)` with
+
+```
+s_t = ( theta_hat_t, log sigma_t, joint_summary_t in R^64,
+        used_mask_sketch in R^16, exposure_tally_sketch in R^8,
+        t / T_max, n_asked, n_likes, n_dislikes,
+        log( sigma_t / sigma_0 ),
+        1[sigma_t < sigma_floor],
+        1[sigma_t < sigma_recommend_ceiling] ) in R^96
+```
+
+action space `A = {ask_1, ..., ask_923, recommend, terminate}` of size
+925, masked at runtime by no-repeat, probe-leakage, and exposure-cap
+indicator vectors. Transitions are deterministic given the simulator
+and the sampled ordinal response `y_t`. Horizon `T_max = 30` with
+policy-initiated early termination. Discount `gamma = 0.99`. The reward
+is the four-component sum given above.
+
+### PPO objective with shaping
+
+PPO optimizes a clipped surrogate over rollout minibatches,
+
+```
+L^{CLIP}(theta_pi) = E_t[ min( r_t(theta_pi) A_hat_t,
+                               clip(r_t(theta_pi), 1 - eps, 1 + eps) A_hat_t ) ]
+
+r_t(theta_pi) = pi_{theta_pi}(a_t | s_t) / pi_{theta_pi_old}(a_t | s_t)
+
+A_hat_t = sum_{l=0..L} (gamma * lambda)^l * delta_{t+l},
+          delta_t = R_t + gamma V(s_{t+1}) - V(s_t)
+```
+
+with clip eps = 0.2, GAE lambda = 0.95, gamma = 0.99. The total loss
+adds a value head term `L^{VF} = 0.5 * (V(s_t) - V_target_t)^2` clipped
+at the same eps, plus an entropy bonus `c_ent * H(pi)` annealed linearly
+from 0.01 to 0.0 over the first 50 percent of training, plus a KL
+early-stop trigger at 0.02.
+
+### Behavioral cloning warm-start
+
+Before any PPO update, the actor is trained for five epochs of
+behavioral cloning against an ensemble teacher
+`pi_teach = 0.5 * pi_MaxFisher + 0.3 * pi_Reflection + 0.2 * pi_Thompson`
+with the cross-entropy loss
+
+```
+L_BC = - E_{s ~ rho_pi_teach}[ sum_a pi_teach(a | s) * log pi_theta_pi(a | s) ]
+```
+
+over 50,000 teacher rollouts collected on the v2 simulator. The five
+epochs typically lift the BC actor to roughly 85 percent action-match
+agreement against the teacher on a held-out validation slice.
+
 ## Theoretical position
 
 This is not classical CAT with an RL wrapper. Greedy maximum-Fisher
 selection is Bayes-optimal only when the per-step ask cost is zero and
 the terminal objective decomposes additively over items. Both
 conditions are violated. A strictly positive `c_ask = 0.02` makes
-asking marginal items strictly suboptimal once their information return
-falls below the cost. The terminal slate-lift depends on the full
-posterior at horizon T, not on any per-item contribution, so the
-optimal trajectory requires non-myopic credit assignment. The
-potential-shaping term is policy-invariant by the Ng, Harada, Russell
-(1999) theorem, so it densifies gradients without biasing the optimum.
+asking marginal items strictly suboptimal once their per-step
+information return falls below the cost, which requires the policy to
+solve a stopping problem with no closed-form CAT solution.
+
+The potential-shaping term is policy-invariant by the Ng, Harada,
+Russell (1999) theorem. For any potential function `Phi : S -> R` and
+any policy pi, the optimal Q-function under the shaped reward
+`R' = R + gamma * Phi(s') - Phi(s)` satisfies
+`Q^*'(s, a) = Q^*(s, a) - Phi(s)`, so `argmax_a Q^*'(s, a) =
+argmax_a Q^*(s, a)`. We instantiate `Phi(s_t) = phi(s_t) =
+-0.5 * log(2 * pi * e * sigma_t^2)` (the negative differential entropy
+of the Laplace posterior) so the shaping signal is exactly the
+single-step information gain about theta. This densifies gradients
+without biasing the optimum.
+
 The slate-lift term depends on the simulator's hidden true preference
-function (parametrized by `theta_true_u` and the continuous `delta_j`
-field), which the policy never observes, breaking circularity. The
-predictive-log-likelihood probe uses fresh per-session jobs masked from
-the candidate pool, so the policy cannot inflate it by self-consistency.
-The claim regime is bounded to synthetic data. Sim-to-real transfer is
-flagged for future work.
+function parametrized by `theta_true_u` and the continuous `delta_j`
+field, which the policy never observes. The only way to maximize
+`r_SlateLift` is to drive `theta_hat_T` toward `theta_true_u` through
+informative item choices, breaking the closed-form circularity that
+killed the CaRReL design. The predictive log-likelihood probe `r_PPLL`
+uses fresh per-session jobs masked from the candidate pool, so the
+policy cannot inflate it through ma-irt self-consistency.
+
+The claim regime is bounded to synthetic data. Sim-to-real transfer
+is flagged for future work.
 
 ## Roadmap
 
