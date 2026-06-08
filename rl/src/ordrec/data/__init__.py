@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+from .assist import AssistAdapter
 from .base import AdapterConfig, OrdinalDatasetBase, Split
 from .ednet import EdNetAdapter
 from .eedi import EediAdapter
@@ -32,6 +33,7 @@ _ADAPTER_REGISTRY = {
     "synthetic": SyntheticAdapter,
     "eedi": EediAdapter,
     "ednet": EdNetAdapter,
+    "assist": AssistAdapter,
 }
 
 
@@ -65,6 +67,7 @@ def build_adapter(cfg: Dict[str, Any]) -> OrdinalDatasetBase:
 
 __all__ = [
     "AdapterConfig",
+    "AssistAdapter",
     "COMMON_RECORD_SCHEMA",
     "EdNetAdapter",
     "EediAdapter",
