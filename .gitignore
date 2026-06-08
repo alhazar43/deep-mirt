@@ -62,7 +62,12 @@ ma-irt/archive/
 # drafts, refactor TODO lists). Top-level docs/*.md (architecture,
 # pipeline, taxonomy) stay tracked as public-facing reference docs.
 docs/cleanup/
-docs/archive/
+# docs/archive/ contents are ignored, with an exception for jobrec so
+# the pivot from job-recommendation to item-recommendation is
+# traceable in version control. See docs/archive/jobrec/README.md.
+docs/archive/*
+!docs/archive/jobrec
+!docs/archive/jobrec/**
 
 # Root-level planning/working markdowns. Only README.md stays
 # tracked as the public-facing entry point.
