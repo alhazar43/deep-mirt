@@ -1,0 +1,147 @@
+{
+  "extras": {
+    "cuda_available": true,
+    "cuda_device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "n_categories": 4,
+    "n_questions": 200,
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python_version": "3.11.13",
+    "repeat": 10,
+    "torch_version": "2.7.1+cu126",
+    "warmup_iters": 3
+  },
+  "results": [
+    {
+      "batch_size": 1,
+      "device": "cpu",
+      "encoder": "dkvmn",
+      "max_ms": 5.262499995296821,
+      "mean_ms": 5.070599997998215,
+      "median_ms": 5.0678999978117645,
+      "min_ms": 4.807899997103959,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 128,
+      "device": "cpu",
+      "encoder": "dkvmn",
+      "max_ms": 39.05059999669902,
+      "mean_ms": 37.993390002520755,
+      "median_ms": 37.99620000063442,
+      "min_ms": 36.732799984747544,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 1,
+      "device": "cpu",
+      "encoder": "lstm",
+      "max_ms": 6.205900019267574,
+      "mean_ms": 4.230389997246675,
+      "median_ms": 4.0265999850817025,
+      "min_ms": 3.828899993095547,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 128,
+      "device": "cpu",
+      "encoder": "lstm",
+      "max_ms": 9.71029998618178,
+      "mean_ms": 9.067319997120649,
+      "median_ms": 9.029499982716516,
+      "min_ms": 8.866399992257357,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 1,
+      "device": "cpu",
+      "encoder": "transformer",
+      "max_ms": 3.197099984390661,
+      "mean_ms": 3.0432500003371388,
+      "median_ms": 3.026449994649738,
+      "min_ms": 2.9476000054273754,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 128,
+      "device": "cpu",
+      "encoder": "transformer",
+      "max_ms": 14.414700010092929,
+      "mean_ms": 13.638729992089793,
+      "median_ms": 13.518199979444034,
+      "min_ms": 13.109399995300919,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 1,
+      "device": "cuda",
+      "encoder": "dkvmn",
+      "max_ms": 20.321247100830078,
+      "mean_ms": 19.541103744506835,
+      "median_ms": 19.742511749267578,
+      "min_ms": 18.61212730407715,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 128,
+      "device": "cuda",
+      "encoder": "dkvmn",
+      "max_ms": 21.982080459594727,
+      "mean_ms": 20.403427505493163,
+      "median_ms": 20.945408821105957,
+      "min_ms": 18.266080856323242,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 1,
+      "device": "cuda",
+      "encoder": "lstm",
+      "max_ms": 1.6618560552597046,
+      "mean_ms": 1.165708804130554,
+      "median_ms": 1.0981919765472412,
+      "min_ms": 1.048799991607666,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 128,
+      "device": "cuda",
+      "encoder": "lstm",
+      "max_ms": 1.556480050086975,
+      "mean_ms": 1.505404818058014,
+      "median_ms": 1.5031200051307678,
+      "min_ms": 1.47542405128479,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 1,
+      "device": "cuda",
+      "encoder": "transformer",
+      "max_ms": 3.121151924133301,
+      "mean_ms": 2.6685856103897097,
+      "median_ms": 2.6256320476531982,
+      "min_ms": 2.5067520141601562,
+      "n_repeats": 10,
+      "seq_len": 50
+    },
+    {
+      "batch_size": 128,
+      "device": "cuda",
+      "encoder": "transformer",
+      "max_ms": 3.134176015853882,
+      "mean_ms": 3.0312096118927,
+      "median_ms": 3.0269440412521362,
+      "min_ms": 2.9849600791931152,
+      "n_repeats": 10,
+      "seq_len": 50
+    }
+  ]
+}
