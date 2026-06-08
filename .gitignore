@@ -149,6 +149,14 @@ archive_sigma03_*/
 archive/*
 !archive/rl_jobrec
 !archive/rl_jobrec/**
+# But re-ignore data, artifacts, results-runtime, and pyc inside the
+# archived rl_jobrec subtree. Only source code, docs, configs, and
+# tracked plot PNGs ship.
+archive/rl_jobrec/data/
+archive/rl_jobrec/artifacts/*.parquet
+archive/rl_jobrec/artifacts/*.npy
+archive/rl_jobrec/results/*/data/
+archive/rl_jobrec/**/__pycache__/
 
 # Datasets (large, regenerable)
 ma-irt/data/
