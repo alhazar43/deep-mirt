@@ -1,42 +1,54 @@
-# irtrec, the DRL-MAIRT recommender
+# rl/, OrdRec, Active Development Surface
 
-A realtime interactive job recommender built on top of the `ma-irt`
-deep IRT belief tracker. This package lives at `deep-mirt/rl/` and
-depends on the sibling `ma-irt/` package for the encoder, the
-decoder, and the online step API.
+This directory hosts the OrdRec (Ordinal-IRT Exercise Recommendation)
+project. It is a clean restart, isolated from the archived
+job-recommendation work at `archive/rl_jobrec/`.
 
-## Canonical reference
+## Canonical plan
 
-The full v1 design, milestone plan, and contracts are documented in
-[`docs/drl_mairt_plan_v1.md`](../docs/drl_mairt_plan_v1.md). That
-document is the source of truth. This README is intentionally short.
+[`docs/exrec_ordinal_plan.md`](../docs/exrec_ordinal_plan.md).
 
-## Install
+## Status
 
-From the repository root,
+- 2026-06-04, plan locked. The directory is intentionally empty pending
+  E1 (the Eedi loader and ordinal validation), tracked on a feature
+  branch `feat/ordrec-e1-eedi`.
 
-```bash
-pip install -e rl/
+## Isolation rule
+
+Do not import from `archive/rl_jobrec/`. The archived tree is frozen
+prior-direction code preserved for traceability. Any pattern from
+there must be re-derived clean in this tree, with clear notes on what
+was borrowed and why.
+
+## Reusable from outside this directory
+
+- `ma-irt/` provides the deep IRT belief tracker. M1 step API on
+  `feat/online-step-api` is the per-step belief surface OrdRec
+  consumes.
+
+## Coming with E1
+
 ```
-
-The frozen text encoder, FAISS index, and PyTorch are pulled in as
-declared dependencies.
-
-## Run
-
-The FastAPI service entrypoint is provided once M5 lands,
-
-```bash
-python -m irtrec.service.app
+rl/
+  pyproject.toml
+  README.md                          (this file)
+  src/
+    ordrec/
+      __init__.py
+      belief/
+      retrieval/
+      policy/
+      env/
+      reward/
+      training/
+  scripts/
+    prepare_eedi.py                  (E1)
+    validate_eedi_ordering.py        (E1)
+  tests/
+    test_eedi_loader.py              (E1)
+  configs/
+    e1_eedi_dev.yaml                 (E1)
+  data/                              (gitignored)
+  results/                           (gitignored except plots/)
 ```
-
-## Test
-
-```bash
-cd rl && pytest tests/
-```
-
-## Layout
-
-See Section 12 of the plan document for the canonical directory
-tree.

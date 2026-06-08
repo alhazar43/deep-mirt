@@ -144,6 +144,12 @@ ma-irt/outputs_archive_*/
 archive_sigma03_*/
 .last_archive_path
 
+# archive/ holds frozen prior-direction code. Most subdirectories are
+# ignored, with explicit exceptions for tracked archives.
+archive/*
+!archive/rl_jobrec
+!archive/rl_jobrec/**
+
 # Datasets (large, regenerable)
 ma-irt/data/
 
