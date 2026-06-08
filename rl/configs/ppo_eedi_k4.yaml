@@ -1,0 +1,85 @@
+# Eedi K=4 PPO training config.
+#
+# Drives the full pipeline on the Eedi distractor-difficulty adapter.
+# In E4 we ship only the config; the actual training run is gated
+# behind data download (the Eedi raw csvs are not in the repo). When
+# the raw_dir is populated this config can be used unchanged.
+
+experiment_name: ordrec_eedi_k4
+output_dir: outputs
+device: auto
+seed: 0
+
+adapter:
+  type: eedi
+  name: eedi_k4_task34
+  raw_dir: data/eedi/raw
+  out_dir: data
+  split_seed: 0
+  test_frac: 0.1
+  valid_frac: 0.1
+  min_seq_len: 5
+  max_seq_len: 200
+  chunk_long_sequences: true
+
+world_model:
+  n_traits: 1
+  memory_size: 50
+  key_dim: 64
+  value_dim: 64
+  summary_dim: 50
+  embedding_type: learned
+  dropout_rate: 0.0
+  ability_scale: 1.0
+  separate_theta: true
+  init_value_memory: true
+  checkpoint: outputs/eedi_k4_task34/best.pt
+
+env:
+  batch_size: 16
+  warmup_len: 5
+  split: train
+  K_B: 5
+  T: 10
+  cache_n_contexts: 8
+  cache_context_seq_len: 1
+
+reward:
+  w_info: 1.0
+  w_cost: 0.05
+  w_expo: 0.10
+  w_voi: 5.0
+  probe_M: 32
+  probe_H: 20
+  r_max: 0.20
+  c_expo: 1.0
+  expo_ema_decay: 0.99
+  n_difficulty_strata: 5
+
+warmstart:
+  enabled: true
+  bc_updates: 20
+  bc_episodes_per_update: 4
+  mve_updates: 20
+  mve_episodes_per_update: 4
+
+ppo:
+  total_updates: 1000
+  n_episodes_per_update: 32
+  max_steps_per_episode: 2
+  hyperparameters:
+    hidden_dim: 128
+    n_hidden_layers: 2
+    learning_rate: 3.0e-4
+    adam_eps: 1.0e-5
+    clip_eps: 0.2
+    gamma: 0.95
+    gae_lambda: 0.95
+    entropy_coef_initial: 0.01
+    entropy_coef_final: 0.0
+    entropy_anneal_fraction: 0.5
+    value_coef: 0.5
+    max_grad_norm: 0.5
+    n_epochs: 4
+    minibatch_size: 64
+    target_kl: 0.02

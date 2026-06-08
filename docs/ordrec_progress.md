@@ -13,24 +13,27 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 
 - **Date created.** 2026-06-08
 - **Date last updated.** 2026-06-08
-- **Current state.** E3 (env + reward layer) complete on
-  `feat/ordrec-e3`, awaiting merge. The Gym-style `OrdRecEnv`
-  wraps a `FrozenMAGPCM` and a data adapter, the four-component
-  reward (`r_info + r_cost + r_expo + r_voi`) composes Lindley
-  probe-entropy shaping, an ask cost, the Sympson-Hetter (1985)
-  exposure penalty and a terminal NLL anchor on the held-out
-  probe `H_probe`, and the three-source action mask (admin,
-  probe, no-repeat) is enforced through the public env surface.
-  126 unit tests pass (the 82 pre-E3 tests plus 30 reward + 11
-  env + 3 cross-package wiring).
-- **Active branch.** `feat/ordrec-e3` at `7414fb3`, 12 commits
-  stacked on `feat/ordrec` tip `f5c536e` (E2 merged).
-- **Next milestone.** E4, the RL library and the training loop.
-  `RLAlgorithm` ABC, PPO, GAE, rollout collector, BC warmstart,
-  sanity toy env, headline-config sweep on Eedi K=4. The DoD is
-  PPO on a toy env shows strictly increasing return over 20
-  updates, and PPO on the real env runs 5 updates and saves
-  `best.pt`.
+- **Current state.** E4 (RL library + training loop) complete on
+  `feat/ordrec-e4`, awaiting merge. The `RLAlgorithm` ABC, the
+  on-policy `RolloutBuffer`, the GAE advantage estimator and the
+  PPO concrete implementation (clipped surrogate, value clip, KL
+  early stop, entropy anneal, grad clip) all land. BC warm-start
+  with a max-Fisher teacher and the exact `K ** K_B = 1024`
+  static-MVE critic warm-start are in place. Top-level
+  `train_ppo.py` reads a YAML config and runs the full pipeline
+  (adapter, frozen MAGPCM, env, reward, optional warm-start,
+  PPO). Toy-env smoke drives mean episode return from `1.062`
+  to `2.000` over 20 updates (random baseline `1.0`, optimum
+  `2.0`). Synthetic-adapter smoke completes 5 PPO updates with
+  the four-component reward decomposition recorded. 146 unit
+  tests pass (126 pre-E4 + 13 training + 1 BC, plus 6 new buffer
+  cases).
+- **Active branch.** `feat/ordrec-e4` at `21a9dea`, 12 commits
+  stacked on `feat/ordrec` tip `eaa404a` (E3 merged).
+- **Next milestone.** E5, the real polytomous training run on
+  Eedi K=4 plus CI, repro and paper hooks. The DoD is the
+  headline numbers regenerable from a clean checkout, with PGF
+  figures wired into the paper.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -50,14 +53,42 @@ The five locked design corrections from the strategic plan are intact.
 |---|---|---|---|---|---|---|
 | **E1**, data adapters | complete (merged) | `feat/ordrec` | `267ea82` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/E1_data_layer.md`. |
 | **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (merged) | `feat/ordrec` | `f5c536e` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/E2_envs_layer.md`. |
-| **E3**, env + reward + wiring | complete (awaiting merge) | `feat/ordrec-e3` | `7414fb3` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/E3_env_reward.md`. |
-| **E4**, RL library + training loop + smoke | not started | tbd | tbd | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/ppo_eedi_k4.yaml` | tbd | PPO on a toy env shows strictly increasing return over 20 updates. PPO on the real env runs 5 updates and saves `best.pt`. |
-| **E5**, CI + repro + paper hooks | not started | tbd | tbd | github actions yaml, repro script, eval table generator, paper PGF figures | tbd | Headline numbers regenerable from a clean checkout. |
-| **E6**, headline runs + ablations | not started | tbd | tbd | full PPO runs on Eedi, EdNet, ASSISTments, plus ablations (no-probe, no-exposure, no-VOI) | tbd | The science milestone. |
+| **E3**, env + reward + wiring | complete (merged) | `feat/ordrec` | `eaa404a` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/E3_env_reward.md`. |
+| **E4**, RL library + training loop + smoke | complete (awaiting merge) | `feat/ordrec-e4` | `21a9dea` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/E4_rl_library.md`. |
+| **E5**, headline polytomous run on Eedi K=4 | next | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Mean return strictly above the uniform-random baseline at the end of training, with per-component decomposition and exposure caps respected. |
+| **E6**, ablations + paper figures | not started | tbd | tbd | full PPO runs on EdNet KT3 K=4, ASSISTments K=2, plus ablations (no-probe, no-exposure, no-VOI), paper PGF figures | tbd | The science milestone. |
 
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-08, E4 complete (awaiting merge).** Branch
+  `feat/ordrec-e4` at `21a9dea`, 12 commits stacked on
+  `feat/ordrec` tip `eaa404a` (E3 merged). Landed the
+  `RLAlgorithm` ABC plus `RolloutStats` and `UpdateStats`
+  dataclasses, the on-policy `RolloutBuffer` with episode-aware
+  GAE advantage computation, the standalone `compute_gae`
+  helper, the PPO concrete `RLAlgorithm` (clipped surrogate
+  with eps 0.2, value clip 0.2, GAE 0.95, gamma 0.95, lr 3e-4,
+  Adam eps 1e-5, entropy 0.01 annealed to 0 over the first 50%
+  of training, KL early stop 0.02, 4 epochs per rollout,
+  mini-batch 32 to 64, value coef 0.5, grad clip 0.5), the
+  shared-trunk `ActorCritic` with masked discrete categorical
+  actor, `set_seed` and schedule helpers, the BC warm-start
+  with a max-Fisher teacher, the exact `K ** K_B = 1024`
+  static-MVE critic warm-start, the top-level `train_ppo.py`
+  driver, the PPO toy-env smoke runner (`sanity_toy_env.py`),
+  the evaluation harness (`eval_policy.py`), and two configs
+  (`ppo_synth_smoke.yaml`, `ppo_eedi_k4.yaml`). Toy-env smoke
+  drives mean return from `1.062` to `2.000` over 20 updates
+  (random baseline `1.0`, optimum `2.0`). Synthetic-adapter
+  smoke runs 5 PPO updates with the four-component reward
+  decomposition recorded. 146 tests pass (20 new E4, 13
+  training + 1 BC + 6 new buffer cases, plus 126 pre-E4).
+  Milestone record at `rl/results/E4_rl_library.md`.
+
+- **2026-06-08, E3 merged.** `feat/ordrec-e3` merged into
+  `feat/ordrec` at `eaa404a`. E3 tip on its branch was `7414fb3`.
 
 - **2026-06-08, E3 complete (awaiting merge).** Branch
   `feat/ordrec-e3` at `7414fb3`, 12 commits stacked on
@@ -174,6 +205,23 @@ E3 cross-package wiring, 3 tests (`rl/tests/`).
 
 Total at E3 close, 126 tests, all pass.
 
+E4 training package, 18 tests (`rl/src/ordrec/training/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_rollout_buffer.py` | 9 | `insert` and `reset`, shape rejection, overflow, `iter_minibatches` visits every transition once, `iter_minibatches` requires `compute_advantages`, `compute_advantages` zero-bootstraps at `done`, advantage normalisation off when `n=1`, advantage sign tracks reward sign, episode-starts split segments. |
+| `test_gae.py` | 4 | Matches numpy reference with mid-trajectory done, terminal zero bootstrap, shape-mismatch rejection, bootstrap used when not done. |
+| `test_ppo_smoke.py` | 3 | PPO increases mean return on the toy env over 20 updates, `act(deterministic=True)` returns the argmax under the mask, masked actions are never sampled. |
+| `test_save_load.py` | 2 | State-dict save then load is byte-identical, load into a fresh instance reproduces the optimiser state. |
+
+E4 BC warmstart, 1 test (`rl/src/ordrec/bc_warmstart/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_bc_smoke.py` | 1 | BC actor reaches `>= 85%` match against the max-Fisher teacher on a held-out validation slice from the synthetic adapter. |
+
+Total at E4 close, 146 tests, all pass.
+
 Reproducer.
 
 ```bash
@@ -189,8 +237,8 @@ Existing ma-irt test suite is untouched through E3.
 ## 5. Open issues
 
 Carried forward from `rl/results/E1_data_layer.md`,
-`rl/results/E2_envs_layer.md`, and
-`rl/results/E3_env_reward.md`.
+`rl/results/E2_envs_layer.md`, `rl/results/E3_env_reward.md`,
+and `rl/results/E4_rl_library.md`.
 
 1. Placeholder 2PL `lr` field in `coercion_artefacts.json` reports the
    guide default (1e-2) rather than the value actually used (5e-2 at
@@ -237,3 +285,14 @@ Carried forward from `rl/results/E1_data_layer.md`,
 13. E3 new, probe sampler stratification audit. Default
     `n_difficulty_strata = 5` equal-count quantiles. An ablation
     over `[3, 5, 10]` is a candidate for E5.
+14. E4 new, BC teacher mixture, max-Fisher only at v1. The
+    ReflectionLayer-greedy (30%) and Thompson (20%) teachers
+    described in the impl guide need infrastructure not built
+    in E4. v2 enhancement before the headline run.
+15. E4 new, DQN and SAC implementations. Sketched as comments in
+    the impl guide and inside `training/ppo.py`. Deferred to a
+    future ablation.
+16. E4 new, headline-config sweep over PPO hyperparameters
+    (`lr in {1e-4, 3e-4, 1e-3}`, `gae_lambda in {0.90, 0.95,
+    0.99}`, `clip_eps in {0.1, 0.2}`). Belongs to E5 or E6
+    once real Eedi raw csvs land.
