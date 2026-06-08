@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from .base import AdapterConfig, OrdinalDatasetBase, Split
+from .ednet import EdNetAdapter
 from .eedi import EediAdapter
 from .ma_irt_bridge import adapter_to_dataloader, adapter_to_sequence_dataset
 from .placeholder_2pl import Placeholder2PLFit, fit_placeholder_2pl
@@ -30,6 +31,7 @@ from .synthetic import SyntheticAdapter
 _ADAPTER_REGISTRY = {
     "synthetic": SyntheticAdapter,
     "eedi": EediAdapter,
+    "ednet": EdNetAdapter,
 }
 
 
@@ -64,6 +66,7 @@ def build_adapter(cfg: Dict[str, Any]) -> OrdinalDatasetBase:
 __all__ = [
     "AdapterConfig",
     "COMMON_RECORD_SCHEMA",
+    "EdNetAdapter",
     "EediAdapter",
     "OrdinalDatasetBase",
     "Placeholder2PLFit",
