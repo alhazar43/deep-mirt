@@ -12,9 +12,25 @@ and Section 7 for the milestone scope.
 from __future__ import annotations
 
 from .frozen_magpcm import FrozenMAGPCM, freeze_magpcm
+from .item_cache import (
+    ITEM_CACHE_DTYPE,
+    ItemCache,
+    build_item_cache,
+    checkpoint_sha7,
+    item_cache_path,
+    load_item_cache,
+    save_item_cache,
+)
 
 
 __all__ = [
     "FrozenMAGPCM",
+    "ITEM_CACHE_DTYPE",
+    "ItemCache",
+    "build_item_cache",
+    "checkpoint_sha7",
     "freeze_magpcm",
+    "item_cache_path",
+    "load_item_cache",
+    "save_item_cache",
 ]
