@@ -1,5 +1,10 @@
 # DRL-MAIRT Build Progress Log
 
+> **Historical.** This document tracks the jobrec build, archived
+> 2026-06-03. The active OrdRec build progress lives at
+> [`docs/ordrec_progress.md`](ordrec_progress.md). This file is kept
+> for the historical record only and is no longer updated.
+
 *Continuously updated. Source of truth for build state.*
 
 Canonical spec lives at [`drl_mairt_plan_v1.md`](drl_mairt_plan_v1.md). This
