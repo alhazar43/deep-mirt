@@ -172,13 +172,15 @@ class EediAdapter(OrdinalDatasetBase):
         train_indices = np.where(user_codes == SPLIT_TRAIN)[0]
 
         # Step 1: fit placeholder 2PL on train fold using binary correctness.
+        # 20 epochs gives stable theta_hat ordering on the small fixture
+        # while staying well under the ~30s budget for full Eedi.
         fit = fit_placeholder_2pl(
             questions=questions,
             binary_responses=correctness,
             train_indices=train_indices,
             n_items=n_items,
-            max_iters=5,
-            lr=1e-2,
+            max_iters=20,
+            lr=5e-2,
             batch_size=128,
             device="cpu",
             seed=int(self.cfg.split_seed) ^ 0xE3D1,
