@@ -1,0 +1,81 @@
+# Synthetic-adapter PPO smoke config.
+#
+# Exercises the end-to-end pipeline (frozen MAGPCM -> env -> reward ->
+# PPO) for five updates. Used by the E4 smoke step. Not a real
+# training run; the world model is randomly initialised and the env
+# uses a tiny item bank so the smoke completes in roughly a minute.
+
+experiment_name: ordrec_synth_smoke
+output_dir: outputs
+device: cpu
+seed: 0
+
+adapter:
+  type: synthetic
+  name: smoke_synth
+  raw_dir: rl/artifacts/smoke_synth_raw
+  out_dir: rl/artifacts
+  split_seed: 0
+  test_frac: 0.2
+  valid_frac: 0.2
+  min_seq_len: 3
+  max_seq_len: 0
+  chunk_long_sequences: false
+
+world_model:
+  n_traits: 1
+  memory_size: 8
+  key_dim: 8
+  value_dim: 8
+  summary_dim: 8
+  embedding_type: learned
+  dropout_rate: 0.0
+  ability_scale: 1.0
+  separate_theta: true
+  init_value_memory: false
+
+env:
+  batch_size: 4
+  warmup_len: 3
+  split: train
+  K_B: 2
+  T: 4
+  cache_n_contexts: 2
+  cache_context_seq_len: 1
+
+reward:
+  w_info: 1.0
+  w_cost: 0.05
+  w_expo: 0.10
+  w_voi: 5.0
+  probe_M: 6
+  probe_H: 3
+  r_max: 0.20
+  c_expo: 1.0
+  expo_ema_decay: 0.99
+
+warmstart:
+  enabled: false
+  bc_updates: 0
+  mve_updates: 0
+
+ppo:
+  total_updates: 5
+  n_episodes_per_update: 4
+  max_steps_per_episode: 2
+  hyperparameters:
+    hidden_dim: 32
+    n_hidden_layers: 1
+    learning_rate: 0.003
+    adam_eps: 1.0e-5
+    clip_eps: 0.2
+    gamma: 0.95
+    gae_lambda: 0.95
+    entropy_coef_initial: 0.01
+    entropy_coef_final: 0.0
+    entropy_anneal_fraction: 0.5
+    value_coef: 0.5
+    max_grad_norm: 0.5
+    n_epochs: 4
+    minibatch_size: 16
+    target_kl: 0.02
