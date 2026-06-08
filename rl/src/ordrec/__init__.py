@@ -11,12 +11,12 @@ training loop arrives in E4.
 
 from __future__ import annotations
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
-# Re-export the three subpackages so ``import ordrec`` is enough at the
-# call site. We do not eagerly pull every symbol up to the package root
-# to keep import-time cost low for callers that only need one of the
-# layers.
-from . import data, envs, reward
+# Re-export the subpackages so ``import ordrec`` is enough at the call
+# site. We do not eagerly pull every symbol up to the package root to
+# keep import-time cost low for callers that only need one of the
+# layers. ``training`` and ``bc_warmstart`` are added in E4.
+from . import bc_warmstart, data, envs, reward, training
 
-__all__ = ["data", "envs", "reward"]
+__all__ = ["bc_warmstart", "data", "envs", "reward", "training"]
