@@ -13,20 +13,24 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 
 - **Date created.** 2026-06-08
 - **Date last updated.** 2026-06-08
-- **Current state.** E2 (envs layer) complete on `feat/ordrec-e2`,
-  awaiting merge. `FrozenMAGPCM` wrapper, per-item `(alpha, beta)`
-  cache, `bench_forward.py` latency harness, `EdNetAdapter` K=4,
-  `AssistAdapter` K=2, and the Eedi NeurIPS 2020 pre-merge script
-  are landed. 82 unit tests pass (the 42 E1 tests plus 27 envs
-  tests plus 13 new adapter tests). Bench numbers measured on
-  Windows, RTX 4060 Laptop GPU, recorded at
-  `rl/results/E2_bench_forward.{json,md}`.
-- **Active branch.** `feat/ordrec-e2` at `80036ea`, 8 commits
-  stacked on `feat/ordrec` tip `267ea82` (E1 merged).
-- **Next milestone.** E3, the Gym env, the reward and the action
-  mask. Reward returns `(B,) reward` plus the four-component
-  breakdown, action mask covers admin, probe, and the
-  within-episode no-repeat constraint.
+- **Current state.** E3 (env + reward layer) complete on
+  `feat/ordrec-e3`, awaiting merge. The Gym-style `OrdRecEnv`
+  wraps a `FrozenMAGPCM` and a data adapter, the four-component
+  reward (`r_info + r_cost + r_expo + r_voi`) composes Lindley
+  probe-entropy shaping, an ask cost, the Sympson-Hetter (1985)
+  exposure penalty and a terminal NLL anchor on the held-out
+  probe `H_probe`, and the three-source action mask (admin,
+  probe, no-repeat) is enforced through the public env surface.
+  126 unit tests pass (the 82 pre-E3 tests plus 30 reward + 11
+  env + 3 cross-package wiring).
+- **Active branch.** `feat/ordrec-e3` at `7414fb3`, 12 commits
+  stacked on `feat/ordrec` tip `f5c536e` (E2 merged).
+- **Next milestone.** E4, the RL library and the training loop.
+  `RLAlgorithm` ABC, PPO, GAE, rollout collector, BC warmstart,
+  sanity toy env, headline-config sweep on Eedi K=4. The DoD is
+  PPO on a toy env shows strictly increasing return over 20
+  updates, and PPO on the real env runs 5 updates and saves
+  `best.pt`.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -45,8 +49,8 @@ The five locked design corrections from the strategic plan are intact.
 | Milestone | Status | Branch | Tip | Tasks | DoD | Notes |
 |---|---|---|---|---|---|---|
 | **E1**, data adapters | complete (merged) | `feat/ordrec` | `267ea82` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/E1_data_layer.md`. |
-| **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (awaiting merge) | `feat/ordrec-e2` | `80036ea` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/E2_envs_layer.md`. |
-| **E3**, env + reward + wiring | not started | tbd | tbd | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `tests/test_env_reward_wiring.py` | tbd | Reward returns `(B,) reward` plus a four-component breakdown. Ng-Harada-Russell invariance enforced via fixed probe sets. |
+| **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (merged) | `feat/ordrec` | `f5c536e` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/E2_envs_layer.md`. |
+| **E3**, env + reward + wiring | complete (awaiting merge) | `feat/ordrec-e3` | `7414fb3` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/E3_env_reward.md`. |
 | **E4**, RL library + training loop + smoke | not started | tbd | tbd | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/ppo_eedi_k4.yaml` | tbd | PPO on a toy env shows strictly increasing return over 20 updates. PPO on the real env runs 5 updates and saves `best.pt`. |
 | **E5**, CI + repro + paper hooks | not started | tbd | tbd | github actions yaml, repro script, eval table generator, paper PGF figures | tbd | Headline numbers regenerable from a clean checkout. |
 | **E6**, headline runs + ablations | not started | tbd | tbd | full PPO runs on Eedi, EdNet, ASSISTments, plus ablations (no-probe, no-exposure, no-VOI) | tbd | The science milestone. |
@@ -54,6 +58,25 @@ The five locked design corrections from the strategic plan are intact.
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-08, E3 complete (awaiting merge).** Branch
+  `feat/ordrec-e3` at `7414fb3`, 12 commits stacked on
+  `feat/ordrec` tip `f5c536e` (E2 merged). Landed the four-component
+  reward composer (`OrdinalRewardCompute` returning a
+  `RewardBreakdown` with `r_info`, `r_cost`, `r_expo`, `r_voi`,
+  `r_total`, `phi_t`, `phi_prev`), the vectorised GPCM predictive
+  entropy `phi_entropy`, the terminal NLL anchor on `H_probe`, the
+  Sympson-Hetter (1985) exposure penalty with EMA fleet update, a
+  Welford running-mean-std with a freeze flag, the
+  `OrdinalEnvBase` ABC plus `OrdinalState` dataclass, the concrete
+  `OrdRecEnv` wrapping a frozen MAGPCM and a data adapter, and the
+  three-source action mask composer (admin AND probe AND
+  no-repeat). 126 tests pass (44 new E3, 30 reward + 11 env + 3
+  cross-package wiring, plus 82 pre-E3). Milestone record at
+  `rl/results/E3_env_reward.md`.
+
+- **2026-06-08, E2 merged.** `feat/ordrec-e2` merged into
+  `feat/ordrec` at `f5c536e`. E2 tip on its branch was `80036ea`.
 
 - **2026-06-08, E2 complete (awaiting merge).** Branch
   `feat/ordrec-e2` at `80036ea`, 8 commits stacked on `feat/ordrec`
@@ -123,22 +146,51 @@ E2 envs layer, 27 tests (`rl/src/ordrec/envs/tests/`).
 
 Total at E2 close, 82 tests, all pass.
 
+E3 reward layer, 30 tests (`rl/src/ordrec/reward/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_potential_shaping.py` | 2 | Telescoping `phi(s_2) - phi(s_0)` and prev-then-current boundary chain. |
+| `test_entropy_bounds.py` | 5 | `phi >= 0`, bounded by `log K`, uniform limit at `alpha=0`, concentrated-limit at `K=2`, finite under extreme theta. |
+| `test_fisher_special_case.py` | 3 | Single-item probe matches direct entropy, monotone in alpha, uniform at `alpha=0` matches `log K`. |
+| `test_reward_scale.py` | 2 | Per-component contribution within `[5%, 70%]` of `|r_total|`, breakdown sums to total. |
+| `test_anti_gaming_mask.py` | 4 | Uniform policy never samples probe, mask False on probe ids, pad slot forbidden, no-repeat update removes administered. |
+| `test_sympson_hetter.py` | 5 | Penalty zero below threshold, linear in excess above, `c_expo` scales slope, aggregates over `K_B`, EMA fleet update. |
+| `test_terminal_anchor.py` | 4 | VOI zero mid-episode, nonzero at horizon, sign convention, `gpcm_nll` matches per-row cross-entropy. |
+| `test_running_norm.py` | 5 | Welford matches numpy, freeze is no-op after threshold, normalise uses current stats, batched update, state-dict round trip. |
+
+E3 envs layer additions, 11 tests (`rl/src/ordrec/envs/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_action_mask.py` | 5 | Three-source AND, probe disjoint admin, no-repeat idempotent, extra forbidden ids, shape mismatch rejection. |
+| `test_ordrec_env.py` | 6 | Reset shape, step advances and returns `(B,)` reward, masked action raises, horizon terminates, observation+action dim properties, terminal VOI active. |
+
+E3 cross-package wiring, 3 tests (`rl/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_env_reward_wiring.py` | 3 | One-step breakdown sums to total, mask blocks every probe id through env, fleet exposure updates after episode. |
+
+Total at E3 close, 126 tests, all pass.
+
 Reproducer.
 
 ```bash
 cd <repo_root>
 PYTHONPATH="rl/src;ma-irt" KMP_DUPLICATE_LIB_OK=TRUE \
-  python -m pytest rl/src/ordrec/ -v
+  python -m pytest rl/src/ordrec/ rl/tests/ -v
 ```
 
-Existing ma-irt test suite is untouched through E2.
+Existing ma-irt test suite is untouched through E3.
 
 ---
 
 ## 5. Open issues
 
-Carried forward from `rl/results/E1_data_layer.md` and
-`rl/results/E2_envs_layer.md`.
+Carried forward from `rl/results/E1_data_layer.md`,
+`rl/results/E2_envs_layer.md`, and
+`rl/results/E3_env_reward.md`.
 
 1. Placeholder 2PL `lr` field in `coercion_artefacts.json` reports the
    guide default (1e-2) rather than the value actually used (5e-2 at
@@ -169,6 +221,19 @@ Carried forward from `rl/results/E1_data_layer.md` and
    profiling pass.
 9. Real-Eedi pre-merge execution waits for the real csvs to land
    locally. The merger script is in place and documented.
-10. Open engineering questions from impl guide Section 9, items 1
-    through 8 (data) and items 9 through 15 (reward) remain open at
-    E2 close. Items 16 through 23 (RL) belong to E4.
+10. Open engineering questions from impl guide Section 9, items 9
+    through 15 (reward) are now closed by E3. Items 1 through 8
+    (data) remain open. Items 16 through 23 (RL) belong to E4.
+11. E3 new, Laplace `sigma_t` posterior-precision path. The state
+    envelope carries an `Optional Tensor (B, D, D)` posterior
+    precision but the point-estimate path is the v1 default.
+    Laplace calibration wires to `RewardConfig.sigma_floor` and
+    is deferred to a critic-warmstart pass in E4 or E5.
+12. E3 new, reward-normalisation activation. `OrdinalRewardCompute`
+    supports a frozen Welford normaliser via the `normalise`
+    constructor flag. Unit tests run un-normalised so the
+    four-component sum is checkable. The headline run will enable
+    it.
+13. E3 new, probe sampler stratification audit. Default
+    `n_difficulty_strata = 5` equal-count quantiles. An ablation
+    over `[3, 5, 10]` is a candidate for E5.
