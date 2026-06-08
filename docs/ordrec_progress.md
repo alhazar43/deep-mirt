@@ -13,17 +13,20 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 
 - **Date created.** 2026-06-08
 - **Date last updated.** 2026-06-08
-- **Current state.** E1 (data layer) complete on
-  `feat/ordrec-e1-eedi`. The `rl/ordrec/data/` package, schema,
-  Eedi K=4 distractor-difficulty adapter, synthetic adapter,
-  placeholder 2PL, ma-irt bridge, and the 50-row Eedi fixture are
-  landed. 42 unit tests pass. Synthetic smoke training pass at
-  `r_theta = 0.880`, `rho_theta = 0.904` after 5 epochs.
-- **Active branch.** `feat/ordrec-e1-eedi` at `466e730`, 11 commits
-  stacked on `feat/ordrec` tip `0962f5a` (the implementation guide).
-- **Next milestone.** E2, per-item `(alpha, beta)` lookup +
-  `FrozenMAGPCM` wrapper + `bench_forward.py` timing harness, plus
-  the EdNet and ASSISTments adapters.
+- **Current state.** E2 (envs layer) complete on `feat/ordrec-e2`,
+  awaiting merge. `FrozenMAGPCM` wrapper, per-item `(alpha, beta)`
+  cache, `bench_forward.py` latency harness, `EdNetAdapter` K=4,
+  `AssistAdapter` K=2, and the Eedi NeurIPS 2020 pre-merge script
+  are landed. 82 unit tests pass (the 42 E1 tests plus 27 envs
+  tests plus 13 new adapter tests). Bench numbers measured on
+  Windows, RTX 4060 Laptop GPU, recorded at
+  `rl/results/E2_bench_forward.{json,md}`.
+- **Active branch.** `feat/ordrec-e2` at `80036ea`, 8 commits
+  stacked on `feat/ordrec` tip `267ea82` (E1 merged).
+- **Next milestone.** E3, the Gym env, the reward and the action
+  mask. Reward returns `(B,) reward` plus the four-component
+  breakdown, action mask covers admin, probe, and the
+  within-episode no-repeat constraint.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -41,8 +44,8 @@ The five locked design corrections from the strategic plan are intact.
 
 | Milestone | Status | Branch | Tip | Tasks | DoD | Notes |
 |---|---|---|---|---|---|---|
-| **E1**, data adapters | complete | `feat/ordrec-e1-eedi` | `466e730` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/E1_data_layer.md`. |
-| **E2**, per-item lookup + EdNet + ASSISTments + bench | not started | tbd | tbd | `envs/item_cache.py`, `envs/bench_forward.py`, `data/ednet.py`, `data/assist.py`, plus a thin `FrozenMAGPCM` wrapper exposing `forward_no_grad` | tbd | Out-of-band cache keyed by `(raw_csv_md5, fit_seed)`. Per-item sweep produces `(Q+1, D)` alpha and `(Q+1, K-1)` beta tables. |
+| **E1**, data adapters | complete (merged) | `feat/ordrec` | `267ea82` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/E1_data_layer.md`. |
+| **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (awaiting merge) | `feat/ordrec-e2` | `80036ea` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/E2_envs_layer.md`. |
 | **E3**, env + reward + wiring | not started | tbd | tbd | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `tests/test_env_reward_wiring.py` | tbd | Reward returns `(B,) reward` plus a four-component breakdown. Ng-Harada-Russell invariance enforced via fixed probe sets. |
 | **E4**, RL library + training loop + smoke | not started | tbd | tbd | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/ppo_eedi_k4.yaml` | tbd | PPO on a toy env shows strictly increasing return over 20 updates. PPO on the real env runs 5 updates and saves `best.pt`. |
 | **E5**, CI + repro + paper hooks | not started | tbd | tbd | github actions yaml, repro script, eval table generator, paper PGF figures | tbd | Headline numbers regenerable from a clean checkout. |
@@ -51,6 +54,22 @@ The five locked design corrections from the strategic plan are intact.
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-08, E2 complete (awaiting merge).** Branch
+  `feat/ordrec-e2` at `80036ea`, 8 commits stacked on `feat/ordrec`
+  tip `267ea82`. Landed `FrozenMAGPCM` (two-line eval+no_grad
+  contract, replaces v1 M1-era `freeze_irt`), per-item `(alpha,
+  beta)` cache keyed by `(dataset_name, ckpt_sha7)`, `bench_forward`
+  latency harness with the no_grad invariance regression,
+  `EdNetAdapter` K=4 via `(correctness, response_time)` quadrants
+  with KT3/KT4 auto-detect, `AssistAdapter` K=2 identity passthrough,
+  and the `prepare_eedi_csv.py` pre-merge script for the real Eedi
+  NeurIPS 2020 release. 82 tests pass. Bench at
+  `rl/results/E2_bench_forward.{json,md}`. Milestone record at
+  `rl/results/E2_envs_layer.md`.
+
+- **2026-06-08, E1 merged.** `feat/ordrec-e1-eedi` merged into
+  `feat/ordrec` at `267ea82`. E1 tip on its branch was `466e730`.
 
 - **2026-06-08, E1 complete.** Branch `feat/ordrec-e1-eedi` at
   `466e730`. Final commit landed the synthetic smoke training pass.
@@ -87,25 +106,44 @@ E1 data layer, 42 tests (`rl/src/ordrec/data/tests/`).
 | `test_eedi_adapter.py` | 7 | Artefact materialisation, metadata block, correct option recodes to `K-1`, distractor ordering ascending by mean theta, train-only fitting, coercion persistence and reuse, response range. |
 | `test_ma_irt_bridge.py` | 5 | First-item shape, collate-compatible batch (the 4-tuple MAGPCM consumes), `n_questions` matches metadata, full pass without errors, splits disjoint. Gated by `pytest.importorskip("utils.dataloader")`. |
 
+E2 data layer additions, 13 tests (`rl/src/ordrec/data/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_ednet_adapter.py` | 9 | Artefact materialisation, metadata block, K=4 quadrant mapping table, median computed on train only, KT3 absent-hint handling, KT4 hint detection, response range, missing-rt slow recode, persisted coercion reuse. |
+| `test_assist_adapter.py` | 4 | Artefact materialisation, identity K=2 collapse, `n_categories=2` in metadata, test-train splits disjoint at student level. |
+
+E2 envs layer, 27 tests (`rl/src/ordrec/envs/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_frozen_magpcm.py` | 10 | Freeze contract under repeated calls, five-key output dict, `train(mode)` keeps `eval`, no_grad invariance across calls, theta invariance to future positions under eval+no_grad, autograd does not flow into the frozen model, device property, non-Module rejection, `n_questions` and `n_categories` propagation. |
+| `test_item_cache.py` | 11 | Build shapes and dtypes, padding-slot invariants, alpha+beta match a direct forward, save/load round trip, tensor accessors, cache keyed by `(dataset, checkpoint)`, sha7 for missing file, sha7 for real file, argument validation, path requires `dataset_name`, averaging across contexts changes alpha but not beta. |
+| `test_bench_forward.py` | 6 | End-to-end smoke run, rejection of empty encoder list, invariance passes on frozen model, invariance check catches a broken model, artefact write round trip, invariance check requires at least two calls. |
+
+Total at E2 close, 82 tests, all pass.
+
 Reproducer.
 
 ```bash
 cd <repo_root>
 PYTHONPATH="rl/src;ma-irt" KMP_DUPLICATE_LIB_OK=TRUE \
-  python -m pytest rl/src/ordrec/data/tests/ -v
+  python -m pytest rl/src/ordrec/ -v
 ```
 
-Existing ma-irt test suite is untouched in E1.
+Existing ma-irt test suite is untouched through E2.
 
 ---
 
 ## 5. Open issues
 
-Carried forward from `rl/results/E1_data_layer.md`.
+Carried forward from `rl/results/E1_data_layer.md` and
+`rl/results/E2_envs_layer.md`.
 
 1. Placeholder 2PL `lr` field in `coercion_artefacts.json` reports the
    guide default (1e-2) rather than the value actually used (5e-2 at
-   20 epochs). Cosmetic, fix during the E2 cache wiring.
+   20 epochs). E2 did not touch this. Cosmetic, fix during the E3
+   wiring.
 2. Synthetic adapter does not persist `true_irt_parameters.json` into
    the materialised artefact. Eval recovery currently reads it from
    the upstream raw directory by convention. Persist alongside the
@@ -113,10 +151,24 @@ Carried forward from `rl/results/E1_data_layer.md`.
 3. Bridge tests `skip` rather than `fail` when `PYTHONPATH=ma-irt`
    is absent. Acceptable now, the E5 CI config should set it.
 4. R `mirt` audit path for the Eedi placeholder 2PL not implemented.
-   Deferred to E2 since it depends on the same caching machinery as
-   the per-item alpha/beta lookup.
+   Deferred to E4 since it now depends on the per-item cache built
+   in E2 being callable from R via on-disk artefacts.
 5. Eedi fixture is only 50 rows. Full-corpus validation of distractor
-   ordering against the published Eedi baseline is an E2 task.
-6. Open engineering questions from impl guide Section 9, items 1
-   through 8 (data), all remain open at E1 close. Items 9 through
-   15 (reward) and 16 through 23 (RL) belong to E3 and E4.
+   ordering against the published Eedi baseline waits for the real
+   Eedi NeurIPS 2020 csvs to land locally, then exercises the new
+   `prepare_eedi_csv.py`.
+6. EdNet KT4 K=5 hint-aware variant. Current adapter coerces KT4
+   down to K=4 by ignoring the `hint_used` column. K=5 variant is
+   a candidate ablation for a future milestone.
+7. Per-item alpha averaging uses `n_contexts=8` by default. A sweep
+   over `n_contexts` against the recovery-target alpha is a
+   candidate for E5.
+8. DKVMN CUDA latency at `B=1` is slower than CPU because the
+   memory ops do not fuse for small batches. Not blocking, rollout
+   batches are typically larger, flagged for a possible E4
+   profiling pass.
+9. Real-Eedi pre-merge execution waits for the real csvs to land
+   locally. The merger script is in place and documented.
+10. Open engineering questions from impl guide Section 9, items 1
+    through 8 (data) and items 9 through 15 (reward) remain open at
+    E2 close. Items 16 through 23 (RL) belong to E4.
