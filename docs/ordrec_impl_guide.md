@@ -104,7 +104,7 @@ class OrdinalDatasetBase(ABC):
         return {"questions":  torch.tensor(self._questions[idx], dtype=torch.long),
                 "responses":  torch.tensor(self._responses[idx], dtype=torch.long),
                 "student_id": idx + 1}
-    def get_n_items(self):      return int(self._metadata["n_items"])
+    def get_n_questions(self):      return int(self._metadata["n_questions"])
     def get_n_categories(self): return int(self._metadata["n_categories"])
     def get_n_kcs(self):        return int(self._metadata.get("n_kcs", 0))
     def get_q_matrix(self):     return self._q_matrix
@@ -121,7 +121,7 @@ A materialised dataset lives at `<out_dir>/<adapter_name>/` with four files.
 // sequences.json
 [
   {
-    "questions": [4, 7, 2, 91, ...],   // 1-based ids in [1, n_items], 0 reserved as pad
+    "questions": [4, 7, 2, 91, ...],   // 1-based ids in [1, n_questions], 0 reserved as pad
     "responses": [0, 2, 1, 3, ...],    // ints in [0, n_categories - 1]
     "split":     "train"
   }, ...
@@ -134,7 +134,7 @@ A materialised dataset lives at `<out_dir>/<adapter_name>/` with four files.
   "dataset_name": "eedi_k4_task34",
   "adapter_class": "EediAdapter",
   "n_students":     int,
-  "n_items":        int,
+  "n_questions":        int,
   "n_categories":   int,
   "n_kcs":          int,                // 0 if no KC tags
   "seq_len_range":  [int, int],
@@ -148,7 +148,7 @@ A materialised dataset lives at `<out_dir>/<adapter_name>/` with four files.
 }
 ```
 
-`q_matrix.npz`, optional, present iff `n_kcs > 0`, shape `(n_items, n_kcs)`, uint8, binary. `coercion_artefacts.json`, adapter-specific train-only statistics persisted so test-fold recoding is reproducible without leakage.
+`q_matrix.npz`, optional, present iff `n_kcs > 0`, shape `(n_questions, n_kcs)`, uint8, binary. `coercion_artefacts.json`, adapter-specific train-only statistics persisted so test-fold recoding is reproducible without leakage.
 
 ### 2.3 EediAdapter, K=4 distractor difficulty (Wang et al. 2020)
 

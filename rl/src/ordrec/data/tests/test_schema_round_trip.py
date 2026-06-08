@@ -23,12 +23,12 @@ from ordrec.data.schema import (
 )
 
 
-def _well_formed_meta(n_items: int = 5, n_cat: int = 4) -> dict:
+def _well_formed_meta(n_questions: int = 5, n_cat: int = 4) -> dict:
     return {
         "dataset_name": "demo",
         "adapter_class": "EediAdapter",
         "n_students": 10,
-        "n_items": n_items,
+        "n_questions": n_questions,
         "n_categories": n_cat,
         "n_kcs": 0,
         "seq_len_range": [3, 8],
@@ -77,7 +77,7 @@ def test_sequences_validator_rejects_out_of_range_qid() -> None:
     with pytest.raises(SchemaError):
         validate_sequences(
             [{"questions": [99], "responses": [0], "split": "train"}],
-            n_items=5, n_categories=4,
+            n_questions=5, n_categories=4,
         )
 
 
@@ -85,7 +85,7 @@ def test_sequences_validator_rejects_out_of_range_response() -> None:
     with pytest.raises(SchemaError):
         validate_sequences(
             [{"questions": [1], "responses": [9], "split": "train"}],
-            n_items=5, n_categories=4,
+            n_questions=5, n_categories=4,
         )
 
 
@@ -93,7 +93,7 @@ def test_sequences_validator_rejects_length_mismatch() -> None:
     with pytest.raises(SchemaError):
         validate_sequences(
             [{"questions": [1, 2, 3], "responses": [0, 1], "split": "train"}],
-            n_items=5, n_categories=4,
+            n_questions=5, n_categories=4,
         )
 
 
@@ -101,22 +101,22 @@ def test_sequences_validator_rejects_bad_split() -> None:
     with pytest.raises(SchemaError):
         validate_sequences(
             [{"questions": [1], "responses": [0], "split": "blah"}],
-            n_items=5, n_categories=4,
+            n_questions=5, n_categories=4,
         )
 
 
 def test_q_matrix_validator() -> None:
     q = np.zeros((5, 3), dtype=np.uint8)
     q[0, 1] = 1
-    validate_q_matrix(q, n_items=5, n_kcs=3)
+    validate_q_matrix(q, n_questions=5, n_kcs=3)
     with pytest.raises(SchemaError):
-        validate_q_matrix(q.astype(np.int32), n_items=5, n_kcs=3)
+        validate_q_matrix(q.astype(np.int32), n_questions=5, n_kcs=3)
     with pytest.raises(SchemaError):
         bad = np.zeros((5, 3), dtype=np.uint8)
         bad[0, 0] = 2
-        validate_q_matrix(bad, n_items=5, n_kcs=3)
+        validate_q_matrix(bad, n_questions=5, n_kcs=3)
     with pytest.raises(SchemaError):
-        validate_q_matrix(q, n_items=4, n_kcs=3)
+        validate_q_matrix(q, n_questions=4, n_kcs=3)
 
 
 def test_metadata_round_trip(tmp_path: Path) -> None:
@@ -155,7 +155,7 @@ def test_coercion_round_trip(tmp_path: Path) -> None:
 def test_common_record_schema_keys_unchanged() -> None:
     # Lock the public schema so we notice silent renames.
     expected = {
-        "dataset_name", "adapter_class", "n_students", "n_items",
+        "dataset_name", "adapter_class", "n_students", "n_questions",
         "n_categories", "n_kcs", "seq_len_range", "ordinal_coercion_method",
         "splits", "question_id_map",
     }

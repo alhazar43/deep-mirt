@@ -86,7 +86,7 @@ class SyntheticAdapter(OrdinalDatasetBase):
         with raw_meta.open("r", encoding="utf-8") as fh:
             raw_meta_dict: Dict[str, Any] = json.load(fh)
 
-        n_items = int(raw_meta_dict["n_questions"])
+        n_questions = int(raw_meta_dict["n_questions"])
         n_categories = int(raw_meta_dict["n_categories"])
 
         # Per-student filter then chunk. Chunking is applied at the
@@ -152,7 +152,7 @@ class SyntheticAdapter(OrdinalDatasetBase):
             "dataset_name": self.cfg.name,
             "adapter_class": type(self).__name__,
             "n_students": n_students,
-            "n_items": n_items,
+            "n_questions": n_questions,
             "n_categories": n_categories,
             "n_kcs": 0,
             "seq_len_range": seq_len_range,
@@ -166,10 +166,10 @@ class SyntheticAdapter(OrdinalDatasetBase):
                 "n_valid": n_valid,
                 "n_test": n_test,
             },
-            "question_id_map": {str(q): q for q in range(1, n_items + 1)},
+            "question_id_map": {str(q): q for q in range(1, n_questions + 1)},
         }
         validate_metadata(meta)
-        validate_sequences(out_records, n_items=n_items, n_categories=n_categories)
+        validate_sequences(out_records, n_questions=n_questions, n_categories=n_categories)
 
         out_dir = self.artefact_dir
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -189,7 +189,7 @@ class SyntheticAdapter(OrdinalDatasetBase):
         records = load_sequences(artefact / SEQUENCES_FILENAME)
         meta = load_metadata(artefact / METADATA_FILENAME)
         validate_metadata(meta)
-        validate_sequences(records, n_items=int(meta["n_items"]),
+        validate_sequences(records, n_questions=int(meta["n_questions"]),
                            n_categories=int(meta["n_categories"]))
 
         self._questions = [list(map(int, rec["questions"])) for rec in records]

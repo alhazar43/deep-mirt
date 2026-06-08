@@ -55,7 +55,7 @@ def test_metadata_block(tmp_path: Path) -> None:
     meta = load_metadata(tmp_path / "eedi_mini_k4" / METADATA_FILENAME)
     assert meta["adapter_class"] == "EediAdapter"
     assert meta["n_categories"] == 4
-    assert meta["n_items"] == 5      # five distinct question_ids in the fixture
+    assert meta["n_questions"] == 5      # five distinct question_ids in the fixture
     assert meta["n_students"] == 10  # ten distinct student_ids
     assert meta["ordinal_coercion_method"] == "distractor_difficulty_2pl"
     assert meta["splits"]["split_seed"] == 7
@@ -152,4 +152,4 @@ def test_responses_in_valid_range_after_load(tmp_path: Path) -> None:
         assert ((arr >= 0) & (arr <= 3)).all()
     for q_seq in a._questions:
         arr = np.asarray(q_seq, dtype=int)
-        assert ((arr >= 1) & (arr <= a.get_n_items())).all()
+        assert ((arr >= 1) & (arr <= a.get_n_questions())).all()

@@ -140,7 +140,7 @@ class EediAdapter(OrdinalDatasetBase):
         question_id_map: Dict[Any, int] = {
             qid: i + 1 for i, qid in enumerate(question_ids_unique.tolist())
         }
-        n_items = len(question_id_map)
+        n_questions = len(question_id_map)
 
         df["_student"] = df["student_id"].map(student_id_map).astype(np.int64)
         df["_item"] = df["question_id"].map(question_id_map).astype(np.int64)
@@ -178,7 +178,7 @@ class EediAdapter(OrdinalDatasetBase):
             questions=questions,
             binary_responses=correctness,
             train_indices=train_indices,
-            n_items=n_items,
+            n_questions=n_questions,
             max_iters=20,
             lr=5e-2,
             batch_size=128,
@@ -192,13 +192,13 @@ class EediAdapter(OrdinalDatasetBase):
         # take the most common such value as the canonical "correct"
         # option for robustness against a few mislabelled rows.
         correct_option_per_q = _infer_correct_option_per_question(
-            df, n_items=n_items, train_students=set(train_indices.tolist())
+            df, n_questions=n_questions, train_students=set(train_indices.tolist())
         )
 
         sigma_per_q, distractor_means, fallback_qs = _rank_distractors_by_difficulty(
             df=df,
             theta_hat=fit.theta_hat,
-            n_items=n_items,
+            n_questions=n_questions,
             train_students=set(train_indices.tolist()),
             correct_option_per_q=correct_option_per_q,
         )
@@ -254,7 +254,7 @@ class EediAdapter(OrdinalDatasetBase):
             "dataset_name": self.cfg.name,
             "adapter_class": type(self).__name__,
             "n_students": n_students,
-            "n_items": n_items,
+            "n_questions": n_questions,
             "n_categories": N_CATEGORIES_EEDI,
             "n_kcs": 0,
             "seq_len_range": seq_len_range,
@@ -275,14 +275,14 @@ class EediAdapter(OrdinalDatasetBase):
         coercion_payload: Dict[str, Any] = {
             "method": "distractor_difficulty_2pl",
             "distractor_order_per_q": {
-                str(q): [int(o) for o in sigma_per_q[q]] for q in range(1, n_items + 1)
+                str(q): [int(o) for o in sigma_per_q[q]] for q in range(1, n_questions + 1)
             },
             "correct_option_per_q": {
-                str(q): int(correct_option_per_q[q]) for q in range(1, n_items + 1)
+                str(q): int(correct_option_per_q[q]) for q in range(1, n_questions + 1)
             },
             "distractor_mean_theta_per_q": {
                 str(q): {str(k): float(v) for k, v in distractor_means[q].items()}
-                for q in range(1, n_items + 1)
+                for q in range(1, n_questions + 1)
             },
             "fallback_questions": fallback_qs,
             "unseen_distractor_count_total": int(unseen_distractor_count),
@@ -294,7 +294,7 @@ class EediAdapter(OrdinalDatasetBase):
         }
 
         validate_metadata(meta)
-        validate_sequences(out_records, n_items=n_items, n_categories=N_CATEGORIES_EEDI)
+        validate_sequences(out_records, n_questions=n_questions, n_categories=N_CATEGORIES_EEDI)
 
         out_dir = self.artefact_dir
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -309,7 +309,7 @@ class EediAdapter(OrdinalDatasetBase):
         records = load_sequences(artefact / SEQUENCES_FILENAME)
         meta = load_metadata(artefact / METADATA_FILENAME)
         validate_metadata(meta)
-        validate_sequences(records, n_items=int(meta["n_items"]),
+        validate_sequences(records, n_questions=int(meta["n_questions"]),
                            n_categories=int(meta["n_categories"]))
 
         self._questions = [list(map(int, rec["questions"])) for rec in records]
@@ -333,7 +333,7 @@ class EediAdapter(OrdinalDatasetBase):
 
 
 def _infer_correct_option_per_question(
-    df: pd.DataFrame, n_items: int, train_students: set
+    df: pd.DataFrame, n_questions: int, train_students: set
 ) -> Dict[int, int]:
     """Return ``{item_id_1based: correct_option_int}`` from the train fold.
 
@@ -359,7 +359,7 @@ def _infer_correct_option_per_question(
         # in the public release where labelled rows are absent).
         out[int(item)] = N_OPTIONS_EEDI
     # Fill any item missing from groupby (no rows at all should not happen).
-    for q in range(1, n_items + 1):
+    for q in range(1, n_questions + 1):
         out.setdefault(q, N_OPTIONS_EEDI)
     return out
 
@@ -367,7 +367,7 @@ def _infer_correct_option_per_question(
 def _rank_distractors_by_difficulty(
     df: pd.DataFrame,
     theta_hat: np.ndarray,
-    n_items: int,
+    n_questions: int,
     train_students: set,
     correct_option_per_q: Dict[int, int],
 ) -> tuple[Dict[int, List[int]], Dict[int, Dict[int, float]], List[Dict[str, Any]]]:
@@ -388,7 +388,7 @@ def _rank_distractors_by_difficulty(
     train_mask = df["_student"].isin(train_students)
     df_train = df[train_mask]
 
-    for q in range(1, n_items + 1):
+    for q in range(1, n_questions + 1):
         correct_opt = correct_option_per_q[q]
         all_options = list(range(1, N_OPTIONS_EEDI + 1))
         candidate_distractors = [o for o in all_options if o != correct_opt]

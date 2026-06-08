@@ -30,10 +30,10 @@ class Placeholder2PLFit:
         theta_hat: ``np.ndarray (n_students,)`` ability estimate per
             student. Students not in the train fold get ``np.nan`` so
             callers can detect cold rows.
-        alpha: ``np.ndarray (n_items + 1,)`` discrimination per item.
+        alpha: ``np.ndarray (n_questions + 1,)`` discrimination per item.
             Index 0 is reserved for padding, identical to MA-GPCM's
             1-based item-id convention.
-        b: ``np.ndarray (n_items + 1,)`` difficulty per item.
+        b: ``np.ndarray (n_questions + 1,)`` difficulty per item.
         train_indices: Indices of students used to fit the 2PL.
         n_iters: Number of SGD epochs actually run.
     """
@@ -49,7 +49,7 @@ def fit_placeholder_2pl(
     questions: Sequence[Sequence[int]],
     binary_responses: Sequence[Sequence[int]],
     train_indices: Sequence[int],
-    n_items: int,
+    n_questions: int,
     max_iters: int = 5,
     lr: float = 1e-2,
     batch_size: int = 64,
@@ -75,7 +75,7 @@ def fit_placeholder_2pl(
         train_indices: Indices into ``questions``/``binary_responses``
             used to fit theta_hat and item parameters. Students outside
             this list get ``np.nan`` in the returned ``theta_hat``.
-        n_items: Total item bank size Q (1-based; 0 reserved for padding).
+        n_questions: Total item bank size Q (1-based; 0 reserved for padding).
         max_iters: Number of full-data SGD epochs.
         lr: Adam learning rate.
         batch_size: Mini-batch size, applied across (student, item) pairs.
@@ -116,10 +116,10 @@ def fit_placeholder_2pl(
         for q, r in zip(q_list, r_list):
             qi = int(q)
             ri = int(r)
-            if not (1 <= qi <= n_items):
+            if not (1 <= qi <= n_questions):
                 raise ValueError(
                     f"student {orig}: question id {qi} out of range "
-                    f"[1, {n_items}]"
+                    f"[1, {n_questions}]"
                 )
             if ri not in (0, 1):
                 raise ValueError(
@@ -141,8 +141,8 @@ def fit_placeholder_2pl(
     theta = torch.nn.Parameter(
         torch.randn(n_train_students, device=dev) * 0.1
     )
-    alpha_raw = torch.nn.Parameter(torch.zeros(n_items + 1, device=dev))
-    b = torch.nn.Parameter(torch.zeros(n_items + 1, device=dev))
+    alpha_raw = torch.nn.Parameter(torch.zeros(n_questions + 1, device=dev))
+    b = torch.nn.Parameter(torch.zeros(n_questions + 1, device=dev))
 
     opt = torch.optim.Adam([theta, alpha_raw, b], lr=lr)
 

@@ -169,8 +169,8 @@ class OrdinalDatasetBase(ABC):
     # Metadata accessors (used by env, reward, eval)
     # ------------------------------------------------------------------
 
-    def get_n_items(self) -> int:
-        return int(self._metadata["n_items"])
+    def get_n_questions(self) -> int:
+        return int(self._metadata["n_questions"])
 
     def get_n_categories(self) -> int:
         return int(self._metadata["n_categories"])

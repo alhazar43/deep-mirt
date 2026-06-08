@@ -44,7 +44,7 @@ COMMON_RECORD_SCHEMA: Dict[str, type] = {
     "dataset_name": str,
     "adapter_class": str,
     "n_students": int,
-    "n_items": int,
+    "n_questions": int,
     "n_categories": int,
     "n_kcs": int,
     "seq_len_range": list,
@@ -95,9 +95,9 @@ def validate_metadata(meta: Mapping[str, Any]) -> None:
         raise SchemaError(
             f"metadata['n_categories'] must be >= 2, got {meta['n_categories']}"
         )
-    if meta["n_items"] < 1:
+    if meta["n_questions"] < 1:
         raise SchemaError(
-            f"metadata['n_items'] must be >= 1, got {meta['n_items']}"
+            f"metadata['n_questions'] must be >= 1, got {meta['n_questions']}"
         )
     if meta["ordinal_coercion_method"] not in COERCION_METHODS:
         raise SchemaError(
@@ -119,12 +119,12 @@ def validate_metadata(meta: Mapping[str, Any]) -> None:
 
 
 def validate_sequences(records: Iterable[Mapping[str, Any]],
-                       n_items: int, n_categories: int) -> None:
+                       n_questions: int, n_categories: int) -> None:
     """Validate the list of sequence records.
 
     Args:
         records: Iterable of dicts matching ``SEQUENCE_RECORD_KEYS``.
-        n_items: Item bank size; question ids must lie in ``[1, n_items]``.
+        n_questions: Item bank size; question ids must lie in ``[1, n_questions]``.
         n_categories: K; responses must lie in ``[0, K - 1]``.
 
     Raises:
@@ -157,10 +157,10 @@ def validate_sequences(records: Iterable[Mapping[str, Any]],
         # Range checks. We avoid numpy here because records may be plain
         # Python lists at this stage and validation must work pre-load.
         for qi in q:
-            if not (1 <= int(qi) <= n_items):
+            if not (1 <= int(qi) <= n_questions):
                 raise SchemaError(
                     f"sequence record {i}: question id {qi} out of range "
-                    f"[1, {n_items}]"
+                    f"[1, {n_questions}]"
                 )
         for ri in r:
             if not (0 <= int(ri) <= n_categories - 1):
@@ -170,15 +170,15 @@ def validate_sequences(records: Iterable[Mapping[str, Any]],
                 )
 
 
-def validate_q_matrix(q_matrix: np.ndarray, n_items: int, n_kcs: int) -> None:
+def validate_q_matrix(q_matrix: np.ndarray, n_questions: int, n_kcs: int) -> None:
     """Validate a Q-matrix ``np.ndarray``."""
     if q_matrix.dtype != np.uint8:
         raise SchemaError(
             f"q_matrix dtype must be uint8, got {q_matrix.dtype}"
         )
-    if q_matrix.shape != (n_items, n_kcs):
+    if q_matrix.shape != (n_questions, n_kcs):
         raise SchemaError(
-            f"q_matrix shape must be ({n_items}, {n_kcs}), got {q_matrix.shape}"
+            f"q_matrix shape must be ({n_questions}, {n_kcs}), got {q_matrix.shape}"
         )
     if not np.all((q_matrix == 0) | (q_matrix == 1)):
         raise SchemaError("q_matrix must be binary (0/1)")

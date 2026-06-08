@@ -82,7 +82,7 @@ def test_n_questions_matches_metadata(loaded_synth) -> None:
     loader = adapter_to_dataloader(loaded_synth, "train", batch_size=2)
     q_pad, _, mask, _ = next(iter(loader))
     valid_ids = q_pad[mask]
-    assert int(valid_ids.max().item()) <= loaded_synth.get_n_items()
+    assert int(valid_ids.max().item()) <= loaded_synth.get_n_questions()
     assert int(valid_ids.min().item()) >= 1
 
 

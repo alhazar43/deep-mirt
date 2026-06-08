@@ -43,7 +43,7 @@ def test_subclasses_have_required_methods() -> None:
         assert hasattr(cls, "materialise") and callable(cls.materialise)
         assert hasattr(cls, "load") and callable(cls.load)
         assert hasattr(cls, "get_split") and callable(cls.get_split)
-        assert hasattr(cls, "get_n_items") and callable(cls.get_n_items)
+        assert hasattr(cls, "get_n_questions") and callable(cls.get_n_questions)
         assert hasattr(cls, "get_n_categories")
         assert hasattr(cls, "__getitem__")
         assert hasattr(cls, "__len__")
@@ -142,6 +142,6 @@ def test_subclass_attribute_population_after_load(tmp_path: Path) -> None:
     assert isinstance(a._student_split, np.ndarray)
     assert a._student_split.dtype == np.int8
     assert a.get_n_categories() == 4
-    assert a.get_n_items() == 5
+    assert a.get_n_questions() == 5
     assert a.get_n_kcs() == 0
     assert a.get_q_matrix() is None
