@@ -31,9 +31,12 @@ from .item_cache import (
     ItemCache,
     build_item_cache,
     checkpoint_sha7,
+    config_hash,
     item_cache_path,
     load_item_cache,
     save_item_cache,
+    validate_provenance,
+    world_model_git_sha_from_repo,
 )
 from .ordrec_env import OrdRecEnv
 
@@ -53,11 +56,14 @@ __all__ = [
     "build_probe_mask",
     "checkpoint_sha7",
     "compose_action_mask",
+    "config_hash",
     "freeze_magpcm",
     "item_cache_path",
     "load_item_cache",
     "no_grad_invariance_check",
     "save_item_cache",
     "update_no_repeat_mask",
+    "validate_provenance",
+    "world_model_git_sha_from_repo",
     "write_bench_artifacts",
 ]

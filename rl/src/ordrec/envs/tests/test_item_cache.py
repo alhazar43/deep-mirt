@@ -14,9 +14,12 @@ from ordrec.envs.item_cache import (
     ItemCache,
     build_item_cache,
     checkpoint_sha7,
+    config_hash,
     item_cache_path,
     load_item_cache,
     save_item_cache,
+    validate_provenance,
+    world_model_git_sha_from_repo,
 )
 
 
@@ -207,3 +210,144 @@ def test_averaging_across_contexts_changes_alpha_but_not_beta() -> None:
     # Alpha tables must both be finite.
     assert np.isfinite(cache_one.alpha_table).all()
     assert np.isfinite(cache_many.alpha_table).all()
+
+
+# ---------------------------------------------------------------------------
+# B2 provenance helpers
+# ---------------------------------------------------------------------------
+
+
+def test_config_hash_deterministic() -> None:
+    """Same dict yields the same 16-char hash; key order does not matter."""
+    cfg = {"n_questions": 200, "n_categories": 4, "n_traits": 1}
+    h1 = config_hash(cfg)
+    h2 = config_hash({"n_categories": 4, "n_questions": 200, "n_traits": 1})
+    assert len(h1) == 16
+    assert h1 == h2
+
+
+def test_config_hash_empty_returns_empty_string() -> None:
+    assert config_hash({}) == ""
+
+
+def test_config_hash_changes_on_content() -> None:
+    h1 = config_hash({"a": 1})
+    h2 = config_hash({"a": 2})
+    assert h1 != h2
+
+
+def test_world_model_git_sha_from_repo_returns_str() -> None:
+    """Call succeeds and returns a string (may be empty in CI environments)."""
+    sha = world_model_git_sha_from_repo()
+    assert isinstance(sha, str)
+
+
+def test_build_item_cache_stores_provenance_fields() -> None:
+    """Provenance kwargs are stored on the built ItemCache."""
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    cfg = {"n_questions": 12, "n_categories": 4}
+    ch = config_hash(cfg)
+    cache = build_item_cache(
+        frozen,
+        n_contexts=1,
+        dataset_name="prov_test",
+        ckpt_sha7="abc1234",
+        world_model_git_sha="deadbee",
+        world_model_config_hash=ch,
+    )
+    assert cache.world_model_git_sha == "deadbee"
+    assert cache.world_model_config_hash == ch
+
+
+def test_save_load_round_trip_with_provenance(tmp_path: Path) -> None:
+    """Provenance fields survive a save/load round-trip."""
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    cfg = {"n_questions": 12, "n_categories": 4}
+    ch = config_hash(cfg)
+    cache = build_item_cache(
+        frozen,
+        n_contexts=1,
+        dataset_name="prov_rt",
+        ckpt_sha7="abc1234",
+        world_model_git_sha="deadbee",
+        world_model_config_hash=ch,
+    )
+    p = item_cache_path(tmp_path, "prov_rt", "abc1234")
+    save_item_cache(cache, p)
+    loaded = load_item_cache(p)
+    assert loaded.world_model_git_sha == "deadbee"
+    assert loaded.world_model_config_hash == ch
+
+
+def test_validate_provenance_passes_on_match() -> None:
+    """No exception when expected values match cache."""
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    cache = build_item_cache(
+        frozen,
+        n_contexts=1,
+        dataset_name="vp",
+        world_model_git_sha="abc1234",
+        world_model_config_hash="cafebabe12345678",
+    )
+    validate_provenance(
+        cache,
+        expected_git_sha="abc1234",
+        expected_config_hash="cafebabe12345678",
+    )
+
+
+def test_validate_provenance_raises_on_git_sha_mismatch() -> None:
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    cache = build_item_cache(
+        frozen, n_contexts=1, dataset_name="vp",
+        world_model_git_sha="abc1234",
+    )
+    with pytest.raises(RuntimeError, match="world_model_git_sha mismatch"):
+        validate_provenance(cache, expected_git_sha="zzz9999")
+
+
+def test_validate_provenance_raises_on_config_hash_mismatch() -> None:
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    cache = build_item_cache(
+        frozen, n_contexts=1, dataset_name="vp",
+        world_model_config_hash="cafebabe12345678",
+    )
+    with pytest.raises(RuntimeError, match="world_model_config_hash mismatch"):
+        validate_provenance(cache, expected_config_hash="0000000000000000")
+
+
+def test_validate_provenance_strict_raises_on_empty() -> None:
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    cache = build_item_cache(frozen, n_contexts=1, dataset_name="vp")
+    with pytest.raises(RuntimeError, match="no world_model_git_sha"):
+        validate_provenance(cache, strict=True)
+
+
+def test_load_old_cache_without_provenance_fields(tmp_path: Path) -> None:
+    """Old caches without provenance keys load successfully with empty strings."""
+    import numpy as np
+
+    p = tmp_path / "old_cache.npz"
+    alpha = np.ones((5, 1), dtype=np.float32)
+    beta = np.zeros((5, 3), dtype=np.float32)
+    np.savez(
+        p,
+        alpha_table=alpha,
+        beta_table=beta,
+        n_questions=np.int64(4),
+        n_categories=np.int64(4),
+        n_traits=np.int64(1),
+        n_contexts=np.int64(2),
+        ckpt_sha7=np.array("abc1234", dtype=object),
+        dataset_name=np.array("old", dtype=object),
+        # NOTE: no world_model_git_sha or world_model_config_hash
+    )
+    loaded = load_item_cache(p)
+    assert loaded.world_model_git_sha == ""
+    assert loaded.world_model_config_hash == ""
