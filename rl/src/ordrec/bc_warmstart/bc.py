@@ -32,6 +32,7 @@ from torch import Tensor
 from torch.distributions import Categorical
 
 from ..envs.ordrec_env import OrdRecEnv
+from ..reward.gpcm_ops import gpcm_log_probs
 from ..training.ppo import PPO, _masked_logits
 
 
@@ -81,23 +82,13 @@ def gpcm_item_information(
             f"(Q+1={Qp1}, D={D})."
         )
 
-    # All-items expansion: (B, Q+1, D), (B, Q+1, K-1).
-    alpha = alpha_table.to(dtype=theta.dtype).unsqueeze(0).expand(B, -1, -1)
-    beta = beta_table.to(dtype=theta.dtype).unsqueeze(0).expand(B, -1, -1)
-
-    interaction = (alpha * theta.unsqueeze(1)).sum(dim=-1)  # (B, Q+1)
-    alpha_norm = alpha.norm(dim=-1)                          # (B, Q+1)
-
-    step_values = (
-        interaction.unsqueeze(-1)
-        - alpha_norm.unsqueeze(-1) * beta
-    )  # (B, Q+1, K-1)
-    cum_logits = step_values.cumsum(dim=-1)
-    zeros = torch.zeros(B, Qp1, 1, device=theta.device, dtype=theta.dtype)
-    logits = torch.cat([zeros, cum_logits], dim=-1)         # (B, Q+1, K)
-    logits = logits.clamp(min=-50.0, max=50.0)
-    probs = F.softmax(logits, dim=-1)
-    probs = probs.clamp_min(eps)
+    # All-items log-probs via shared GPCM kernel.
+    # gpcm_log_probs expects item_ids (B, N), so we pass all Q+1 items.
+    all_ids = torch.arange(Qp1, device=theta.device).unsqueeze(0).expand(B, -1)
+    log_probs_all = gpcm_log_probs(
+        theta, all_ids, alpha_table, beta_table, logit_clip=50.0,
+    )  # (B, Q+1, K)
+    probs = log_probs_all.exp().clamp_min(eps)
 
     # k as a (K,) row.
     k = torch.arange(K, device=theta.device, dtype=theta.dtype)
