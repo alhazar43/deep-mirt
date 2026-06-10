@@ -33,6 +33,7 @@ from torch import Tensor
 from ..data.base import OrdinalDatasetBase
 from ..reward.config import RewardConfig
 from ..reward.exposure import update_fleet_exposure
+from ..reward.nll_anchor import resample_probe_responses
 from ..reward.ordinal_reward import OrdinalRewardCompute
 from .action_mask import (
     build_admin_mask,
@@ -147,6 +148,10 @@ class OrdRecEnv(OrdinalEnvBase):
         self._probe_H_resp: Optional[Tensor] = None
         self._theta_prev: Optional[Tensor] = None
         self._theta_0: Optional[Tensor] = None
+        # Terminal probe responses re-sampled from the world model at the
+        # end of the episode when cfg.resample_probe_at_terminal is True.
+        # None between reset() and the terminal step.
+        self._probe_H_resp_terminal: Optional[Tensor] = None
         self._episode_step: int = 0
         self._terminated: bool = False
         self._episode_idx: int = 0
@@ -275,6 +280,7 @@ class OrdRecEnv(OrdinalEnvBase):
         self._probe_H_resp = probe_H_resp
         self._theta_0 = theta_0
         self._theta_prev = theta_0
+        self._probe_H_resp_terminal = None
         self._episode_step = 0
         self._terminated = False
 
@@ -381,6 +387,27 @@ class OrdRecEnv(OrdinalEnvBase):
 
         self._episode_step += 1
         terminated = self._episode_step >= self.horizon_steps
+
+        # 4a. Dynamic-world probe resampling at the terminal step.
+        #
+        # When cfg.resample_probe_at_terminal is True, re-draw the
+        # H_probe responses by running one more frozen forward conditioned
+        # on the full simulated history (including this step's responses).
+        # This makes the terminal NLL anchor compare theta_0 vs theta_T
+        # on what the world model predicts the student should answer NOW,
+        # not on stale historical responses captured at reset.
+        #
+        # The probe mask keeps H_probe ids out of the action set throughout
+        # the episode, so probing them here does not constitute
+        # administration (anti-gaming invariant preserved).
+        if terminated and getattr(self.cfg, "resample_probe_at_terminal", False):
+            self._probe_H_resp_terminal = resample_probe_responses(
+                self.world,
+                self._truncate_history(self._history_q),
+                self._truncate_history(self._history_r),
+                self._probe_H,
+                generator=self._rng,
+            )
 
         # 4. Reward.
         info = self._build_info(step_index=self._episode_step)
@@ -530,7 +557,12 @@ class OrdRecEnv(OrdinalEnvBase):
         )
 
     def _build_info(self, *, step_index: int) -> Dict[str, Any]:
-        return {
+        # When resample_probe_at_terminal is active, the terminal step
+        # provides probe_H_resp_terminal (responses sampled from the world
+        # model conditioned on the full simulated history).  The reward
+        # composer reads probe_H_resp_terminal first when present; at all
+        # non-terminal steps only the reset-time probe_H_resp is present.
+        info: Dict[str, Any] = {
             "probe_C_ids": self._probe_C,
             "probe_H_ids": self._probe_H,
             "probe_H_resp": self._probe_H_resp,
@@ -541,6 +573,9 @@ class OrdRecEnv(OrdinalEnvBase):
             "step_index": int(step_index),
             "horizon_steps": self.horizon_steps,
         }
+        if self._probe_H_resp_terminal is not None:
+            info["probe_H_resp_terminal"] = self._probe_H_resp_terminal
+        return info
 
 
 __all__ = ["OrdRecEnv"]
