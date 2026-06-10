@@ -12,18 +12,19 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-08
-- **Date last updated.** 2026-06-10
-- **Current state.** E4.6b (hardening slice B + A/B rerun) complete on
-  `feat/ordrec-e46b`. Buffer overflow fixed (RC1), exposure penalty
-  recalibrated (RC2), stratified probe sampler shipped (B5), buffer
-  reworked to one row per env-step (B0+B4). B-side verdict: honest
-  negative, PPO does not beat random in mean episode return on synthetic
-  data (-0.570 vs -0.537, non-overlapping CIs). RC3 (VOI saturation on
-  static DGP) remains open. Results at `rl/results/E46b_ab_comparison.md`.
-  209 tests pass. Doc consolidation complete (C1 audit item).
-- **Active branch.** `feat/ordrec-e46b` at `3278b31`.
-- **Next milestone.** E5: real Eedi K=4 run. Only external dependency
-  is the raw Eedi NeurIPS 2020 Task 3+4 csvs.
+- **Date last updated.** 2026-06-11
+- **Current state.** E4.7 (RC3 dynamic DGP test) complete on
+  `feat/ordrec-e47`. RC3 confirmed and resolved: within-session ability
+  drift (staircase and random-walk cohorts) makes r_voi 100% positive
+  during training (mean +0.073/+0.076 vs -0.043 on static DGP). Policy
+  ordering flips to PPO > BC > Fisher > random on both dynamic cohorts,
+  with non-overlapping 95% CIs. Gating fix `resample_probe_at_terminal`
+  landed (commit `cd2eed6`). 214 tests pass. Results at
+  `rl/results/E47_dynamic_dgp.md`.
+- **Active branch.** `feat/ordrec-e47`.
+- **Next milestone.** E5: real Eedi K=4 run with
+  `resample_probe_at_terminal: true`. Only external dependency is the
+  raw Eedi NeurIPS 2020 Task 3+4 csvs.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -48,12 +49,48 @@ The five locked design corrections from the strategic plan are intact.
 | **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by the CONSOLIDATE verdict in `docs/cleanup/_ordrec_maintainability_review.md`. |
 | **E4.5**, synthetic headline run | complete | `feat/ordrec-e45` | `dbb6cb4` | MA-GPCM world model trained (theta r=0.968), 200 BC updates + 500 PPO updates, four-policy eval (PPO/BC/Fisher/random), headline plots + results report | met | PPO does NOT beat max-Fisher by return. Ranking: random > PPO > BC-only > max-Fisher. Exposure penalty dominates; random wins by avoiding it entirely. Buffer capacity mismatch caused r_voi=0 throughout training. This run is the A-side of the E4.6b A/B comparison. See `rl/results/E45_synth_headline.md`. |
 | **E4.6b**, hardening slice B | complete | `feat/ordrec-e46b` | `3278b31` | B0+B4 buffer rework (one row per env-step), B1-B6 code quality, R1 exposure recalibration, R2 VOI diagnosis, R3 BC teacher soft-target, B5 stratified probe, A/B rerun, C1 doc consolidation | met | 209 tests pass. B-side PPO: -0.570 vs random -0.537. Honest negative on static synthetic DGP. RC3 (VOI saturation) open. Results at `rl/results/E46b_ab_comparison.md`. |
-| **E5**, headline polytomous run on Eedi K=4 | next | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Only external dependency: real Eedi NeurIPS 2020 Task 3+4 csvs. Mean return strictly above uniform-random baseline at end of training, per-component decomposition and exposure caps respected. |
+| **E4.7**, RC3 dynamic DGP test | complete | `feat/ordrec-e47` | tbd | gating fix (`resample_probe_at_terminal`), staircase + random-walk world models, B-side protocol for both cohorts, four-policy eval, three-cohort comparison, RC3 verdict | met | 214 tests pass. RC3 confirmed: dynamic DGPs flip ordering to PPO > BC > Fisher > random (non-overlapping CIs). r_voi 100% positive on both dynamic cohorts (mean +0.073/+0.076 vs -0.043 static). See `rl/results/E47_dynamic_dgp.md`. |
+| **E5**, headline polytomous run on Eedi K=4 | next | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, `resample_probe_at_terminal: true`, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Only external dependency: real Eedi NeurIPS 2020 Task 3+4 csvs. Mean return strictly above uniform-random baseline at end of training, per-component decomposition and exposure caps respected. |
 | **E6**, ablations + paper figures | not started | tbd | tbd | full PPO runs on EdNet KT3 K=4, ASSISTments K=2, plus ablations (no-probe, no-exposure, no-VOI), paper PGF figures | tbd | The science milestone. |
 
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-11, E4.7 complete (RC3 dynamic DGP test).**
+  Branch `feat/ordrec-e47`, 3 commits on top of the E4.6b merge
+  (`83c8f81`). Tests the hypothesis that within-session ability drift
+  restores the value of adaptive selection.
+
+  **Gating fix (`cd2eed6`).** Added `resample_probe_at_terminal` flag
+  to `RewardConfig` (default `False`). When `True`, the env re-samples
+  `H_probe` responses from the frozen world model conditioned on the
+  full simulated history at the episode horizon before the terminal NLL
+  anchor, so the anchor measures tracking of within-session drift rather
+  than prediction of stale warmup-time responses. Anti-gaming probe mask
+  preserved. 5 new tests in
+  `rl/src/ordrec/reward/tests/test_dynamic_probe_resampling.py`. Also
+  fixed a device mismatch bug in `resample_probe_responses` (CPU generator
+  passed to CUDA multinomial). 214 tests pass.
+
+  **Additive configs (`a80ea8f`).** Two MA-GPCM training configs
+  (`ma-irt/configs/ordrec_synth_e47_{stair,rw}.yaml`) plus two PPO
+  configs (`rl/configs/ppo_synth_e47_{stair,rw}.yaml`) with
+  `resample_probe_at_terminal: true`. No ma-irt code edits; two new
+  world-model checkpoints trained (staircase QWK 0.689, random-walk QWK
+  0.705). `train_ppo._build_env` refactored to use `RewardConfig.from_dict`
+  so all current and future `RewardConfig` fields are wired automatically.
+
+  **RC3 verdict.** r_voi is 100% positive throughout training on both
+  dynamic cohorts (staircase mean +0.073, random-walk mean +0.076) vs
+  never net-positive on the static DGP (mean -0.043). The policy
+  ordering flips completely: PPO > BC > Fisher > random on both dynamic
+  cohorts (non-overlapping 95% CIs for all adjacent pairs), versus
+  random > BC > Fisher > PPO on the static cohort. Terminal r_voi
+  positive fraction in evaluation: 75-79% across all policies on both
+  dynamic cohorts. RC3 is confirmed and resolved -- the mechanism works
+  in vitro. Results at `rl/results/E47_dynamic_dgp.md`. Plots at
+  `rl/results/plots/e47_{rvoi_compare,ranking_compare,training_curves}.png`.
 
 - **2026-06-10, E4.6b complete (hardening slice B + A/B rerun + doc consolidation).**
   Branch `feat/ordrec-e46b` at `3278b31`, 12 commits on top of the E4.5

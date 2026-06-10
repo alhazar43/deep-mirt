@@ -191,7 +191,10 @@ def resample_probe_responses(
     probe_probs = out["probs"][:, -H:, :]  # (B, H, K)
     K = probe_probs.shape[-1]
     flat = probe_probs.reshape(-1, K).clamp_min(1e-12)
-    sampled = torch.multinomial(flat, num_samples=1, generator=generator)
+    # generator must live on the same device as flat; pass None on CUDA so
+    # torch uses its own CUDA RNG state rather than a CPU Generator.
+    gen = generator if (generator is None or generator.device == flat.device) else None
+    sampled = torch.multinomial(flat, num_samples=1, generator=gen)
     return sampled.view(B, H).to(dtype=torch.long)
 
 
