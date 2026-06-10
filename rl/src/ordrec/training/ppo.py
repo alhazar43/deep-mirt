@@ -346,7 +346,11 @@ class PPO(RLAlgorithm):
         component_sums: Dict[str, float] = {
             "r_info": 0.0, "r_cost": 0.0, "r_expo": 0.0, "r_voi": 0.0,
         }
-        component_count = 0
+        # One observation count per key. Components can appear at
+        # different frequencies in the env's info dict (e.g. r_voi only
+        # at the terminal step on some envs), so a shared counter would
+        # skew every reported average by the frequency mismatch.
+        component_counts: Dict[str, int] = {k: 0 for k in component_sums}
 
         for _ in range(int(n_episodes)):
             state = env.reset()
@@ -384,7 +388,7 @@ class PPO(RLAlgorithm):
                     val = info.get(key)
                     if isinstance(val, Tensor):
                         component_sums[key] += float(val.detach().mean().item())
-                        component_count += 1
+                        component_counts[key] += 1
                 state = next_state
                 episode_start = False
                 if self.buffer.full:
@@ -400,9 +404,9 @@ class PPO(RLAlgorithm):
         self.buffer.compute_advantages(last_value=0.0)
 
         info: Dict[str, float] = {}
-        denom = max(1, component_count // max(1, len(component_sums)))
         for key, total in component_sums.items():
-            info[key] = total / denom if denom > 0 else 0.0
+            n_obs = component_counts[key]
+            info[key] = total / n_obs if n_obs > 0 else 0.0
         return RolloutStats(
             mean_episode_return=(
                 sum(ep_returns) / len(ep_returns) if ep_returns else 0.0
