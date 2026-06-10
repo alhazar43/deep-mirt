@@ -1,10 +1,11 @@
-"""BC warm-start smoke against the max-Fisher teacher.
+"""BC warm-start smoke against the top-k Fisher soft teacher.
 
-The student PPO actor is warm-started against the max-Fisher teacher
-on a synthetic adapter; after BC the student's argmax-policy match
-rate against the teacher on a held-out slice must exceed 85%. This
-test exercises the full warm-start path (env reset + teacher
-selection + BC gradient step + match-rate evaluation).
+The student PPO actor is warm-started against the soft teacher that
+assigns probability proportional to Fisher information over the top-5
+items. After BC the student's top-5 overlap rate against the teacher
+must exceed 80%. This test exercises the full warm-start path (env
+reset + soft-teacher construction + BC gradient step + top-5-overlap
+evaluation).
 """
 
 from __future__ import annotations
@@ -17,8 +18,10 @@ import pytest
 import torch
 
 from ordrec.bc_warmstart import (
+    BCStats,
     bc_warmstart,
     max_fisher_actions,
+    top_k_fisher_soft_target,
 )
 from ordrec.data import AdapterConfig, SyntheticAdapter
 from ordrec.envs import FrozenMAGPCM, OrdRecEnv, build_item_cache
@@ -76,13 +79,14 @@ def _make_env(tmp_path: Path, B: int = 4) -> Tuple[OrdRecEnv, FrozenMAGPCM]:
     return env, world
 
 
-def test_bc_matches_max_fisher_teacher(tmp_path: Path) -> None:
-    # Seed globally before any construction so the MAGPCM world model,
-    # the ActorCritic init and the BC loop are deterministic regardless
-    # of test order. PPO's constructor no longer reseeds global state,
-    # so without this line the world-model weights would depend on
-    # whatever ambient RNG state earlier tests left behind (the old
-    # order-sensitive flake).
+def test_bc_top5_overlap_improves(tmp_path: Path) -> None:
+    """BC warm-start must improve top-5 overlap against the soft teacher.
+
+    After 30 updates the student's argmax should land in the teacher's
+    top-5 Fisher items for at least 80% of examples. This is a weaker
+    target than the old argmax match-rate because the soft target
+    distributes probability across 5 items.
+    """
     set_seed(0)
     env, _ = _make_env(tmp_path)
     ppo = PPO(
@@ -95,16 +99,27 @@ def test_bc_matches_max_fisher_teacher(tmp_path: Path) -> None:
         learning_rate=3e-3,
     )
 
-    # Pre-warmstart, the student should be roughly random against the
-    # teacher (around 1 / n_actions match rate).
     history = bc_warmstart(
         ppo, env, n_updates=30, n_episodes_per_update=2, seed=0,
+        teacher_top_k=5,
     )
     assert len(history) > 0
-    final_match = history[-1].teacher_match_rate
-    assert final_match >= 0.85, (
-        f"BC warm-start failed to match teacher; got {final_match:.3f}"
+    final_overlap = history[-1].teacher_top5_overlap
+    # teacher_match_rate and teacher_top5_overlap are aliases here.
+    assert final_overlap == history[-1].teacher_match_rate
+    assert final_overlap >= 0.80, (
+        f"BC warm-start failed; top-5 overlap={final_overlap:.3f} < 0.80"
     )
+
+
+def test_bc_stats_has_top5_overlap_field(tmp_path: Path) -> None:
+    """BCStats must expose ``teacher_top5_overlap`` as a named field."""
+    stats = BCStats(
+        bc_loss=0.5, teacher_match_rate=0.9, teacher_top5_overlap=0.9,
+        entropy=1.2, n_examples=16,
+    )
+    assert stats.teacher_top5_overlap == 0.9
+    assert stats.teacher_match_rate == stats.teacher_top5_overlap
 
 
 def test_max_fisher_teacher_respects_mask(tmp_path: Path) -> None:
@@ -121,3 +136,27 @@ def test_max_fisher_teacher_respects_mask(tmp_path: Path) -> None:
         assert bool(mask[b, int(teacher[b].item())].item()) is True
     # And never the pad slot.
     assert not (teacher == 0).any()
+
+
+def test_top_k_soft_target_sums_to_1_and_respects_mask(tmp_path: Path) -> None:
+    """top_k_fisher_soft_target rows sum to 1 and zero out forbidden items."""
+    set_seed(0)
+    env, _ = _make_env(tmp_path)
+    state = env.reset(seed=77)
+    theta = state.theta_t
+    mask = state.action_mask
+    soft = top_k_fisher_soft_target(
+        theta, env.alpha_table, env.beta_table, mask, k=5,
+    )
+    # Each row must sum to 1.0.
+    row_sums = soft.sum(dim=-1)
+    assert torch.allclose(row_sums, torch.ones_like(row_sums), atol=1e-5), (
+        f"Soft target rows do not sum to 1: {row_sums.tolist()}"
+    )
+    # Forbidden items (mask=False) must have probability 0.
+    assert (soft[~mask] == 0.0).all(), "Soft target assigns prob to forbidden item."
+    # At most k items per row have non-zero probability.
+    nonzero_per_row = (soft > 0.0).sum(dim=-1)
+    assert (nonzero_per_row <= 5).all(), (
+        f"Soft target has more than 5 non-zero entries: {nonzero_per_row.tolist()}"
+    )

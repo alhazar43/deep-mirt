@@ -1,30 +1,22 @@
 """Behaviour-cloning warm-start for the PPO actor.
 
-The actor head is trained to mimic a deterministic teacher policy
-that selects items by maximum Fisher information. Muraki (1993)
-gives the GPCM item-information formula::
+The actor head is trained to mimic a teacher policy that scores items
+by maximum Fisher information (Muraki 1993)::
 
     I(q, theta) = E[score(theta)^2 | theta, q]
                 = sum_k k^2 P_qk(theta) - (sum_k k P_qk(theta))^2
 
-This is the score variance of the GPCM at ``theta``. Higher
-``I(q, theta)`` selects the item whose response best distinguishes
-abilities in a Cramer-Rao sense. The Lindley/Owen lens used in the
-reward design reduces to maximum Fisher information when the probe
-``C`` collapses to a single candidate item, so the teacher is a
-principled warm-start anchor even when the PPO reward involves a
-larger probe (see plan Section 3.5).
+Rather than a hard argmax target (one-hot on the single top item), the
+BC loss uses a **top-k soft target**: the teacher distribution is the
+renormalised Fisher scores over the top-5 most informative items, with
+all other items given zero probability. This soft target is more
+robust than the argmax when several items have nearly identical
+Fisher information, avoids misleading log-prob=-inf on a minority of
+seeds, and provides a richer training signal across the K items.
 
-The teacher is masked by the env's action mask so it never picks
-probe items or already-administered items. The student is the PPO
-actor; the BC loss is the negative log-likelihood of the teacher's
-choice under the student's masked categorical.
-
-The full impl-guide design specifies a 50/30/20 mixture over
-``max-Fisher / ReflectionLayer-greedy / Thompson``. The other two
-teachers depend on infrastructure (ReflectionLayer, posterior
-sampling) we have not built. E4 ships the max-Fisher teacher only;
-the mixture is a v2 enhancement.
+Match-rate reporting uses top-5 overlap (``teacher_top5_overlap``)
+instead of argmax equality, since the soft target does not commit to a
+single item.
 
 See ``docs/ordrec_impl_guide.md`` Section 4.5 (item 20).
 """
@@ -139,7 +131,7 @@ def max_fisher_actions(
             ``False``.
 
     Returns:
-        ``LongTensor (B,)`` of teacher actions.
+        ``LongTensor (B,)`` of teacher actions (argmax of Fisher info).
     """
     info = gpcm_item_information(theta, alpha_table, beta_table)
     if action_mask.shape != info.shape:
@@ -151,6 +143,65 @@ def max_fisher_actions(
     return masked.argmax(dim=-1)
 
 
+def top_k_fisher_soft_target(
+    theta: Tensor,
+    alpha_table: Tensor,
+    beta_table: Tensor,
+    action_mask: Tensor,
+    *,
+    k: int = 5,
+) -> Tensor:
+    """Top-k Fisher soft target distribution.
+
+    Returns a probability vector over the full action space where
+    only the top-k items (by masked Fisher information) receive
+    non-zero probability. Within the top-k the distribution is
+    proportional to the Fisher information scores, renormalised to
+    sum to 1.0.
+
+    Using this as the BC target instead of a one-hot argmax is more
+    robust when several items have similar Fisher information and
+    avoids the zero-gradient pathology for near-optimal items just
+    outside rank 1.
+
+    Args:
+        theta: ``Tensor (B, D)``.
+        alpha_table: ``Tensor (Q + 1, D)``.
+        beta_table: ``Tensor (Q + 1, K - 1)``.
+        action_mask: ``BoolTensor (B, Q + 1)``.
+        k: Number of top items to include in the soft target.
+
+    Returns:
+        ``Tensor (B, Q + 1)`` soft probability distribution.
+        Rows sum to 1.0. Disallowed positions are exactly zero.
+    """
+    info = gpcm_item_information(theta, alpha_table, beta_table)
+    if action_mask.shape != info.shape:
+        raise ValueError(
+            f"action_mask shape {tuple(action_mask.shape)} must match "
+            f"info shape {tuple(info.shape)}."
+        )
+    # Zero out disallowed positions.
+    info_masked = info.clone()
+    info_masked[~action_mask] = float("-inf")
+
+    # Identify top-k positions per row.
+    k_eff = min(k, int(action_mask.sum(dim=-1).min().item()))
+    k_eff = max(1, k_eff)
+    topk_vals, topk_idx = info_masked.topk(k_eff, dim=-1)  # (B, k)
+
+    # Build soft target: renormalised Fisher scores at top-k positions.
+    # Clamp any -inf values (shouldn't occur if k_eff <= allowed count).
+    topk_vals = topk_vals.clamp_min(0.0)
+    denom = topk_vals.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+    topk_probs = topk_vals / denom  # (B, k)
+
+    # Scatter into a full (B, Q+1) distribution.
+    soft = torch.zeros_like(info)
+    soft.scatter_add_(dim=1, index=topk_idx, src=topk_probs)
+    return soft
+
+
 # ---------------------------------------------------------------------------
 # BC loss and one warm-start step
 # ---------------------------------------------------------------------------
@@ -158,10 +209,24 @@ def max_fisher_actions(
 
 @dataclass
 class BCStats:
-    """Per-update behaviour-cloning diagnostics."""
+    """Per-update behaviour-cloning diagnostics.
+
+    Attributes:
+        bc_loss: Cross-entropy loss between student and soft teacher.
+        teacher_match_rate: Fraction of rows where the student argmax
+            falls within the teacher's top-5 Fisher items. Kept for
+            backward-compat logging; prefer ``teacher_top5_overlap``.
+        teacher_top5_overlap: Fraction of rows where the student argmax
+            is one of the top-5 Fisher items (same as
+            ``teacher_match_rate`` for k=5, named explicitly for
+            clarity).
+        entropy: Mean student entropy.
+        n_examples: Number of (student, teacher) pairs in the update.
+    """
 
     bc_loss: float
     teacher_match_rate: float
+    teacher_top5_overlap: float
     entropy: float
     n_examples: int
 
@@ -170,16 +235,22 @@ def bc_loss_step(
     ppo: PPO,
     obs: Tensor,
     action_mask: Tensor,
-    teacher_actions: Tensor,
+    teacher_soft: Tensor,
     *,
     optimizer: Optional[torch.optim.Optimizer] = None,
+    top_k: int = 5,
 ) -> Tuple[Tensor, BCStats]:
-    """Single behaviour-cloning gradient step.
+    """Single behaviour-cloning gradient step with a soft teacher target.
 
-    The student is the PPO actor. Loss is the cross-entropy between
-    the masked categorical and the teacher's one-hot. We do not
-    update the critic here; the critic gets the static MVE warm-start
-    in ``static_mve.py``.
+    The student is the PPO actor. The loss is the cross-entropy between
+    the student's masked distribution and the teacher's top-k soft
+    target. We do not update the critic here; the critic gets the
+    static MVE warm-start in ``static_mve.py``.
+
+    Using a soft target (renormalised Fisher over top-k items) rather
+    than a one-hot argmax is more robust when several items have nearly
+    identical Fisher information and avoids the misleading log-prob=-inf
+    pathology.
 
     Args:
         ppo: A constructed :class:`PPO` instance. The optimizer is
@@ -187,9 +258,14 @@ def bc_loss_step(
         obs: ``Tensor (B, obs_dim)`` policy observations.
         action_mask: ``BoolTensor (B, n_actions)`` matching the env's
             mask at the same step.
-        teacher_actions: ``LongTensor (B,)`` of teacher choices.
+        teacher_soft: ``FloatTensor (B, n_actions)`` soft target
+            distribution summing to 1.0 per row. Produced by
+            :func:`top_k_fisher_soft_target`. Rows must sum to 1.
         optimizer: Optional override of the PPO optimizer. Useful in
             tests that want isolated parameter steps.
+        top_k: Number of top teacher items. Used only for the
+            ``teacher_top5_overlap`` metric computation; the loss
+            itself uses ``teacher_soft`` as provided.
 
     Returns:
         ``(loss, stats)``.
@@ -198,24 +274,30 @@ def bc_loss_step(
         raise ValueError(
             f"obs must be 2D (B, obs_dim), got {tuple(obs.shape)}"
         )
-    if teacher_actions.ndim != 1 or teacher_actions.shape[0] != obs.shape[0]:
+    if teacher_soft.shape[0] != obs.shape[0]:
         raise ValueError(
-            f"teacher_actions must be 1D (B,), got "
-            f"{tuple(teacher_actions.shape)} for obs B={obs.shape[0]}."
+            f"teacher_soft batch dim {teacher_soft.shape[0]} != "
+            f"obs batch dim {obs.shape[0]}."
+        )
+    if teacher_soft.ndim != 2:
+        raise ValueError(
+            f"teacher_soft must be 2D (B, n_actions), got "
+            f"{tuple(teacher_soft.shape)}."
         )
     opt = optimizer if optimizer is not None else ppo.optimizer
     obs = obs.to(ppo.device)
     action_mask = action_mask.to(ppo.device)
-    teacher_actions = teacher_actions.to(ppo.device)
+    teacher_soft = teacher_soft.to(ppo.device)
 
     logits, _ = ppo.policy(obs)
     masked = _masked_logits(logits, action_mask)
-    # Cross-entropy under the masked distribution. ``log_softmax``
-    # handles ``-inf`` rows by yielding ``-inf`` on disallowed actions,
-    # which is fine because the teacher's action is always allowed.
+
+    # KL-divergence loss: sum_a teacher_soft[a] * (-log student[a]).
+    # Equivalent to cross-entropy H(teacher, student) when teacher sums
+    # to 1. ``log_softmax`` handles -inf for disallowed actions; the
+    # soft target already assigns zero probability there.
     log_probs = F.log_softmax(masked, dim=-1)
-    nll = -log_probs.gather(1, teacher_actions.unsqueeze(1)).squeeze(1)
-    loss = nll.mean()
+    loss = -(teacher_soft * log_probs).sum(dim=-1).mean()
 
     opt.zero_grad(set_to_none=True)
     loss.backward()
@@ -226,12 +308,20 @@ def bc_loss_step(
 
     with torch.no_grad():
         student = Categorical(logits=masked)
-        argmax = masked.argmax(dim=-1)
-        match = (argmax == teacher_actions).float().mean()
+        argmax = masked.argmax(dim=-1)  # student greedy pick
+        # teacher top-k: positions with non-zero probability.
+        teacher_topk = teacher_soft > 0.0
+        # Top-5 overlap: fraction of rows where student argmax is in
+        # the teacher's top-k items.
+        overlap = teacher_topk.gather(
+            dim=1, index=argmax.unsqueeze(1),
+        ).squeeze(1).float().mean()
         entropy = student.entropy().mean()
+
     return loss.detach(), BCStats(
         bc_loss=float(loss.detach().item()),
-        teacher_match_rate=float(match.item()),
+        teacher_match_rate=float(overlap.item()),
+        teacher_top5_overlap=float(overlap.item()),
         entropy=float(entropy.item()),
         n_examples=int(obs.shape[0]),
     )
@@ -244,15 +334,17 @@ def bc_warmstart(
     n_updates: int = 20,
     n_episodes_per_update: int = 4,
     seed: int = 0,
+    teacher_top_k: int = 5,
 ) -> list[BCStats]:
-    """Warm-start ``ppo.policy`` against the max-Fisher teacher.
+    """Warm-start ``ppo.policy`` against the top-k Fisher soft teacher.
 
-    For each update we reset the env, then at each step we ask the
-    teacher for its max-Fisher choice under the env's mask, sample a
-    minibatch of ``(obs, mask, teacher_action)`` tuples, and run one
-    BC gradient step. The reward channel is not used; the env is
-    driven by the teacher so the trajectories the student learns to
-    match are also the ones the teacher would have produced.
+    For each update we reset the env, then at each step we compute the
+    teacher's top-k soft target (renormalised Fisher information over
+    the top-5 items) under the env's mask, build a minibatch of
+    ``(obs, mask, teacher_soft)`` tuples, and run one BC gradient step.
+
+    The soft target is more robust than a hard argmax when several
+    items have similar Fisher information.
 
     Args:
         ppo: Constructed PPO.
@@ -261,6 +353,8 @@ def bc_warmstart(
         n_updates: Number of warm-start updates.
         n_episodes_per_update: Episodes to collect per BC update.
         seed: Seed used for the env's resets.
+        teacher_top_k: Number of top Fisher items in the soft target.
+            Default 5 (top-5 soft target).
 
     Returns:
         List of :class:`BCStats`, one per update.
@@ -270,19 +364,30 @@ def bc_warmstart(
     for it in range(int(n_updates)):
         obs_buf: list[Tensor] = []
         mask_buf: list[Tensor] = []
-        teach_buf: list[Tensor] = []
+        soft_buf: list[Tensor] = []
         for ep_idx in range(int(n_episodes_per_update)):
             state = env.reset(seed=seed + it * 1000 + ep_idx)
             done = False
             while not done:
                 obs = state.to_tensor(ppo.device)  # (B, obs_dim)
                 mask = state.action_mask.to(ppo.device)  # (B, Q+1)
-                # Sample K_B teacher actions sequentially, updating
-                # the mask after each pick so the env's no-repeat
-                # invariant holds.
+                # Build K_B soft targets sequentially. The mask tightens
+                # after each pick so the teacher never selects an item
+                # that's already been chosen in this block.
                 cur_mask = mask.clone()
                 teacher_cols: list[Tensor] = []
+                soft_cols: list[Tensor] = []
                 for _ in range(K_B):
+                    # Soft target over top-k Fisher items under cur_mask.
+                    soft = top_k_fisher_soft_target(
+                        state.theta_t.to(ppo.device),
+                        env.alpha_table,
+                        env.beta_table,
+                        cur_mask,
+                        k=teacher_top_k,
+                    )
+                    soft_cols.append(soft)
+                    # Hard pick for env.step: argmax of Fisher info.
                     teacher_a = max_fisher_actions(
                         state.theta_t.to(ppo.device),
                         env.alpha_table,
@@ -299,14 +404,13 @@ def bc_warmstart(
                         ),
                     )
                 teacher_action = torch.stack(teacher_cols, dim=1)
-                # Store per-sub-step BC examples. The student sees the
-                # same observation for each sub-step but the mask
-                # tightens after each prior pick.
+                # Store per-sub-step BC examples with the sub-step's
+                # soft target. The mask tightens progressively.
                 running_mask = mask.clone()
                 for k in range(K_B):
                     obs_buf.append(obs.detach().cpu())
                     mask_buf.append(running_mask.detach().cpu())
-                    teach_buf.append(teacher_cols[k].detach().cpu())
+                    soft_buf.append(soft_cols[k].detach().cpu())
                     running_mask = running_mask.clone()
                     running_mask.scatter_(
                         dim=1, index=teacher_cols[k].unsqueeze(1),
@@ -320,8 +424,9 @@ def bc_warmstart(
             continue
         obs_t = torch.cat(obs_buf, dim=0)
         mask_t = torch.cat(mask_buf, dim=0)
-        teach_t = torch.cat(teach_buf, dim=0)
-        _, stats = bc_loss_step(ppo, obs_t, mask_t, teach_t)
+        soft_t = torch.cat(soft_buf, dim=0)
+        _, stats = bc_loss_step(ppo, obs_t, mask_t, soft_t,
+                                top_k=teacher_top_k)
         history.append(stats)
     return history
 
@@ -332,4 +437,5 @@ __all__ = [
     "bc_warmstart",
     "gpcm_item_information",
     "max_fisher_actions",
+    "top_k_fisher_soft_target",
 ]
