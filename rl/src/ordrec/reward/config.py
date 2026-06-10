@@ -105,6 +105,16 @@ class RewardConfig:
     # Laplace floor (future use)
     sigma_floor: float = 0.15
 
+    # Dynamic-world probe resampling (E4.7).
+    # When True the terminal NLL anchor re-samples probe_H responses
+    # from the frozen world model conditioned on the full simulated
+    # history at the episode horizon, instead of using the real
+    # historical-tail responses captured at reset time. Set to True
+    # when training on staircase or random-walk cohorts so the anchor
+    # measures whether the policy helped the model track within-session
+    # drift, not whether it predicted stale past responses.
+    resample_probe_at_terminal: bool = False
+
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------

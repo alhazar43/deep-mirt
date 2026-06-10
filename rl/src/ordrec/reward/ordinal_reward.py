@@ -178,8 +178,16 @@ class OrdinalRewardCompute:
         step_index = int(info.get("step_index", 0))
         if step_index == T_over_KB:
             probe_H_ids = info.get("probe_H_ids")
-            probe_H_resp = info.get("probe_H_resp")
             theta_0 = info.get("theta_0")
+            # Dynamic-world mode (E4.7): use terminal-resampled probe
+            # responses when available, otherwise fall back to the
+            # reset-time responses.  The terminal responses are keyed
+            # as probe_H_resp_terminal to keep the static-world path
+            # completely unchanged for backward compatibility.
+            if cfg.resample_probe_at_terminal and "probe_H_resp_terminal" in info:
+                probe_H_resp = info["probe_H_resp_terminal"]
+            else:
+                probe_H_resp = info.get("probe_H_resp")
             if probe_H_ids is None or probe_H_resp is None or theta_0 is None:
                 raise KeyError(
                     "Terminal step requires probe_H_ids, probe_H_resp and "

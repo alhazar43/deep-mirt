@@ -13,7 +13,7 @@ point and Section 3.8 for the numerical-stability notes.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from torch import Tensor
@@ -132,4 +132,70 @@ def terminal_anchor(
     return nll_prior - nll_t
 
 
-__all__ = ["gpcm_nll", "terminal_anchor"]
+def resample_probe_responses(
+    world_model: "Any",
+    history_q: Tensor,
+    history_r: Tensor,
+    probe_H_ids: Tensor,
+    *,
+    generator: Optional[torch.Generator] = None,
+) -> Tensor:
+    """Sample probe responses from the world model at the current history.
+
+    Used by the E4.7 dynamic-world anchor
+    (``RewardConfig.resample_probe_at_terminal = True``) to draw
+    ``H_probe`` responses that reflect the student state the world model
+    believes the student is in AFTER the full simulated session history,
+    rather than the real historical-tail responses captured at episode
+    reset.
+
+    Anti-gaming invariant: ``probe_H_ids`` must be masked from the action
+    set throughout the episode (enforced by :class:`OrdRecEnv`'s probe
+    mask). This function only queries the world model's predictive
+    distribution at those items; it does NOT administer them.
+
+    Algorithm:
+
+    1. Append ``probe_H_ids`` to ``history_q`` with zero placeholder
+       responses (the world model conditions on the question ids, not
+       the responses, when predicting the next-step distribution).
+    2. Run one frozen forward pass.
+    3. Sample one response per probe item from the predicted
+       probabilities.
+
+    Args:
+        world_model: A :class:`~ordrec.envs.frozen_magpcm.FrozenMAGPCM`
+            instance (or anything with ``forward_no_grad(q, r) -> dict``
+            that returns a ``probs (B, S, K)`` tensor).
+        history_q: ``LongTensor (B, S)`` question ids of the current
+            simulated history.
+        history_r: ``LongTensor (B, S)`` corresponding responses.
+        probe_H_ids: ``LongTensor (B, H)`` probe item ids.
+        generator: Optional ``torch.Generator`` for reproducible sampling.
+
+    Returns:
+        ``LongTensor (B, H)`` sampled responses in ``[0, K - 1]``.
+    """
+    B, H = probe_H_ids.shape
+    device = history_q.device
+
+    # Append probe items to the history with zero placeholder responses.
+    placeholder_r = torch.zeros(B, H, dtype=torch.long, device=device)
+    extended_q = torch.cat([history_q, probe_H_ids], dim=1)
+    extended_r = torch.cat([history_r, placeholder_r], dim=1)
+
+    with torch.no_grad():
+        out = world_model.forward_no_grad(extended_q, extended_r)
+
+    # Take only the last H positions (the probe items).
+    probe_probs = out["probs"][:, -H:, :]  # (B, H, K)
+    K = probe_probs.shape[-1]
+    flat = probe_probs.reshape(-1, K).clamp_min(1e-12)
+    # generator must live on the same device as flat; pass None on CUDA so
+    # torch uses its own CUDA RNG state rather than a CPU Generator.
+    gen = generator if (generator is None or generator.device == flat.device) else None
+    sampled = torch.multinomial(flat, num_samples=1, generator=gen)
+    return sampled.view(B, H).to(dtype=torch.long)
+
+
+__all__ = ["gpcm_nll", "resample_probe_responses", "terminal_anchor"]
