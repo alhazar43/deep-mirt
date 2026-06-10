@@ -11,7 +11,9 @@ defaults and the rationale behind each weight.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
+from typing import Any, Dict
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,33 @@ class RewardConfig:
 
     # Laplace floor (future use)
     sigma_floor: float = 0.15
+
+    # ------------------------------------------------------------------
+    # Factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "RewardConfig":
+        """Construct from a plain dict, ignoring unknown keys.
+
+        Only the keys that match :class:`RewardConfig` field names are
+        forwarded; extra keys (from a broader YAML section) are silently
+        dropped. Missing keys fall back to the dataclass defaults.
+
+        Args:
+            d: Mapping from field name to value. Typically the ``reward``
+               sub-dict loaded from a YAML config file.
+
+        Returns:
+            A frozen :class:`RewardConfig` instance.
+
+        Example::
+
+            cfg = RewardConfig.from_dict(yaml_data.get("reward", {}))
+        """
+        known = {f.name for f in dataclasses.fields(cls)}
+        filtered = {k: v for k, v in d.items() if k in known}
+        return cls(**filtered)
 
 
 __all__ = ["RewardConfig"]
