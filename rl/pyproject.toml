@@ -37,5 +37,5 @@ include = ["ordrec*"]
 "ordrec.data.tests" = ["fixtures/*.csv"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/ordrec"]
+testpaths = ["src/ordrec", "tests"]
 python_files = ["test_*.py"]
