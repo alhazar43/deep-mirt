@@ -13,27 +13,15 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 
 - **Date created.** 2026-06-08
 - **Date last updated.** 2026-06-10
-- **Current state.** E4.6a (hardening slice A) complete on
-  `feat/ordrec-e46a`. The four-auditor maintainability review of
-  the E1-E4 stack returned CONSOLIDATE (review at
-  `docs/cleanup/_ordrec_maintainability_review.md`, raw digest at
-  `docs/cleanup/_ordrec_audit_digest.md`). This slice fixed the
-  four blocking defects that would have corrupted the E4.5
-  synthetic headline run, the per-component reward metrics
-  denominator, the no-op reward-scale test band, the zero test
-  coverage on `train_ppo.py` and `eval_policy.py`, and the global
-  RNG side effect in `PPO.__init__` behind the bc_smoke flake.
-  150 unit tests pass (146 pre-slice + 4 new). Gate met, full
-  suite green twice plus `test_bc_smoke.py` green in isolation
-  three times.
-- **Active branch.** `feat/ordrec-e46a`, 4 fix commits
-  (`c90e244`, `88f9943`, `d18522a`, `ac40b68`) stacked on
-  `feat/ordrec` tip `4e2fc72` (E4 merged).
-- **Next milestone.** E4.5, the synthetic headline run, now with
-  trustworthy per-component metrics and a tested train/eval
-  harness. Then E4.6b (hardening slice B, items B1-B6 from the
-  review), then E5, the real polytomous training run on Eedi K=4
-  plus CI, repro and paper hooks.
+- **Current state.** E4.5 (synthetic headline run) complete on
+  `feat/ordrec-e45`. PPO does not beat random in episode return;
+  exposure penalty dominates and r_voi=0 throughout training due to
+  buffer capacity mismatch. This run is the A-side of the E4.6b A/B
+  comparison. Results at `rl/results/E45_synth_headline.md`.
+- **Active branch.** `feat/ordrec-e45` at `dbb6cb4`.
+- **Next milestone.** E4.6b (hardening slice B): buffer capacity fix,
+  K_B credit distribution, stratified probe sampler, per-item phi logging,
+  plus A/B rerun against the E4.5 config to validate the multi-step claim.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -56,7 +44,7 @@ The five locked design corrections from the strategic plan are intact.
 | **E3**, env + reward + wiring | complete (merged) | `feat/ordrec` | `eaa404a` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/E3_env_reward.md`. |
 | **E4**, RL library + training loop + smoke | complete (merged) | `feat/ordrec` | `4e2fc72` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/E4_rl_library.md`. |
 | **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by the CONSOLIDATE verdict in `docs/cleanup/_ordrec_maintainability_review.md`. |
-| **E4.5**, synthetic headline run | next | tbd | tbd | full-length PPO run on the synthetic adapter with BC and MVE warm-start, per-component reward decomposition logged, eval report vs the uniform-random baseline | tbd | Runs on the now-trustworthy metrics pipeline. Feeds the E4.6b A/B rerun. |
+| **E4.5**, synthetic headline run | complete | `feat/ordrec-e45` | `dbb6cb4` | MA-GPCM world model trained (theta r=0.968), 200 BC updates + 500 PPO updates, four-policy eval (PPO/BC/Fisher/random), headline plots + results report | met | PPO does NOT beat max-Fisher by return. Ranking: random > PPO > BC-only > max-Fisher. Exposure penalty dominates; random wins by avoiding it entirely. Buffer capacity mismatch caused r_voi=0 throughout training. This run is the A-side of the E4.6b A/B comparison. See `rl/results/E45_synth_headline.md`. |
 | **E4.6b**, hardening slice B | not started | tbd | tbd | review items B1-B6, GPCM helper extraction, ma-irt commit pinning, typed output contract, K_B credit assignment, probe-sampler decision (B5), config dataclasses | tbd | After E4.5, before E5. Validated by an A/B rerun of the E4.5 config. C1 doc consolidation rides along. |
 | **E5**, headline polytomous run on Eedi K=4 | after E4.6b | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Mean return strictly above the uniform-random baseline at the end of training, with per-component decomposition and exposure caps respected. |
 | **E6**, ablations + paper figures | not started | tbd | tbd | full PPO runs on EdNet KT3 K=4, ASSISTments K=2, plus ablations (no-probe, no-exposure, no-VOI), paper PGF figures | tbd | The science milestone. |
@@ -64,6 +52,22 @@ The five locked design corrections from the strategic plan are intact.
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-10, E4.5 complete (synthetic headline run).** Branch
+  `feat/ordrec-e45` at `dbb6cb4`, 3 commits on top of E4.6a merge
+  (`1ec2e9a`). MA-GPCM world model trained on N=2000, Q=200, K=4
+  synthetic cohort (theta r=0.968, beta r=0.975, alpha r=0.884).
+  200 BC warmstart updates + 500 PPO updates (B=32, K_B=5, T=10,
+  ~58s wall-clock on RTX 4060 Laptop). Four-policy eval on test split
+  (6400 episodes each). Headline finding: PPO does NOT beat max-Fisher
+  or random by episode return. Ranking: random (-0.530) > PPO (-0.729)
+  > BC-only (-0.734) > max-Fisher (-0.745). Root cause: exposure penalty
+  dominates (r_expo ~-0.094 for learned policies, 0.000 for random;
+  frac_above_r_max ~7.5% vs 0%). Buffer capacity mismatch caused
+  r_voi=0 throughout training (buffer capacity=64 vs 160 inserts per
+  step). This run is the A-side of the E4.6b A/B comparison. Results
+  at `rl/results/E45_synth_headline.md`. Headline plots at
+  `rl/results/plots/e45_{training_curve,baseline_comparison,session_trajectory}.png`.
 
 - **2026-06-10, E4.6a complete (hardening slice A).** Branch
   `feat/ordrec-e46a` at `ac40b68`, 4 commits stacked on
