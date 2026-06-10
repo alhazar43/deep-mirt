@@ -23,7 +23,7 @@ from ordrec.bc_warmstart import (
 from ordrec.data import AdapterConfig, SyntheticAdapter
 from ordrec.envs import FrozenMAGPCM, OrdRecEnv, build_item_cache
 from ordrec.reward import OrdinalRewardCompute, RewardConfig
-from ordrec.training import PPO
+from ordrec.training import PPO, set_seed
 
 
 pytest.importorskip("models", reason="ma-irt must be on PYTHONPATH")
@@ -77,6 +77,13 @@ def _make_env(tmp_path: Path, B: int = 4) -> Tuple[OrdRecEnv, FrozenMAGPCM]:
 
 
 def test_bc_matches_max_fisher_teacher(tmp_path: Path) -> None:
+    # Seed globally before any construction so the MAGPCM world model,
+    # the ActorCritic init and the BC loop are deterministic regardless
+    # of test order. PPO's constructor no longer reseeds global state,
+    # so without this line the world-model weights would depend on
+    # whatever ambient RNG state earlier tests left behind (the old
+    # order-sensitive flake).
+    set_seed(0)
     env, _ = _make_env(tmp_path)
     ppo = PPO(
         observation_dim=env.observation_dim,
@@ -101,6 +108,7 @@ def test_bc_matches_max_fisher_teacher(tmp_path: Path) -> None:
 
 
 def test_max_fisher_teacher_respects_mask(tmp_path: Path) -> None:
+    set_seed(0)
     env, _ = _make_env(tmp_path)
     state = env.reset(seed=99)
     theta = state.theta_t
