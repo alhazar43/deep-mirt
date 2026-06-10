@@ -268,6 +268,11 @@ def train(cfg: Dict[str, Any], *, config_path: Optional[Path] = None) -> Dict[st
                 ),
                 seed=seed,
             )
+        # Save BC-only checkpoint so eval can run it as a separate baseline.
+        if bc_n > 0:
+            bc_ckpt = out_dir / "bc_warmstart.pt"
+            ppo.save(bc_ckpt)
+            print(f"BC warmstart checkpoint saved to {bc_ckpt}", flush=True)
 
     total_updates = ppo.total_updates
     best_return = float("-inf")
