@@ -26,6 +26,12 @@ from .bench_forward import (
     write_bench_artifacts,
 )
 from .frozen_magpcm import FrozenMAGPCM, MAIRTOutput, freeze_magpcm
+from .probe_sampler import (
+    ProbeSampler,
+    StratifiedProbeSampler,
+    UniformProbeSampler,
+    make_probe_sampler,
+)
 from .item_cache import (
     ITEM_CACHE_DTYPE,
     ItemCache,
@@ -64,6 +70,10 @@ __all__ = [
     "no_grad_invariance_check",
     "save_item_cache",
     "update_no_repeat_mask",
+    "ProbeSampler",
+    "StratifiedProbeSampler",
+    "UniformProbeSampler",
+    "make_probe_sampler",
     "validate_provenance",
     "world_model_git_sha_from_repo",
     "write_bench_artifacts",

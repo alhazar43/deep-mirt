@@ -43,6 +43,7 @@ from .action_mask import (
 from .base import OrdinalEnvBase, OrdinalState
 from .frozen_magpcm import FrozenMAGPCM
 from .item_cache import ItemCache
+from .probe_sampler import ProbeSampler, make_probe_sampler
 
 
 # Maximum history length fed to the frozen encoder on every forward.
@@ -82,6 +83,11 @@ class OrdRecEnv(OrdinalEnvBase):
             ``"train"``.
         device: Device on which the world-model forward runs.
         seed: RNG seed for student sampling and probe draws.
+        probe_sampler: Optional pre-built :class:`~ordrec.envs.probe_sampler.ProbeSampler`.
+            When ``None`` the sampler is built from
+            ``cfg.probe_sampler`` (default ``"stratified"``) using the
+            item cache's beta table. Pass an explicit instance in tests
+            to avoid the beta-table dependency.
     """
 
     def __init__(
@@ -97,6 +103,7 @@ class OrdRecEnv(OrdinalEnvBase):
         split: str = "train",
         device: Optional[torch.device] = None,
         seed: int = 0,
+        probe_sampler: Optional[ProbeSampler] = None,
     ) -> None:
         super().__init__()
         self.world = world_model
@@ -145,6 +152,18 @@ class OrdRecEnv(OrdinalEnvBase):
         self._episode_idx: int = 0
         self._rng: torch.Generator = torch.Generator(device="cpu").manual_seed(self.seed)
         self._np_rng = np.random.default_rng(self.seed)
+
+        # Probe sampler: stratified by default (uses beta_table for item
+        # difficulty ranking); callers can override for tests.
+        if probe_sampler is not None:
+            self._probe_sampler: ProbeSampler = probe_sampler
+        else:
+            sampler_mode = getattr(cfg, "probe_sampler", "stratified")
+            self._probe_sampler = make_probe_sampler(
+                sampler_mode,
+                beta_table=item_cache.beta_table,
+                n_strata=int(cfg.n_difficulty_strata),
+            )
 
     # ------------------------------------------------------------------
     # Static shape accessors
@@ -427,14 +446,11 @@ class OrdRecEnv(OrdinalEnvBase):
         tail_q: Sequence[Sequence[int]],
         tail_r: Sequence[Sequence[int]],
     ) -> Tuple[Tensor, Tensor, Tensor]:
-        """Uniform stratification-free probe sampler.
+        """Sample per-episode probe sets using ``self._probe_sampler``.
 
-        Production builds stratify by EM-fit difficulty; the
-        contract-level sampler here is uniform random over allowed
-        ids, which is enough for the unit tests to verify the
-        disjointness invariants. The recipe drawn here is what the
-        impl guide describes when ``EM beta`` is unavailable
-        (synthetic adapters in test setups).
+        Delegates the item-id draw to the configured
+        :class:`~ordrec.envs.probe_sampler.ProbeSampler` (stratified
+        by default, uniform when ``cfg.probe_sampler == "uniform"``).
 
         Returns:
             ``probe_C (B, M)``, ``probe_H (B, H)``,
@@ -465,7 +481,7 @@ class OrdRecEnv(OrdinalEnvBase):
                 # no-repeat path, but this keeps the test path running
                 # on tiny item banks.
                 allowed = np.arange(1, Q + 1, dtype=np.int64)
-            choice = self._np_rng.choice(allowed, size=M + H, replace=False)
+            choice = self._probe_sampler.sample(self._np_rng, allowed, M + H)
             probe_C[b] = torch.from_numpy(choice[:M].astype(np.int64)).to(
                 self.device
             )

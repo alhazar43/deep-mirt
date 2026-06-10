@@ -48,6 +48,10 @@ class RewardConfig:
         n_difficulty_strata: Number of equal-count quantiles used by
             the probe sampler. Five gives a balanced stratification
             across difficulty.
+        probe_sampler: Probe-set sampling strategy. One of
+            ``"stratified"`` (default) or ``"uniform"``.
+            ``"stratified"`` distributes items across difficulty
+            quantile bins; ``"uniform"`` draws uniformly at random.
         eps_prob: Lower clamp for probabilities when computing the
             entropy product ``p * log p``.
         prior_precision_jitter: Diagonal jitter added to any Laplace
@@ -80,6 +84,7 @@ class RewardConfig:
 
     # Stratification
     n_difficulty_strata: int = 5
+    probe_sampler: str = "stratified"
 
     # Numerical stability
     eps_prob: float = 1e-12
