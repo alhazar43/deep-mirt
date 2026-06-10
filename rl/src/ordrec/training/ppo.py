@@ -49,7 +49,7 @@ from torch.distributions import Categorical
 from ..envs.base import OrdinalState
 from .base import RLAlgorithm, RolloutStats, UpdateStats
 from .rollout import RolloutBuffer
-from .utils import linear_anneal, set_seed
+from .utils import linear_anneal
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,10 @@ class PPO(RLAlgorithm):
         observation_dim: Policy input dimension.
         action_dim: ``Q + 1`` for OrdRec.
         device: Torch device for the policy.
-        seed: Master seed; reseeds python/numpy/torch via ``set_seed``.
+        seed: Seeds a local ``torch.Generator`` used for action
+            sampling. The constructor does NOT touch global RNG
+            state; callers that need deterministic weight init must
+            seed at the script or test level before construction.
         hidden_dim: Trunk width.
         n_hidden_layers: Number of trunk layers.
         learning_rate: Adam learning rate. Default ``3e-4``.
@@ -208,7 +211,13 @@ class PPO(RLAlgorithm):
         total_updates: int = 1000,
     ) -> None:
         super().__init__(observation_dim, action_dim, device=device, seed=seed)
-        set_seed(seed)
+        # Local generator for action sampling. Constructing a PPO must
+        # not mutate global torch/numpy/random state (a global
+        # ``set_seed`` here was the root cause of order-sensitive test
+        # flakes). Weight init still draws from the ambient global RNG;
+        # scripts and tests seed that explicitly before construction.
+        self._sample_rng = torch.Generator(device=self.device)
+        self._sample_rng.manual_seed(int(seed))
 
         self.hidden_dim = int(hidden_dim)
         self.n_hidden_layers = int(n_hidden_layers)
@@ -293,7 +302,7 @@ class PPO(RLAlgorithm):
         if deterministic:
             action = torch.argmax(masked, dim=-1)
         else:
-            action = dist.sample()
+            action = self._sample_masked(masked)
         log_prob = dist.log_prob(action)
         entropy = dist.entropy()
         return action.detach(), {
@@ -445,7 +454,7 @@ class PPO(RLAlgorithm):
             for _ in range(K_B):
                 masked = _masked_logits(logits, cur_mask)
                 dist = Categorical(logits=masked)
-                a = dist.sample()
+                a = self._sample_masked(masked)
                 lp = dist.log_prob(a)
                 action_cols.append(a)
                 log_probs.append(lp)
@@ -664,6 +673,26 @@ class PPO(RLAlgorithm):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _sample_masked(self, masked_logits: Tensor) -> Tensor:
+        """Sample one action per row using the local generator.
+
+        Equivalent in distribution to ``Categorical(logits=masked).sample()``
+        but draws from ``self._sample_rng`` instead of global torch RNG,
+        so PPO's action sampling is reproducible given ``seed`` and
+        independent of ambient global state.
+
+        Args:
+            masked_logits: ``Tensor (B, n_actions)``; disallowed actions
+                are ``-inf``. Rows must have at least one finite entry.
+
+        Returns:
+            ``LongTensor (B,)`` sampled actions.
+        """
+        probs = torch.softmax(masked_logits, dim=-1)
+        return torch.multinomial(
+            probs, num_samples=1, generator=self._sample_rng,
+        ).squeeze(-1)
 
     def _unpack_state(self, state: Any) -> Tuple[Tensor, Optional[Tensor]]:
         if isinstance(state, OrdinalState):
