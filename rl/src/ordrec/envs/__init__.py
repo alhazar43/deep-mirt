@@ -25,7 +25,7 @@ from .bench_forward import (
     no_grad_invariance_check,
     write_bench_artifacts,
 )
-from .frozen_magpcm import FrozenMAGPCM, freeze_magpcm
+from .frozen_magpcm import FrozenMAGPCM, MAIRTOutput, freeze_magpcm
 from .item_cache import (
     ITEM_CACHE_DTYPE,
     ItemCache,
@@ -46,6 +46,7 @@ __all__ = [
     "BenchResult",
     "FrozenMAGPCM",
     "ITEM_CACHE_DTYPE",
+    "MAIRTOutput",
     "ItemCache",
     "OrdRecEnv",
     "OrdinalEnvBase",
