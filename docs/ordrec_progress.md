@@ -12,28 +12,28 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-08
-- **Date last updated.** 2026-06-08
-- **Current state.** E4 (RL library + training loop) complete on
-  `feat/ordrec-e4`, awaiting merge. The `RLAlgorithm` ABC, the
-  on-policy `RolloutBuffer`, the GAE advantage estimator and the
-  PPO concrete implementation (clipped surrogate, value clip, KL
-  early stop, entropy anneal, grad clip) all land. BC warm-start
-  with a max-Fisher teacher and the exact `K ** K_B = 1024`
-  static-MVE critic warm-start are in place. Top-level
-  `train_ppo.py` reads a YAML config and runs the full pipeline
-  (adapter, frozen MAGPCM, env, reward, optional warm-start,
-  PPO). Toy-env smoke drives mean episode return from `1.062`
-  to `2.000` over 20 updates (random baseline `1.0`, optimum
-  `2.0`). Synthetic-adapter smoke completes 5 PPO updates with
-  the four-component reward decomposition recorded. 146 unit
-  tests pass (126 pre-E4 + 13 training + 1 BC, plus 6 new buffer
-  cases).
-- **Active branch.** `feat/ordrec-e4` at `21a9dea`, 12 commits
-  stacked on `feat/ordrec` tip `eaa404a` (E3 merged).
-- **Next milestone.** E5, the real polytomous training run on
-  Eedi K=4 plus CI, repro and paper hooks. The DoD is the
-  headline numbers regenerable from a clean checkout, with PGF
-  figures wired into the paper.
+- **Date last updated.** 2026-06-10
+- **Current state.** E4.6a (hardening slice A) complete on
+  `feat/ordrec-e46a`. The four-auditor maintainability review of
+  the E1-E4 stack returned CONSOLIDATE (review at
+  `docs/cleanup/_ordrec_maintainability_review.md`, raw digest at
+  `docs/cleanup/_ordrec_audit_digest.md`). This slice fixed the
+  four blocking defects that would have corrupted the E4.5
+  synthetic headline run, the per-component reward metrics
+  denominator, the no-op reward-scale test band, the zero test
+  coverage on `train_ppo.py` and `eval_policy.py`, and the global
+  RNG side effect in `PPO.__init__` behind the bc_smoke flake.
+  150 unit tests pass (146 pre-slice + 4 new). Gate met, full
+  suite green twice plus `test_bc_smoke.py` green in isolation
+  three times.
+- **Active branch.** `feat/ordrec-e46a`, 4 fix commits
+  (`c90e244`, `88f9943`, `d18522a`, `ac40b68`) stacked on
+  `feat/ordrec` tip `4e2fc72` (E4 merged).
+- **Next milestone.** E4.5, the synthetic headline run, now with
+  trustworthy per-component metrics and a tested train/eval
+  harness. Then E4.6b (hardening slice B, items B1-B6 from the
+  review), then E5, the real polytomous training run on Eedi K=4
+  plus CI, repro and paper hooks.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -54,13 +54,90 @@ The five locked design corrections from the strategic plan are intact.
 | **E1**, data adapters | complete (merged) | `feat/ordrec` | `267ea82` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/E1_data_layer.md`. |
 | **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (merged) | `feat/ordrec` | `f5c536e` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/E2_envs_layer.md`. |
 | **E3**, env + reward + wiring | complete (merged) | `feat/ordrec` | `eaa404a` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/E3_env_reward.md`. |
-| **E4**, RL library + training loop + smoke | complete (awaiting merge) | `feat/ordrec-e4` | `21a9dea` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/E4_rl_library.md`. |
-| **E5**, headline polytomous run on Eedi K=4 | next | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Mean return strictly above the uniform-random baseline at the end of training, with per-component decomposition and exposure caps respected. |
+| **E4**, RL library + training loop + smoke | complete (merged) | `feat/ordrec` | `4e2fc72` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/E4_rl_library.md`. |
+| **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by the CONSOLIDATE verdict in `docs/cleanup/_ordrec_maintainability_review.md`. |
+| **E4.5**, synthetic headline run | next | tbd | tbd | full-length PPO run on the synthetic adapter with BC and MVE warm-start, per-component reward decomposition logged, eval report vs the uniform-random baseline | tbd | Runs on the now-trustworthy metrics pipeline. Feeds the E4.6b A/B rerun. |
+| **E4.6b**, hardening slice B | not started | tbd | tbd | review items B1-B6, GPCM helper extraction, ma-irt commit pinning, typed output contract, K_B credit assignment, probe-sampler decision (B5), config dataclasses | tbd | After E4.5, before E5. Validated by an A/B rerun of the E4.5 config. C1 doc consolidation rides along. |
+| **E5**, headline polytomous run on Eedi K=4 | after E4.6b | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Mean return strictly above the uniform-random baseline at the end of training, with per-component decomposition and exposure caps respected. |
 | **E6**, ablations + paper figures | not started | tbd | tbd | full PPO runs on EdNet KT3 K=4, ASSISTments K=2, plus ablations (no-probe, no-exposure, no-VOI), paper PGF figures | tbd | The science milestone. |
 
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-10, E4.6a complete (hardening slice A).** Branch
+  `feat/ordrec-e46a` at `ac40b68`, 4 commits stacked on
+  `feat/ordrec` tip `4e2fc72` (E4 merged). Motivated by the
+  four-auditor maintainability review of the E1-E4 stack, which
+  returned a CONSOLIDATE verdict (full review at
+  `docs/cleanup/_ordrec_maintainability_review.md`, raw audit
+  digest at `docs/cleanup/_ordrec_audit_digest.md`). The slice
+  fixed only the four blocking items that would have corrupted
+  the E4.5 synthetic headline run. Per review item C6 this is a
+  change-log subsection, not a standalone milestone record.
+
+  **What landed.**
+
+  - **A1, per-component reward metric denominators**
+    (`88f9943`). `PPO.rollout` now tracks one observation count
+    per component key and divides each sum by its own count.
+    The old shared counter divided by
+    `component_count // n_components`, inflating the logged
+    `r_info`/`r_cost`/`r_expo`/`r_voi` averages by roughly the
+    number of components whenever keys fired at different
+    frequencies (`r_voi` fires only at terminal steps).
+    Regression test
+    `training/tests/test_component_metrics.py` (2 tests) pins
+    the exact arithmetic with two synthetic components at
+    different frequencies, plus a zero-not-NaN case for
+    never-observed components.
+  - **A2, honest reward-scale calibration bands** (`d18522a`).
+    `reward/tests/test_reward_scale.py` asserted a [1%, 95%]
+    band while its name and docstring claimed [5%, 70%], a
+    near-no-op. A single symmetric band cannot hold because the
+    composition is deliberately asymmetric (the terminal VOI
+    anchor at `w_voi = 5.0` dominates). The test now measures
+    episode-level shares (`T // K_B` boundaries, `r_voi` only
+    at the terminal one) and asserts per-channel calibrated
+    bands, `r_info` [0.04, 0.16], `r_cost` [0.09, 0.35],
+    `r_expo` [0.015, 0.07], `r_voi` [0.55, 0.85], derived from
+    measured shares across five seeds and roughly a factor of
+    two wide. A 2.5x mis-scaling of any single weight breaks
+    its band; seed noise is two orders of magnitude smaller.
+    The derivation is documented in the module docstring.
+  - **A3, smoke tests for the two E5-facing scripts**
+    (`ac40b68`). `rl/tests/test_train_ppo_smoke.py` runs
+    `train_ppo.train()` end to end on the synthetic adapter
+    with a tiny config (2 PPO updates) and asserts `best.pt`,
+    `last.pt`, `metrics.csv` (schema and one finite row per
+    update) and `summary.json` (round trip) exist with sane
+    content. `rl/tests/test_eval_policy_smoke.py` trains a
+    checkpoint inline, drives `eval_policy.main()` through its
+    CLI surface, and asserts the report carries mean return for
+    both policies, the random-baseline delta line, per-component
+    means, and the exposure-diagnostics table. Shared fixtures
+    live in the new `rl/tests/conftest.py`. Both run in seconds,
+    so they stay in the default suite (`rl/pyproject.toml`
+    testpaths now includes `tests`).
+  - **A4, PPO global RNG side effect removed** (`c90e244`).
+    `PPO.__init__` no longer calls `set_seed`, which mutated
+    global torch/numpy/random state on every construction and
+    was the root cause of the order-sensitive bc_smoke flake
+    (0.844 vs the 0.85 threshold in isolation). Action sampling
+    now draws from a local `torch.Generator` via
+    `PPO._sample_masked`. `test_bc_smoke.py` seeds globally via
+    `set_seed(0)` at test start so the world model and BC loop
+    are deterministic regardless of test order, keeping the
+    0.85 threshold. Verified green in isolation three times.
+
+  **Gate results.** Full suite (`rl/src/ordrec/` + `rl/tests/`)
+  green twice in a row, 150 passed each run (146 pre-slice + 4
+  new). `pytest-randomly` is not installed in the research env,
+  so per the gate fallback the suite ran twice plainly and
+  `test_bc_smoke.py` ran alone three times, 2 passed each time.
+
+- **2026-06-08, E4 merged.** `feat/ordrec-e4` merged into
+  `feat/ordrec` at `4e2fc72`. E4 tip on its branch was `9bb826e`.
 
 - **2026-06-08, E4 complete (awaiting merge).** Branch
   `feat/ordrec-e4` at `21a9dea`, 12 commits stacked on
@@ -184,7 +261,7 @@ E3 reward layer, 30 tests (`rl/src/ordrec/reward/tests/`).
 | `test_potential_shaping.py` | 2 | Telescoping `phi(s_2) - phi(s_0)` and prev-then-current boundary chain. |
 | `test_entropy_bounds.py` | 5 | `phi >= 0`, bounded by `log K`, uniform limit at `alpha=0`, concentrated-limit at `K=2`, finite under extreme theta. |
 | `test_fisher_special_case.py` | 3 | Single-item probe matches direct entropy, monotone in alpha, uniform at `alpha=0` matches `log K`. |
-| `test_reward_scale.py` | 2 | Per-component contribution within `[5%, 70%]` of `|r_total|`, breakdown sums to total. |
+| `test_reward_scale.py` | 2 | Episode-level per-channel share of `|r_total|` within calibrated bands (re-derived in E4.6a, see change log), breakdown sums to total. |
 | `test_anti_gaming_mask.py` | 4 | Uniform policy never samples probe, mask False on probe ids, pad slot forbidden, no-repeat update removes administered. |
 | `test_sympson_hetter.py` | 5 | Penalty zero below threshold, linear in excess above, `c_expo` scales slope, aggregates over `K_B`, EMA fleet update. |
 | `test_terminal_anchor.py` | 4 | VOI zero mid-episode, nonzero at horizon, sign convention, `gpcm_nll` matches per-row cross-entropy. |
@@ -221,6 +298,20 @@ E4 BC warmstart, 1 test (`rl/src/ordrec/bc_warmstart/tests/`).
 | `test_bc_smoke.py` | 1 | BC actor reaches `>= 85%` match against the max-Fisher teacher on a held-out validation slice from the synthetic adapter. |
 
 Total at E4 close, 146 tests, all pass.
+
+E4.6a hardening additions, 4 tests.
+
+| File | Count | Surface |
+|---|---|---|
+| `rl/src/ordrec/training/tests/test_component_metrics.py` | 2 | Per-key denominator arithmetic exact under mixed component frequencies, unobserved components report `0.0` not NaN. |
+| `rl/tests/test_train_ppo_smoke.py` | 1 | `train_ppo.train()` end to end on the synthetic adapter, artifacts exist, `metrics.csv` schema and finiteness, `summary.json` round trip, checkpoint loadable with dimensions. |
+| `rl/tests/test_eval_policy_smoke.py` | 1 | `eval_policy.main()` against a checkpoint trained inline, mean-return table for both policies, baseline delta line, per-component means, exposure diagnostics. |
+
+Shared fixtures for the script smokes live in `rl/tests/conftest.py`.
+`rl/pyproject.toml` testpaths now includes `tests`, so the cross-package
+and script tests run by default.
+
+Total at E4.6a close, 150 tests, all pass.
 
 Reproducer.
 
