@@ -14,10 +14,19 @@ Band derivation. Shares were measured episode-level (``T // K_B``
 reward boundaries per episode, ``r_voi`` firing only at the terminal
 one) over the strategic default weights across five seeds:
 
-    r_info  0.073 - 0.080
-    r_cost  0.168 - 0.180
-    r_expo  0.031 - 0.034
-    r_voi   0.706 - 0.724
+    r_info  0.075 - 0.084   (re-derived E4.6b R1; w_expo=0.02, r_max=0.40)
+    r_cost  0.174 - 0.185
+    r_expo  0.0013 - 0.0014
+    r_voi   0.729 - 0.750
+
+E4.6b R1 recalibration: w_expo reduced from 0.10 to 0.02 and r_max
+raised from 0.20 to 0.40. The exposure penalty (r_expo) is now a
+small corrective signal (~0.1% of episode magnitude) rather than a
+dominant penalty. The VOI anchor (r_voi) absorbs the freed share.
+Ablation grid confirmed all 10 design cells failed the
+fisher-beats-random acceptance check; the recalibration is the
+minimal change consistent with not making information-seeking policies
+pay a structural tax.
 
 Each band below spans roughly a factor of two around the measured
 share. Seed-to-seed noise is about +/- 0.005, two orders of magnitude
@@ -43,10 +52,10 @@ from ordrec.reward.ordinal_reward import OrdinalRewardCompute
 # Calibrated per-component share bands for the strategic default
 # weights. See the module docstring for the derivation.
 SHARE_BANDS: Dict[str, Tuple[float, float]] = {
-    "r_info": (0.04, 0.16),
-    "r_cost": (0.09, 0.35),
-    "r_expo": (0.015, 0.07),
-    "r_voi": (0.55, 0.85),
+    "r_info": (0.04, 0.17),
+    "r_cost": (0.09, 0.37),
+    "r_expo": (0.0005, 0.003),
+    "r_voi": (0.55, 0.90),
 }
 
 

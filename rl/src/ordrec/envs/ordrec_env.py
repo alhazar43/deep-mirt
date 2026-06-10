@@ -43,6 +43,14 @@ from .action_mask import (
 from .base import OrdinalEnvBase, OrdinalState
 from .frozen_magpcm import FrozenMAGPCM
 from .item_cache import ItemCache
+from .probe_sampler import ProbeSampler, make_probe_sampler
+
+
+# Maximum history length fed to the frozen encoder on every forward.
+# Histories longer than this are right-truncated (most recent tokens
+# kept) before the frozen forward to prevent unbounded sequence growth.
+# 200 tokens covers warmup_len (5) + T (10) with a large safety margin.
+_MAX_HISTORY_LEN: int = 200
 
 
 class OrdRecEnv(OrdinalEnvBase):
@@ -75,6 +83,11 @@ class OrdRecEnv(OrdinalEnvBase):
             ``"train"``.
         device: Device on which the world-model forward runs.
         seed: RNG seed for student sampling and probe draws.
+        probe_sampler: Optional pre-built :class:`~ordrec.envs.probe_sampler.ProbeSampler`.
+            When ``None`` the sampler is built from
+            ``cfg.probe_sampler`` (default ``"stratified"``) using the
+            item cache's beta table. Pass an explicit instance in tests
+            to avoid the beta-table dependency.
     """
 
     def __init__(
@@ -90,6 +103,7 @@ class OrdRecEnv(OrdinalEnvBase):
         split: str = "train",
         device: Optional[torch.device] = None,
         seed: int = 0,
+        probe_sampler: Optional[ProbeSampler] = None,
     ) -> None:
         super().__init__()
         self.world = world_model
@@ -138,6 +152,18 @@ class OrdRecEnv(OrdinalEnvBase):
         self._episode_idx: int = 0
         self._rng: torch.Generator = torch.Generator(device="cpu").manual_seed(self.seed)
         self._np_rng = np.random.default_rng(self.seed)
+
+        # Probe sampler: stratified by default (uses beta_table for item
+        # difficulty ranking); callers can override for tests.
+        if probe_sampler is not None:
+            self._probe_sampler: ProbeSampler = probe_sampler
+        else:
+            sampler_mode = getattr(cfg, "probe_sampler", "stratified")
+            self._probe_sampler = make_probe_sampler(
+                sampler_mode,
+                beta_table=item_cache.beta_table,
+                n_strata=int(cfg.n_difficulty_strata),
+            )
 
     # ------------------------------------------------------------------
     # Static shape accessors
@@ -213,7 +239,10 @@ class OrdRecEnv(OrdinalEnvBase):
         )
 
         # 4. World-model warmup forward to read theta_0.
-        out = self.world.forward_no_grad(warmup_q, warmup_r)
+        out = self.world.forward_no_grad(
+            self._truncate_history(warmup_q),
+            self._truncate_history(warmup_r),
+        )
         theta_0 = out["theta"][:, -1, :].detach()
 
         # 5. Mask initialisation.
@@ -295,40 +324,53 @@ class OrdRecEnv(OrdinalEnvBase):
                 "step received a masked action; policy must respect mask."
             )
 
-        # 2. Append the action to the history. Responses are simulated
-        # by sampling from the world model's predicted distribution at
-        # the appended positions; this keeps the reward shaping
-        # consistent with the model's beliefs about the trajectory.
-        prev_q = self._history_q
-        prev_r = self._history_r
+        # 2. Append the action to the history and simulate responses.
+        #
+        # Sampling semantics (joint, one forward per step):
+        # We do a single forward pass with the new K_B items and
+        # placeholder zero responses, sample all K_B responses jointly
+        # from the predicted distribution at those positions, then store
+        # the sampled responses in the history. This is the "joint from
+        # model's conditional" approach documented in Section B7 of the
+        # maintainability review. It ignores intra-block auto-regression
+        # (i.e., response r_{t+1} is sampled independently of r_t within
+        # the block) but correctly captures inter-block auto-regression
+        # (each step sees the sampled responses from all prior steps).
+        # Over T/K_B=2 steps this is a good approximation.
+        #
+        # History truncation (B8): cap to the most recent
+        # _MAX_HISTORY_LEN items before every frozen forward to prevent
+        # unbounded sequence growth that would slow down the encoder.
+        prev_q = self._truncate_history(self._history_q)
+        prev_r = self._truncate_history(self._history_r)
         new_q = torch.cat([prev_q, action], dim=1)
-        # Provisional response at the new positions, zeros are fine
-        # because the MAGPCM head reads "next step" responses for the
-        # write path; we will replace them with samples after we forward.
         placeholder_r = torch.cat(
             [prev_r, torch.zeros_like(action)], dim=1,
         )
         with torch.no_grad():
             out = self.world.forward_no_grad(new_q, placeholder_r)
-        probs = out["probs"]  # (B, S_new, K)
-        # Sample responses at the K_B newly appended positions.
-        new_probs = probs[:, -self.K_B:, :]
-        # Categorical sampling, vectorised, deterministic given env seed.
+
+        # Sample responses at the K_B newly appended positions from the
+        # single forward's predicted probabilities.
+        new_probs = out["probs"][:, -self.K_B:, :]  # (B, K_B, K)
         flat = new_probs.reshape(-1, new_probs.shape[-1])
         sampled = torch.multinomial(
             flat.clamp_min(1e-12), num_samples=1, generator=None,
         ).view(self.B, self.K_B).to(dtype=torch.long, device=self.device)
         new_r = torch.cat([prev_r, sampled], dim=1)
 
-        # Re-forward with the sampled responses so theta_t reflects the
-        # observed trajectory rather than the placeholder zeros.
-        with torch.no_grad():
-            out_final = self.world.forward_no_grad(new_q, new_r)
-        theta_t = out_final["theta"][:, -1, :].detach()
+        # theta_t is read from the single forward. Because responses at
+        # the K_B new positions were zero (placeholder) during this
+        # forward, theta_t reflects the history WITHOUT the new responses
+        # for this step. The next step's forward will use the sampled
+        # responses, giving the correct inter-block autoregression.
+        theta_t = out["theta"][:, -1, :].detach()
 
-        # 3. Update buffers.
-        self._history_q = new_q
-        self._history_r = new_r
+        # 3. Update buffers. Store the full extended history (with sampled
+        # responses) so that subsequent steps can forward with the correct
+        # response context. Truncation happens at forward time, not here.
+        self._history_q = torch.cat([self._history_q, action], dim=1)
+        self._history_r = torch.cat([self._history_r, sampled], dim=1)
         update_no_repeat_mask(self._no_repeat, action)
         for b in range(self.B):
             self._exposure_counts[b].scatter_add_(
@@ -379,20 +421,36 @@ class OrdRecEnv(OrdinalEnvBase):
     # Helpers
     # ------------------------------------------------------------------
 
+    def _truncate_history(self, seq: Tensor) -> Tensor:
+        """Truncate a history tensor to the most recent ``_MAX_HISTORY_LEN`` tokens.
+
+        Applied before every frozen encoder forward to bound sequence
+        length. The most recent tokens are kept (right-aligned) so the
+        encoder sees the freshest context.
+
+        Args:
+            seq: ``LongTensor (B, S)`` of item ids or responses.
+
+        Returns:
+            ``seq`` if ``S <= _MAX_HISTORY_LEN``, otherwise the last
+            ``_MAX_HISTORY_LEN`` columns of ``seq``.
+        """
+        S = seq.shape[1]
+        if S <= _MAX_HISTORY_LEN:
+            return seq
+        return seq[:, -_MAX_HISTORY_LEN:]
+
     def _sample_probes(
         self,
         warmup_q: Tensor,
         tail_q: Sequence[Sequence[int]],
         tail_r: Sequence[Sequence[int]],
     ) -> Tuple[Tensor, Tensor, Tensor]:
-        """Uniform stratification-free probe sampler.
+        """Sample per-episode probe sets using ``self._probe_sampler``.
 
-        Production builds stratify by EM-fit difficulty; the
-        contract-level sampler here is uniform random over allowed
-        ids, which is enough for the unit tests to verify the
-        disjointness invariants. The recipe drawn here is what the
-        impl guide describes when ``EM beta`` is unavailable
-        (synthetic adapters in test setups).
+        Delegates the item-id draw to the configured
+        :class:`~ordrec.envs.probe_sampler.ProbeSampler` (stratified
+        by default, uniform when ``cfg.probe_sampler == "uniform"``).
 
         Returns:
             ``probe_C (B, M)``, ``probe_H (B, H)``,
@@ -423,7 +481,7 @@ class OrdRecEnv(OrdinalEnvBase):
                 # no-repeat path, but this keeps the test path running
                 # on tiny item banks.
                 allowed = np.arange(1, Q + 1, dtype=np.int64)
-            choice = self._np_rng.choice(allowed, size=M + H, replace=False)
+            choice = self._probe_sampler.sample(self._np_rng, allowed, M + H)
             probe_C[b] = torch.from_numpy(choice[:M].astype(np.int64)).to(
                 self.device
             )

@@ -1,33 +1,30 @@
-# OrdRec E4.5 PPO training config.
+# OrdRec E4.6b B-side PPO training config.
 #
-# Full headline run on the E4.5 synthetic cohort (N=2000, Q=200, K=4).
-# World model: trained MAGPCM checkpoint from ordrec_synth_e45 training run.
+# B-side of the E4.5 A/B comparison. Identical world-model geometry and
+# episode config to ppo_synth_e45 but incorporates all E4.6b fixes:
 #
-# Strategic-plan hyperparameters (Section 4.4 / 5.2 of impl guide).
-#   K_B=5, T=10  -> 2 env steps per episode
-#   probe_M=32, probe_H=20  (uniform probe sampler, stratified is E4.6b)
-#   Reward weights: w_info=1.0, w_cost=0.05, w_expo=0.1, w_voi=5.0
-#   K_B credit assignment: full reward on first sub-step (known-suboptimal,
-#     fixed in E4.6b). This run is side A of the A/B comparison.
-#   Probe sampler: uniform (stratified lands in E4.6b).
+#   B0+B4: buffer reworked to one entry per env-step per row (not per
+#          sub-step), so terminal VOI rewards now enter PPO updates.
+#          This is the RC1 fix (buffer capacity mismatch).
+#   R1:    exposure penalty recalibrated (w_expo 0.10->0.02, r_max
+#          0.20->0.40) so information-seeking is not penalised out of
+#          the reward. This is the RC2 fix.
+#   B5:    stratified probe sampler (difficulty-stratified, 5 strata).
+#   R3:    BC teacher uses top-5 soft target (not argmax).
 #
-# BC warm-start: 200 updates against max-Fisher teacher.
-# PPO: 500 updates (confirmed against 1-2h wall-clock budget; see notes).
-#
-# Note on BC-only checkpoint: before PPO begins, the warm-start state
-# is saved to outputs/ordrec_synth_e45_bc/bc_warmstart.pt so eval_e45.py
-# can run it as a BC-only baseline.
+# Paths are absolute so the script works from the worktree directory.
+# World-model checkpoint and data are in the main repo tree.
 
-experiment_name: ordrec_synth_e45
-output_dir: outputs
+experiment_name: ordrec_synth_e46b
+output_dir: C:/Users/steph/Documents/deep-mirt/.claude/worktrees/wf_91e7743f-b10-1/outputs
 device: cuda
 seed: 42
 
 adapter:
   type: synthetic
   name: ordrec_synth_e45
-  raw_dir: ma-irt/data/ordrec_synth_e45
-  out_dir: rl/artifacts
+  raw_dir: C:/Users/steph/Documents/deep-mirt/ma-irt/data/ordrec_synth_e45
+  out_dir: C:/Users/steph/Documents/deep-mirt/rl/artifacts
   split_seed: 42
   test_frac: 0.2
   valid_frac: 0.1
@@ -46,7 +43,7 @@ world_model:
   ability_scale: 1.0
   separate_theta: true
   init_value_memory: false
-  checkpoint: ma-irt/outputs/ordrec_synth_e45/best.pt
+  checkpoint: C:/Users/steph/Documents/deep-mirt/ma-irt/outputs/ordrec_synth_e45/best.pt
 
 env:
   batch_size: 32
@@ -68,6 +65,7 @@ reward:
   c_expo: 1.0
   expo_ema_decay: 0.99
   n_difficulty_strata: 5
+  probe_sampler: stratified
 
 warmstart:
   enabled: true

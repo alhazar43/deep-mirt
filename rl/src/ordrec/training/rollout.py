@@ -5,10 +5,24 @@ not pay Python-side append cost. Capacity equals
 ``n_episodes_per_update * max_steps_per_episode``. For OrdRec with
 ``T / K_B = 2`` and 32 episodes per update this is 64.
 
-The buffer stores per-step state, action, reward, log-prob, value,
-done and per-step action mask. ``compute_advantages`` runs GAE
-segment-by-segment over episode boundaries and ``iter_minibatches``
-shuffles and batches the flat storage for SGD.
+One entry is inserted **per env step per episode row** (i.e., one entry
+per batch row per ``K_B``-block), not one entry per item.  This keeps
+the buffer capacity accounting exact: ``capacity == n_episodes *
+max_steps_per_episode`` regardless of ``K_B``.
+
+When ``K_B > 1`` the ``actions`` storage is 2D ``(capacity, K_B)``
+so all K_B item ids are preserved for the PPO re-evaluation.  The
+``log_probs`` field stores the **sum** of the K_B per-pick log-probs,
+which is the joint log-probability under sequential sampling without
+replacement; this is the quantity that appears in the PPO importance
+ratio ``exp(new_joint_lp - old_joint_lp)``.
+
+When ``K_B == 1`` ``actions`` is 1D ``(capacity,)`` for backward
+compatibility with single-item envs and the existing toy-env tests.
+
+``compute_advantages`` runs GAE segment-by-segment over episode
+boundaries and ``iter_minibatches`` shuffles and batches the flat
+storage for SGD.
 
 See ``docs/ordrec_impl_guide.md`` Section 4.2.
 """
@@ -29,8 +43,8 @@ class RolloutBatch:
     """One PPO mini-batch view over the flat buffer storage."""
 
     states: Tensor          # (B, obs_dim)
-    actions: Tensor         # (B,) long, or (B, K) if vector action
-    old_log_probs: Tensor   # (B,)
+    actions: Tensor         # (B,) long when K_B==1, (B, K_B) long when K_B>1
+    old_log_probs: Tensor   # (B,) joint log-prob over K_B picks
     advantages: Tensor      # (B,)
     returns: Tensor         # (B,)
     old_values: Tensor      # (B,)
@@ -54,17 +68,27 @@ class RolloutBatch:
 class RolloutBuffer:
     """Pre-allocated on-policy buffer with GAE.
 
+    One slot is consumed per **env step per episode row**, not per
+    sub-step item.  When ``K_B > 1`` the action storage is 2D
+    ``(capacity, K_B)`` and ``log_probs[i]`` is the joint log-prob
+    (sum of per-pick log-probs) over the K_B items selected at that
+    step.
+
     Args:
-        capacity: Maximum number of transitions stored.
+        capacity: Maximum number of transitions stored.  Must equal
+            ``n_episodes_per_update * max_steps_per_episode`` for the
+            capacity accounting to be exact.
         observation_dim: ``obs_dim``. The state tensor written by
             ``insert`` must have this last-dim length.
         n_actions: ``Q + 1``. Used to size the action-mask buffer.
+        K_B: Number of items per env-step batch. When ``K_B == 1``
+            actions are stored as 1D ``(capacity,)``; when
+            ``K_B > 1`` as 2D ``(capacity, K_B)``. Default ``1``.
         device: Device on which the storage tensors live. Defaults to
             CPU so big buffers do not hog GPU memory.
         gamma: GAE discount, default ``0.95``.
         gae_lambda: GAE lambda, default ``0.95``.
         action_dtype: Dtype of the action storage. Defaults to long.
-            Pass ``torch.long`` for discrete actions.
         store_action_masks: When ``True`` the buffer reserves
             ``(capacity, n_actions)`` boolean mask storage. Set to
             ``False`` for tests on envs without action masks.
@@ -76,6 +100,7 @@ class RolloutBuffer:
         observation_dim: int,
         n_actions: int,
         *,
+        K_B: int = 1,
         device: Optional[torch.device] = None,
         gamma: float = 0.95,
         gae_lambda: float = 0.95,
@@ -88,9 +113,12 @@ class RolloutBuffer:
             raise ValueError(
                 f"observation_dim must be > 0, got {observation_dim}."
             )
+        if K_B <= 0:
+            raise ValueError(f"K_B must be > 0, got {K_B}.")
         self.capacity = int(capacity)
         self.observation_dim = int(observation_dim)
         self.n_actions = int(n_actions)
+        self.K_B = int(K_B)
         self.device = (
             torch.device(device) if device is not None else torch.device("cpu")
         )
@@ -102,7 +130,15 @@ class RolloutBuffer:
         self.states = torch.zeros(
             self.capacity, self.observation_dim, dtype=self._dtype, device=self.device,
         )
-        self.actions = torch.zeros(self.capacity, dtype=action_dtype, device=self.device)
+        # Actions: 1D for K_B==1 (backward compat), 2D for K_B>1.
+        if self.K_B == 1:
+            self.actions = torch.zeros(
+                self.capacity, dtype=action_dtype, device=self.device,
+            )
+        else:
+            self.actions = torch.zeros(
+                self.capacity, self.K_B, dtype=action_dtype, device=self.device,
+            )
         self.rewards = torch.zeros(self.capacity, dtype=self._dtype, device=self.device)
         self.log_probs = torch.zeros(self.capacity, dtype=self._dtype, device=self.device)
         self.values = torch.zeros(self.capacity, dtype=self._dtype, device=self.device)
@@ -164,14 +200,21 @@ class RolloutBuffer:
         action_mask: Optional[Tensor] = None,
         episode_start: bool = False,
     ) -> None:
-        """Append a single transition.
+        """Append a single transition (one env step, one episode row).
+
+        One slot is consumed per call. When ``K_B > 1`` pass the K_B
+        item ids as a 1D ``Tensor (K_B,)`` and the joint log-prob
+        (sum of per-pick log-probs) as ``log_prob``.
 
         Args:
             state: ``Tensor (obs_dim,)`` or ``(1, obs_dim)`` flattened
                 policy observation.
-            action: scalar long-valued Tensor for the discrete action.
-            reward: Scalar reward.
-            log_prob: ``log pi(a | s)`` evaluated at sampling time.
+            action: For ``K_B == 1``, a scalar long-valued Tensor.
+                For ``K_B > 1``, a 1D ``LongTensor (K_B,)`` of item
+                ids.
+            reward: Scalar per-row env-step reward (the full reward for
+                the K_B items as a unit, not a sub-step slice).
+            log_prob: Joint log-prob ``sum_k log pi(a_k | s, a_{<k})``.
             value: ``V(s)`` evaluated at sampling time.
             done: Terminal flag for this transition.
             action_mask: Optional ``BoolTensor (n_actions,)`` recorded
@@ -193,7 +236,19 @@ class RolloutBuffer:
                 f"{self.observation_dim}."
             )
         self.states[idx] = s_flat
-        self.actions[idx] = action.to(device=self.device, dtype=self.actions.dtype)
+
+        a = action.to(device=self.device, dtype=self.actions.dtype)
+        if self.K_B == 1:
+            # Scalar action: flatten to scalar.
+            self.actions[idx] = a.reshape(-1)[0] if a.ndim > 0 else a
+        else:
+            a_flat = a.reshape(-1)
+            if a_flat.numel() != self.K_B:
+                raise ValueError(
+                    f"action has {a_flat.numel()} elements, expected K_B={self.K_B}."
+                )
+            self.actions[idx] = a_flat
+
         self.rewards[idx] = float(reward)
         self.log_probs[idx] = float(log_prob)
         self.values[idx] = float(value)

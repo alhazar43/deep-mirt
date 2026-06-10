@@ -101,7 +101,7 @@ If single-user DKVMN latency becomes the bottleneck, fall back to LSTM or Transf
 
 theta_t is read at the last position of `out["theta"][:, -1, :]`. The entropy summary is computed from a single decoder pass on a fixed probe set C of M = 32 unseen items conditioned on theta_t, no encoder pass needed. No posterior sigma is tracked across calls. If a Laplace SEM is needed for diagnostics, recompute it at the boundary from the cached (q_<=t, r_<=t) and the per-item Fisher information lookup, do not carry it as state.
 
-**Action.** a_t is a discrete choice over the Q-item bank, not a continuous embedding. ma-irt's (alpha, beta) are indexed per item id, so the predictive is only defined on the calibrated bank. On Eedi NeurIPS 2020 Task 3+4, Q = 948, well within Tianshou DiscretePPO scale. Already-administered items are masked to -inf and the mask is renewed at each batch boundary.
+**Action.** a_t is a discrete choice over the Q-item bank, not a continuous embedding. ma-irt's (alpha, beta) are indexed per item id, so the predictive is only defined on the calibrated bank. On Eedi NeurIPS 2020 Task 3+4, Q = 948, well within the discrete categorical PPO head's capacity. Already-administered items are masked to -inf and the mask is renewed at each batch boundary.
 
 **Reward.** Defined in Section 6.
 
@@ -145,7 +145,7 @@ with NLL_prior computed at theta_0. The terminal anchor is a value-of-informatio
 
 ## 7. Algorithm and Hyperparameters
 
-**PPO discrete-action (Schulman et al. 2017, arXiv 1707.06347).** Via Tianshou DiscretePPO. Justified over SAC-discrete, DQN/Rainbow, and continuous-action variants by three properties. On-policy PPO needs no off-policy correction, the batched MA-IRT forward provides clean per-batch transitions. PPO tolerates short rollouts (two transitions per episode) better than DQN-family methods that need replay-buffer warmup. Discrete categorical-over-Q is exactly the head Tianshou DiscretePPO expects. SAC-discrete is the ablation alternative.
+**PPO discrete-action (Schulman et al. 2017, arXiv 1707.06347).** Custom RL library with a small `RLAlgorithm` ABC (no Tianshou). Justified over SAC-discrete, DQN/Rainbow, and continuous-action variants by three properties. On-policy PPO needs no off-policy correction, the batched MA-IRT forward provides clean per-batch transitions. PPO tolerates short rollouts (two transitions per episode) better than DQN-family methods that need replay-buffer warmup. Discrete categorical-over-Q is exactly the head the `PPO` concrete class expects. SAC-discrete is the ablation alternative.
 
 **Hyperparameters.**
 
@@ -186,16 +186,13 @@ After 200 BC plus MVE warm-start updates, switch to standard PPO TD(lambda). Thi
 
 ## 9. Milestones
 
-| ID | Scope | Cost |
-|---|---|---|
-| **E1** | Eedi NeurIPS 2020 Task 3+4 loader plus ordinal recoding via empirical-difficulty distractor ordering on train only. MAGPCM pretraining to convergence with `separate_theta=True`, `n_traits=1`, embedding_type learned. Validate against Track A targets (AUC >= AKT 0.785, QWK >= 0.6 on K=4). Persist checkpoint at `outputs/ordrec_eedi/best.pt`. | 4 days |
-| **E2** | Per-item parameter table (item_alpha, item_beta) extracted from frozen MAGPCM. Integration test that confirms theta invariance across growing-sequence forward calls. One-off `bench_forward.py` numbers committed. No M1 step API merge needed. | 1 day |
-| **E3** | `rl/src/irtrec/envs/eedi_batched_env.py`, a Tianshou env whose `step` invokes the native batched forward on the growing history tensor at K_B = 5 boundaries. Episode horizon T = 10, two PPO transitions per episode. Probe sets C (size 32) and H_probe (size 20) sampled at reset. | 3 days |
-| **E4** | PPO training loop with critic BC plus static-MVE warm-start (200 updates), then standard PPO TD(lambda) for 1000 updates. Ablations, A1 random-init critic, A2 binary-collapse reward (sum-of-correctness), A3 shared-pathway encoder (DKVMN+GPCM, `separate_theta=False`), A4 black-box softmax encoder (DKVMN+Softmax), A5 random policy. | 4 days |
-| **E5** | Real polytomous dataset experiment, ASSISTments rubric items or Eedi distractor ordinal recoding. Recovery against classical EM-fit GPCM via R mirt. KT prediction metrics against AKT, SAKT, simpleKT on the same fold. | 4 days |
-| **E6** | Paper draft, headline contribution as deep ordinal IRT measurement, recommender as demonstration. Figures, recovery scatter, posterior contraction over episode, learning-gain vs ExRec and binary-collapse baselines, ablation table. Target IJAIED submission window. | 5 days |
-
-Total, approximately 21 working days. E1 through E3 are sequential, E4 and E5 can overlap once E3 is green.
+Current build state and per-milestone status are tracked in
+[`docs/ordrec_progress.md`](ordrec_progress.md). The milestones are
+E1 (data adapters), E2 (per-item lookup + bench), E3 (env + reward + wiring),
+E4 (RL library + training loop), E4.6b (hardening slice B, A/B rerun),
+E5 (real Eedi K=4, only external dependency is the raw Eedi NeurIPS 2020 csvs),
+and E6 (ablations + paper figures). E1 through E4.6b are complete on
+`feat/ordrec-e46b`.
 
 ## 10. What Changes vs the v1 Plan
 

@@ -17,6 +17,7 @@ from .bc import (
     bc_warmstart,
     gpcm_item_information,
     max_fisher_actions,
+    top_k_fisher_soft_target,
 )
 from .static_mve import (
     MVEStats,
@@ -36,4 +37,5 @@ __all__ = [
     "mve_warmstart_critic",
     "static_mve_critic_step",
     "static_mve_target",
+    "top_k_fisher_soft_target",
 ]

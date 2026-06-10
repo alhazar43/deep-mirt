@@ -18,6 +18,8 @@ from typing import Optional
 import torch
 from torch import Tensor
 
+from .gpcm_ops import gpcm_log_probs
+
 
 def gpcm_nll(
     theta: Tensor,
@@ -71,33 +73,19 @@ def gpcm_nll(
             f"probe_ids batch dim {probe_ids.shape[0]} != theta batch dim {B}."
         )
 
-    alpha_table = alpha_table.to(dtype=theta.dtype)
-    beta_table = beta_table.to(dtype=theta.dtype)
     K = beta_table.shape[-1] + 1
 
-    alpha_q = alpha_table[probe_ids]  # (B, H, D)
-    beta_q = beta_table[probe_ids]  # (B, H, K-1)
-
-    interaction = (alpha_q * theta.unsqueeze(1)).sum(dim=-1)  # (B, H)
-    alpha_norm = alpha_q.norm(dim=-1)  # (B, H)
-    step_values = interaction.unsqueeze(-1) - alpha_norm.unsqueeze(-1) * beta_q
-    cum_logits = step_values.cumsum(dim=-1)  # (B, H, K-1)
-
-    H = probe_ids.shape[1]
-    zeros = torch.zeros(B, H, 1, device=theta.device, dtype=theta.dtype)
-    logits = torch.cat([zeros, cum_logits], dim=-1)  # (B, H, K)
-
-    if logit_clip is not None:
-        logits = logits.clamp(min=-float(logit_clip), max=float(logit_clip))
-
-    log_probs = torch.log_softmax(logits, dim=-1)  # (B, H, K)
-
-    # Validate response range up-front, gather raises on out-of-range
+    # Validate response range up-front; gather raises on out-of-range
     # only with -1, which is not a useful guard.
     if (probe_responses < 0).any() or (probe_responses >= K).any():
         raise ValueError(
             f"probe_responses must be in [0, K - 1] = [0, {K - 1}]."
         )
+
+    # Delegate GPCM log-prob computation to the shared kernel.
+    log_probs = gpcm_log_probs(
+        theta, probe_ids, alpha_table, beta_table, logit_clip=logit_clip,
+    )  # (B, H, K)
 
     chosen_log_prob = log_probs.gather(
         dim=-1, index=probe_responses.long().unsqueeze(-1)

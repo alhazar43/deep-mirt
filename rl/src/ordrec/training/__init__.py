@@ -12,6 +12,7 @@ See ``docs/ordrec_impl_guide.md`` Sections 4.1 to 4.4.
 from __future__ import annotations
 
 from .base import RLAlgorithm, RolloutStats, UpdateStats
+from .config import PPOConfig
 from .gae import compute_gae
 from .ppo import PPO, ActorCritic
 from .rollout import RolloutBatch, RolloutBuffer
@@ -27,6 +28,7 @@ from .utils import (
 __all__ = [
     "ActorCritic",
     "PPO",
+    "PPOConfig",
     "RLAlgorithm",
     "RolloutBatch",
     "RolloutBuffer",

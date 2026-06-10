@@ -2,9 +2,9 @@
 
 This is the developer-facing implementation guide that pairs with the strategic plan at `docs/exrec_ordinal_plan.md`. The strategic plan answers why and what. This guide answers how, file by file, so a code-completion assistant can produce the code with minimal additional context.
 
-The guide reflects three locked corrections from 2026-06-04. (A) Probe-based GPCM entropy reduction is the primary reward, Fisher information is a one-paragraph theoretical lens. (B) A single framework with per-dataset adapters behind one `OrdinalDatasetBase` interface, not parallel per-dataset code paths. (C) A custom RL library with a small `RLAlgorithm` ABC and one file per algorithm, no Tianshou.
+The guide reflects three locked corrections from 2026-06-04. (A) Probe-based GPCM entropy reduction is the primary reward, Fisher information is a one-paragraph theoretical lens. (B) A single framework with per-dataset adapters behind one `OrdinalDatasetBase` interface, not parallel per-dataset code paths. (C) A custom RL library with a small `RLAlgorithm` ABC and one file per algorithm, no external RL library.
 
-Namespace note. The Phase 1 bundles wrote one reward file under `rl/src/irtrec/rewards/`; this guide unifies everything under `rl/src/ordrec/` so the top-level package is consistent. All call sites below assume the unified namespace.
+All call sites below assume the `rl/src/ordrec/` unified namespace.
 
 ## 1. Overall directory tree
 
@@ -163,7 +163,7 @@ Algorithm.
 
 Edge cases. A distractor never chosen on train, lexicographic fallback so `sigma_q` is always length 3. A test response with an unseen `AnswerValue`, recode to the median wrong category 1 and log under `fallback_questions`. A test-only question, fall back to `[1, 2, 3, correct]` and log.
 
-The placeholder 2PL fitter `fit_placeholder_2pl` in `placeholder_2pl.py` wraps `StaticGPCM(n_categories=2, n_traits=1)` from `ma-irt/models/static_gpcm.py`, trained roughly 5 epochs at lr=1e-2. The R `mirt` path stays available as an audit reference behind a `--use-r-mirt` flag.
+The placeholder 2PL fitter `fit_placeholder_2pl` in `placeholder_2pl.py` wraps `StaticGPCM(n_categories=2, n_traits=1)` from `ma-irt/models/static_gpcm.py`, trained 20 epochs at lr=5e-2. The R `mirt` path stays available as an audit reference behind a `--use-r-mirt` flag.
 
 ### 2.4 EdNetAdapter, K=4 from (correctness, response_time)
 
@@ -253,7 +253,9 @@ Argument contract.
 
 The probe sets are sampled once per trajectory and frozen for the episode. This is what keeps Ng-Harada-Russell (1999) potential-based invariance intact; the probe is part of the static reward structure, not part of the state.
 
-Recipe.
+Two sampler modes are available via `RewardConfig.probe_mode`. The default is `"stratified"`. The `"uniform"` mode is retained for the A-side baseline (E4.5 config).
+
+Stratified recipe (default, `probe_mode="stratified"`).
 1. Difficulty stratification. Require an offline-fit 2PL `beta_em` of shape `(Q,)` produced by the R `mirt` baseline at training-set time and persisted as `data/<dataset>/em_2pl_beta.pt`. Partition the bank into `cfg.n_difficulty_strata = 5` quintiles by sorted `beta_em`. Equal-count quintiles, not equal-width.
 2. Allowable pool. Per student, remove items already in `H_init` and previously sampled probe ids, giving stratum-wise pool `A_b`.
 3. C draw. `ceil(M / 5) = 7` items per quintile via seeded `torch.randperm`, truncate to M. H_probe draw, 4 per quintile, disjoint from C; the union must have size `M + H = 52`.
@@ -371,7 +373,7 @@ class RLAlgorithm(ABC):
 
 ### 4.2 `RolloutBuffer`
 
-Pre-allocated `(capacity, ...)` storage to avoid Python-side appends in the hot loop. Capacity equals `n_episodes_per_update * max_steps_per_episode`. For OrdRec with batched inflow, `max_steps_per_episode = T / K_B = 2`, so a PPO update over 32 episodes uses capacity 64.
+Pre-allocated `(capacity, ...)` storage to avoid Python-side appends in the hot loop. Capacity equals `n_episodes_per_update * max_steps_per_episode`. For OrdRec with batched inflow, one buffer row is written per env step (not per sub-step), so `max_steps_per_episode = T / K_B = 2` and a PPO update over 32 episodes uses capacity 64, which exactly matches the 32 episodes * 2 steps demand (B0+B4 fix, E4.6b).
 
 ```python
 # rl/src/ordrec/training/rollout.py
