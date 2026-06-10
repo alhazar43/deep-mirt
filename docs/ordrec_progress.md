@@ -53,6 +53,8 @@ The five locked design corrections from the strategic plan are intact.
 
 ## 3. Change log (reverse chronological)
 
+- **2026-06-10, DuoLingo Mini exploration branch created.** Branch `feat/duolingo-mini` off `feat/ordrec`; plan at `docs/duolingo_mini_plan.md`, research evidence at `docs/duolingo_mini_research_appendix.md`. Parallel to OrdRec E5, docs-only and rl/-adapter-only scope, zero or near-zero ma-irt edits.
+
 - **2026-06-10, E4.5 complete (synthetic headline run).** Branch
   `feat/ordrec-e45` at `dbb6cb4`, 3 commits on top of E4.6a merge
   (`1ec2e9a`). MA-GPCM world model trained on N=2000, Q=200, K=4
