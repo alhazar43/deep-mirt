@@ -26,6 +26,11 @@ class RewardConfig:
         w_cost: Per-administered-item ask cost. Discourages probing
             with very long batches when shorter ones suffice.
         w_expo: Sympson-Hetter (1985) exposure penalty weight.
+            Recalibrated in E4.6b R1 from 0.10 to 0.02 after the
+            ablation showed the original weight made random selection
+            optimal by construction (RC2). At 0.02 the penalty is
+            small enough not to dominate r_info while still providing
+            a soft exposure bound.
         w_voi: Value-of-information weight on the terminal NLL anchor
             evaluated against the held-out probe ``H_probe``.
         probe_M: Number of items in the per-batch entropy probe
@@ -34,6 +39,12 @@ class RewardConfig:
             used by the terminal NLL anchor.
         r_max: Sympson-Hetter hinge threshold. Items exceeding this
             fleet exposure rate are penalised linearly above it.
+            Recalibrated in E4.6b R1 from 0.20 to 0.40. With Q=200
+            and T=10 items per episode, max-Fisher concentrates on a
+            small fraction of items whose fleet EMA settles near 0.65
+            under long training; r_max=0.40 allows up to 40% exposure
+            before the hinge fires, giving information-seeking policies
+            room to operate.
         c_expo: Scalar coefficient applied to the hinge. ``w_expo``
             and ``c_expo`` are kept separate so that the penalty can
             be scaled jointly (``w_expo``) or per-hinge-slope
@@ -66,7 +77,7 @@ class RewardConfig:
     # Per-batch shaping weights
     w_info: float = 1.0
     w_cost: float = 0.05
-    w_expo: float = 0.10
+    w_expo: float = 0.02
     w_voi: float = 5.0
 
     # Probe sizes
@@ -74,7 +85,7 @@ class RewardConfig:
     probe_H: int = 20
 
     # Sympson-Hetter exposure control
-    r_max: float = 0.20
+    r_max: float = 0.40
     c_expo: float = 1.0
     expo_ema_decay: float = 0.99
 

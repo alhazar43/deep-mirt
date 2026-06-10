@@ -60,11 +60,11 @@ env:
 reward:
   w_info: 1.0
   w_cost: 0.05
-  w_expo: 0.10
+  w_expo: 0.02
   w_voi: 5.0
   probe_M: 32
   probe_H: 20
-  r_max: 0.20
+  r_max: 0.40
   c_expo: 1.0
   expo_ema_decay: 0.99
   n_difficulty_strata: 5
