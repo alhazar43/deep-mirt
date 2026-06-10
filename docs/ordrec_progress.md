@@ -13,15 +13,17 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 
 - **Date created.** 2026-06-08
 - **Date last updated.** 2026-06-10
-- **Current state.** E4.5 (synthetic headline run) complete on
-  `feat/ordrec-e45`. PPO does not beat random in episode return;
-  exposure penalty dominates and r_voi=0 throughout training due to
-  buffer capacity mismatch. This run is the A-side of the E4.6b A/B
-  comparison. Results at `rl/results/E45_synth_headline.md`.
-- **Active branch.** `feat/ordrec-e45` at `dbb6cb4`.
-- **Next milestone.** E4.6b (hardening slice B): buffer capacity fix,
-  K_B credit distribution, stratified probe sampler, per-item phi logging,
-  plus A/B rerun against the E4.5 config to validate the multi-step claim.
+- **Current state.** E4.6b (hardening slice B + A/B rerun) complete on
+  `feat/ordrec-e46b`. Buffer overflow fixed (RC1), exposure penalty
+  recalibrated (RC2), stratified probe sampler shipped (B5), buffer
+  reworked to one row per env-step (B0+B4). B-side verdict: honest
+  negative, PPO does not beat random in mean episode return on synthetic
+  data (-0.570 vs -0.537, non-overlapping CIs). RC3 (VOI saturation on
+  static DGP) remains open. Results at `rl/results/E46b_ab_comparison.md`.
+  209 tests pass. Doc consolidation complete (C1 audit item).
+- **Active branch.** `feat/ordrec-e46b` at `3278b31`.
+- **Next milestone.** E5: real Eedi K=4 run. Only external dependency
+  is the raw Eedi NeurIPS 2020 Task 3+4 csvs.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -29,7 +31,7 @@ The five locked design corrections from the strategic plan are intact.
   Fisher information is a theoretical lens.
 - (B) Single framework with per-dataset adapters behind one
   `OrdinalDatasetBase`. The model never branches on dataset identity.
-- (C) Custom RL library with a small `RLAlgorithm` ABC, no Tianshou.
+- (C) Custom RL library with a small `RLAlgorithm` ABC, no external RL library.
 - (D) Per-user deterministic splits, byte-identical re-materialisation.
 - (E) Action mask covers admin, probe, and within-episode no-repeat.
 
@@ -45,13 +47,65 @@ The five locked design corrections from the strategic plan are intact.
 | **E4**, RL library + training loop + smoke | complete (merged) | `feat/ordrec` | `4e2fc72` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/E4_rl_library.md`. |
 | **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by the CONSOLIDATE verdict in `docs/cleanup/_ordrec_maintainability_review.md`. |
 | **E4.5**, synthetic headline run | complete | `feat/ordrec-e45` | `dbb6cb4` | MA-GPCM world model trained (theta r=0.968), 200 BC updates + 500 PPO updates, four-policy eval (PPO/BC/Fisher/random), headline plots + results report | met | PPO does NOT beat max-Fisher by return. Ranking: random > PPO > BC-only > max-Fisher. Exposure penalty dominates; random wins by avoiding it entirely. Buffer capacity mismatch caused r_voi=0 throughout training. This run is the A-side of the E4.6b A/B comparison. See `rl/results/E45_synth_headline.md`. |
-| **E4.6b**, hardening slice B | not started | tbd | tbd | review items B1-B6, GPCM helper extraction, ma-irt commit pinning, typed output contract, K_B credit assignment, probe-sampler decision (B5), config dataclasses | tbd | After E4.5, before E5. Validated by an A/B rerun of the E4.5 config. C1 doc consolidation rides along. |
-| **E5**, headline polytomous run on Eedi K=4 | after E4.6b | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Mean return strictly above the uniform-random baseline at the end of training, with per-component decomposition and exposure caps respected. |
+| **E4.6b**, hardening slice B | complete | `feat/ordrec-e46b` | `3278b31` | B0+B4 buffer rework (one row per env-step), B1-B6 code quality, R1 exposure recalibration, R2 VOI diagnosis, R3 BC teacher soft-target, B5 stratified probe, A/B rerun, C1 doc consolidation | met | 209 tests pass. B-side PPO: -0.570 vs random -0.537. Honest negative on static synthetic DGP. RC3 (VOI saturation) open. Results at `rl/results/E46b_ab_comparison.md`. |
+| **E5**, headline polytomous run on Eedi K=4 | next | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Only external dependency: real Eedi NeurIPS 2020 Task 3+4 csvs. Mean return strictly above uniform-random baseline at end of training, per-component decomposition and exposure caps respected. |
 | **E6**, ablations + paper figures | not started | tbd | tbd | full PPO runs on EdNet KT3 K=4, ASSISTments K=2, plus ablations (no-probe, no-exposure, no-VOI), paper PGF figures | tbd | The science milestone. |
 
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-10, E4.6b complete (hardening slice B + A/B rerun + doc consolidation).**
+  Branch `feat/ordrec-e46b` at `3278b31`, 12 commits on top of the E4.5
+  merge (`5082c45`). The three root causes identified in the E4.5 honest
+  negative were addressed.
+
+  **RC1 fix, buffer rework (B0+B4, `ca4aab7`).** `RolloutBuffer` now
+  inserts one row per env-step rather than one row per sub-step (K_B
+  sub-steps per step). Capacity 64 = 32 episodes x 2 steps now exactly
+  matches demand. Terminal r_voi entered every PPO update in B-side
+  training (mean r_voi = -0.043 vs 0.0 throughout A-side).
+
+  **RC2 fix, reward recalibration (R1, `a70b5b7`).** w_expo reduced
+  0.10 to 0.02, r_max raised 0.20 to 0.40. Removed the dominant
+  exposure penalty that made random optimal by construction. r_expo for
+  max-Fisher dropped from -0.103 to -0.007. These values are now the
+  RewardConfig defaults.
+
+  **RC3 diagnosis (R2, `49574ca`).** Positive r_voi bursts (max +0.066)
+  confirm the anchor sign is correct. The consistently negative mean is
+  attributed to theta saturation: a 5-warmup prior already captures
+  most signal from a Q=200 static synthetic DGP, and 10 additional
+  items per episode do not meaningfully sharpen it. E5 real-Eedi
+  sessions are expected to exhibit genuine per-session ability growth.
+
+  **Other B-slice items.** B1 extracted `gpcm_log_probs` into
+  `reward/gpcm_ops.py` (single source of truth). B2 added ma-irt SHA
+  and config hash to item cache metadata. B3 added `MAIRTOutput`
+  TypedDict to `FrozenMAGPCM`. B4 the buffer row-per-step contract.
+  B5 shipped the dual probe sampler (uniform retained for A-side config
+  compatibility, stratified now the default). B6 added `RewardConfig.from_dict`
+  and `PPOConfig` dataclass. B7 single forward per step. B8 history
+  truncation. R3 BC teacher changed from argmax to top-5 soft target.
+
+  **A/B verdict.** B-side PPO (-0.570) does not beat random (-0.537,
+  non-overlapping 95% CIs). All three greedy policies improved by
+  +0.16 to +0.18 return units from the RC2 recalibration. The remaining
+  gap is driven by r_voi: the VOI anchor is a net-negative signal on
+  this static synthetic DGP. The multi-step credit distribution and
+  buffer fix are structurally correct but cannot overcome RC3 saturation.
+
+  **C1 doc consolidation.** `rl/README.md` rewritten to describe the
+  current tree (package map, how to run tests, how to train, how to
+  evaluate). `docs/exrec_ordinal_plan.md` patched to remove Tianshou
+  references, stale `irtrec` paths, and the restated milestone table
+  (now points to this doc). `docs/ordrec_impl_guide.md` patched for
+  placeholder-2PL hyperparams (20 epochs lr 5e-2), dual probe sampler
+  (stratified default), buffer layout (one row per env-step), and
+  the no-external-RL-library correction. E1-E4 milestone records moved
+  to `rl/results/archive/`.
+
+  **209 tests pass** (full suite, two runs). Gate met.
 
 - **2026-06-10, E4.5 complete (synthetic headline run).** Branch
   `feat/ordrec-e45` at `dbb6cb4`, 3 commits on top of E4.6a merge
@@ -317,6 +371,12 @@ and script tests run by default.
 
 Total at E4.6a close, 150 tests, all pass.
 
+E4.6b hardening additions, 59 tests (reward, envs, training, and
+cross-package tests updated or added for B0-B8 + R1-R3 fixes; exact
+per-file breakdown in the E4.6b change-log entry above).
+
+Total at E4.6b close, 209 tests, all pass.
+
 Reproducer.
 
 ```bash
@@ -331,14 +391,11 @@ Existing ma-irt test suite is untouched through E3.
 
 ## 5. Open issues
 
-Carried forward from `rl/results/E1_data_layer.md`,
-`rl/results/E2_envs_layer.md`, `rl/results/E3_env_reward.md`,
-and `rl/results/E4_rl_library.md`.
+Carried forward. E1-E4 source records are now in `rl/results/archive/`.
 
 1. Placeholder 2PL `lr` field in `coercion_artefacts.json` reports the
    guide default (1e-2) rather than the value actually used (5e-2 at
-   20 epochs). E2 did not touch this. Cosmetic, fix during the E3
-   wiring.
+   20 epochs). E2 did not touch this. Cosmetic.
 2. Synthetic adapter does not persist `true_irt_parameters.json` into
    the materialised artefact. Eval recovery currently reads it from
    the upstream raw directory by convention. Persist alongside the
@@ -380,10 +437,10 @@ and `rl/results/E4_rl_library.md`.
 13. E3 new, probe sampler stratification audit. Default
     `n_difficulty_strata = 5` equal-count quantiles. An ablation
     over `[3, 5, 10]` is a candidate for E5.
-14. E4 new, BC teacher mixture, max-Fisher only at v1. The
-    ReflectionLayer-greedy (30%) and Thompson (20%) teachers
-    described in the impl guide need infrastructure not built
-    in E4. v2 enhancement before the headline run.
+14. E4.6b, BC teacher upgraded to top-5 soft target (R3, `49574ca`).
+    The single-argmax teacher is replaced by a soft probability target
+    over the top-5 max-Fisher items. ReflectionLayer-greedy and Thompson
+    mixture variants remain deferred to E5 or later.
 15. E4 new, DQN and SAC implementations. Sketched as comments in
     the impl guide and inside `training/ppo.py`. Deferred to a
     future ablation.
