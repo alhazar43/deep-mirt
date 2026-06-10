@@ -249,13 +249,18 @@ class PPO(RLAlgorithm):
             eps=float(adam_eps),
         )
 
+        # Capacity: exactly n_episodes * max_steps rows, one per env-step
+        # per episode row.  K_B items are packed into each row's action
+        # field, so the buffer is never over-filled by the K_B factor.
         capacity = max(
             1, self.n_episodes_per_update * self.max_steps_per_episode,
         )
+        self._K_B_buf = 1  # updated when rollout sees a K_B env
         self.buffer = RolloutBuffer(
             capacity=capacity,
             observation_dim=self.observation_dim,
             n_actions=self.action_dim,
+            K_B=1,
             device=self.device,
             gamma=self.gamma,
             gae_lambda=self.gae_lambda,
@@ -322,11 +327,15 @@ class PPO(RLAlgorithm):
     def rollout(self, env: Any, n_episodes: int) -> RolloutStats:
         """Collect ``n_episodes`` episodes into ``self.buffer``.
 
-        Each env ``step`` issues a batch of ``K_B`` item actions.
-        ``rollout`` runs ``K_B`` policy samples in lockstep between
-        env steps so each row's per-item log-prob and value are stored
-        per transition. The buffer compute_advantages call follows so
-        ``update`` finds advantages ready.
+        One buffer entry is written per env step per episode row. When
+        ``K_B > 1`` the K_B item ids and their joint log-prob (sum of
+        sequential per-pick log-probs) are packed into that single
+        entry. Capacity is therefore exactly
+        ``n_episodes * max_steps_per_episode`` regardless of K_B.
+
+        Terminal rewards (e.g. ``r_voi``) are stored in the terminal
+        step entry because the buffer is filled at most once per episode
+        step per row, not ``K_B`` times.
 
         Args:
             env: An :class:`~ordrec.envs.OrdinalEnvBase` compatible
@@ -340,6 +349,27 @@ class PPO(RLAlgorithm):
         Returns:
             :class:`RolloutStats` summarising the rollout.
         """
+        K_B = int(getattr(env, "K_B", 1))
+        # Rebuild the buffer when K_B changes (first OrdRec env use) so
+        # capacity stays exactly n_episodes * max_steps and action
+        # storage is correctly shaped for the vector-action case.
+        if K_B != self._K_B_buf:
+            capacity = max(
+                1, self.n_episodes_per_update * self.max_steps_per_episode,
+            )
+            self._K_B_buf = K_B
+            self.buffer = RolloutBuffer(
+                capacity=capacity,
+                observation_dim=self.observation_dim,
+                n_actions=self.action_dim,
+                K_B=K_B,
+                device=self.device,
+                gamma=self.gamma,
+                gae_lambda=self.gae_lambda,
+                action_dtype=torch.long,
+                store_action_masks=True,
+            )
+
         self.buffer.reset()
         ep_returns: list[float] = []
         ep_lengths: list[int] = []
@@ -502,14 +532,36 @@ class PPO(RLAlgorithm):
         done: bool,
         episode_start: bool,
     ) -> None:
-        """Insert all per-row, per-sub-step transitions for one env step.
+        """Insert one buffer entry per episode row for one env step.
 
-        The reward is shared across the K_B sub-steps of a single env
-        step. We attribute the full reward to the first sub-step and
-        zero to the rest, so the GAE sum equals the per-row episode
-        return. This is a standard credit-assignment choice for
-        ``K_B``-batched envs and keeps the algorithm-side accounting
-        simple.
+        Credit assignment. One entry is written per row. The entry's
+        reward is the full env-step reward for that row (not a
+        per-sub-step slice). When K_B > 1 the action field holds all
+        K_B item ids as a 1D tensor and log_prob holds the joint
+        log-prob (sum of sequential per-pick log-probs). This is the
+        formulation that keeps the PPO importance ratio correct:
+
+            ratio = exp(joint_lp_new - joint_lp_old)
+
+        where joint_lp_new is re-evaluated during the PPO update by
+        summing the log-probs of the K_B picks under the current policy
+        with the same sequential no-repeat mask.
+
+        Args:
+            state: OrdinalState or Tensor observation at the start of
+                this env step. Used to read the per-row obs.
+            env: The driving env (provides K_B via ``getattr``).
+            action_per_row: ``LongTensor (B * K_B,)`` flattened actions,
+                row-major order (b=0 k=0, b=0 k=1, ..., b=B-1 k=K_B-1).
+            log_prob_per_row: ``FloatTensor (B * K_B,)`` per-pick
+                log-probs in the same order.
+            value_per_row: ``FloatTensor (B * K_B,)`` critic values
+                (identical across sub-steps for the same row).
+            mask_per_row: ``BoolTensor (B * K_B, n_actions)`` per-pick
+                action masks (the mask narrows after each pick).
+            reward_per_row: ``FloatTensor (B,)`` per-row env-step reward.
+            done: Terminated flag from the env for this step.
+            episode_start: True at the first step of the episode.
         """
         obs_t, _ = self._unpack_state(state)
         obs_cpu = obs_t.detach().cpu().to(torch.float32)
@@ -522,21 +574,35 @@ class PPO(RLAlgorithm):
             )
 
         for b in range(B):
-            for k in range(K_B):
-                idx = b * K_B + k
-                rew = float(reward_per_row[b].item()) if k == 0 else 0.0
-                self.buffer.insert(
-                    state=obs_cpu[b],
-                    action=action_per_row[idx],
-                    reward=rew,
-                    log_prob=float(log_prob_per_row[idx].item()),
-                    value=float(value_per_row[idx].item()),
-                    done=(done and k == K_B - 1),
-                    action_mask=mask_per_row[idx],
-                    episode_start=(episode_start and b == 0 and k == 0),
+            if K_B == 1:
+                # Single-item env: scalar action, scalar log_prob.
+                act = action_per_row[b]
+                joint_lp = float(log_prob_per_row[b].item())
+                # Mask for slot b (first-and-only sub-step of row b).
+                mask_b = mask_per_row[b]
+            else:
+                # Multi-item block: pack all K_B ids and sum log_probs.
+                start = b * K_B
+                act = action_per_row[start : start + K_B]   # (K_B,)
+                joint_lp = float(
+                    log_prob_per_row[start : start + K_B].sum().item()
                 )
-                if self.buffer.full:
-                    return
+                # Use the first sub-step's mask as the stored mask so
+                # the PPO re-eval starts from the same pre-step mask.
+                mask_b = mask_per_row[start]
+
+            self.buffer.insert(
+                state=obs_cpu[b],
+                action=act,
+                reward=float(reward_per_row[b].item()),
+                log_prob=joint_lp,
+                value=float(value_per_row[b * K_B].item()),
+                done=bool(done),
+                action_mask=mask_b,
+                episode_start=(bool(episode_start) and b == 0),
+            )
+            if self.buffer.full:
+                return
 
     # ------------------------------------------------------------------
     # Update
@@ -564,6 +630,7 @@ class PPO(RLAlgorithm):
                 "approx_kl": 0.0, "clipfrac": 0.0}
         n_steps = 0
         early_stop = False
+        K_B_buf = int(getattr(buf, "K_B", 1))
         for epoch in range(self.n_epochs):
             for batch in buf.iter_minibatches(
                 minibatch_size=self.minibatch_size,
@@ -573,9 +640,46 @@ class PPO(RLAlgorithm):
                 batch = batch.to(self.device)
                 logits, values = self.policy(batch.states)
                 masked = _masked_logits(logits, batch.action_masks)
-                dist = Categorical(logits=masked)
-                new_log_probs = dist.log_prob(batch.actions)
-                entropy = dist.entropy().mean()
+
+                if K_B_buf <= 1:
+                    # Scalar action case: standard categorical log_prob.
+                    dist = Categorical(logits=masked)
+                    new_log_probs = dist.log_prob(batch.actions)
+                    entropy = dist.entropy().mean()
+                else:
+                    # Vector action case (K_B > 1). Re-evaluate the joint
+                    # log-prob by replaying the sequential sampling with
+                    # a tightening no-repeat mask, matching the sampling
+                    # procedure in _policy_step. Entropy is the mean of
+                    # the per-pick categorical entropies over the K_B
+                    # sub-steps (the stored mask is the pre-step mask).
+                    B_mb = batch.states.shape[0]
+                    joint_lp = torch.zeros(B_mb, device=self.device)
+                    ent_sum = torch.zeros(B_mb, device=self.device)
+                    cur_mask = (
+                        batch.action_masks.clone()
+                        if batch.action_masks is not None
+                        else None
+                    )
+                    for k in range(K_B_buf):
+                        cur_masked = _masked_logits(logits, cur_mask)
+                        dist_k = Categorical(logits=cur_masked)
+                        a_k = batch.actions[:, k]
+                        joint_lp = joint_lp + dist_k.log_prob(a_k)
+                        ent_sum = ent_sum + dist_k.entropy()
+                        if cur_mask is not None:
+                            cur_mask = cur_mask.clone()
+                            cur_mask.scatter_(
+                                dim=1, index=a_k.unsqueeze(1),
+                                src=torch.zeros(B_mb, 1, dtype=torch.bool, device=self.device),
+                            )
+                    new_log_probs = joint_lp
+                    entropy = (ent_sum / K_B_buf).mean()
+
+                # Scalar action case entropy (only used when K_B==1 path falls
+                # through to here via the dist variable): already set above.
+                if K_B_buf <= 1:
+                    pass  # entropy already set in the scalar branch
 
                 ratio = (new_log_probs - batch.old_log_probs).exp()
                 unclipped = ratio * batch.advantages
