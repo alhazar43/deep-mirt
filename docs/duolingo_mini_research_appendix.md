@@ -1,6 +1,6 @@
 # DuoLingo Mini Research Appendix
 
-Three research streams condensed. Full plan at
+Four research streams condensed. Full plan at
 `docs/duolingo_mini_plan.md`.
 
 ---
@@ -50,6 +50,28 @@ Thresholds fit on train split only, persisted to coercion_artefacts.json.
 3. Post preprint after D4, email Kevin Yancey or Geoff LaFlair with
    the result. Opens the collaboration surface from a position of
    evidence.
+
+### Struggles-informed outreach sequencing
+
+The AI-era pressure (Stream 4) fixes the order and the framing.
+
+1. Preprint first. Demonstrate ordinal calibration on public data,
+   D1 SLAM plus D4 synthetic recovery, so the first contact starts
+   from evidence not a proposal.
+2. Cold contact naming the published gaps by author, Sharpnack,
+   LaFlair, Yancey, von Davier, on the 2PL/3PL-only AutoIRT and
+   BanditCAT line. Pitch the ordinal AutoIRT extension, the rank-1
+   collaboration surface, pitchable with no inside data.
+3. Hold the efficacy-infrastructure frame (longitudinal theta as proof
+   the app teaches) for a second conversation. Stronger frame, but it
+   needs a data partnership and reads as a larger ask.
+4. Carry trust-repair co-publication as a sweetener, not a standalone
+   ask. A peer-reviewed measurement paper with named academic
+   co-authors counters the post-backlash quality narrative, but it
+   strengthens the ordinal-AutoIRT or efficacy pitch rather than
+   leading.
+5. Frame everything as measurement and validation science. Anything
+   reading as "another AI feature" is radioactive post-backlash.
 
 ---
 
@@ -165,7 +187,41 @@ Cross-test anchoring (D7):
 
 ### Ranked plan scope
 
-The ranked opportunities in the plan (Section 5) draw only from
+The ranked opportunities in the plan (Section 6) draw only from
 ENABLED-as-is, ENABLED-via-rl-adapter, and the two explicitly flagged
 NEEDS-minor-additive items. All four BLOCKED directions are confined to
 Appendix B of the plan and do not appear in the milestone sequence.
+
+---
+
+## Stream 4. AI-era struggles and the collaboration framing
+
+Source memo, `docs/cleanup/_duolingo_struggles_research.md` (gitignored
+working doc). Six facts that shape which research is fundable now.
+
+### Key facts
+
+| Fact | Date | Detail |
+|---|---|---|
+| AI-first backlash | Apr 28 2025 | Von Ahn memo phasing out contractors, accepting "small hits on quality", social purge May 17 2025, two CEO walk-backs through Apr 2026. The quality concession became a lasting liability. |
+| Business pressure | Feb 2026 | Stock down ~78% from May 2025 peak, DAU growth halved, full-year 2026 bookings guidance ~10.5%. |
+| AI commoditization | 2025-2026 | Free frontier LLMs and real-time translation weaken the motive to learn languages, the core analyst concern. |
+| AI-content gap | 2025 | 148 AI-generated courses with documented quality errors, 100-plus curriculum specialists laid off, no published benchmark of AI-generated vs human course learning outcomes. |
+| DET cheating pressure | EMNLP 2024 | LLM-assisted cheating arms race, their contrastive detection paper reports 1.7x over classifiers at 0.1% false positive, institutional acceptance still growing. |
+| Efficacy gap | Mar 2026 | Best external RCT (Kim et al., Studies in Second Language Acquisition, n=183) shows comparable-to-classroom not better, no published calibrated longitudinal ability estimate from their own data. |
+
+### Struggles-informed collaboration ranking
+
+| Rank | Surface | Why now | Inside data |
+|---|---|---|---|
+| 1 | Ordinal/GPCM extension of AutoIRT | Named gap in their own 2PL/3PL-only published work, calibration rigor not a new feature | No, pitchable on public data |
+| 2 | Longitudinal theta as efficacy-evidence infrastructure | Answers the "does it teach?" gap, strongest frame | Yes, needs a data partnership |
+| 3 | Trust repair via academic co-publication | Counters the post-backlash quality narrative | Sweetener, not standalone |
+| 4 | DET person-fit and cheating detection | Real need, but they hold a sophisticated stack, hard cold entry | Yes, DET session data |
+
+### The reframe in one line
+
+The struggles raise the value of measurement-grade research (the
+efficacy gap and the AI-content calibration gap are pressure points
+ma-irt speaks to) while making anything that reads as "another AI
+feature" radioactive. Pitch validation science, not generation.

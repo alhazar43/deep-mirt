@@ -121,42 +121,114 @@ The ranked plan draws only from the first three status classes plus
 the two explicitly flagged minor-additive items. The four blocked
 directions live in Appendix B.
 
-## 5. Ranked opportunities
+## 5. Company context, the AI-era pressure and what it means for the pitch
 
-Each carries its reality-check status. Blocked items appear only in
-Appendix B, never here.
+The plan targets Duolingo Research, the Assessment and Psychometrics
+group (LaFlair, Liao, von Davier, Attali, Lockwood, Belzak, Cardwell),
+not the consumer product org. That distinction matters more now than
+when this plan was first drafted, because the company is under acute
+AI-era pressure and that pressure reshapes which research is fundable
+and welcomed.
+
+The backlash. Von Ahn's April 28 2025 AI-first memo, which announced
+phasing out contractors and accepted "small hits on quality" for
+generation speed, triggered a severe public reaction, a social-media
+purge on May 17 2025, and two CEO walk-backs through April 2026.
+Stock fell roughly 78% from its May 2025 peak, DAU growth halved into
+2026, and full-year 2026 bookings guidance sits near 10.5%. The
+lasting liability is reputational, Duolingo is now read as a company
+that traded measurement-grade quality for automation speed.
+
+The reframe. The struggles do not make collaboration less likely,
+they sharpen which collaboration lands. Two pressure points raise the
+value of measurement-grade research. First, the efficacy measurement
+gap, the strongest external RCT (Kim et al. 2026, Studies in Second
+Language Acquisition, n=183) shows comparable-to-classroom, not
+better, and Duolingo has no published calibrated longitudinal ability
+estimate from its own data, only engagement metrics (DAU, streaks,
+lesson completions) that measure habit not proficiency. Second, the
+AI-content calibration gap, 148 AI-generated courses shipped with
+documented quality errors and 100-plus curriculum specialists laid
+off, yet there is no published benchmark comparing AI-generated to
+human-built course learning outcomes. Both gaps are exactly where a
+calibrated ordinal IRT contributes.
+
+The radioactivity rule. Anything that reads as "another AI feature" is
+poison post-backlash, the brand wound is precisely over-automation.
+DuoLingo Mini must present as measurement and validation science, the
+discipline that repairs the trust the AI pivot spent, never as a new
+generative capability. This is why the collaboration-surface ranking
+leads with an ordinal extension of AutoIRT (a calibration-rigor
+contribution, pitchable on public data with no inside access) rather
+than with the data-hungry efficacy-infrastructure frame, which is
+stronger but needs a partnership to land. The two framings reconcile
+in Section 6.
+
+## 6. Ranked opportunities
+
+Each carries its reality-check status and a one-line
+collaboration-leverage note from the struggles lens. The experiment
+ordering is by feasibility and is unchanged. The collaboration view,
+which research surface to pitch first, runs in the opposite direction,
+the rank-1 collaboration surface is the ordinal AutoIRT extension, and
+the experiments below are the evidence that makes that pitch credible.
+The reconciliation, experiment D1 (SLAM) is the demonstration that
+earns the rank-1 ordinal-AutoIRT pitch, a working ordinal calibration
+on real Duolingo data is what lets the cold contact name a gap in
+their own 2PL/3PL work and show it already solved on public data.
+Blocked items appear only in Appendix B, never here.
 
 1. SLAM 2018 adapter plus DKVMN+GPCM training on real Duolingo data.
    ENABLED-via-rl-adapter. The zero-coordination real-data anchor.
    Payoff, first real Duolingo corpus result, comparable to SLAM-era
    baselines. Cost, one adapter and one config, days, zero ma-irt
-   edits.
+   edits. Leverage, this is the demonstration that earns the rank-1
+   collaboration pitch, a working ordinal calibration on their own
+   public data is what makes the ordinal-AutoIRT extension credible
+   to the Assessment team without any inside access.
 2. Synthetic mixed-format recovery and convergent-validity experiment.
    ENABLED-via-rl-adapter. The load-bearing scientific evidence.
    Payoff, turns the single-theta slogan into a measured result on
    ground truth. Cost, a synthetic generator and an analysis script,
-   days to two weeks, zero ma-irt edits.
+   days to two weeks, zero ma-irt edits. Leverage, ground-truth
+   recovery is the methodological backbone of the ordinal-AutoIRT
+   pitch, calibration rigor is the trust-repair currency post-backlash.
 3. Cite-and-compare positioning. ENABLED-as-is. Payoff, credibility
    with the Duolingo group and a sharper contribution claim. Cost,
-   prose only.
+   prose only. Leverage, this is the prose that names the gap in their
+   own 2PL/3PL work (AutoIRT, BanditCAT) and frames ma-irt as the
+   ordinal generalization, the rank-1 collaboration surface in words.
 4. Rubric-scored open responses as GPCM items. ENABLED-as-is. Payoff,
    the cleanest statement of format-agnosticism, answers Duolingo's
    stated discrete-plus-continuous-grade gap. Cost, pure adapter,
-   hours for a synthetic-rubric demo.
+   hours for a synthetic-rubric demo. Leverage, ordinal rubric scoring
+   is the format their AI-generated writing and vocabulary items need,
+   it speaks to the uncalibrated AI-content gap, not to a new feature.
 5. Encoder-invariance probe. ENABLED-as-is. Payoff, a robustness
    claim no deep KT paper can make. Cost, zero new code, days.
+   Leverage, an invariance result reads as measurement discipline,
+   the opposite of the over-automation the brand is wounded over.
 6. Cross-test anchoring via merged ID space. NEEDS-minor-additive,
    FLAGGED. Payoff, amortized cross-test linking, unexplored in deep
    KT. Cost, merged-ID adapter, config raise, retrain. Weeks.
+   Leverage, cross-test linking is the technical core of the
+   efficacy-infrastructure frame, the rank-2 collaboration surface
+   held for a second conversation once a data partnership is on the
+   table.
 7. Format-effect estimation as post-hoc analysis. ENABLED-via-rl-
    adapter. Payoff, a measured format effect on alpha from a
    sequential tracer. Cost, metadata plus an analysis script, days.
+   Leverage, per-format discrimination is directly the AI-content
+   calibration question, do AI-built item formats behave like
+   human-built ones, framed as quality control not generation.
 8. Mixed-K item banks in one model via a per-category mask. NEEDS-
    minor-additive, FLAGGED. Payoff, true mixed-K banks, the realistic
    data shape. Cost, about 20-50 lines across two ma-irt files, in a
-   reviewed worktree.
+   reviewed worktree. Leverage, mixed-K is the realistic DET item-bank
+   shape, supports the calibration-rigor story but is the last
+   experiment to undertake and only if D4 motivates it.
 
-## 6. What DuoLingo Mini concretely is
+## 7. What DuoLingo Mini concretely is
 
 Four pieces, all on the rl/ adapter side plus this doc.
 
@@ -195,13 +267,33 @@ recommends on, adds SLAM as a second real dataset next to Eedi and
 EdNet, and opens the Duolingo collaboration surface. They share the
 adapter framework, the bridge, and the frozen-env machinery.
 
-## 7. Milestones
+Open question, the outreach sequencing. The struggles lens settles
+the order. Post a preprint first that demonstrates ordinal calibration
+on public data (D1 SLAM plus D4 synthetic recovery), so the contact
+starts from evidence not from a proposal. Then make cold contact that
+names the published gaps in their own work by author, Sharpnack,
+LaFlair, Yancey, and von Davier on the 2PL/3PL-only AutoIRT and
+BanditCAT line, and pitches the ordinal extension as the rank-1
+surface, which needs no inside data. Hold the efficacy-infrastructure
+frame (longitudinal theta as proof the app teaches) for a second
+conversation, it is the stronger frame but it requires a data
+partnership and reads as a bigger ask. Carry the trust-repair
+co-publication angle as a sweetener, a peer-reviewed measurement paper
+with named academic co-authors directly counters the post-backlash
+narrative that Duolingo traded quality for speed, but it strengthens
+the ordinal-AutoIRT or efficacy pitch rather than standing alone.
+
+## 8. Milestones
 
 D1, SLAM adapter and first real-data run. Days. Write SlamAdapter and
 its unit test (following test_ednet_adapter.py), add
 ordrec_slam_k3.yaml, train DKVMN+GPCM, report AUC and log-loss on the
 en_es track. Proves ma-irt runs end-to-end on real Duolingo data with
-zero ma-irt edits. Runnable on the current pipeline immediately.
+zero ma-irt edits. Runnable on the current pipeline immediately. This
+is also the collaboration anchor, a working ordinal calibration on
+Duolingo's own public corpus is the demonstration that makes the
+rank-1 ordinal-AutoIRT pitch credible, so D1 feeds the cold contact
+directly.
 
 D2, SLAM second track and baselines. Days. Add es_en, fit LSTM and
 logistic-regression baselines, tabulate AUC and log-loss. Proves the
@@ -233,7 +325,7 @@ ma-irt edit of about 20-50 lines plus the adapter K table, then a
 mixed-K recovery run. Proves genuine mixed-K coexistence. Deferred
 behind D1 to D6 and undertaken only if D4 motivates it.
 
-## 8. Risks
+## 9. Risks
 
 SLAM is not a proficiency test. It reflects beginner app learners in a
 short window, not high-stakes assessment, so theta on SLAM is not DET
@@ -268,7 +360,7 @@ ability are confounded. Mitigation, the no-anchor control is a
 required experiment, a passing claim requires the correlation to
 degrade to chance when anchors are removed.
 
-## 9. References
+## 10. References
 
 Attali, Runge, LaFlair, Yancey, Goodwin, Park, von Davier (2022). The
 Interactive Reading Task, transformer-based automatic item generation.
