@@ -16,3 +16,6 @@
 [submodule "overleaf-sync"]
 	path = overleaf-sync
 	url = https://git.overleaf.com/698a08a1498be338a24fd941
+[submodule "ma-irt"]
+	path = ma-irt
+	url = https://github.com/alhazar43/ma-irt.git
