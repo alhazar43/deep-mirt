@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from ordrec.envs.frozen_magpcm import FrozenMAGPCM, freeze_magpcm
+from ordrec.envs.frozen_magpcm import FrozenMAGPCM, MAIRTOutput, freeze_magpcm
 
 
 pytest.importorskip("models", reason="ma-irt must be on PYTHONPATH")
@@ -157,3 +157,45 @@ def test_n_questions_and_categories_propagate_from_model() -> None:
     frozen = FrozenMAGPCM(m)
     assert frozen.n_questions == 16
     assert frozen.n_categories == 4
+
+
+# ---------------------------------------------------------------------------
+# B3 MAIRTOutput TypedDict tests
+# ---------------------------------------------------------------------------
+
+
+def test_forward_no_grad_returns_mairt_output_type() -> None:
+    """forward_no_grad returns a MAIRTOutput TypedDict with all five keys."""
+    m = _build_tiny_magpcm()
+    frozen = FrozenMAGPCM(m)
+    q = torch.randint(1, 17, (2, 5))
+    r = torch.randint(0, 4, (2, 5))
+    out = frozen.forward_no_grad(q, r)
+    for key in ("logits", "probs", "theta", "alpha", "beta"):
+        assert key in out, f"Missing key '{key}' in MAIRTOutput"
+    # probs must sum to 1 along last dim
+    assert torch.allclose(out["probs"].sum(-1), torch.ones(2, 5), atol=1e-5)
+
+
+def test_mairt_output_missing_key_raises_assertion() -> None:
+    """forward_no_grad raises AssertionError when world model omits a key."""
+    import torch.nn as nn
+
+    class _BrokenModel(nn.Module):
+        """Returns a dict without 'beta'."""
+        def forward(self, q, r):
+            B, S = q.shape
+            return {
+                "logits": torch.zeros(B, S, 4),
+                "probs": torch.zeros(B, S, 4),
+                "theta": torch.zeros(B, S, 1),
+                "alpha": torch.zeros(B, S, 1),
+                # beta is missing
+            }
+
+    broken = _BrokenModel()
+    frozen = FrozenMAGPCM(broken)
+    q = torch.randint(1, 5, (2, 3))
+    r = torch.randint(0, 4, (2, 3))
+    with pytest.raises(AssertionError, match="missing required keys"):
+        frozen.forward_no_grad(q, r)

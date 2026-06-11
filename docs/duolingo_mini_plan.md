@@ -1,8 +1,46 @@
 # DuoLingo Mini, an exploration plan
 
-Status, exploration. Branch, docs-only, worked in a git worktree.
-Scope, rl/-side adapters plus a docs file, with minimum or zero edits
-to the public ma-irt repo. This document is self-contained.
+Status, PROMOTED FROM EXPLORATION TO ACTIVE TRACK on 2026-06-11.
+Scope, rl/-side adapters plus this docs file, with minimum or zero
+edits to the public ma-irt repo. This document is self-contained.
+
+## 0. Decisions log
+
+**2026-06-11, priority locked.** The Duolingo / SLAM track is the
+active build priority (user decision). D1 (SlamAdapter plus the first
+MAGPCM run on real Duolingo en\_es data) is merged, ACC 0.682, QWK
+0.374, binary-collapsed AUC 0.773 on 2,593 learners. The next
+concrete milestone is D2 (second language track es\_en plus LSTM and
+logistic-regression baselines). The OrdRec headline track (E5 on
+Eedi) is paused pending the user downloading the Eedi NeurIPS 2020
+Task 3+4 csvs, after which it runs largely unattended; it is not
+abandoned, only deprioritized behind the time-sensitive Duolingo
+play.
+
+Branch note. `feat/duolingo-mini` is now the live working branch for
+this track and was brought current with `feat/ordrec` at the D1 merge
+(`e960be9`), so it carries the full OrdRec code (E1 through E4.7) plus
+the D1 SLAM adapter plus this plan. Future D-milestones land here.
+
+**Still open, not yet decided by the user.** Three forks were
+presented alongside the priority question and remain open. The
+recommendation on each is recorded so the eventual call has context.
+(1) Paper structure, recommend two papers two venues, OrdRec RL
+recommender to IJAIED and the ordinal-calibration SLAM result to BEA
+or EDM where the Duolingo assessment team publishes; deferred until
+D4 and E5 results are in. (2) The mixed-K item-bank feature, the only
+proposed change to the public ma-irt repo, recommend HOLD to keep
+ma-irt clean since single-K adapters cover the current work. (3)
+Duolingo Research outreach, recommend plan it but gate the cold
+contact on D4 (synthetic recovery) so the email leads with two pieces
+of evidence and names the S2A3 authors; held for now.
+
+**Reversible config defaults taken without a user call.** SLAM
+coercion stays at K=3 (the clean all-wrong / partial / all-correct
+mapping) for D2; D1 found the all-wrong category is rare at 2.7
+percent of exercises, handled with class weights and reported
+honestly, not by silently shifting thresholds. en\_es was the D1
+track; es\_en is D2.
 
 ## 1. The three threads
 

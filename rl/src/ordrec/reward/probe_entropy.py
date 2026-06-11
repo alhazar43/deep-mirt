@@ -24,6 +24,8 @@ from typing import Optional
 import torch
 from torch import Tensor
 
+from .gpcm_ops import gpcm_log_probs
+
 
 def phi_entropy(
     theta: Tensor,
@@ -92,37 +94,10 @@ def phi_entropy(
             f"probe_ids batch dim {probe_ids.shape[0]} != theta batch dim {B}."
         )
 
-    # Cast tables to theta's dtype so concatenation and arithmetic do
-    # not silently upcast/downcast. The cache is float32 on disk, theta
-    # is whatever the caller passes (typically float32).
-    alpha_table = alpha_table.to(dtype=theta.dtype)
-    beta_table = beta_table.to(dtype=theta.dtype)
-
-    # Per-row, per-probe-item gather. Resulting shapes:
-    #   alpha_q (B, M, D)
-    #   beta_q  (B, M, K-1)
-    alpha_q = alpha_table[probe_ids]
-    beta_q = beta_table[probe_ids]
-
-    # Interaction term alpha . theta -> (B, M).
-    interaction = (alpha_q * theta.unsqueeze(1)).sum(dim=-1)
-
-    # |alpha|_2 along the trait dim -> (B, M).
-    alpha_norm = alpha_q.norm(dim=-1)
-
-    # Per-step values -> (B, M, K-1). Mirrors GPCMLogits.
-    step_values = interaction.unsqueeze(-1) - alpha_norm.unsqueeze(-1) * beta_q
-    cum_logits = step_values.cumsum(dim=-1)  # (B, M, K-1)
-
-    # Prepend the K=0 baseline column.
-    M = probe_ids.shape[1]
-    zeros = torch.zeros(B, M, 1, device=theta.device, dtype=theta.dtype)
-    logits = torch.cat([zeros, cum_logits], dim=-1)  # (B, M, K)
-
-    if logit_clip is not None:
-        logits = logits.clamp(min=-float(logit_clip), max=float(logit_clip))
-
-    log_probs = torch.log_softmax(logits, dim=-1)  # (B, M, K)
+    # Delegate GPCM log-prob computation to the shared kernel.
+    log_probs = gpcm_log_probs(
+        theta, probe_ids, alpha_table, beta_table, logit_clip=logit_clip,
+    )  # (B, M, K)
     probs = log_probs.exp().clamp_min(float(eps))  # (B, M, K)
     H_q = -(probs * log_probs).sum(dim=-1)  # (B, M)
 

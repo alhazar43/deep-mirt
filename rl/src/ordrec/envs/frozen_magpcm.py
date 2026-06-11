@@ -27,6 +27,33 @@ from typing import Any, Dict, Optional
 import torch
 from torch import Tensor, nn
 
+try:
+    from typing import TypedDict
+except ImportError:  # Python < 3.8
+    from typing_extensions import TypedDict  # type: ignore[assignment]
+
+
+class MAIRTOutput(TypedDict):
+    """Typed return value of :meth:`FrozenMAGPCM.forward_no_grad`.
+
+    All tensors share the batch dimension ``B`` and sequence dimension
+    ``S`` from the input ``(questions, responses)`` pair.
+
+    Attributes:
+        logits: ``Tensor (B, S, K)`` un-normalised GPCM logits.
+        probs: ``Tensor (B, S, K)`` category probabilities (softmax of
+            logits).
+        theta: ``Tensor (B, S, D)`` latent ability at each step.
+        alpha: ``Tensor (B, S, D)`` item discrimination at each step.
+        beta: ``Tensor (B, S, K-1)`` step thresholds at each step.
+    """
+
+    logits: Tensor
+    probs: Tensor
+    theta: Tensor
+    alpha: Tensor
+    beta: Tensor
+
 
 def freeze_magpcm(model: nn.Module) -> nn.Module:
     """Apply the two-line freeze contract to a MA-IRT model in-place.
@@ -117,7 +144,7 @@ class FrozenMAGPCM(nn.Module):
     # Forward path
     # ------------------------------------------------------------------
 
-    def forward_no_grad(self, questions: Tensor, responses: Tensor) -> Dict[str, Tensor]:
+    def forward_no_grad(self, questions: Tensor, responses: Tensor) -> MAIRTOutput:
         """Run a single frozen forward pass and return the five-key dict.
 
         Args:
@@ -127,8 +154,14 @@ class FrozenMAGPCM(nn.Module):
                 labels in ``[0, n_categories - 1]``.
 
         Returns:
-            The MA-IRT output dict with keys ``logits, probs, theta,
-            alpha, beta`` shaped as in ``EncoderDecoderModel.forward``.
+            An :class:`MAIRTOutput` TypedDict with keys
+            ``logits, probs, theta, alpha, beta``. All tensors have
+            leading dimensions ``(B, S, ...)`` matching the input.
+
+        Raises:
+            AssertionError: When the returned dict is missing one of the
+                five expected keys. Catches silent forward-contract
+                breakage early.
 
         Notes:
             ``torch.no_grad()`` is used explicitly (rather than relying
@@ -137,10 +170,28 @@ class FrozenMAGPCM(nn.Module):
             connections. ``no_grad`` is the belt-and-braces guarantee.
         """
         with torch.no_grad():
-            out = self.model(questions, responses)
-        return out
+            out: Dict[str, Tensor] = self.model(questions, responses)
 
-    def forward(self, questions: Tensor, responses: Tensor) -> Dict[str, Tensor]:
+        # Shape contract assertion: all five keys must be present.
+        _EXPECTED_KEYS = {"logits", "probs", "theta", "alpha", "beta"}
+        missing = _EXPECTED_KEYS - set(out.keys())
+        if missing:
+            raise AssertionError(
+                f"FrozenMAGPCM.forward_no_grad: world model returned a dict "
+                f"missing required keys {missing}. "
+                "Check that the underlying model implements the MA-IRT "
+                "forward contract."
+            )
+
+        return MAIRTOutput(  # type: ignore[misc]
+            logits=out["logits"],
+            probs=out["probs"],
+            theta=out["theta"],
+            alpha=out["alpha"],
+            beta=out["beta"],
+        )
+
+    def forward(self, questions: Tensor, responses: Tensor) -> MAIRTOutput:
         """Alias for :meth:`forward_no_grad`.
 
         Lets the wrapper be called as a regular ``nn.Module`` and keeps
@@ -172,4 +223,4 @@ class FrozenMAGPCM(nn.Module):
                 return torch.device("cpu")
 
 
-__all__ = ["FrozenMAGPCM", "freeze_magpcm"]
+__all__ = ["FrozenMAGPCM", "MAIRTOutput", "freeze_magpcm"]

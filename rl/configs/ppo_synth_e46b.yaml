@@ -1,0 +1,96 @@
+# OrdRec E4.6b B-side PPO training config.
+#
+# B-side of the E4.5 A/B comparison. Identical world-model geometry and
+# episode config to ppo_synth_e45 but incorporates all E4.6b fixes:
+#
+#   B0+B4: buffer reworked to one entry per env-step per row (not per
+#          sub-step), so terminal VOI rewards now enter PPO updates.
+#          This is the RC1 fix (buffer capacity mismatch).
+#   R1:    exposure penalty recalibrated (w_expo 0.10->0.02, r_max
+#          0.20->0.40) so information-seeking is not penalised out of
+#          the reward. This is the RC2 fix.
+#   B5:    stratified probe sampler (difficulty-stratified, 5 strata).
+#   R3:    BC teacher uses top-5 soft target (not argmax).
+#
+# Paths are absolute so the script works from the worktree directory.
+# World-model checkpoint and data are in the main repo tree.
+
+experiment_name: ordrec_synth_e46b
+output_dir: C:/Users/steph/Documents/deep-mirt/.claude/worktrees/wf_91e7743f-b10-1/outputs
+device: cuda
+seed: 42
+
+adapter:
+  type: synthetic
+  name: ordrec_synth_e45
+  raw_dir: C:/Users/steph/Documents/deep-mirt/ma-irt/data/ordrec_synth_e45
+  out_dir: C:/Users/steph/Documents/deep-mirt/rl/artifacts
+  split_seed: 42
+  test_frac: 0.2
+  valid_frac: 0.1
+  min_seq_len: 10
+  max_seq_len: 0
+  chunk_long_sequences: false
+
+world_model:
+  n_traits: 1
+  memory_size: 50
+  key_dim: 64
+  value_dim: 64
+  summary_dim: 50
+  embedding_type: learned
+  dropout_rate: 0.0
+  ability_scale: 1.0
+  separate_theta: true
+  init_value_memory: false
+  checkpoint: C:/Users/steph/Documents/deep-mirt/ma-irt/outputs/ordrec_synth_e45/best.pt
+
+env:
+  batch_size: 32
+  warmup_len: 5
+  split: train
+  K_B: 5
+  T: 10
+  cache_n_contexts: 8
+  cache_context_seq_len: 1
+
+reward:
+  w_info: 1.0
+  w_cost: 0.05
+  w_expo: 0.02
+  w_voi: 5.0
+  probe_M: 32
+  probe_H: 20
+  r_max: 0.40
+  c_expo: 1.0
+  expo_ema_decay: 0.99
+  n_difficulty_strata: 5
+  probe_sampler: stratified
+
+warmstart:
+  enabled: true
+  bc_updates: 200
+  bc_episodes_per_update: 4
+  mve_updates: 0
+  mve_episodes_per_update: 0
+
+ppo:
+  total_updates: 500
+  n_episodes_per_update: 32
+  max_steps_per_episode: 2
+  hyperparameters:
+    hidden_dim: 128
+    n_hidden_layers: 2
+    learning_rate: 3.0e-4
+    adam_eps: 1.0e-5
+    clip_eps: 0.2
+    gamma: 0.95
+    gae_lambda: 0.95
+    entropy_coef_initial: 0.01
+    entropy_coef_final: 0.0
+    entropy_anneal_fraction: 0.5
+    value_coef: 0.5
+    max_grad_norm: 0.5
+    n_epochs: 4
+    minibatch_size: 64
+    target_kl: 0.02

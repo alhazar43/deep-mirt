@@ -1,0 +1,5 @@
+# user:user_B  countries:MX  days:2.000  client:android  session:lesson  format:reverse_translate  time:6
+# prompt:Yo estoy bien.
+EX_TA_0101  I             PRON  Case=Nom  nsubj  3
+EX_TA_0102  am            VERB  Mood=Ind  cop    3
+EX_TA_0103  fine          ADJ   Deg=Pos   ROOT   0

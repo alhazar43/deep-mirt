@@ -1,0 +1,6 @@
+# user:user_A  countries:US  days:1.000  client:web  session:lesson  format:reverse_translate  time:5
+# prompt:Yo necesito un taxi.
+EX_DA_0101  I             PRON  Case=Nom  nsubj  2
+EX_DA_0102  need          VERB  Mood=Ind  ROOT   0
+EX_DA_0103  a             DET   Def=Ind   det    4
+EX_DA_0104  taxi          NOUN  Num=Sing  dobj   2

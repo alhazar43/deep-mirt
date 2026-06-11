@@ -133,29 +133,15 @@ def _build_env(
 ) -> OrdRecEnv:
     env_cfg = cfg.get("env", {})
     reward_cfg_dict = cfg.get("reward", {})
-    reward_cfg = RewardConfig(
-        w_info=float(reward_cfg_dict.get("w_info", 1.0)),
-        w_cost=float(reward_cfg_dict.get("w_cost", 0.05)),
-        w_expo=float(reward_cfg_dict.get("w_expo", 0.10)),
-        w_voi=float(reward_cfg_dict.get("w_voi", 5.0)),
-        probe_M=int(reward_cfg_dict.get("probe_M", 32)),
-        probe_H=int(reward_cfg_dict.get("probe_H", 20)),
-        r_max=float(reward_cfg_dict.get("r_max", 0.20)),
-        c_expo=float(reward_cfg_dict.get("c_expo", 1.0)),
-        expo_ema_decay=float(reward_cfg_dict.get("expo_ema_decay", 0.99)),
-        K_B=int(env_cfg.get("K_B", reward_cfg_dict.get("K_B", 5))),
-        T=int(env_cfg.get("T", reward_cfg_dict.get("T", 10))),
-        n_difficulty_strata=int(
-            reward_cfg_dict.get("n_difficulty_strata", 5)
-        ),
-        eps_prob=float(reward_cfg_dict.get("eps_prob", 1e-12)),
-        prior_precision_jitter=float(
-            reward_cfg_dict.get("prior_precision_jitter", 1e-6)
-        ),
-        running_norm_freeze_after=int(
-            reward_cfg_dict.get("running_norm_freeze_after", 1000)
-        ),
-    )
+    # Merge env K_B/T into the reward dict so RewardConfig.from_dict picks them up.
+    merged_reward = dict(reward_cfg_dict)
+    merged_reward.setdefault("K_B", int(env_cfg.get("K_B", 5)))
+    merged_reward.setdefault("T", int(env_cfg.get("T", 10)))
+    if "K_B" in env_cfg:
+        merged_reward["K_B"] = int(env_cfg["K_B"])
+    if "T" in env_cfg:
+        merged_reward["T"] = int(env_cfg["T"])
+    reward_cfg = RewardConfig.from_dict(merged_reward)
     n_categories = adapter.get_n_categories()
     cache = build_item_cache(
         world,

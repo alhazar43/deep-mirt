@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from .assist import AssistAdapter
+from .slam import SlamAdapter
 from .base import AdapterConfig, OrdinalDatasetBase, Split
 from .ednet import EdNetAdapter
 from .eedi import EediAdapter
@@ -34,6 +35,7 @@ _ADAPTER_REGISTRY = {
     "eedi": EediAdapter,
     "ednet": EdNetAdapter,
     "assist": AssistAdapter,
+    "slam": SlamAdapter,
 }
 
 
@@ -68,6 +70,7 @@ def build_adapter(cfg: Dict[str, Any]) -> OrdinalDatasetBase:
 __all__ = [
     "AdapterConfig",
     "AssistAdapter",
+    "SlamAdapter",
     "COMMON_RECORD_SCHEMA",
     "EdNetAdapter",
     "EediAdapter",
