@@ -13,15 +13,13 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 
 - **Date created.** 2026-06-08
 - **Date last updated.** 2026-06-11
-- **Current state.** E4.7 (RC3 dynamic DGP test) complete on
-  `feat/ordrec-e47`. RC3 confirmed and resolved: within-session ability
-  drift (staircase and random-walk cohorts) makes r_voi 100% positive
-  during training (mean +0.073/+0.076 vs -0.043 on static DGP). Policy
-  ordering flips to PPO > BC > Fisher > random on both dynamic cohorts,
-  with non-overlapping 95% CIs. Gating fix `resample_probe_at_terminal`
-  landed (commit `cd2eed6`). 214 tests pass. Results at
-  `rl/results/E47_dynamic_dgp.md`.
-- **Active branch.** `feat/ordrec-e47`.
+- **Current state.** D1 (DuoLingo SLAM baseline) complete on
+  `feat/ordrec-d1-slam`. First MAGPCM training run on real Duolingo data
+  (SLAM 2018 en\_es, K=3 ordinal, 2,593 learners, 4,998 items). MAGPCM
+  trains stably with standard hyperparameters; 5-epoch baseline ACC = 0.682,
+  QWK = 0.374, AUC (binary-collapsed) = 0.773. `SlamAdapter` added to the
+  data layer. 228 tests pass. Results at `rl/results/D1_slam_en_es.md`.
+- **Active branch.** `feat/ordrec-d1-slam`.
 - **Next milestone.** E5: real Eedi K=4 run with
   `resample_probe_at_terminal: true`. Only external dependency is the
   raw Eedi NeurIPS 2020 Task 3+4 csvs.
@@ -49,6 +47,7 @@ The five locked design corrections from the strategic plan are intact.
 | **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by the CONSOLIDATE verdict in `docs/cleanup/_ordrec_maintainability_review.md`. |
 | **E4.5**, synthetic headline run | complete | `feat/ordrec-e45` | `dbb6cb4` | MA-GPCM world model trained (theta r=0.968), 200 BC updates + 500 PPO updates, four-policy eval (PPO/BC/Fisher/random), headline plots + results report | met | PPO does NOT beat max-Fisher by return. Ranking: random > PPO > BC-only > max-Fisher. Exposure penalty dominates; random wins by avoiding it entirely. Buffer capacity mismatch caused r_voi=0 throughout training. This run is the A-side of the E4.6b A/B comparison. See `rl/results/E45_synth_headline.md`. |
 | **E4.6b**, hardening slice B | complete | `feat/ordrec-e46b` | `3278b31` | B0+B4 buffer rework (one row per env-step), B1-B6 code quality, R1 exposure recalibration, R2 VOI diagnosis, R3 BC teacher soft-target, B5 stratified probe, A/B rerun, C1 doc consolidation | met | 209 tests pass. B-side PPO: -0.570 vs random -0.537. Honest negative on static synthetic DGP. RC3 (VOI saturation) open. Results at `rl/results/E46b_ab_comparison.md`. |
+| **D1**, DuoLingo SLAM baseline | complete | `feat/ordrec-d1-slam` | tbd | `SlamAdapter` (SLAM 2018 en\_es K=3), 14 unit tests, 5 fixture files, `ordrec_slam_k3.yaml` config, MAGPCM training run, `eval_d1_slam.py`, results doc | met | 228 tests pass. ACC=0.682, QWK=0.374, AUC=0.773 (5-epoch run). See `rl/results/D1_slam_en_es.md`. |
 | **E4.7**, RC3 dynamic DGP test | complete | `feat/ordrec-e47` | tbd | gating fix (`resample_probe_at_terminal`), staircase + random-walk world models, B-side protocol for both cohorts, four-policy eval, three-cohort comparison, RC3 verdict | met | 214 tests pass. RC3 confirmed: dynamic DGPs flip ordering to PPO > BC > Fisher > random (non-overlapping CIs). r_voi 100% positive on both dynamic cohorts (mean +0.073/+0.076 vs -0.043 static). See `rl/results/E47_dynamic_dgp.md`. |
 | **E5**, headline polytomous run on Eedi K=4 | next | tbd | tbd | real Eedi raw csvs landed, BC and MVE warm-start enabled, `resample_probe_at_terminal: true`, PPO `total_updates = 1000`, evaluation harness, paper hooks | tbd | Only external dependency: real Eedi NeurIPS 2020 Task 3+4 csvs. Mean return strictly above uniform-random baseline at end of training, per-component decomposition and exposure caps respected. |
 | **E6**, ablations + paper figures | not started | tbd | tbd | full PPO runs on EdNet KT3 K=4, ASSISTments K=2, plus ablations (no-probe, no-exposure, no-VOI), paper PGF figures | tbd | The science milestone. |
@@ -56,6 +55,34 @@ The five locked design corrections from the strategic plan are intact.
 ---
 
 ## 3. Change log (reverse chronological)
+
+- **2026-06-11, D1 complete (DuoLingo SLAM baseline).**
+  Branch `feat/ordrec-d1-slam` off `feat/ordrec` at `fd46286`.
+  First MAGPCM training run on real Duolingo data.
+
+  **SlamAdapter.** `rl/src/ordrec/data/slam.py` subclasses
+  `OrdinalDatasetBase`. SLAM 2018 en\_es track (Harvard Dataverse CC0)
+  loaded from five files (train, dev, dev.key, test, test.key). Per-token
+  labels aggregated to per-exercise mistake\_fraction; K=3 ordinal coding
+  (0=all-wrong, 1=partial, 2=all-correct). Item identity via MD5 hash of
+  `(format, lowercased token string)`; exercises below min\_count=10
+  distinct users map to one of three per-format catch-all buckets.
+  Official temporal split respected verbatim. 14 unit tests, 5 fixture
+  files. No ma-irt code edits.
+
+  **Config.** `ma-irt/configs/ordrec_slam_k3.yaml` mirrors
+  `ordrec_eedi_k4.yaml` (MAGPCM, K=3, memory=50, key/value\_dim=64).
+
+  **Training.** 5 epochs on CUDA (RTX 4060 Laptop). 10,502 sequences
+  (5,327 train / 2,582 valid / 2,593 test), 960,596 training observations,
+  669,964 parameters. Train loss steady decline; best QWK=0.374 at epoch 5.
+
+  **Eval.** ACC=0.682, QWK=0.374, tau=0.374, MAE=0.340 (test split).
+  Binary-collapsed AUC=0.773, log-loss=0.565 (cat-2 vs cats 0+1,
+  93,604 observations). `rl/scripts/eval_d1_slam.py` provides the
+  binary-collapse harness. Results at `rl/results/D1_slam_en_es.md`.
+
+  **228 tests pass** (214 pre-D1 + 14 SlamAdapter). Gate met.
 
 - **2026-06-11, E4.7 complete (RC3 dynamic DGP test).**
   Branch `feat/ordrec-e47`, 3 commits on top of the E4.6b merge
@@ -331,6 +358,7 @@ E1 data layer, 42 tests (`rl/src/ordrec/data/tests/`).
 | `test_split_determinism.py` | 9 | `make_split` reproducibility, fraction respect, stratified proportionality. `_chunk_sequences` parent tracking. Synthetic adapter byte-identical rebuild. |
 | `test_eedi_adapter.py` | 7 | Artefact materialisation, metadata block, correct option recodes to `K-1`, distractor ordering ascending by mean theta, train-only fitting, coercion persistence and reuse, response range. |
 | `test_ma_irt_bridge.py` | 5 | First-item shape, collate-compatible batch (the 4-tuple MAGPCM consumes), `n_questions` matches metadata, full pass without errors, splits disjoint. Gated by `pytest.importorskip("utils.dataloader")`. |
+| `test_slam_adapter.py` | 14 | Artefact materialisation, schema validation, metadata block, K=3 ordinal mapping (all-correct, all-wrong, partial), fixture exercise recoding, item IDs in range, coercion artefacts train-only, load round-trip, official split respected, min\_count=1 names all items, hash determinism. |
 
 E2 data layer additions, 13 tests (`rl/src/ordrec/data/tests/`).
 
@@ -413,6 +441,14 @@ cross-package tests updated or added for B0-B8 + R1-R3 fixes; exact
 per-file breakdown in the E4.6b change-log entry above).
 
 Total at E4.6b close, 209 tests, all pass.
+
+D1 data layer additions, 14 tests (`rl/src/ordrec/data/tests/`).
+
+| File | Count | Surface |
+|---|---|---|
+| `test_slam_adapter.py` | 14 | Artefact materialisation, schema validation, metadata block, K=3 ordinal mapping (all-correct/partial/all-wrong), fixture exercise recoding, item IDs in range, coercion artefacts train-only, load round-trip, official split respected, min\_count=1 names all items, hash determinism. |
+
+Total at D1 close, 228 tests (214 pre-D1 + 14 new), all pass.
 
 Reproducer.
 
