@@ -225,3 +225,31 @@ The struggles raise the value of measurement-grade research (the
 efficacy gap and the AI-content calibration gap are pressure points
 ma-irt speaks to) while making anything that reads as "another AI
 feature" radioactive. Pitch validation science, not generation.
+
+## Stream 5. Adversarial verification of the pitch claim, 2026-06-11
+
+A deep-research pass (101 agents, 5 search angles, 15 sources, 3-vote
+adversarial verification per claim) stress-tested the load-bearing
+claim. Full report at docs/cleanup/_det_deep_research_report.md.
+
+| Verdict | Finding |
+|---|---|
+| Survived 3-0 | AutoIRT and BanditCAT are dichotomous-only, exhaustive full-text search, zero polytomous terms |
+| Survived 3-0 | Deployment was DET practice test only, two vocabulary item types |
+| Survived 3-0 | S2A3 (June 2026, arXiv 2606.07364) names GRM or partial-credit extension as required future work, gap is author-acknowledged and unpublished |
+| Survived 3-0 | C-test blanks and Interactive Reading parts are decomposed into separate binary pseudo-items, no partial-credit IRT |
+| Refuted 0-3 | "ML-graded responses bypass IRT entirely", false for speaking and listening, true only for writing |
+| Corrected | Operational layer already ingests continuous and explicit polytomous grades under an UNDOCUMENTED model class, so claim "published line is binary-only", never "Duolingo is binary-only" |
+| Corrected | BanditCAT venue is PMLR v264 workshop, not ICML main. Read Aloud removed July 2025. The "discrete and continuous grades" goal sentence was never located verbatim, do not quote it |
+
+Urgency note. S2A3 puts the classical polytomous extension on
+Duolingo's own roadmap, so the pitch window for static GPCM
+calibration alone is closing. The defensible lead is ordinal PLUS
+longitudinal deep tracking, which their roadmap does not cover. D1 on
+SLAM plus the E4.7 dynamic-tracking result are the evidence pair.
+
+Open questions only Duolingo can answer. Which model class scores the
+operational polytomous grades. Whether the AutoIRT-launched item types
+went live on the certified DET after October 2024. Current
+affiliations of the named researchers beyond the S2A3 co-authorship
+signal.

@@ -11,14 +11,17 @@ This plan merges three research streams into one ranked program.
 Thread 1, Duolingo collaboration. How can ma-irt connect to Duolingo,
 whose Duolingo English Test (DET) is the closest operational cousin to
 ma-irt's ambition, a mixed-format computer-adaptive assessment with an
-IRT-anchored scale. Duolingo's published research is binary IRT (2PL,
-3PL) and names two gaps ma-irt fills. The Interactive Reading paper
-(Attali et al. 2022, Frontiers in AI) states a need for psychometric
-models that combine discrete and continuous grades. AutoIRT
-(Sharpnack et al. 2024) and BanditCAT (Sharpnack et al. 2025, ICML)
-are binary-only and acknowledge needing extension to richer item
-types. The SLAM 2018 dataset (Settles et al. 2018, BEA at NAACL) is
-public, CC0, and immediately usable.
+IRT-anchored scale. Duolingo's PUBLISHED calibration line is
+dichotomous IRT (2PL, 3PL) and their own June 2026 paper (S2A3,
+arXiv 2606.07364) names the graded-response or partial-credit
+extension as required future work. AutoIRT (Sharpnack et al. 2024)
+and BanditCAT (Sharpnack et al. 2025, PMLR v264 workshop) are
+binary-only, verified by adversarial deep research (see the
+verification update in Section 5). The operational DET already
+ingests continuous and polytomous grades under an undocumented model
+class, while multi-grade formats are decomposed into binary
+pseudo-items. The SLAM 2018 dataset (Settles et al. 2018, BEA at
+NAACL) is public, CC0, and immediately usable.
 
 Thread 2, mixed-format positioning. ma-irt brings a new look to both
 knowledge tracing and item response theory, a single theta maintaining
@@ -163,6 +166,63 @@ contribution, pitchable on public data with no inside access) rather
 than with the data-hungry efficacy-infrastructure frame, which is
 stronger but needs a partnership to land. The two framings reconcile
 in Section 6.
+
+### Adversarial verification update, 2026-06-11
+
+A deep-research pass (101 agents, 3-vote adversarial verification per
+claim, full report at docs/cleanup/_det_deep_research_report.md)
+stress-tested the pitch's load-bearing claim. The outcome sharpens the
+pitch in three ways and corrects two errors.
+
+What survived, narrowed and stronger. AutoIRT and BanditCAT are
+verifiably dichotomous-only (grades coded G in {0,1}, binary
+log-likelihood, zero occurrences of polytomous, partial credit,
+graded response, ordinal, or GPCM across both papers, 3-0 verifier
+votes on exhaustive full-text search). Deployment was the DET practice
+test only, two vocabulary item types. Most consequentially, Duolingo's
+own June 2026 follow-up (S2A3, arXiv 2606.07364, Sharpnack, Tsigler,
+Lockwood, Nydick, von Davier) states the implementation "is restricted
+to dichotomous items under the 2PL and 3PL models" and names the
+graded-response or partial-credit extension as required future work.
+The gap is therefore author-acknowledged, current, and still
+unpublished. The pitch fills a hole the contacts themselves have named
+in print, and the S2A3 co-authorship confirms the assessment group is
+active at Duolingo.
+
+What was refuted and must change in our framing. The blanket claim
+"Duolingo's IRT layer handles only binary responses" is false at the
+operational layer. Dictation's continuous grades already feed EAP
+scoring under unnamed "appropriate IRT models," and the August 2025
+scoring whitepaper adds an explicit Polytomous grade category (0, 1,
+2, ..., n) for Interactive Listening comprehension. No public document
+names the operational model class, so the honest claim is that the
+operational layer is undocumented, while the PUBLISHED calibration
+line is dichotomous-only and multi-grade formats (C-test blanks,
+Interactive Reading parts) are decomposed into separate binary
+pseudo-items rather than modeled with partial-credit IRT. That
+decomposition is precisely the within-item dependency structure a
+GPCM treatment targets.
+
+The urgency consequence. S2A3 shows the classical polytomous
+extension is on Duolingo's own roadmap, so the window for pitching
+static GPCM calibration alone is closing, possibly within months. The
+defensible differentiation is what their roadmap does not cover, the
+deep sequential encoder that carries a longitudinal calibrated theta
+with recoverable item parameters, demonstrated by D1 on their own
+public corpus and by the E4.7 dynamic-tracking result. The pitch
+leads with ordinal plus longitudinal, not ordinal alone.
+
+Citation corrections adopted throughout this document. BanditCAT
+appeared in PMLR v264, the Proceedings of Large Foundation Models for
+Educational Assessment, an ICML-affiliated workshop, not the ICML
+main conference. Vocabulary-in-Context is a typed constructed-response
+format, binary-scored. Read Aloud was removed from the DET in the
+July 2025 revision and should be cited as a 2024-era example. The
+"discrete and continuous grades" future-goal sentence attributed to
+the Interactive Reading paper was never located verbatim and must not
+be quoted; the verified anchors are the writing whitepaper's
+"currently no IRT-scored items" hedge and the S2A3 future-work
+passage.
 
 ## 6. Ranked opportunities
 
@@ -406,7 +466,13 @@ calibrating IRT models with automated machine learning. arXiv
 2409.08823.
 
 Sharpnack, Hao, Mulcaire, Bicknell, LaFlair, Yancey, von Davier
-(2025). BanditCAT and AutoIRT. ICML.
+(2025). BanditCAT and AutoIRT. PMLR v264, Proceedings of Large
+Foundation Models for Educational Assessment (ICML-affiliated
+workshop).
+
+Sharpnack, Tsigler, Lockwood, Nydick, von Davier (2026). S2A3.
+arXiv 2606.07364. Names the graded-response or partial-credit
+extension of the 2PL/3PL line as required future work.
 
 Stocking and Lord (1983). Developing a common metric in item response
 theory. Applied Psychological Measurement.
