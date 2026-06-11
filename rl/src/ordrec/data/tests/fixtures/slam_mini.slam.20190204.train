@@ -1,0 +1,53 @@
+# user:user_A  countries:US  days:0.001  client:web  session:lesson  format:reverse_translate  time:5
+# prompt:Yo soy un nino.
+EX_AA_0101  I             PRON  Case=Nom  nsubj  4  0
+EX_AA_0102  am            VERB  Mood=Ind  cop    4  0
+EX_AA_0103  a             DET   Def=Ind   det    4  0
+EX_AA_0104  boy           NOUN  Num=Sing  ROOT   0  0
+
+# user:user_A  countries:US  days:0.002  client:web  session:lesson  format:reverse_tap  time:4
+# prompt:Ella es una nina.
+EX_AB_0101  She           PRON  Num=Sing  nsubj  4  1
+EX_AB_0102  is            VERB  Mood=Ind  cop    4  0
+EX_AB_0103  a             DET   Def=Ind   det    4  1
+EX_AB_0104  girl          NOUN  Num=Sing  ROOT   0  0
+
+# user:user_A  countries:US  days:0.003  client:web  session:lesson  format:listen  time:3
+EX_AC_0101  where         ADV   PronType=Int  ROOT  0  1
+EX_AC_0102  now           ADV   fPOS=ADV      advmod 1 1
+
+# user:user_B  countries:MX  days:0.001  client:android  session:lesson  format:reverse_translate  time:6
+# prompt:Yo soy un nino.
+EX_AA_0101  I             PRON  Case=Nom  nsubj  4  0
+EX_AA_0102  am            VERB  Mood=Ind  cop    4  0
+EX_AA_0103  a             DET   Def=Ind   det    4  0
+EX_AA_0104  boy           NOUN  Num=Sing  ROOT   0  0
+
+# user:user_B  countries:MX  days:0.002  client:android  session:lesson  format:reverse_tap  time:5
+# prompt:Ella es una nina.
+EX_AB_0101  She           PRON  Num=Sing  nsubj  4  0
+EX_AB_0102  is            VERB  Mood=Ind  cop    4  0
+EX_AB_0103  a             DET   Def=Ind   det    4  0
+EX_AB_0104  girl          NOUN  Num=Sing  ROOT   0  0
+
+# user:user_B  countries:MX  days:0.003  client:android  session:lesson  format:listen  time:7
+EX_AC_0101  where         ADV   PronType=Int  ROOT  0  0
+EX_AC_0102  now           ADV   fPOS=ADV      advmod 1 0
+
+# user:user_C  countries:CO  days:0.001  client:web  session:lesson  format:reverse_translate  time:8
+# prompt:Yo soy un nino.
+EX_AA_0101  I             PRON  Case=Nom  nsubj  4  1
+EX_AA_0102  am            VERB  Mood=Ind  cop    4  1
+EX_AA_0103  a             DET   Def=Ind   det    4  1
+EX_AA_0104  boy           NOUN  Num=Sing  ROOT   0  1
+
+# user:user_C  countries:CO  days:0.002  client:web  session:lesson  format:reverse_tap  time:5
+# prompt:Ella es una nina.
+EX_AB_0101  She           PRON  Num=Sing  nsubj  4  1
+EX_AB_0102  is            VERB  Mood=Ind  cop    4  0
+EX_AB_0103  a             DET   Def=Ind   det    4  1
+EX_AB_0104  girl          NOUN  Num=Sing  ROOT   0  1
+
+# user:user_C  countries:CO  days:0.003  client:web  session:lesson  format:listen  time:6
+EX_AC_0101  where         ADV   PronType=Int  ROOT  0  0
+EX_AC_0102  now           ADV   fPOS=ADV      advmod 1 1
