@@ -1,0 +1,13 @@
+======================================================================
+RQ1 JUDGE PRE-GATE REPORT
+======================================================================
+essay_set=1  n_pairs=80  gap_min=2  seed=0  pass_threshold=0.65
+
+judge                  protocol   agree     n  unpars  verdict
+--------------------------------------------------------------
+qwen2.5-coder:7b       score      0.636    55      25     FAIL
+gemma4:e2b             score      0.580    50      30     FAIL
+phi4-mini:3.8b         score      0.733    60      20     PASS
+llama3.2:3b            score      0.667    21      59     PASS
+--------------------------------------------------------------
+PASS (>= 0.65): llama3.2:3b, phi4-mini:3.8b

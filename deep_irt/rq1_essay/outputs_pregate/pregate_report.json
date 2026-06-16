@@ -1,0 +1,54 @@
+{
+  "params": {
+    "judges": [
+      "qwen2.5-coder:7b",
+      "gemma4:e2b",
+      "phi4-mini:3.8b",
+      "llama3.2:3b"
+    ],
+    "protocols": [
+      "score"
+    ],
+    "n_pairs_requested": 80,
+    "n_pairs_sampled": 80,
+    "seed": 0,
+    "gap_min": 2,
+    "essay_set": 1,
+    "pass_threshold": 0.65,
+    "num_ctx": 3072
+  },
+  "results": {
+    "qwen2.5-coder:7b": {
+      "score": {
+        "agreement": 0.6363636363636364,
+        "n": 55,
+        "unparsed": 25,
+        "pass": false
+      }
+    },
+    "gemma4:e2b": {
+      "score": {
+        "agreement": 0.58,
+        "n": 50,
+        "unparsed": 30,
+        "pass": false
+      }
+    },
+    "phi4-mini:3.8b": {
+      "score": {
+        "agreement": 0.7333333333333333,
+        "n": 60,
+        "unparsed": 20,
+        "pass": true
+      }
+    },
+    "llama3.2:3b": {
+      "score": {
+        "agreement": 0.6666666666666666,
+        "n": 21,
+        "unparsed": 59,
+        "pass": true
+      }
+    }
+  }
+}

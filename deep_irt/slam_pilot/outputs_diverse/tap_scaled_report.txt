@@ -1,0 +1,83 @@
+SLAM Scaled Transfer Test -- reverse_tap CLEAN FORMAT
+============================================================
+
+Date:          2026-06-13 11:16:10
+Seed:          7
+Format:        reverse_tap ONLY (clean: tile selection, minimal phrasing variation)
+Items sampled: 500  -> valid (Spanish prompt found): 486
+Items paired:  486  (excluded: 0 no prompt found)
+Models:        5
+Total calls:   2430
+Run time:      9431.2s (157.2 min)
+
+--- Models used (size order, widest spread) ---
+  llama3.2:1b                                              1.32 GB
+  llama3.2:3b                                              2.02 GB
+  qwen3.5:2B                                               2.74 GB
+  phi4-mini:3.8b                                           2.49 GB
+  gemma4:e2b                                               7.16 GB
+
+--- Per-model error rates (ceiling/floor check) ---
+  Model                                                    mean_error  std_error  mean_overlap  n
+  llama3.2:1b                                              0.3177      0.3365     0.6823        486
+  llama3.2:3b                                              0.1677      0.2326     0.8323        486
+  qwen3.5:2B                                               0.1659      0.2356     0.8341        486
+  phi4-mini:3.8b                                           0.1339      0.2112     0.8661        486
+  gemma4:e2b                                               0.1301      0.2154     0.8699        486
+  Model error spread (max - min): 0.1876
+  Ceiling (all models < 10% error): NO
+  Floor   (all models > 90% error): NO
+
+--- LLM difficulty distribution (1 - token_overlap) ---
+  mean=0.1831  std=0.2012  min=0.0000  max=1.0000
+  Zero-error items: 152 (31.3%)  Max-error items: 2 (0.4%)
+  Histogram:
+    [0.0-0.1):  204  ##############################
+    [0.1-0.2):   95  #############
+    [0.2-0.3):   57  ########
+    [0.3-0.4):   47  ######
+    [0.4-0.5):   34  #####
+    [0.5-0.6):   17  ##
+    [0.6-0.7):   20  ##
+    [0.7-0.8):    4  
+    [0.8-0.9):    5  
+    [0.9-1.0):    3  
+
+--- Human difficulty distribution of sampled items ---
+  Histogram:
+    [0.00-0.05):  128
+    [0.05-0.10):   98
+    [0.10-0.15):   88
+    [0.15-0.20):   40
+    [0.20-0.30):   89
+    [0.30-0.40):   27
+    [0.40-0.50):    5
+    [0.50-0.60):    6
+    [0.60-0.70):    4
+    [0.70-0.80):    1
+    [0.80-1.00):    0
+
+--- Artifact-suspect rate (LLM<0.10 AND human>0.30) ---
+  9 / 486 (1.9%)
+  (For reverse_tap, expected low: tile selection eliminates most phrasing artifacts)
+
+--- Correlations (LLM difficulty vs human difficulty) ---
+  n = 486
+  Spearman r  = +0.3452  (primary)
+  Kendall tau = +0.2461
+  Pearson  r  = +0.4127
+
+  Hard subset (human_difficulty > 0.10, n=236):
+    Spearman r  = +0.2592
+    Kendall tau = +0.1829
+    Pearson  r  = +0.3662
+  NOTE: hard-subset correlation is selection-biased upward (easy floor removed).
+
+--- Gate Verdict ---
+  Gate threshold: Spearman >= 0.35 with non-degenerate variance
+  VERDICT: WEAK SIGNAL: Spearman r = 0.345 (0.20-0.35 range). n=486, LLM difficulty std=0.2012. Some transfer signal present but below the robust gate threshold. Artifact-suspect rate = 1.9%. Possible limiting factors: model homogeneity (error spread=0.1876), residual grading noise, or insufficient hard items.
+  GATE: NOT PASSED
+
+--- Output files ---
+  substrate\slam_pilot\outputs_diverse\tap_scaled_results.csv
+  substrate\slam_pilot\outputs_diverse\tap_scaled_report.txt
