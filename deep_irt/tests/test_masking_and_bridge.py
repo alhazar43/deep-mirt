@@ -347,7 +347,12 @@ class TestRegressionSynthetic:
         )
 
     def test_minibatch_converges(self) -> None:
-        """Mini-batching must converge (NLL should decrease over training)."""
+        """Mini-batching must converge: loss drops below the untrained loss.
+
+        Scale-agnostic, the prediction loss (WeightedOrdinalLoss) is not
+        comparable to log K, so the test measures the untrained loss under the
+        SAME data-weighted loss fit will use, then asserts training lowered it.
+        """
         NUM_ITEMS, N, T, K = 10, 20, 8, 4
 
         torch.manual_seed(_SEED + 2)
@@ -358,12 +363,16 @@ class TestRegressionSynthetic:
             num_items=NUM_ITEMS, emb_dim=4, hidden_dim=8,
             n_cats=K, decoder="gpcm", device=_DEVICE, seed=_SEED,
         )
+        # Untrained baseline under the exact loss fit() will rebuild.
+        model.loss_fn = model._build_loss_fn(responses)
+        with torch.no_grad():
+            untrained = model._compute_loss(item_ids, responses).item()
+
         result = model.fit(
             item_ids, responses, n_epochs=30, verbose=False, batch_size=5
         )
 
-        # With 30 epochs + lr=0.01, NLL should have dropped below the ~1.4
-        # untrained baseline (uniform over K=4 gives NLL = log(4) ~= 1.386).
-        assert result["final_nll"] < 1.40, (
-            f"Mini-batch training did not converge: NLL={result['final_nll']:.4f}"
+        assert result["final_loss"] < untrained, (
+            f"Mini-batch training did not converge: "
+            f"final={result['final_loss']:.4f} >= untrained={untrained:.4f}"
         )

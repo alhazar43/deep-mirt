@@ -227,6 +227,53 @@ class GPCMDecoder(nn.Module):
         params["b"] = torch.sort(params["b"], dim=-1).values
         return params
 
+    # --- logits (pre-softmax category scores; the prediction-loss target) ---
+
+    def logits(
+        self,
+        theta: torch.Tensor,
+        a: torch.Tensor,
+        b: torch.Tensor,
+    ) -> torch.Tensor:
+        """GPCM per-category logits psi (the readout the prediction loss scores).
+
+        psi_0 = 0;  psi_k = sum_{c=1..k} a * (theta - b_{c-1}),  k=1..K-1.
+        ``log_softmax(psi)`` recovers the GPCM log-prob; the prediction loss
+        (WeightedOrdinalLoss) scores ``psi`` directly, exactly as ma-irt feeds
+        its GPCM logits to ``CombinedLoss``.
+
+        Parameters
+        ----------
+        theta : (batch,) or (batch, 1)
+        a     : (batch, 1)
+        b     : (batch, K-1)
+
+        Returns
+        -------
+        logits : (batch, K)
+        """
+        if theta.dim() == 1:
+            theta = theta.unsqueeze(1)            # (batch, 1)
+        diff = a * (theta - b)                    # (batch, K-1)
+        psi_pos = torch.cumsum(diff, dim=1)       # (batch, K-1)
+        zeros = torch.zeros(theta.size(0), 1, device=theta.device)
+        return torch.cat([zeros, psi_pos], dim=1)  # (batch, K)
+
+    def category_logits(
+        self,
+        theta: torch.Tensor,
+        emb: torch.Tensor,
+        state: torch.Tensor | None = None,
+        alpha_emb: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Per-item GPCM logits from (theta, item emb, optional state/alpha key).
+
+        Mirrors ``nll``'s signature but returns the ``(N, K)`` logits for the
+        prediction loss instead of computing a likelihood.
+        """
+        params = self.item_params(emb, state=state, alpha_emb=alpha_emb)
+        return self.logits(theta, params["a"], params["b"])
+
     # --- log_probs ---
 
     def log_probs(
@@ -251,13 +298,7 @@ class GPCMDecoder(nn.Module):
         -------
         log_probs : (batch, K)
         """
-        if theta.dim() == 1:
-            theta = theta.unsqueeze(1)            # (batch, 1)
-        diff = a * (theta - b)                    # (batch, K-1)
-        psi_pos = torch.cumsum(diff, dim=1)       # (batch, K-1)
-        zeros = torch.zeros(theta.size(0), 1, device=theta.device)
-        psi = torch.cat([zeros, psi_pos], dim=1)  # (batch, K)
-        return F.log_softmax(psi, dim=1)
+        return F.log_softmax(self.logits(theta, a, b), dim=1)
 
     # --- nll convenience ---
 
@@ -365,6 +406,21 @@ class Binary2PLDecoder(nn.Module):
         log_probs : (batch, 2)
         """
         return self._gpcm.log_probs(theta, a, b)
+
+    def binary_logit(
+        self,
+        theta: torch.Tensor,
+        emb: torch.Tensor,
+        state: torch.Tensor | None = None,
+        alpha_emb: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Single binary logit z = a * (theta - b); P(y=1) = sigmoid(z).
+
+        ``binary_cross_entropy_with_logits(z, y.float())`` is the binary
+        prediction loss.  Equals the log-odds of the K=2 GPCM logits.
+        """
+        lg = self._gpcm.category_logits(theta, emb, state=state, alpha_emb=alpha_emb)
+        return lg[..., 1] - lg[..., 0]            # (N,)
 
     def nll(
         self,
@@ -573,6 +629,46 @@ class NRMDecoder(nn.Module):
         c = c_raw - c_raw.mean(dim=-1, keepdim=True)  # sum_k c_k = 0
         return {"a": a, "c": c}
 
+    # --- logits (pre-softmax option scores; the prediction-loss target) ---
+
+    def logits(
+        self,
+        theta: torch.Tensor,
+        a: torch.Tensor,
+        c: torch.Tensor,
+    ) -> torch.Tensor:
+        """NRM per-option logits ``a_k * theta + c_k`` (unordered).
+
+        The nominal prediction loss is plain cross-entropy on these logits,
+        with NO ordinal-distance penalty: the options carry no order.
+
+        Parameters
+        ----------
+        theta : (batch,) or (batch, 1)
+        a     : (batch, K)  per-option slopes (already centered)
+        c     : (batch, K)  per-option intercepts (already centered)
+
+        Returns
+        -------
+        logits : (batch, K)
+        """
+        if theta.dim() == 1:
+            theta = theta.unsqueeze(1)               # (batch, 1)
+        return a * theta + c                         # (batch, K)
+
+    def category_logits(
+        self,
+        theta: torch.Tensor,
+        emb: torch.Tensor,
+    ) -> torch.Tensor:
+        """Per-item NRM logits from (theta, item emb).
+
+        Mirrors ``nll``'s signature but returns the ``(N, K)`` logits for the
+        prediction loss instead of computing a likelihood.
+        """
+        params = self.item_params(emb)
+        return self.logits(theta, params["a"], params["c"])
+
     # --- log_probs ---
 
     def log_probs(
@@ -594,10 +690,7 @@ class NRMDecoder(nn.Module):
         -------
         log_probs : (batch, K)
         """
-        if theta.dim() == 1:
-            theta = theta.unsqueeze(1)               # (batch, 1)
-        logits = a * theta + c                       # (batch, K)
-        return F.log_softmax(logits, dim=1)
+        return F.log_softmax(self.logits(theta, a, c), dim=1)
 
     # --- difficulty scale (correct-option location) ---
 

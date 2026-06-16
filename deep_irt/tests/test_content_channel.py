@@ -101,7 +101,7 @@ def test_content_model_trains_and_projection_gets_grad():
     # The projection must carry gradient after a manual backward.
     cm.model.encoder.zero_grad()
     cm.model.decoder.zero_grad()
-    loss = cm.model._compute_nll(it, rp)
+    loss = cm.model._compute_loss(it, rp)
     loss.backward()
     g = cm.content_emb.proj.weight.grad
     assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0

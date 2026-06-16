@@ -59,6 +59,7 @@ from deep_irt.core.decoders import (
     NRMDecoder,
 )
 from deep_irt.core.anchor import anchored_extend, build_extended_encoder
+from deep_irt.core.losses import CombinedLoss, compute_class_weights
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +141,8 @@ class DeepIRTModel:
         encoder_kwargs: Optional[dict] = None,
         device: torch.device = torch.device("cpu"),
         seed: int = 0,
+        ordinal_penalty: float = 0.5,
+        class_weight_strategy: str = "sqrt_balanced",
     ) -> None:
         if decoder not in self._DECODER_CHOICES:
             raise ValueError(
@@ -195,6 +198,14 @@ class DeepIRTModel:
         self.encoder_kwargs = dict(encoder_kwargs or {})
         self.device = device
         self.seed = seed
+        # Prediction-loss config (IRT is the readout flavor; the loss scores
+        # the decoder's logits).  gpcm -> WeightedOrdinalLoss(ordinal_penalty,
+        # sqrt-balanced weights); nrm -> plain CE; binary -> BCE.  Built per fit.
+        self.ordinal_penalty = ordinal_penalty
+        self.class_weight_strategy = class_weight_strategy
+        # Built now (uniform class weights) so _compute_loss works pre-fit;
+        # fit() rebuilds it with data-driven sqrt-balanced weights.
+        self.loss_fn: Optional[nn.Module] = self._build_loss_fn()
 
         torch.manual_seed(seed)
         self.encoder = self._make_encoder(
@@ -263,6 +274,11 @@ class DeepIRTModel:
         if mask is not None:
             mask = mask.to(self.device)
 
+        # Format-keyed prediction loss, built from the training data (the
+        # ordinal WOL's class weights come from the response histogram, exactly
+        # as ma-irt computes them at train time).
+        self.loss_fn = self._build_loss_fn(responses, mask)
+
         N = item_ids.size(0)
         full_batch = batch_size is None or batch_size >= N
 
@@ -275,7 +291,7 @@ class DeepIRTModel:
         rng.manual_seed(self.seed + 1)
 
         t0 = time.time()
-        final_nll = float("nan")
+        final_loss = float("nan")
 
         for epoch in range(1, n_epochs + 1):
             self.encoder.train()
@@ -283,14 +299,14 @@ class DeepIRTModel:
 
             if full_batch:
                 optimizer.zero_grad()
-                loss = self._compute_nll(item_ids, responses, mask=mask)
+                loss = self._compute_loss(item_ids, responses, mask=mask)
                 loss.backward()
                 optimizer.step()
-                final_nll = loss.item()
+                final_loss = loss.item()
             else:
                 # Shuffle learner indices each epoch.
                 perm = torch.randperm(N, generator=rng)
-                epoch_nll = 0.0
+                epoch_loss = 0.0
                 n_batches = 0
                 for start in range(0, N, batch_size):
                     idx = perm[start : start + batch_size]
@@ -299,17 +315,23 @@ class DeepIRTModel:
                     b_mask = mask[idx] if mask is not None else None
 
                     optimizer.zero_grad()
-                    loss = self._compute_nll(b_ids, b_resp, mask=b_mask)
+                    loss = self._compute_loss(b_ids, b_resp, mask=b_mask)
                     loss.backward()
                     optimizer.step()
-                    epoch_nll += loss.item()
+                    epoch_loss += loss.item()
                     n_batches += 1
-                final_nll = epoch_nll / n_batches
+                final_loss = epoch_loss / n_batches
 
             if verbose and (epoch % 50 == 0 or epoch == 1):
-                print(f"  [Fit] epoch {epoch:4d}  NLL={final_nll:.4f}")
+                print(f"  [Fit] epoch {epoch:4d}  loss={final_loss:.4f}")
 
-        return {"final_nll": final_nll, "train_time": time.time() - t0}
+        # "final_nll" kept as a back-compat alias; under the prediction loss it
+        # holds the final WOL/CE value, not an IRT-likelihood NLL.
+        return {
+            "final_loss": final_loss,
+            "final_nll": final_loss,
+            "train_time": time.time() - t0,
+        }
 
     # ------------------------------------------------------------------
     # Fit pairs (BT decoder)
@@ -626,27 +648,67 @@ class DeepIRTModel:
             return self._extended_encoder
         return self.encoder
 
-    def _compute_nll(
+    def _build_loss_fn(
+        self,
+        responses: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
+    ) -> Optional[nn.Module]:
+        """Build the format-keyed prediction loss (ma-irt's recipe).
+
+        gpcm (ordinal) -> ``CombinedLoss`` = ``WeightedOrdinalLoss`` with
+            ``ordinal_penalty`` and sqrt-balanced class weights.  ``fit`` passes
+            the training responses so the weights match the data, exactly as
+            ma-irt computes them at train time; with ``responses=None`` (the
+            __init__ default) the weights are uniform until ``fit`` rebuilds.
+        nrm (nominal)  -> ``CombinedLoss(weighted_ordinal_weight=0)`` = plain CE
+            (no ordinal penalty: the options carry no order).
+        binary         -> None; BCE is applied inline in ``_predict_loss``.
+        """
+        if self.decoder_name == "binary":
+            return None
+        if self.decoder_name == "nrm":
+            return CombinedLoss(
+                self.n_cats, weighted_ordinal_weight=0.0
+            ).to(self.device)
+        # gpcm: WeightedOrdinalLoss; class weights from the data when available.
+        if responses is None:
+            class_weights = None
+        else:
+            valid = (responses[mask.bool()] if mask is not None
+                     else responses.reshape(-1))
+            class_weights = compute_class_weights(
+                valid, self.n_cats, strategy=self.class_weight_strategy,
+                device=self.device,
+            )
+        return CombinedLoss(
+            self.n_cats, class_weights=class_weights,
+            weighted_ordinal_weight=1.0, ordinal_penalty=self.ordinal_penalty,
+        ).to(self.device)
+
+    def _compute_loss(
         self,
         item_ids: torch.Tensor,
         responses: torch.Tensor,
         mask: Optional[Tensor] = None,
     ) -> torch.Tensor:
-        """Forward pass: encoder -> aligned theta (+ state) -> decoder NLL.
+        """Forward pass: encoder -> aligned theta (+ state) -> prediction loss.
+
+        IRT is the readout FLAVOR.  The decoder emits per-category logits and a
+        separate, format-keyed prediction loss (``self.loss_fn``: ma-irt's
+        WeightedOrdinalLoss for gpcm, plain CE for nrm; BCE inline for binary)
+        scores them.  No IRT-likelihood NLL is optimized in training.
 
         Parameters
         ----------
         item_ids  : (B, T) long
         responses : (B, T) long
-        mask      : (B, T) bool, optional -- True for valid positions.
-                    When None, all positions are included and the result
-                    is bit-for-bit identical to the previous implementation.
+        mask      : (B, T) bool, optional -- True for valid positions.  When
+                    None, every position is included.
 
-        The theta used to predict step t is ``encoder.theta_for_prediction``
-        (the single-shift alignment contract, correct for both the direct and
-        item-blind theta paths).  When ``state_alpha`` is on, discrimination is
-        read from ``encoder.state_for_prediction`` -- the SAME aligned hidden the
-        theta is read from -- so both come from ONE encoder pass.
+        The theta used to predict step t is the single-shift aligned theta (a
+        function of history strictly before t), for both the direct and
+        item-blind paths.  When ``state_alpha`` is on, discrimination is read
+        from the SAME aligned hidden, so both come from ONE encoder pass.
         """
         batch, T = item_ids.shape
         embs = self.encoder.item_emb(item_ids)                      # (B, T, emb_dim)
@@ -673,31 +735,46 @@ class DeepIRTModel:
             state_flat = None
             alpha_flat = None
 
-        # Pass state ONLY in state_alpha mode.  When state_flat is None the call
-        # uses the original three-arg signature, so every decoder (GPCM, binary,
-        # NRM, BT) sees a bit-for-bit identical call to the pre-state-alpha path.
-        if mask is None:
-            if state_flat is None:
-                return self.decoder.nll(theta_flat, embs_flat, resp_flat)
-            return self.decoder.nll(
-                theta_flat, embs_flat, resp_flat, state=state_flat,
-                alpha_emb=alpha_flat,
-            )
+        # Select valid positions (no-op when mask is None).
+        if mask is not None:
+            mask_flat = mask.reshape(batch * T).bool()
+            theta_flat = theta_flat[mask_flat]
+            embs_flat = embs_flat[mask_flat]
+            resp_flat = resp_flat[mask_flat]
+            if state_flat is not None:
+                state_flat = state_flat[mask_flat]
+            if alpha_flat is not None:
+                alpha_flat = alpha_flat[mask_flat]
 
-        # Masked path: compute per-position log-probs, then mean over valid only.
-        mask_flat = mask.reshape(batch * T)                          # (B*T,) bool
-        # Select only valid positions to avoid unnecessary computation on padding.
-        theta_valid = theta_flat[mask_flat]
-        embs_valid = embs_flat[mask_flat]
-        resp_valid = resp_flat[mask_flat]
-        if state_flat is None:
-            return self.decoder.nll(theta_valid, embs_valid, resp_valid)
-        state_valid = state_flat[mask_flat]
-        alpha_valid = alpha_flat[mask_flat] if alpha_flat is not None else None
-        return self.decoder.nll(
-            theta_valid, embs_valid, resp_valid, state=state_valid,
-            alpha_emb=alpha_valid,
+        return self._predict_loss(theta_flat, embs_flat, resp_flat,
+                                  state_flat, alpha_flat)
+
+    def _predict_loss(
+        self,
+        theta: torch.Tensor,
+        emb: torch.Tensor,
+        responses: torch.Tensor,
+        state: Optional[Tensor],
+        alpha_emb: Optional[Tensor],
+    ) -> torch.Tensor:
+        """Format-keyed prediction loss on the decoder's logits.
+
+        binary -> BCE on the single logit;  nrm -> plain CE;  gpcm -> WOL.
+        The decoder produces the logits (the IRT flavor); the loss scores them.
+        """
+        if self.decoder_name == "binary":
+            z = self.decoder.binary_logit(
+                theta, emb, state=state, alpha_emb=alpha_emb
+            )
+            return F.binary_cross_entropy_with_logits(z, responses.float())
+        if self.decoder_name == "nrm":
+            logits = self.decoder.category_logits(theta, emb)
+            return self.loss_fn(logits, responses)
+        # gpcm (ordinal): WeightedOrdinalLoss on the GPCM logits.
+        logits = self.decoder.category_logits(
+            theta, emb, state=state, alpha_emb=alpha_emb
         )
+        return self.loss_fn(logits, responses)
 
     @staticmethod
     def _make_encoder(
