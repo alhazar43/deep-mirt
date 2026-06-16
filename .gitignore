@@ -144,19 +144,8 @@ ma-irt/outputs_archive_*/
 archive_sigma03_*/
 .last_archive_path
 
-# archive/ holds frozen prior-direction code. Most subdirectories are
-# ignored, with explicit exceptions for tracked archives.
+# archive/ holds frozen prior-direction code, fully ignored.
 archive/*
-!archive/rl_jobrec
-!archive/rl_jobrec/**
-# But re-ignore data, artifacts, results-runtime, and pyc inside the
-# archived rl_jobrec subtree. Only source code, docs, configs, and
-# tracked plot PNGs ship.
-archive/rl_jobrec/data/
-archive/rl_jobrec/artifacts/*.parquet
-archive/rl_jobrec/artifacts/*.npy
-archive/rl_jobrec/results/*/data/
-archive/rl_jobrec/**/__pycache__/
 
 # Datasets (large, regenerable)
 ma-irt/data/

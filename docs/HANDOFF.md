@@ -17,8 +17,7 @@ Two stacked pieces in one repo (`C:/Users/steph/documents/deep-mirt`).
 
 2. **OrdRec** (`rl/`), a new ExRec-style exercise-recommendation
    framework built on top of frozen ma-irt with a custom PPO. The
-   active research. Modular, adapter-based, isolated from the archived
-   job-recommendation work at `archive/rl_jobrec/`.
+   active research. Modular, adapter-based.
 
 ## Branch map
 
@@ -133,6 +132,5 @@ next. The full D-milestone ladder is in
   intelligence (gitignored working doc, local only).
 - `docs/cleanup/_ma_irt_bottleneck_audit.md`, the "keep ma-irt as-is"
   audit (gitignored, local only).
-- `archive/rl_jobrec/README_ARCHIVE.md` and
-  `docs/archive/jobrec/README.md`, the abandoned job-rec direction and
-  why it was dropped.
+- `docs/archive/jobrec/README.md`, why the abandoned job-rec direction
+  was dropped (the `archive/rl_jobrec/` code has been removed).

@@ -1,8 +1,7 @@
 # rl/, OrdRec, Ordinal-IRT Exercise Recommendation
 
 OrdRec wires the ma-irt deep ordinal IRT world model into a PPO-based exercise
-recommendation policy whose rewards are defined in trait space. The package is
-isolated from the archived job-recommendation work at `archive/rl_jobrec/`.
+recommendation policy whose rewards are defined in trait space.
 
 Strategic plan, [`docs/exrec_ordinal_plan.md`](../docs/exrec_ordinal_plan.md).
 Implementation guide, [`docs/ordrec_impl_guide.md`](../docs/ordrec_impl_guide.md).
@@ -147,11 +146,3 @@ PYTHONPATH="rl/src:ma-irt" KMP_DUPLICATE_LIB_OK=TRUE \
 The harness evaluates four policies (trained PPO, BC-only, max-Fisher, uniform
 random) against the same env-reset seed sequence and writes a per-component
 return breakdown plus exposure diagnostics to stdout and a JSON report.
-
----
-
-## Isolation rule
-
-Do not import from `archive/rl_jobrec/`. That tree is frozen prior-direction
-code preserved for traceability. Any useful pattern must be re-derived clean
-in this tree with a note on provenance.
