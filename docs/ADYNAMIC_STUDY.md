@@ -254,12 +254,12 @@ Fisher-tail bias gets published as a discovery.
 ## Reproduce
 
 ```
-python deep_irt/bench/_adynamic_probe.py          # Result 1 (N-sweep null probe, temp)
-python deep_irt/bench/_adyn_theta_relation.py     # Result 2 (relation study, temp)
+python deep_irt/bench/run_adynamic_probe.py          # Result 1 (N-sweep null probe)
+python deep_irt/bench/run_adyn_theta_relation.py     # Result 2 (relation study)
 python deep_irt/bench/run_phase2_signal.py --device cuda   # Phase 2 (signal detection)
-python deep_irt/bench/_phase2_scale.py            # Phase 2 magnitude decomposition (temp)
+python deep_irt/bench/run_phase2_scale.py            # Phase 2 magnitude decomposition
 ```
-Results 1 and 2 and the magnitude decomposition are temporary probes (static-alpha
-synthetic, the null). Phase 2 is the committed runner; it writes
+Results 1 and 2 and the magnitude decomposition are committed runners (static-alpha
+synthetic, the null). Phase 2 signal runner writes
 deep_irt/bench/outputs/phase2_signal.json (summary + per-item slopes) and depends on
 the additive `alpha_theta_slope` generator option.

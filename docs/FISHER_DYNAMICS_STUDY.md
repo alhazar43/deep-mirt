@@ -53,7 +53,7 @@ mean delta_alpha = +0.042, mean delta_beta = +0.003, Pearson(delta_alpha, K) = +
 because of the noisy non-monotone mid-K; an earlier draft mislabeled the Pearson as
 "Spearman").
 
-Mechanism figure (deep_irt/bench/_fisher_ratio.py, fisher_ratio.png). The GPCM
+Mechanism figure (deep_irt/bench/run_fisher_ratio.py, fisher_ratio.png). The GPCM
 stiffness E[I(theta)]/E[I(alpha)] computed analytically under the bench priors
 (K=2 cross-checked against the closed-form 2PL) GROWS monotonically with K:
 0.98, 1.94, 2.81, 3.77, 5.34 for K = 2,4,6,8,11, because E[I(alpha)] plateaus
