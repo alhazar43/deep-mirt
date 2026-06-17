@@ -562,27 +562,6 @@ class BradleyTerryDecoder(nn.Module):
         """Unified interface: returns {'strength': (..., 1)}."""
         return {"strength": self.item_strength(item_val)}
 
-    def log_prob_i_beats_j(
-        self,
-        emb_i: torch.Tensor,
-        emb_j: torch.Tensor,
-    ) -> torch.Tensor:
-        """
-        Log P(item_i beats item_j) = log sigmoid(s_i - s_j).
-
-        Parameters
-        ----------
-        emb_i : (N, emb_dim)
-        emb_j : (N, emb_dim)
-
-        Returns
-        -------
-        log_prob : (N,)
-        """
-        s_i = self.fc_s(emb_i).squeeze(-1)   # (N,)
-        s_j = self.fc_s(emb_j).squeeze(-1)   # (N,)
-        return F.logsigmoid(s_i - s_j)
-
     def nll_pairs(
         self,
         emb_i: torch.Tensor,
