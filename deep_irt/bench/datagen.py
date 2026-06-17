@@ -56,6 +56,10 @@ class BenchDataConfig:
     train_frac: float = 0.8
     n_holdout: int = 10           # last n_holdout positions scored for prediction
     seed: int = 0
+    alpha_theta_slope: float = 0.0  # >0 plants theta-DEPENDENT discrimination:
+                                    # per-item gamma_j ~ N(0, slope),
+                                    # alpha_eff(i,t) = a_j * exp(gamma_j * theta_it).
+                                    # 0.0 (default) = static alpha, bit-identical.
 
 
 @dataclass
@@ -64,6 +68,8 @@ class BenchGroundTruth:
     a: np.ndarray                 # (Q,) discrimination
     b: np.ndarray                 # (Q, K-1) step thresholds (ascending)
     theta_traj: Optional[np.ndarray] = None   # (N, T) per-step true theta or None
+    gamma: Optional[np.ndarray] = None        # (Q,) per-item log-alpha slope in theta
+                                              # (planted theta-dependence; None = static)
 
 
 @dataclass
@@ -111,6 +117,16 @@ def generate(cfg: BenchDataConfig) -> BenchDataset:
 
     theta0 = rng.standard_normal(N)
 
+    # Optional planted theta-dependent discrimination, alpha_eff = a*exp(gamma*theta).
+    # Drawn from a SEPARATE rng so the static null (slope=0) and the planted
+    # (slope>0) at the same seed share identical a, b, theta, item sequences AND
+    # the per-step choice draws; the responses differ ONLY through alpha_eff.
+    # That makes a matched null for bias control.
+    gamma = None
+    if cfg.alpha_theta_slope > 0.0:
+        gamma = np.random.default_rng(cfg.seed + 10007).normal(
+            0.0, cfg.alpha_theta_slope, size=Q)
+
     items0 = np.zeros((N, T), dtype=np.int64)
     responses = np.zeros((N, T), dtype=np.int64)
     theta_at_step = np.zeros((N, T), dtype=np.float64)
@@ -130,7 +146,8 @@ def generate(cfg: BenchDataConfig) -> BenchDataset:
         items0[i] = item_seq
         for t, j in enumerate(item_seq):
             th = theta_traj[i, t] if theta_traj is not None else theta0[i]
-            responses[i, t] = _sample(th, a[j], b[j], rng)
+            a_eff = a[j] * np.exp(gamma[j] * th) if gamma is not None else a[j]
+            responses[i, t] = _sample(th, a_eff, b[j], rng)
             theta_at_step[i, t] = th
 
     # ---- train / val learner split (shared by both engines) ----
@@ -139,7 +156,7 @@ def generate(cfg: BenchDataConfig) -> BenchDataset:
     train_idx = np.sort(perm[:n_train])
     val_idx = np.sort(perm[n_train:])
 
-    gt = BenchGroundTruth(theta0=theta0, a=a, b=b, theta_traj=theta_traj)
+    gt = BenchGroundTruth(theta0=theta0, a=a, b=b, theta_traj=theta_traj, gamma=gamma)
     return BenchDataset(
         cfg=cfg, gt=gt, items0=items0, responses=responses,
         train_idx=train_idx, val_idx=val_idx, theta_at_step=theta_at_step,

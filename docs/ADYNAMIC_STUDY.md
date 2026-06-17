@@ -1,6 +1,9 @@
 # a_dynamic study: is the neural model's context-dependent discrimination real or an artifact?
 
-Status PRELIMINARY (1 to 3 seeds; needs replication). Branch feat/prediction-loss. Started 2026-06-17.
+Status PRELIMINARY (3 seeds; needs replication). Branch feat/duolingo-mini. Started 2026-06-17.
+Phase 1 (is the wiggle real or artifact) and Phase 2 (does it detect planted
+theta-dependence) both DONE; the verdict is directional detection, not calibrated
+magnitude.
 
 ## The object
 
@@ -92,18 +95,77 @@ height). No height range, so the readings are nonsense, and the nonsense is not
    "context-dependent discrimination" is partly reading a low-ability estimation
    artifact, which the neural-IRT line has not flagged.
 
+## Phase 2 -- the decisive signal-detection test (3 seeds, K=4)
+
+Plant genuine theta-dependent discrimination, `alpha_eff(i,t) = a_j *
+exp(gamma_j * theta_it)`, with `gamma_j ~ N(0, sigma)` drawn from a SEPARATE rng
+(datagen.py). At a fixed seed the null (sigma=0) and every planted set share the
+same a, b, theta, item sequences and per-step choice draws, only the responses
+differ, so the null is a matched bias control and (because the gamma rng is seeded
+once) the planted gammas at different sigmas are proportional, a clean dose-response
+on the same items.
+
+Readout. For each fit, read every per-occurrence `alpha_jt` and take the per-item
+OLS slope of `log(alpha_jt)` on the TRUE theta (external, no latent circularity).
+This linear slope is the matched estimator for the planted form (`log alpha =
+log a + gamma*theta` is exactly linear) AND it sidesteps the Phase-1 contamination,
+the Fisher-tail bias is non-monotone in theta (Result 2) and nearly cancels under a
+linear projection. The detector is `signal_j = slope_planted_j - slope_null_j`,
+scored as `corr(signal_j, gamma_j)`; calibration is the OLS slope `k` of signal on
+gamma (`k = 1` is exact magnitude).
+
+| sigma | corr(slope_planted, g) | corr(signal, g) | corr(slope_null, g) | calib k | null slope std |
+|---|---|---|---|---|---|
+| 0.20 | +0.427 | +0.438 | -0.040 | 0.039 | 0.015 |
+| 0.40 | +0.649 | +0.666 | -0.040 | 0.040 | 0.015 |
+
+Findings.
+
+1. DETECTION CONFIRMED. The head recovers the planted theta-dependence, and it is a
+   genuine dose-response, corr rises 0.43 -> 0.67 as the planted slope doubles. The
+   sanity `corr(slope_null, gamma) ~ 0` holds (gamma is independent of item a/b), so
+   the positive correlation is detection, not a spurious pathway.
+2. THE BIAS PROBLEM EVAPORATES ON THE RIGHT READOUT. On the linear slope the null
+   bias is tiny and gamma-independent (std 0.015 vs a planted signal an order larger,
+   corr_null ~ 0), so the matched-null correction is nearly a no-op (0.649 -> 0.666).
+   This resolves the Phase-1 worry, the contamination was specific to the NONLINEAR
+   per-occurrence wiggle; the linear log-alpha-on-theta slope is the clean instrument
+   and needs almost no bias control. (Result 2's "linear correlation cancels" cut
+   both ways, it kills the naive detector but it also kills the bias, leaving the
+   linear PLANTED signal clean.)
+3. MAGNITUDE IS NOT RECOVERED, ONLY RANK. Calibration `k ~ 0.04` at both sigmas
+   (stable), the recovered slope is ~4% of the planted magnitude, a ~25x shrinkage.
+   The head reads the encoder state (a weak, indirect theta proxy) and the GPCM
+   likelihood is barely sensitive to the alpha-theta slope (the low-Fisher story),
+   so the optimizer fixes the SIGN and RANK of the dependence but not its size. The
+   `k` value is also confounded by the unidentified model-vs-true theta scale, so
+   magnitude is not claimable from this readout regardless. State-conditioned alpha
+   is therefore a RANK / direction detector of theta-dependent discrimination, not a
+   calibrated estimate of it; reading the size of `a_dynamic` as the strength of
+   context-dependence is wrong by a large, unidentified factor.
+
+Verdict. The neural-IRT-native quantity `a_dynamic` does carry real signal about
+genuine context-dependent discrimination, recoverable in rank once read as a linear
+log-alpha-on-theta slope, which simultaneously dodges the Fisher-tail bias. Its
+magnitude is heavily attenuated and scale-unidentified, so the honest claim is
+DIRECTIONAL detection, not calibrated measurement.
+
 ## Implications / next steps
 
-- The clean instrument requires either the regularized architectural split (a
-  zero-mean-pinned, penalized dynamic residual `d` on top of a static `s`, so the
-  Fisher-tail wobble is suppressed at the source) OR an explicit bias model
-  (characterize this null theta-shape and subtract it), before any signal test.
-- Phase 2 (the decisive test) extends the generator to plant genuine
-  theta-dependent discrimination, then asks whether `corr(a_dynamic, theta)` lifts
-  ABOVE the null shape, not above zero. Build the bias control in first.
-- Parallel RQs in flight, RQ1 (alpha-vs-beta dynamic asymmetry, needs the
-  state_beta head) and RQ2 (convergence-rate curves, needs per-epoch recovery
-  logging).
+- Phase 2 is DONE (see above) and turned the instrument question on its head. The
+  naive per-occurrence wiggle does need the regularized split or a bias model, but
+  the LINEAR log-alpha-on-theta slope already IS the clean instrument, it both
+  matches the planted signal and dodges the nonlinear Fisher-tail bias, so no extra
+  bias control is needed for directional detection. The regularized architectural
+  split (a zero-mean-pinned, penalized dynamic residual `d` on a static `s`) is now
+  a MAGNITUDE problem, not a detection one, it would be the route to lifting `k`
+  off ~0.04 toward a calibrated estimate if magnitude recovery is ever wanted.
+- Magnitude calibration is open and confounded by the unidentified model-vs-true
+  theta scale. A cheap control, recover the model's per-learner theta, regress on
+  true theta0 for the scale ratio `c`, and report `k / c`, would separate genuine
+  head shrinkage from the scale mismatch. Until then magnitude is not claimed.
+- RQ1 (alpha-vs-beta dynamic asymmetry) and RQ2 (convergence-rate curves) are
+  CONFIRMED, see docs/FISHER_DYNAMICS_STUDY.md.
 
 ## Real-data validation design (future, after synthetic Phase 2)
 
@@ -136,7 +198,10 @@ Fisher-tail bias gets published as a discovery.
 ## Reproduce
 
 ```
-python deep_irt/bench/_adynamic_probe.py          # Result 1 (N-sweep null probe)
-python deep_irt/bench/_adyn_theta_relation.py     # Result 2 (relation study)
+python deep_irt/bench/_adynamic_probe.py          # Result 1 (N-sweep null probe, temp)
+python deep_irt/bench/_adyn_theta_relation.py     # Result 2 (relation study, temp)
+python deep_irt/bench/run_phase2_signal.py --device cuda   # Phase 2 (signal detection)
 ```
-Both are temporary probes under deep_irt/bench/ (static-alpha synthetic, the null).
+Results 1 and 2 are temporary probes (static-alpha synthetic, the null). Phase 2 is
+the committed runner; it writes deep_irt/bench/outputs/phase2_signal.json (summary +
+per-item slopes) and depends on the additive `alpha_theta_slope` generator option.
