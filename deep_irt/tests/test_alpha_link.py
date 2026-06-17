@@ -15,7 +15,7 @@ Contracts pinned here
 3. The exp transform changes the model (different trained NLL from softplus) --
    it is a genuinely different positivity map, not a no-op.
 4. Validation: ``alpha_log_scale <= 0`` raises; the transform is GPCM/binary-only.
-5. The exp transform composes with the decoupled wide alpha key.
+5. The exp transform composes with the decoupled wide item key.
 """
 
 from __future__ import annotations
@@ -145,13 +145,13 @@ def test_binary_decoder_threads_link():
 
 
 # ---------------------------------------------------------------------------
-# Contract 5: the exp link composes with the decoupled wide alpha key
+# Contract 5: the exp link composes with the decoupled wide item key
 # ---------------------------------------------------------------------------
 
 def test_exp_link_composes_with_decoupled_key():
     it, rp = _data(num_items=10)
     m = DeepIRTModel(num_items=10, emb_dim=4, hidden_dim=8, n_cats=4,
-                       decoder="gpcm", state_alpha=True, alpha_emb_dim=16,
+                       decoder="gpcm", state_alpha=True, item_key_dim=16,
                        alpha_log_scale=0.3, device=_DEVICE, seed=_SEED)
     r = m.fit(it, rp, n_epochs=15, verbose=False)
     assert math.isfinite(r["final_nll"])
@@ -170,34 +170,34 @@ def _bare(decoder="gpcm", **kw):
 
 
 def test_decouple_is_the_default():
-    # bare gpcm -> the decoupled deep-irt s_0 (state_alpha + own wide alpha table + exp)
+    # bare gpcm -> the decoupled deep-irt s_0 (state_alpha + own wide item key + exp)
     m = _bare()
     assert m.decouple is True
     assert m.state_alpha is True
-    assert m.alpha_emb_dim == 64
+    assert m.item_key_dim == 64
     assert m.alpha_log_scale == 1.0
-    assert hasattr(m.encoder, "alpha_item_emb")
+    assert hasattr(m.encoder, "item_key_emb")
 
 
 def test_decouple_false_is_the_plain_path():
     m = _bare(decouple=False)
     assert m.state_alpha is False
-    assert m.alpha_emb_dim is None and m.alpha_log_scale is None
-    assert not hasattr(m.encoder, "alpha_item_emb")
+    assert m.item_key_dim is None and m.alpha_log_scale is None
+    assert not hasattr(m.encoder, "item_key_emb")
 
 
 def test_explicit_alpha_knobs_defer_decouple():
-    # explicit state_alpha=True (no alpha_emb) -> plain state_alpha, NOT auto-decoupled
+    # explicit state_alpha=True (no item key) -> plain state_alpha, NOT auto-decoupled
     ms = _bare(state_alpha=True)
-    assert ms.state_alpha is True and ms.alpha_emb_dim is None
-    assert not hasattr(ms.encoder, "alpha_item_emb")
+    assert ms.state_alpha is True and ms.item_key_dim is None
+    assert not hasattr(ms.encoder, "item_key_emb")
     # explicit state_alpha=False is respected (the None-sentinel, not auto-decoupled)
     mf = _bare(state_alpha=False)
-    assert mf.state_alpha is False and mf.alpha_emb_dim is None
+    assert mf.state_alpha is False and mf.item_key_dim is None
 
 
 def test_decouple_is_noop_for_non_alpha_decoders():
     # nrm/bt have no alpha head; default decouple must be a no-op, not a raise
     for dec in ("nrm", "bt"):
         m = _bare(decoder=dec)
-        assert m.state_alpha is False and m.alpha_emb_dim is None
+        assert m.state_alpha is False and m.item_key_dim is None

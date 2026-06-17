@@ -3,8 +3,8 @@
 Thin reuse of the SlamAdapter materialised artefact.  Given a set of 1-based
 SLAM named ids to KEEP (e.g. the content bank's items), this returns per-learner
 sequences remapped to 0-based LOCAL ids that index directly into the content
-bank rows -- so ``encoder.item_emb`` row j and ``text_features[j]`` are the same
-item.
+bank rows -- so ``encoder.item_val_emb`` row j and ``text_features[j]`` are the
+same item.
 """
 
 from __future__ import annotations

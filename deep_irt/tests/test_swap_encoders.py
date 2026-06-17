@@ -2,7 +2,7 @@
 
 Both subclass ``BaseSeqEncoder`` and must honour the same interface as
 ``LSTMEncoder``: identical public accessors, identical embedding-table layout
-(item_emb / resp_emb / alpha_item_emb), the single-shift causal alignment, and
+(item_val_emb / resp_emb / item_key_emb), the single-shift causal alignment, and
 a hidden width equal to ``hidden_dim``.  These tests pin that contract for both
 backbones at once, plus the end-to-end DeepIRTModel paths and the decoupled
 alpha contract (mirroring test_decoupled_alpha.py).
@@ -39,10 +39,10 @@ def _data(num_items=10, n_cats=4, n=16, t=12, seed=0):
 
 
 def _enc(kind, num_items=10, n_cats=4, emb_dim=4, hidden_dim=8,
-         alpha_emb_dim=None, seed=_SEED):
+         item_key_dim=None, seed=_SEED):
     torch.manual_seed(seed)
     common = dict(num_items=num_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
-                  n_cats=n_cats, alpha_emb_dim=alpha_emb_dim)
+                  n_cats=n_cats, item_key_dim=item_key_dim)
     if kind == "transformer":
         return TransformerEncoder(**common, n_heads=2, n_layers=2)
     return DKVMNEncoder(**common, memory_size=8)
@@ -115,27 +115,27 @@ def test_prediction_theta_does_not_see_current_or_future_responses(kind):
 @pytest.mark.parametrize("kind", _BACKBONES)
 def test_tables_present(kind):
     enc = _enc(kind, num_items=12, emb_dim=4)
-    assert enc.item_emb.weight.shape == (12, 4)
+    assert enc.item_val_emb.weight.shape == (12, 4)
     assert enc.resp_emb.weight.shape == (enc.n_cats, 4)
-    # No alpha key without alpha_emb_dim.
-    assert not hasattr(enc, "alpha_item_emb")
+    # No item key without item_key_dim.
+    assert not hasattr(enc, "item_key_emb")
 
 
 @pytest.mark.parametrize("kind", _BACKBONES)
-def test_alpha_table_only_when_requested(kind):
-    enc = _enc(kind, num_items=12, emb_dim=4, hidden_dim=8, alpha_emb_dim=16)
-    assert hasattr(enc, "alpha_item_emb")
-    assert enc.alpha_item_emb.weight.shape == (12, 16)
+def test_item_key_table_only_when_requested(kind):
+    enc = _enc(kind, num_items=12, emb_dim=4, hidden_dim=8, item_key_dim=16)
+    assert hasattr(enc, "item_key_emb")
+    assert enc.item_key_emb.weight.shape == (12, 16)
     # The wide key grows the decoder's alpha head input, never the state width.
     it, rp = _data(num_items=12)
     assert enc.state_for_prediction(it, rp).shape[-1] == 8
 
 
 @pytest.mark.parametrize("kind", _BACKBONES)
-def test_state_width_is_hidden_dim_regardless_of_alpha(kind):
+def test_state_width_is_hidden_dim_regardless_of_item_key(kind):
     it, rp = _data()
-    plain = _enc(kind, hidden_dim=8, alpha_emb_dim=None)
-    wide = _enc(kind, hidden_dim=8, alpha_emb_dim=16)
+    plain = _enc(kind, hidden_dim=8, item_key_dim=None)
+    wide = _enc(kind, hidden_dim=8, item_key_dim=16)
     assert plain.state_for_prediction(it, rp).shape[-1] == 8
     assert wide.state_for_prediction(it, rp).shape[-1] == 8
 
@@ -163,7 +163,7 @@ def test_end_to_end_state_alpha_decoupled(kind):
     it, rp = _data(num_items=num_items, n_cats=n_cats, n=20, t=15)
     m = DeepIRTModel(
         num_items=num_items, emb_dim=4, hidden_dim=8, n_cats=n_cats,
-        decoder="gpcm", encoder=kind, state_alpha=True, alpha_emb_dim=16,
+        decoder="gpcm", encoder=kind, state_alpha=True, item_key_dim=16,
         alpha_log_scale=1.0, device=_DEVICE, seed=_SEED,
     )
     _fit_and_check_recovery(m, it, rp, num_items, n_cats)
@@ -209,7 +209,7 @@ def test_wide_key_moves_alpha_not_theta(kind):
     it, rp = _data(num_items=10)
     m = DeepIRTModel(
         num_items=10, emb_dim=4, hidden_dim=8, n_cats=4, decoder="gpcm",
-        encoder=kind, state_alpha=True, alpha_emb_dim=16,
+        encoder=kind, state_alpha=True, item_key_dim=16,
         device=_DEVICE, seed=_SEED,
     )
     m.fit(it, rp, n_epochs=5, verbose=False)
@@ -218,8 +218,8 @@ def test_wide_key_moves_alpha_not_theta(kind):
     rec_before = m.recover_item_params(it, rp)
 
     with torch.no_grad():
-        m.encoder.alpha_item_emb.weight.add_(
-            torch.randn_like(m.encoder.alpha_item_emb.weight))
+        m.encoder.item_key_emb.weight.add_(
+            torch.randn_like(m.encoder.item_key_emb.weight))
     theta_after = m.track(it, rp)
     rec_after = m.recover_item_params(it, rp)
 

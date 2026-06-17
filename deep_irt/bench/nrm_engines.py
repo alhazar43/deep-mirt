@@ -84,7 +84,7 @@ class DeepIRTNRMEngine:
         it, rp = self._tensor(self.ds.val_idx)
         it = it.to(self.device); rp = rp.to(self.device)
         theta_in = self.model.encoder.shifted_theta(it, rp)        # (B,T)
-        embs = self.model.encoder.item_emb(it)                     # (B,T,emb)
+        embs = self.model.encoder.item_val_emb(it)                 # (B,T,emb)
         probs_full = []
         for t in range(T):
             params = self.model.decoder.item_params(embs[:, t, :])

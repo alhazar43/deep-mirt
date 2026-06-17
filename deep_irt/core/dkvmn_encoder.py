@@ -5,8 +5,12 @@ A lightweight subclass of ``BaseSeqEncoder`` (see encoder.py) implementing a
 Dynamic Key-Value Memory Network (Zhang et al., 2017) as the sequence core.  It
 inherits the entire interface -- the embedding tables, ``theta_proj``, the
 single-shift alignment, and every public accessor -- unchanged, so the decoder
-(including the decoupled alpha key in the base) composes with no change.  This
-is the swappability contract.
+(including the wide item key in the base) composes with no change.  This is the
+swappability contract.
+
+The memory's own addressing width ``key_dim`` (the ``Mk`` key memory) is a
+SEPARATE concept from the decoupled item KEY table ``item_key_emb`` of width
+``item_key_dim`` that feeds the static alpha/beta readouts; the two never mix.
 
 Memory
 ------
@@ -18,9 +22,9 @@ and adds at the addressed slots; a read pools ``Mv`` by the same weights.
 
 Per-step hidden
 ---------------
-    key_t  = key_proj(item_emb(q_t))                         (key_dim)
+    key_t  = key_proj(item_val_emb(q_t))                     (key_dim)
     w_t    = softmax(key_t @ Mk.T)                           (memory_size)
-    v_t    = value_proj([item_emb(q_t), resp_emb(r_t)])      (hidden_dim)
+    v_t    = value_proj([item_val_emb(q_t), resp_emb(r_t)])  (hidden_dim)
     Mv    <- erase/add update at slots weighted by w_t
     read_t = w_t @ Mv                                        (hidden_dim)
     h_t    = tanh(summary_proj([read_t, key_t]))             (hidden_dim)
@@ -45,21 +49,23 @@ class DKVMNEncoder(BaseSeqEncoder):
     num_items : int
         Total items in the embedding table.
     emb_dim : int
-        Item / response embedding dimension.
+        Thin item value / response embedding dimension.
     hidden_dim : int
         Value-memory width and per-step hidden width.  MUST be the hidden width
         so ``state_for_prediction`` returns (B, T, hidden_dim) and the decoder's
         state-conditioned alpha head matches.
     n_cats : int
         Response categories K (responses in {0, ..., K-1}).
-    alpha_emb_dim : int or None
-        When set, build the SEPARATE wide alpha key (``alpha_item_emb``) feeding
-        only the decoder's discrimination head, never the memory.  Built LAST so
-        it never perturbs the other inits.
+    item_key_dim : int or None
+        When set, build the SEPARATE wide item key (``item_key_emb``) feeding
+        only the decoder's static alpha and beta heads, never the memory.  Built
+        LAST so it never perturbs the other inits.  This is NOT the memory's
+        ``key_dim`` below.
     memory_size : int
         Number of memory slots.
     key_dim : int or None
-        Key-memory / addressing width.  None (default) uses ``emb_dim``.
+        Key-memory / addressing width (the DKVMN ``Mk`` key memory, unrelated to
+        ``item_key_dim``).  None (default) uses ``emb_dim``.
     """
 
     def __init__(
@@ -68,7 +74,7 @@ class DKVMNEncoder(BaseSeqEncoder):
         emb_dim: int = 8,
         hidden_dim: int = 32,
         n_cats: int = 4,
-        alpha_emb_dim: int | None = None,
+        item_key_dim: int | None = None,
         memory_size: int = 20,
         key_dim: int | None = None,
     ) -> None:
@@ -77,11 +83,11 @@ class DKVMNEncoder(BaseSeqEncoder):
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
         self.n_cats = n_cats
-        self.alpha_emb_dim = alpha_emb_dim
+        self.item_key_dim = item_key_dim
         self.memory_size = memory_size
         self.key_dim = key_dim if key_dim is not None else emb_dim
 
-        self.item_emb = nn.Embedding(num_items, emb_dim)
+        self.item_val_emb = nn.Embedding(num_items, emb_dim)
         self.resp_emb = nn.Embedding(n_cats, emb_dim)
 
         # Static key memory and learned value-memory init.
@@ -98,11 +104,11 @@ class DKVMNEncoder(BaseSeqEncoder):
 
         self.theta_proj = nn.Linear(hidden_dim, 1)
 
-        # Wide item key for the DECOUPLED alpha head.  Built last and only when
-        # requested, so it never perturbs the other inits.  Feeds the decoder's
-        # alpha head, never the memory.
-        if alpha_emb_dim is not None:
-            self.alpha_item_emb = nn.Embedding(num_items, alpha_emb_dim)
+        # Wide item key for the DECOUPLED static readouts.  Built last and only
+        # when requested, so it never perturbs the other inits.  Feeds the
+        # decoder's alpha and beta heads, never the memory.
+        if item_key_dim is not None:
+            self.item_key_emb = nn.Embedding(num_items, item_key_dim)
 
     # ------------------------------------------------------------------
     # Internals
@@ -142,9 +148,9 @@ class DKVMNEncoder(BaseSeqEncoder):
         Write (q_t, r_t) then read, so h_t sees the current interaction.
         """
         B, T = item_ids.shape
-        keys = self.key_proj(self.item_emb(item_ids))         # (B, T, key_dim)
+        keys = self.key_proj(self.item_val_emb(item_ids))     # (B, T, key_dim)
         values = self.value_proj(
-            torch.cat([self.item_emb(item_ids), self.resp_emb(responses)], dim=-1)
+            torch.cat([self.item_val_emb(item_ids), self.resp_emb(responses)], dim=-1)
         )                                                     # (B, T, hidden)
         mv = self.value_init.unsqueeze(0).expand(B, -1, -1).contiguous()
 

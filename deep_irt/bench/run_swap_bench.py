@@ -49,7 +49,7 @@ OUT = _HERE / "outputs"
 OUT.mkdir(exist_ok=True)
 
 _CHEAP = dict(emb_dim=8, hidden_dim=32)   # the theta-encoder held fixed everywhere
-_ALPHA_EMB_DIM = 64                       # decoupled wide alpha key
+_ITEM_KEY_DIM = 64                        # decoupled wide alpha key
 _ALPHA_LOG_SCALE = 1.0                    # exp(raw), ma-irt's link
 _BACKBONES = ("lstm", "transformer", "dkvmn")
 
@@ -70,7 +70,7 @@ def build_engines(ds, device, seed):
         engines.append((
             f"{bk}-decoupled",
             DeepIRTEngine(ds, decoder="gpcm", state_alpha=True,
-                            alpha_emb_dim=_ALPHA_EMB_DIM,
+                            item_key_dim=_ITEM_KEY_DIM,
                             alpha_log_scale=_ALPHA_LOG_SCALE, encoder=bk,
                             device=device, seed=seed, **_CHEAP),
         ))
@@ -242,7 +242,7 @@ def main():
     agg = aggregate(rows)
     blob = {"meta": {"device": device, "epochs": epochs, "N": N, "Q": Q, "T": T,
                      "seeds": args.seeds, "cheap": _CHEAP,
-                     "alpha_emb_dim": _ALPHA_EMB_DIM,
+                     "item_key_dim": _ITEM_KEY_DIM,
                      "alpha_log_scale": _ALPHA_LOG_SCALE,
                      "backbones": _BACKBONES},
             "rows": rows, "agg": list(agg.values())}

@@ -138,7 +138,7 @@ def part_representation(
     responses = batch.responses.to(device)
     seq_lens = batch.seq_lens
     with torch.no_grad():
-        ie = enc.item_emb(item_ids)
+        ie = enc.item_val_emb(item_ids)
         re = enc.resp_emb(responses)
         x = torch.cat([ie, re], dim=-1)
         h_seq, _ = enc.lstm(x)                       # (M, T, hidden_dim)

@@ -477,7 +477,7 @@ def stage3b_bt(data: dict, stage1: dict, n_epochs: int = 500) -> dict:
 
     # Copy base encoder embedding weights into BT model encoder (for consistent scale)
     with torch.no_grad():
-        model_bt.encoder.item_emb.weight.copy_(gpcm_enc.item_emb.weight)
+        model_bt.encoder.item_val_emb.weight.copy_(gpcm_enc.item_val_emb.weight)
     # Freeze the BT encoder's item embeddings (only train fc_s in BT decoder)
     for p in model_bt.encoder.parameters():
         p.requires_grad_(False)
@@ -485,7 +485,7 @@ def stage3b_bt(data: dict, stage1: dict, n_epochs: int = 500) -> dict:
     # Precompute item embeddings for all pairs (using frozen encoder)
     model_bt.encoder.eval()
     with torch.no_grad():
-        all_embs = model_bt.encoder.item_emb.weight    # (B, emb_dim)
+        all_embs = model_bt.encoder.item_val_emb.weight    # (B, emb_dim)
         emb_i = all_embs[pairs["item_i"].to(DEVICE)]   # (N_pairs, emb_dim)
         emb_j = all_embs[pairs["item_j"].to(DEVICE)]   # (N_pairs, emb_dim)
 

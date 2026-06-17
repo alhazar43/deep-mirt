@@ -28,9 +28,9 @@ Drop-in for ``nn.Embedding``
 ----------------------------
 ``ContentItemEmbedding`` is callable as ``module(item_ids) -> (..., emb_dim)``
 and exposes a ``.weight`` property holding the full materialised table, so it
-can be assigned to ``encoder.item_emb`` and every existing readout in the core
-(LSTM input, ``fc_a``, ``fc_b``, the recovery paths) works unchanged.  The core
-is never modified; the swap lives entirely in this package.
+can be assigned to ``encoder.item_val_emb`` and every existing readout in the
+core (LSTM input, ``fc_a``, ``fc_b``, the recovery paths) works unchanged.  The
+core is never modified; the swap lives entirely in this package.
 
 Modes
 -----
@@ -53,7 +53,7 @@ import torch.nn as nn
 class ContentItemEmbedding(nn.Module):
     """Item representation from a frozen text embedding + learned projection.
 
-    Drop-in replacement for the encoder's ``item_emb`` (an ``nn.Embedding``):
+    Drop-in replacement for the encoder's ``item_val_emb`` (an ``nn.Embedding``):
     callable as ``module(item_ids) -> (..., emb_dim)`` and exposing ``.weight``
     (the full ``(num_items, emb_dim)`` table) and ``.num_embeddings`` so the
     rest of the deep_irt is untouched.

@@ -5,7 +5,7 @@ The decoupling advantage on discrimination Spearman is a FINITE-DATA sample-
 efficiency effect that vanishes at the population limit (Phase 3b toy, reps->inf).
 The empirical K-sweep has only N=800.  This sweep adds the DATA axis:
 
-  For each (N, K), SHARED (alpha_emb_dim=None) vs DECOUPLED (alpha_emb_dim=64).
+  For each (N, K), SHARED (item_key_dim=None) vs DECOUPLED (item_key_dim=64).
   delta(N,K) = decoupled a_spearman - shared a_spearman.
 
 Predictions:
@@ -50,7 +50,7 @@ OUT.mkdir(exist_ok=True)
 
 # Fixed theta-encoder capacity (identical for SHARED and DECOUPLED at all cells)
 _CHEAP = dict(emb_dim=8, hidden_dim=32)
-_ALPHA_EMB_DIM = 64
+_ITEM_KEY_DIM = 64
 _ALPHA_LOG_SCALE = 1.0
 Q = 60   # items
 T = 60   # sequence length (fixed, only N varies)
@@ -72,9 +72,9 @@ def build_engines(ds, device: str, seed: int):
     )
     return [
         ("shared",
-         DeepIRTEngine(ds, alpha_emb_dim=None, **common)),
+         DeepIRTEngine(ds, item_key_dim=None, **common)),
         ("decoupled",
-         DeepIRTEngine(ds, alpha_emb_dim=_ALPHA_EMB_DIM, **common)),
+         DeepIRTEngine(ds, item_key_dim=_ITEM_KEY_DIM, **common)),
     ]
 
 
@@ -100,7 +100,7 @@ def render_table(
     L.append(
         "Both models: LSTM/GPCM, state_alpha=True, alpha_log_scale=1.0, "
         "emb_dim=8, hidden_dim=32.  "
-        "SHARED: alpha_emb_dim=None.  DECOUPLED: alpha_emb_dim=64.\n"
+        "SHARED: item_key_dim=None.  DECOUPLED: item_key_dim=64.\n"
         "Metric: alpha Spearman.  "
         "delta(N,K) = decoupled - shared (mean over seeds).\n"
         "Prediction: delta narrows as N grows; high-K gaps persist longer.\n"
@@ -432,7 +432,7 @@ def main():
             "N_vals": N_vals,
             "K_vals": K_vals,
             "cheap": _CHEAP,
-            "alpha_emb_dim": _ALPHA_EMB_DIM,
+            "item_key_dim": _ITEM_KEY_DIM,
             "alpha_log_scale": _ALPHA_LOG_SCALE,
         },
         "N_vals": N_vals,

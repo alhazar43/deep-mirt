@@ -48,8 +48,8 @@ class DeepIRTEngine:
     """Plain-LSTM deep_irt engine with a swappable deep_irt decoder.
 
     The organic single-pass engine.  Theta is read from the direct responsive
-    stream over ``[item_emb(q_t), resp_emb(r_t)]`` (the reported dynamic track),
-    obeying the single-shift alignment contract.
+    stream over ``[item_val_emb(q_t), resp_emb(r_t)]`` (the reported dynamic
+    track), obeying the single-shift alignment contract.
 
       ``state_alpha`` -- a clean optional DECODER feature (gpcm/binary).  When
         True the discrimination is read from the prediction-aligned encoder
@@ -64,33 +64,31 @@ class DeepIRTEngine:
     """
 
     def __init__(self, ds, decoder="gpcm", emb_dim=8, hidden_dim=32,
-                 state_alpha=False, alpha_emb_dim=None,
-                 alpha_log_scale=None, beta_wide=False,
+                 state_alpha=False, item_key_dim=None,
+                 alpha_log_scale=None,
                  encoder="lstm", encoder_kwargs=None,
                  device="cpu", seed=0):
         self.ds = ds
         self.decoder = decoder
         self.state_alpha = state_alpha
-        self.alpha_emb_dim = alpha_emb_dim
+        self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
-        self.beta_wide = beta_wide
         self.encoder_kind = encoder
         self.device = torch.device(device)
         self.seed = seed
         sa = "+sa" if state_alpha else ""
-        de = f"+ae{alpha_emb_dim}" if alpha_emb_dim is not None else ""
+        de = f"+ik{item_key_dim}" if item_key_dim is not None else ""
         xp = f"+exp{alpha_log_scale}" if alpha_log_scale is not None else ""
-        bw = "+bw" if beta_wide else ""
         bk = encoder.upper()
-        self.label = f"deep_irt-{bk}/{decoder}/{sa}{de}{xp}{bw}"
+        self.label = f"deep_irt-{bk}/{decoder}/{sa}{de}{xp}"
         self.encoder_name = (
-            f"{bk}({sa}{de}{xp}{bw},e{emb_dim}h{hidden_dim})")
+            f"{bk}({sa}{de}{xp},e{emb_dim}h{hidden_dim})")
         K = ds.cfg.n_cats
         self.model = DeepIRTModel(
             num_items=ds.cfg.n_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
             n_cats=K, decoder=decoder,
-            state_alpha=state_alpha, alpha_emb_dim=alpha_emb_dim,
-            alpha_log_scale=alpha_log_scale, beta_wide=beta_wide,
+            state_alpha=state_alpha, item_key_dim=item_key_dim,
+            alpha_log_scale=alpha_log_scale,
             decouple=False, encoder=encoder,
             encoder_kwargs=encoder_kwargs,
             device=self.device, seed=seed,
@@ -118,28 +116,28 @@ class DeepIRTEngine:
         h = self.ds.cfg.n_holdout
         it, rp = self._tensor(self.ds.val_idx)
         it = it.to(self.device); rp = rp.to(self.device)
-        embs = self.model.encoder.item_emb(it)                     # (B,T,emb)
+        embs = self.model.encoder.item_val_emb(it)                 # (B,T,emb)
 
         if self.state_alpha:
             # ONE pass -> aligned theta (for the likelihood) and the alpha state.
             theta_in, state_in = self.model.encoder.aligned_theta_and_state(it, rp)
-            # Decoupled wide alpha key (separate item table; not the LSTM input).
-            if self.alpha_emb_dim is not None:
-                alpha_embs = self.model.encoder.alpha_item_emb(it)      # (B,T,ae)
+            # Decoupled wide item key (separate item table; not the LSTM input).
+            if self.item_key_dim is not None:
+                item_keys = self.model.encoder.item_key_emb(it)         # (B,T,ik)
             else:
-                alpha_embs = None
+                item_keys = None
         else:
             # theta_in[t] = ability after history 0..t-1 -> predicts response[t]
             theta_in = self.model.encoder.theta_for_prediction(it, rp)  # (B,T)
             state_in = None
-            alpha_embs = None
+            item_keys = None
 
         probs_full = []
         for t in range(T):
             state_t = state_in[:, t, :] if state_in is not None else None
-            alpha_t = alpha_embs[:, t, :] if alpha_embs is not None else None
+            key_t = item_keys[:, t, :] if item_keys is not None else None
             params = self.model.decoder.item_params(
-                embs[:, t, :], state=state_t, alpha_emb=alpha_t)
+                embs[:, t, :], state=state_t, item_key=key_t)
             lp = self.model.decoder.log_probs(theta_in[:, t], **params)  # (B,K)
             probs_full.append(lp.exp().unsqueeze(1))
         probs_full = torch.cat(probs_full, dim=1)                  # (B,T,K)

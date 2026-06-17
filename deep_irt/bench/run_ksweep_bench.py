@@ -8,8 +8,8 @@ which climbs 1.03 (K=2) -> 2.29 (K=4) under the data-gen priors.
 For each K in {2,3,4,5,6} we generate a static GPCM dataset and train two
 LSTM/GPCM models:
 
-  SHARED    -- alpha reads the shared narrow item embedding (alpha_emb_dim=None)
-  DECOUPLED -- alpha reads its own wide item table (alpha_emb_dim=64)
+  SHARED    -- alpha reads the shared narrow item embedding (item_key_dim=None)
+  DECOUPLED -- alpha reads its own wide item table (item_key_dim=64)
 
 Both use state_alpha=True, alpha_log_scale=1.0, emb_dim=8, hidden_dim=32
 (the cheap theta-encoder held fixed).  The headline metric is
@@ -55,7 +55,7 @@ OUT.mkdir(exist_ok=True)
 
 # Fixed theta-encoder capacity (identical for SHARED and DECOUPLED)
 _CHEAP = dict(emb_dim=8, hidden_dim=32)
-_ALPHA_EMB_DIM = 64      # decoupled wide alpha key
+_ITEM_KEY_DIM = 64       # decoupled wide alpha key
 _ALPHA_LOG_SCALE = 1.0   # exp(raw), ma-irt's link
 
 
@@ -147,9 +147,9 @@ def build_engines_for_K(ds, device: str, seed: int):
                   device=device, seed=seed, **_CHEAP)
     return [
         ("shared",
-         DeepIRTEngine(ds, alpha_emb_dim=None, **common)),
+         DeepIRTEngine(ds, item_key_dim=None, **common)),
         ("decoupled",
-         DeepIRTEngine(ds, alpha_emb_dim=_ALPHA_EMB_DIM, **common)),
+         DeepIRTEngine(ds, item_key_dim=_ITEM_KEY_DIM, **common)),
     ]
 
 
@@ -167,8 +167,8 @@ def render_table(agg, stiffness, K_vals, device, epochs, N, Q, T, seeds) -> str:
     L.append(
         "Both models: LSTM/GPCM, state_alpha=True, alpha_log_scale=1.0, "
         "emb_dim=8, hidden_dim=32.\n"
-        "SHARED: alpha reads the shared narrow item_emb (alpha_emb_dim=None).\n"
-        "DECOUPLED: alpha reads its own wide table (alpha_emb_dim=64).\n"
+        "SHARED: alpha reads the shared narrow item_val_emb (item_key_dim=None).\n"
+        "DECOUPLED: alpha reads its own wide table (item_key_dim=64).\n"
         "Metric: alpha Spearman (a_spearman); delta_K = decoupled - shared.\n"
         "Stiffness = population-mean I(theta)/I(alpha) from Monte Carlo over "
         "LogNormal(0,0.3) alpha, N(0,1) theta, sorted N(0,1) beta "
@@ -477,7 +477,7 @@ def main():
             "seeds": seeds,
             "K_vals": K_vals,
             "cheap": _CHEAP,
-            "alpha_emb_dim": _ALPHA_EMB_DIM,
+            "item_key_dim": _ITEM_KEY_DIM,
             "alpha_log_scale": _ALPHA_LOG_SCALE,
         },
         "stiffness": stiffness,

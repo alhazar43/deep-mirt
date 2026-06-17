@@ -14,9 +14,9 @@ DESIGN
 - hidden_dim FIXED = 32 for every cell (so only item-embedding allocation changes).
 - Width grid W in {8, 16, 24, 32, 48, 64, 96, 128}.
 - Per W, two variants:
-    SHARED(W)    emb_dim=W, alpha_emb_dim=None.  One table width W feeds the
+    SHARED(W)    emb_dim=W, item_key_dim=None.  One table width W feeds the
                  LSTM input AND the alpha head.  Total item-embedding params = Q*W.
-    DECOUPLED(W) emb_dim=8, alpha_emb_dim=W-8.  Narrow encoder (emb=8) + a
+    DECOUPLED(W) emb_dim=8, item_key_dim=W-8.  Narrow encoder (emb=8) + a
                  separate alpha-only table of width W-8.  Total = Q*8 + Q*(W-8)
                  = Q*W.  MATCHED capacity.  Skipped at W=8 (W-8=0 is invalid).
 - Datasets: static_k4 (kind=static) and dynamic_k4 (kind=dynamic, drift=0.15).
@@ -90,7 +90,7 @@ def make_shared(ds, W: int, device: str, seed: int) -> DeepIRTEngine:
         encoder="lstm",
         decoder="gpcm",
         state_alpha=True,
-        alpha_emb_dim=None,          # shared: no separate alpha table
+        item_key_dim=None,           # shared: no separate alpha table
         alpha_log_scale=_ALPHA_LOG_SCALE,
         emb_dim=W,
         hidden_dim=_HIDDEN_DIM,
@@ -100,7 +100,7 @@ def make_shared(ds, W: int, device: str, seed: int) -> DeepIRTEngine:
 
 
 def make_decoupled(ds, W: int, device: str, seed: int) -> DeepIRTEngine:
-    """emb_dim=8 (narrow LSTM input) + alpha_emb_dim=W-8 (separate alpha table).
+    """emb_dim=8 (narrow LSTM input) + item_key_dim=W-8 (separate alpha table).
     Total item-embedding params = Q*8 + Q*(W-8) = Q*W, matched to SHARED(W).
     """
     assert W > 8, f"DECOUPLED requires W > 8, got W={W}"
@@ -109,7 +109,7 @@ def make_decoupled(ds, W: int, device: str, seed: int) -> DeepIRTEngine:
         encoder="lstm",
         decoder="gpcm",
         state_alpha=True,
-        alpha_emb_dim=W - _ENCODER_EMB_DIM,
+        item_key_dim=W - _ENCODER_EMB_DIM,
         alpha_log_scale=_ALPHA_LOG_SCALE,
         emb_dim=_ENCODER_EMB_DIM,
         hidden_dim=_HIDDEN_DIM,
@@ -303,7 +303,7 @@ def render_table(agg: dict, device: str, epochs: int, N: int, Q: int, T: int,
     L.append("SHARED(W): single item table width W feeds both LSTM input and "
              "alpha head.  Total item params = Q*W.\n")
     L.append("DECOUPLED(W): emb_dim=8 narrow encoder + separate alpha table "
-             "alpha_emb_dim=W-8.  Total item params = Q*W (MATCHED to SHARED).\n")
+             "item_key_dim=W-8.  Total item params = Q*W (MATCHED to SHARED).\n")
 
     header = ("| variant | theta_static | theta_drift | a (sp) | b (sp) | params |")
     sep = "|---|---|---|---|---|---|"
@@ -405,7 +405,7 @@ def main() -> None:
                       f"b={cell['b_spearman']:.3f}  "
                       f"p={cell['n_params']}")
 
-                # DECOUPLED(W) -- skip W=8 (alpha_emb_dim=0 is invalid)
+                # DECOUPLED(W) -- skip W=8 (item_key_dim=0 is invalid)
                 if W <= 8:
                     continue
                 key = _decoupled_key(W)

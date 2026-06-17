@@ -2,7 +2,7 @@
 
 A thin wrapper that builds a stock ``DeepIRTModel`` (organic single-pass
 engine with the state-conditioned alpha feature, GPCM decoder) and swaps the
-encoder's ID ``item_emb`` for a ``ContentItemEmbedding`` (the content channel).
+encoder's ID ``item_val_emb`` for a ``ContentItemEmbedding`` (the content channel).
 Because the content channel is a drop-in for ``nn.Embedding``, ``fit`` /
 ``track`` / the decoder readouts work unchanged: training optimises the LSTM,
 the decoder, and the content projection jointly.
@@ -89,10 +89,10 @@ class ContentModel:
         self.content_emb = ContentItemEmbedding(
             text_features=text_features, emb_dim=emb_dim, mode=mode
         ).to(device)
-        # Drop in: every readout in encoder/decoder that calls item_emb(...) now
-        # routes through the content channel.  The freed ID nn.Embedding is no
-        # longer referenced.
-        self.model.encoder.item_emb = self.content_emb
+        # Drop in: every readout in encoder/decoder that calls item_val_emb(...)
+        # now routes through the content channel.  The freed ID nn.Embedding is
+        # no longer referenced.
+        self.model.encoder.item_val_emb = self.content_emb
 
     # ------------------------------------------------------------------
     # Fit (delegates to the deep_irt; content projection is in the graph)
@@ -131,7 +131,7 @@ class ContentModel:
         enc.eval()
         dec.eval()
         with torch.no_grad():
-            embs = enc.item_emb(item_ids)                    # content reprs
+            embs = enc.item_val_emb(item_ids)                # content reprs
             b = dec.item_params_sorted(embs)["b"]            # (M, K-1)
         return self._scalar_difficulty(b)
 

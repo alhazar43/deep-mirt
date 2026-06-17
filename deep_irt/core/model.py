@@ -25,7 +25,7 @@ function of history strictly before t.
 
   state_alpha : a clean optional DECODER feature (gpcm/binary only).  When True
       the GPCM/binary decoder reads discrimination from
-      ``[state, item_emb]`` -- where ``state`` is the SAME prediction-aligned
+      ``[state, item_val_emb]`` -- where ``state`` is the SAME prediction-aligned
       hidden the theta is read from (encoder.state_for_prediction) -- in the
       spirit of ma-irt's IRTParameterExtractor.  Discrimination is then
       occurrence-averaged per item at recovery.  Default False keeps the static
@@ -82,15 +82,16 @@ class DeepIRTModel:
                             recipe) and occurrence-averaged per item at recovery.
                             Default False keeps the static item-only alpha map
                             and is bit-for-bit identical.
-    alpha_emb_dim : int or None -- the DECOUPLED alpha variant (requires
-                            state_alpha; gpcm/binary only).  When set, the
-                            encoder gets a SEPARATE wide item-embedding table of
-                            this width that feeds ONLY the state-conditioned
-                            alpha head, NOT the LSTM input.  This decouples
-                            alpha's item capacity from theta's: keep
-                            emb_dim/hidden_dim cheap (theta unchanged) while alpha
-                            reads a wide item key.  None (default) keeps alpha on
-                            the standard item_emb and is bit-for-bit identical to
+    item_key_dim : int or None -- the DECOUPLED variant (requires state_alpha;
+                            gpcm/binary only).  When set, the encoder gets a
+                            SEPARATE wide item KEY table of this width that feeds
+                            ONLY the decoder's static alpha and beta readouts, NOT
+                            the LSTM input.  This decouples the static item
+                            params' capacity from theta's: keep emb_dim/hidden_dim
+                            cheap (theta unchanged) while alpha and beta read a
+                            wide item key (so beta recovers far better, ma-irt's
+                            shared-key path).  None (default) keeps alpha and beta
+                            on the thin item value and is bit-for-bit identical to
                             plain state_alpha.
     alpha_log_scale : float or None -- discrimination positivity transform for
                             the GPCM/binary decoder.  None (default) uses softplus
@@ -98,20 +99,11 @@ class DeepIRTModel:
                             uses ``exp(s * raw)``, ma-irt's exponential map
                             (``s = 1.0`` matches ma-irt; the MLP head absorbs the
                             scale constant).
-    beta_wide   : bool -- when True (requires alpha_emb_dim; gpcm/binary only),
-                            the decoder's step-threshold head reads the wide
-                            ``alpha_item_emb`` key instead of the narrow item_emb.
-                            ma-irt feeds beta and alpha from the same wide item
-                            key; this mirrors it so beta rides the wide key while
-                            theta stays on the cheap encoder.  Recovery reads beta
-                            from the wide key, occurrence-averaged like alpha.
-                            Default False keeps the narrow beta read and is
-                            bit-for-bit identical.
     decouple    : bool -- when True (DEFAULT) the GPCM/binary model uses the
-                            decoupled discrimination architecture (state_alpha + a
-                            separate emb=64 alpha item table + exp link), the
+                            decoupled architecture (state_alpha + a separate
+                            item_key_dim=64 wide item key + exp link), the
                             validated deep-irt s_0.  Applied ONLY when none of
-                            state_alpha / alpha_emb_dim / alpha_log_scale is set
+                            state_alpha / item_key_dim / alpha_log_scale is set
                             explicitly (passing any one defers to manual config);
                             a no-op for the bt/nrm decoders.  Pass decouple=False
                             for the plain (legacy) GPCM path.
@@ -131,9 +123,8 @@ class DeepIRTModel:
         decoder: str = "gpcm",
         correct_option: int = 0,
         state_alpha: Optional[bool] = None,
-        alpha_emb_dim: Optional[int] = None,
+        item_key_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
-        beta_wide: bool = False,
         decouple: bool = True,
         encoder: str = "lstm",
         encoder_kwargs: Optional[dict] = None,
@@ -151,17 +142,17 @@ class DeepIRTModel:
                 f"encoder must be one of {self._ENCODER_CHOICES}, got '{encoder}'"
             )
         # Decoupling is the default deep-irt architecture.  ``decouple=True``
-        # (default) turns on state-conditioned alpha + a separate wide alpha item
-        # table (emb=64) + the exp link, but ONLY for the alpha-capable
+        # (default) turns on state-conditioned alpha + a separate wide item key
+        # table (item_key_dim=64) + the exp link, but ONLY for the alpha-capable
         # GPCM/binary decoders and ONLY when the user has set NONE of the alpha
         # knobs explicitly (passing any one is a manual config, and decouple
         # defers).  For bt/nrm it is a no-op.  Pass decouple=False for the plain
         # (legacy) path.
         if state_alpha is None:
             if (decouple and decoder in ("gpcm", "binary")
-                    and alpha_emb_dim is None and alpha_log_scale is None):
+                    and item_key_dim is None and alpha_log_scale is None):
                 state_alpha = True
-                alpha_emb_dim = 64
+                item_key_dim = 64
                 alpha_log_scale = 1.0
             else:
                 state_alpha = False
@@ -170,9 +161,9 @@ class DeepIRTModel:
                 "state_alpha is defined for the GPCM/binary decoders (it routes "
                 f"a state-conditioned discrimination), not decoder='{decoder}'."
             )
-        if alpha_emb_dim is not None and not state_alpha:
+        if item_key_dim is not None and not state_alpha:
             raise ValueError(
-                "alpha_emb_dim (the decoupled wide alpha key) requires "
+                "item_key_dim (the decoupled wide item key) requires "
                 "state_alpha=True; the wide key only feeds the state-conditioned "
                 "alpha head."
             )
@@ -181,16 +172,6 @@ class DeepIRTModel:
                 "alpha_log_scale (the exp discrimination transform) is defined for "
                 f"the GPCM/binary decoders, not decoder='{decoder}'."
             )
-        if beta_wide and decoder not in ("gpcm", "binary"):
-            raise ValueError(
-                "beta_wide (wide-key step thresholds) is defined for the "
-                f"GPCM/binary decoders, not decoder='{decoder}'."
-            )
-        if beta_wide and alpha_emb_dim is None:
-            raise ValueError(
-                "beta_wide (wide-key step thresholds) requires alpha_emb_dim; "
-                "beta reads the same wide alpha key the discrimination head does."
-            )
         self.num_items = num_items
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
@@ -198,9 +179,8 @@ class DeepIRTModel:
         self.decoder_name = decoder
         self.correct_option = correct_option
         self.state_alpha = state_alpha
-        self.alpha_emb_dim = alpha_emb_dim
+        self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
-        self.beta_wide = beta_wide
         self.decouple = decouple
         self.encoder_kind = encoder
         self.encoder_kwargs = dict(encoder_kwargs or {})
@@ -218,17 +198,16 @@ class DeepIRTModel:
         torch.manual_seed(seed)
         self.encoder = self._make_encoder(
             encoder, num_items, emb_dim, hidden_dim, n_cats,
-            alpha_emb_dim, self.encoder_kwargs,
+            item_key_dim, self.encoder_kwargs,
         ).to(device)
 
         # In state_alpha mode the GPCM/binary decoder gets a state-conditioned
         # alpha head whose state input is the encoder's prediction-aligned state.
-        # In the decoupled variant its item key is the wide alpha_item_emb.
+        # In the decoupled variant its item key is the wide item_key_emb.
         decoder_state_dim = hidden_dim if state_alpha else None
         self.decoder: nn.Module = self._make_decoder(
             decoder, emb_dim, n_cats, correct_option, state_dim=decoder_state_dim,
-            alpha_emb_dim=alpha_emb_dim, alpha_log_scale=alpha_log_scale,
-            beta_wide=beta_wide,
+            item_key_dim=item_key_dim, alpha_log_scale=alpha_log_scale,
         )
         self.decoder = self.decoder.to(device)
 
@@ -476,7 +455,7 @@ class DeepIRTModel:
         enc.eval()
         self.decoder.eval()
         with torch.no_grad():
-            embs = enc.item_emb(item_ids)           # (M, emb_dim)
+            embs = enc.item_val_emb(item_ids)       # (M, emb_dim)
             if self.decoder_name in ("gpcm", "binary"):
                 assert isinstance(self.decoder, (GPCMDecoder, Binary2PLDecoder))
                 params = self.decoder.item_params_sorted(embs)
@@ -543,30 +522,31 @@ class DeepIRTModel:
 
         with torch.no_grad():
             state_in = enc.state_for_prediction(item_ids, responses)  # (N,T,hidden)
-            embs = enc.item_emb(item_ids)                             # (N,T,emb)
-            if self.alpha_emb_dim is not None:
-                alpha_embs = enc.alpha_item_emb(item_ids)            # (N,T,alpha)
-                alpha_key = alpha_embs.reshape(N * T, self.alpha_emb_dim)
+            embs = enc.item_val_emb(item_ids)                        # (N,T,emb)
+            if self.item_key_dim is not None:
+                item_keys = enc.item_key_emb(item_ids)              # (N,T,item_key)
+                key_flat = item_keys.reshape(N * T, self.item_key_dim)
             else:
-                alpha_key = None
+                key_flat = None
             params = self.decoder.item_params(
                 embs.reshape(N * T, self.emb_dim),
                 state=state_in.reshape(N * T, self.hidden_dim),
-                alpha_emb=alpha_key,
+                item_key=key_flat,
             )
             alpha = params["a"].squeeze(-1).reshape(N, T).cpu().numpy()  # (N, T)
 
-            # Per-item beta, occurrence-invariant (an item-only read).  By
-            # default beta reads the cheap item_emb; under beta_wide it reads the
-            # wide alpha key (ma-irt's shared-key path), so feed alpha_item_emb.
+            # Per-item beta, occurrence-invariant (an item-only read).  Beta reads
+            # the wide item key whenever it exists (decoupled, ma-irt's shared-key
+            # path), else the thin item value.
             all_ids = torch.arange(Q, device=self.device)
-            if self.beta_wide:
+            if self.item_key_dim is not None:
                 b_all = self.decoder.item_params_sorted(
-                    enc.item_emb(all_ids),
-                    alpha_emb=enc.alpha_item_emb(all_ids),
+                    enc.item_val_emb(all_ids),
+                    item_key=enc.item_key_emb(all_ids),
                 )["b"]
             else:
-                b_all = self.decoder.item_params_sorted(enc.item_emb(all_ids))["b"]
+                b_all = self.decoder.item_params_sorted(
+                    enc.item_val_emb(all_ids))["b"]
             b_hat = b_all.cpu().numpy()                              # (Q, K-1)
 
         items = item_ids.cpu().numpy()                              # (N, T)
@@ -728,7 +708,7 @@ class DeepIRTModel:
         from the SAME aligned hidden, so both come from ONE encoder pass.
         """
         batch, T = item_ids.shape
-        embs = self.encoder.item_emb(item_ids)                      # (B, T, emb_dim)
+        embs = self.encoder.item_val_emb(item_ids)                  # (B, T, emb_dim)
         embs_flat = embs.view(batch * T, self.emb_dim)
         resp_flat = responses.reshape(batch * T)
 
@@ -739,18 +719,18 @@ class DeepIRTModel:
             )
             theta_flat = theta_in.reshape(batch * T)
             state_flat = state_in.reshape(batch * T, self.hidden_dim)
-            if self.alpha_emb_dim is not None:
-                # Decoupled wide alpha key: a separate item table, NOT the LSTM
-                # input.  Gathered at every position to feed only the alpha head.
-                alpha_embs = self.encoder.alpha_item_emb(item_ids)
-                alpha_flat = alpha_embs.reshape(batch * T, self.alpha_emb_dim)
+            if self.item_key_dim is not None:
+                # Decoupled wide item key: a separate item table, NOT the LSTM
+                # input.  Gathered at every position to feed the static readouts.
+                item_keys = self.encoder.item_key_emb(item_ids)
+                key_flat = item_keys.reshape(batch * T, self.item_key_dim)
             else:
-                alpha_flat = None
+                key_flat = None
         else:
             theta_in = self.encoder.theta_for_prediction(item_ids, responses)
             theta_flat = theta_in.reshape(batch * T)
             state_flat = None
-            alpha_flat = None
+            key_flat = None
 
         # Select valid positions (no-op when mask is None).
         if mask is not None:
@@ -760,11 +740,11 @@ class DeepIRTModel:
             resp_flat = resp_flat[mask_flat]
             if state_flat is not None:
                 state_flat = state_flat[mask_flat]
-            if alpha_flat is not None:
-                alpha_flat = alpha_flat[mask_flat]
+            if key_flat is not None:
+                key_flat = key_flat[mask_flat]
 
         return self._predict_loss(theta_flat, embs_flat, resp_flat,
-                                  state_flat, alpha_flat)
+                                  state_flat, key_flat)
 
     def _predict_loss(
         self,
@@ -772,7 +752,7 @@ class DeepIRTModel:
         emb: torch.Tensor,
         responses: torch.Tensor,
         state: Optional[Tensor],
-        alpha_emb: Optional[Tensor],
+        item_key: Optional[Tensor],
     ) -> torch.Tensor:
         """Format-keyed prediction loss on the decoder's logits.
 
@@ -781,7 +761,7 @@ class DeepIRTModel:
         """
         if self.decoder_name == "binary":
             z = self.decoder.binary_logit(
-                theta, emb, state=state, alpha_emb=alpha_emb
+                theta, emb, state=state, item_key=item_key
             )
             return F.binary_cross_entropy_with_logits(z, responses.float())
         if self.decoder_name == "nrm":
@@ -789,7 +769,7 @@ class DeepIRTModel:
             return self.loss_fn(logits, responses)
         # gpcm (ordinal): WeightedOrdinalLoss on the GPCM logits.
         logits = self.decoder.category_logits(
-            theta, emb, state=state, alpha_emb=alpha_emb
+            theta, emb, state=state, item_key=item_key
         )
         return self.loss_fn(logits, responses)
 
@@ -800,21 +780,22 @@ class DeepIRTModel:
         emb_dim: int,
         hidden_dim: int,
         n_cats: int,
-        alpha_emb_dim: Optional[int],
+        item_key_dim: Optional[int],
         kw: dict,
     ) -> nn.Module:
         """Build the requested sequence backbone.
 
         Every backbone subclasses ``BaseSeqEncoder`` and exposes the identical
         public interface (aligned_theta_and_state / state_for_prediction /
-        theta_for_prediction / encode + the item / resp / alpha_item_emb tables),
-        so the decoder is unchanged across backbones -- this is the swappability
-        contract.  ``kind="lstm"`` is the default and is bit-for-bit identical to
-        the original encoder.  Backbone-specific knobs come through ``kw``.
+        theta_for_prediction / encode + the item_val / resp / item_key_emb
+        tables), so the decoder is unchanged across backbones -- this is the
+        swappability contract.  ``kind="lstm"`` is the default and is bit-for-bit
+        identical to the original encoder.  Backbone-specific knobs come through
+        ``kw``.
         """
         common = dict(
             num_items=num_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
-            n_cats=n_cats, alpha_emb_dim=alpha_emb_dim,
+            n_cats=n_cats, item_key_dim=item_key_dim,
         )
         if kind == "lstm":
             return LSTMEncoder(**common)
@@ -843,20 +824,17 @@ class DeepIRTModel:
         n_cats: int,
         correct_option: int = 0,
         state_dim: Optional[int] = None,
-        alpha_emb_dim: Optional[int] = None,
+        item_key_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
-        beta_wide: bool = False,
     ) -> nn.Module:
         if name == "gpcm":
             return GPCMDecoder(emb_dim=emb_dim, n_cats=n_cats, state_dim=state_dim,
-                               alpha_emb_dim=alpha_emb_dim,
-                               alpha_log_scale=alpha_log_scale,
-                               beta_wide=beta_wide)
+                               item_key_dim=item_key_dim,
+                               alpha_log_scale=alpha_log_scale)
         if name == "binary":
             return Binary2PLDecoder(emb_dim=emb_dim, state_dim=state_dim,
-                                    alpha_emb_dim=alpha_emb_dim,
-                                    alpha_log_scale=alpha_log_scale,
-                                    beta_wide=beta_wide)
+                                    item_key_dim=item_key_dim,
+                                    alpha_log_scale=alpha_log_scale)
         if name == "bt":
             return BradleyTerryDecoder(emb_dim=emb_dim)
         if name == "nrm":

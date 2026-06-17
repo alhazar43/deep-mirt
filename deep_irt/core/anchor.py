@@ -169,8 +169,8 @@ def build_extended_encoder(
     Return a new LSTMEncoder with B+E item embedding rows.
 
     The new encoder is a full copy of base_encoder (LSTM, theta_proj, resp_emb,
-    B-item embeddings) with E new embedding rows appended.  All parameters are
-    frozen (requires_grad=False) and the model is set to eval mode.
+    B-item value embeddings) with E new embedding rows appended.  All parameters
+    are frozen (requires_grad=False) and the model is set to eval mode.
 
     Parameters
     ----------
@@ -196,8 +196,8 @@ def build_extended_encoder(
     ).to(device)
 
     with torch.no_grad():
-        ext_enc.item_emb.weight[:B].copy_(base_encoder.item_emb.weight)
-        ext_enc.item_emb.weight[B:].copy_(ext_emb_weight.to(device))
+        ext_enc.item_val_emb.weight[:B].copy_(base_encoder.item_val_emb.weight)
+        ext_enc.item_val_emb.weight[B:].copy_(ext_emb_weight.to(device))
         ext_enc.resp_emb.weight.copy_(base_encoder.resp_emb.weight)
         ext_enc.lstm.load_state_dict(base_encoder.lstm.state_dict())
         ext_enc.theta_proj.load_state_dict(base_encoder.theta_proj.state_dict())

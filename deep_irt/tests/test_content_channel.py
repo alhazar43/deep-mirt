@@ -4,7 +4,7 @@ Contracts:
 
 1. ContentItemEmbedding is a drop-in for nn.Embedding: callable
    (item_ids -> (..., emb_dim)) and exposes .weight (full table) +
-   .num_embeddings, so it can replace encoder.item_emb without touching the core.
+   .num_embeddings, so it can replace encoder.item_val_emb without touching the core.
 2. mode="content" has NO free per-item rows (only the projection trains); the
    .weight table is a pure function of frozen features + projection.
 3. cold_start_repr computes a NEW item's representation from text ALONE

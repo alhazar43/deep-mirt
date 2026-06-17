@@ -20,7 +20,7 @@ ways, brutally honestly against the frozen ma-irt reference:
       theta ~0.968, drift ~0.727 unchanged) but alpha gets its OWN wide item
       key: a separate emb_dim=64 item table that feeds ONLY the
       state-conditioned alpha head, NOT the LSTM input.  theta_proj reads the
-      small h32 state (unchanged); beta reads the standard small item_emb
+      small h32 state (unchanged); beta reads the standard small item_val_emb
       (unchanged).  This decouples alpha's item capacity from theta's.
 
 THE VERDICT (printed + written), no spin:
@@ -67,7 +67,7 @@ OUT.mkdir(exist_ok=True)
 # Capacity points.
 _CHEAP = dict(emb_dim=8, hidden_dim=32)       # the theta-encoder we want to keep
 _WIDE = dict(emb_dim=64, hidden_dim=64)       # variant 2: widen everything
-_ALPHA_EMB_DIM = 64                           # variant 3: decoupled wide alpha key
+_ITEM_KEY_DIM = 64                            # variant 3: decoupled wide alpha key
 # Exp discrimination transform = ma-irt's exp(log_scale * raw) with log_scale=1.0
 # (plain exp(raw)).  ma-irt uses 1.0 and the MLP-driven alpha head absorbs any
 # scale constant, so this is the apples-to-apples choice.  All three deep_irt
@@ -134,7 +134,7 @@ def build_engines(ds, device, seed):
                          device=device, seed=seed, **_WIDE)),
         ("deep_irt-decoupled",
          DeepIRTEngine(ds, decoder="gpcm", state_alpha=True,
-                         alpha_emb_dim=_ALPHA_EMB_DIM,
+                         item_key_dim=_ITEM_KEY_DIM,
                          alpha_log_scale=_ALPHA_LOG_SCALE,
                          device=device, seed=seed, **_CHEAP)),
     ]
@@ -198,7 +198,7 @@ def overfit_probe(ds_static, device, seed, epoch_grid):
     probe_specs = {
         "deep_irt-64x64": dict(state_alpha=True,
                                 alpha_log_scale=_ALPHA_LOG_SCALE, **_WIDE),
-        "deep_irt-decoupled": dict(state_alpha=True, alpha_emb_dim=_ALPHA_EMB_DIM,
+        "deep_irt-decoupled": dict(state_alpha=True, item_key_dim=_ITEM_KEY_DIM,
                                     alpha_log_scale=_ALPHA_LOG_SCALE, **_CHEAP),
         "ma-irt-ref": None,   # reference curve via MaIrtEngine
     }
@@ -475,7 +475,7 @@ def main():
 
     blob = {"meta": {"device": device, "epochs": epochs, "N": N, "Q": Q, "T": T,
                      "seeds": args.seeds, "cheap": _CHEAP, "wide": _WIDE,
-                     "alpha_emb_dim": _ALPHA_EMB_DIM,
+                     "item_key_dim": _ITEM_KEY_DIM,
                      "overfit_epochs": overfit_grid},
             "rows": rows, "agg": list(agg.values()), "overfit": overfit}
     with (OUT / "alpha_fix_results.json").open("w", encoding="utf-8") as fh:

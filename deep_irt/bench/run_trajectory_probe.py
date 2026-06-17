@@ -79,9 +79,9 @@ _BASE = dict(
 )
 
 CONFIGS = {
-    "SHARED-NARROW": dict(**_BASE, emb_dim=8, alpha_emb_dim=None),
-    "SHARED-WIDE":   dict(**_BASE, emb_dim=64, alpha_emb_dim=None),
-    "DECOUPLED":     dict(**_BASE, emb_dim=8, alpha_emb_dim=64),
+    "SHARED-NARROW": dict(**_BASE, emb_dim=8, item_key_dim=None),
+    "SHARED-WIDE":   dict(**_BASE, emb_dim=64, item_key_dim=None),
+    "DECOUPLED":     dict(**_BASE, emb_dim=8, item_key_dim=64),
 }
 
 # Checkpoint epochs for trajectory probe
@@ -107,7 +107,7 @@ def _build_model(cfg: dict, num_items: int, n_cats: int,
         n_cats=n_cats,
         decoder=cfg["decoder"],
         state_alpha=cfg["state_alpha"],
-        alpha_emb_dim=cfg.get("alpha_emb_dim"),
+        item_key_dim=cfg.get("item_key_dim"),
         alpha_log_scale=cfg.get("alpha_log_scale"),
         encoder="lstm",
         device=device,
@@ -304,11 +304,11 @@ def _forward_lstm_only(
     # item_params uses:
     #   fc_b(emb_flat_det) for beta -- detached, no E gradient from beta head
     #   fc_a_state([state_flat, emb_flat_det]) for alpha -- state is live (carries
-    #   LSTM gradient), but emb is detached (no DIRECT alpha-emb gradient here)
+    #   LSTM gradient), but emb is detached (no DIRECT item-key gradient here)
     params = model.decoder.item_params(
         emb_flat_det,
         state=state_flat,
-        alpha_emb=None,
+        item_key=None,
     )
 
     log_p = model.decoder.log_probs(theta_flat, params["a"], params["b"])
@@ -364,7 +364,7 @@ def _forward_alpha_only(
 ) -> torch.Tensor:
     """NLL where ONLY the alpha pathway uses E (theta and beta get detached).
 
-    For SHARED-WIDE (alpha_emb_dim=None) the state-cond head reads
+    For SHARED-WIDE (item_key_dim=None) the state-cond head reads
     fc_a_state([state, E]).  We detach the state so only the DIRECT emb
     contribution to fc_a_state carries E-gradient here.
     """
@@ -422,7 +422,7 @@ def _full_forward(
     emb_flat   = E.view(B * T, emb_dim)
     resp_flat  = responses.reshape(B * T)
 
-    params = model.decoder.item_params(emb_flat, state=state_flat, alpha_emb=None)
+    params = model.decoder.item_params(emb_flat, state=state_flat, item_key=None)
     log_p = model.decoder.log_probs(theta_flat, params["a"], params["b"])
     return F.nll_loss(log_p, resp_flat)
 
@@ -451,7 +451,7 @@ def probe_gradients_at_epoch(
 
     # Gather E once from the frozen embedding table.
     with torch.no_grad():
-        E_base = model.encoder.item_emb(item_ids)  # (N, T, emb_dim)
+        E_base = model.encoder.item_val_emb(item_ids)  # (N, T, emb_dim)
         E_base_flat = E_base.reshape(B * T, emb_dim)
 
     # Helper: create a fresh leaf tensor cloned from E_base_flat
@@ -711,8 +711,8 @@ def evaluate_hypotheses(agg: dict, phase2_results: Optional[list]) -> dict:
         verdicts["H5"] = "PHASE 2 NOT RUN or sum-check failed -- H5 cannot be evaluated."
 
     verdicts["H6"] = (
-        "PHASE 2 structural note: DECOUPLED alpha table is NOT shared with the LSTM "
-        "input, so g_alpha on alpha_item_emb is pure alpha-pathway by construction "
+        "PHASE 2 structural note: DECOUPLED item key is NOT shared with the LSTM "
+        "input, so g_alpha on item_key_emb is pure alpha-pathway by construction "
         "(no competition). This is confirmed by architecture, not a measured quantity "
         "on the gradient probe (which runs on SHARED-WIDE only)."
     )

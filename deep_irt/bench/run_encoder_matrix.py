@@ -18,7 +18,7 @@ from deep_irt.bench.datagen import BenchDataConfig, generate
 from deep_irt.bench.engines import DeepIRTEngine, MaIrtEngine
 from deep_irt.bench.run_alpha_fix_bench import run_cell
 
-# (label, kind, encoder, emb_dim, alpha_emb_dim, encoder_kwargs)
+# (label, kind, encoder, emb_dim, item_key_dim, encoder_kwargs)
 CONFIGS = [
     ("ma-irt dkvmn", "mairt", "dkvmn", None, None, None),
     ("ma-irt lstm", "mairt", "lstm_gpcm", None, None, None),
@@ -58,7 +58,7 @@ def build(kind, enc, emb, ae, ekw, ds, seed, device):
         return MaIrtEngine(ds, encoder=enc, separate_theta=True,
                            device=device, seed=seed)
     return DeepIRTEngine(ds, decoder="gpcm", emb_dim=emb, hidden_dim=32,
-                         state_alpha=True, alpha_emb_dim=ae, alpha_log_scale=1.0,
+                         state_alpha=True, item_key_dim=ae, alpha_log_scale=1.0,
                          encoder=enc, encoder_kwargs=ekw, device=device, seed=seed)
 
 

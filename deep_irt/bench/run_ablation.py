@@ -3,26 +3,27 @@
 ma-irt's LSTMGPCM recovers item parameters better than deep_irt's LSTM at the
 same training budget.  Two architectural causes were identified:
 
-  beta gap  -- deep_irt's step-threshold head ``fc_b`` read the NARROW item
-               embedding (emb_dim=8); ma-irt reads beta from its WIDE item key
-               (the same q_embed it feeds discrimination).  ``beta_wide=True``
-               routes beta through the wide decoupled alpha key, mirroring it.
+  beta gap  -- deep_irt's step-threshold head ``fc_b`` once read the NARROW item
+               value (emb_dim=8); ma-irt reads beta from its WIDE item key (the
+               same q_embed it feeds discrimination).  The decoupled deep_irt now
+               reads beta from the wide item key BY DEFAULT (no flag), mirroring
+               it.
   alpha gap -- ma-irt's residual discrimination edge comes from its two-pass
                item-blind / item-conditioned split.  That does NOT port cleanly
                to deep_irt (its item-blindness is a shift-AFTER the LSTM, ma-irt's
                is a shift-BEFORE with a current-question residual); a flag cannot
                be confined to LSTMEncoder, so it is not included here.
 
-The ablation isolates the beta fix against the frozen ma-irt reference.  Rows:
+The ablation places the decoupled deep_irt (wide-key alpha AND beta) against the
+frozen ma-irt reference.  Rows:
 
-  1. deep_irt decoupled            (e8, alpha-ae64, beta_wide=False)   baseline
-  2. deep_irt decoupled +wide-beta (e8, alpha-ae64, beta_wide=True)
-  3. ma-irt lstm                   (lstm_gpcm, separate_theta=True)    reference
+  1. deep_irt decoupled  (e8, item-key64, wide-key alpha+beta)   our s_0
+  2. ma-irt lstm         (lstm_gpcm, separate_theta=True)        reference
 
-All deep_irt variants use the state-conditioned, occurrence-averaged alpha (+sa)
+The deep_irt variant uses the state-conditioned, occurrence-averaged alpha (+sa)
 with the EXP discrimination transform exp(raw) -- the same positivity map ma-irt
-uses (log_scale=1.0) -- so the comparison isolates the wide-key beta read, not
-the softplus-vs-exp confound.
+uses (log_scale=1.0) -- so the comparison isolates the encoder, not the
+softplus-vs-exp confound.
 
 Every cell is scored by the SAME contract (``run_cell``): acc + QWK on the
 held-out tail, alpha / beta / theta Pearson r against the known ground truth,
@@ -60,31 +61,25 @@ OUT.mkdir(exist_ok=True)
 
 # Shared config points.
 _CHEAP = dict(emb_dim=8, hidden_dim=32)   # the cheap theta-encoder
-_ALPHA_EMB_DIM = 64                       # the wide decoupled alpha (and beta) key
+_ITEM_KEY_DIM = 64                        # the wide decoupled alpha (and beta) key
 _ALPHA_LOG_SCALE = 1.0                    # ma-irt's exp(raw) transform
 
 # Row roster (order preserved in the table).
-_VARIANTS = ("decoupled", "decoupled_wb", "ma-irt-lstm")
+_VARIANTS = ("decoupled", "ma-irt-lstm")
 _PRETTY = {
-    "decoupled": "deep_irt decoupled (e8, alpha-ae64)",
-    "decoupled_wb": "deep_irt decoupled +wide-beta",
+    "decoupled": "deep_irt decoupled (e8, item-key64, wide alpha+beta)",
     "ma-irt-lstm": "ma-irt lstm (reference)",
 }
 
 
 def build_engines(ds, device, seed):
-    """The three-way fight: decoupled, decoupled+wide-beta, ma-irt reference."""
+    """The two-way fight: decoupled deep_irt (wide-key alpha+beta) vs ma-irt."""
     return [
         ("decoupled",
          DeepIRTEngine(ds, decoder="gpcm", state_alpha=True,
-                       alpha_emb_dim=_ALPHA_EMB_DIM,
+                       item_key_dim=_ITEM_KEY_DIM,
                        alpha_log_scale=_ALPHA_LOG_SCALE,
-                       beta_wide=False, device=device, seed=seed, **_CHEAP)),
-        ("decoupled_wb",
-         DeepIRTEngine(ds, decoder="gpcm", state_alpha=True,
-                       alpha_emb_dim=_ALPHA_EMB_DIM,
-                       alpha_log_scale=_ALPHA_LOG_SCALE,
-                       beta_wide=True, device=device, seed=seed, **_CHEAP)),
+                       device=device, seed=seed, **_CHEAP)),
         ("ma-irt-lstm",
          MaIrtEngine(ds, encoder="lstm_gpcm", separate_theta=True,
                      device=device, seed=seed)),
@@ -132,11 +127,11 @@ def render_table(agg, device, K, epochs, N, Q, T, seeds) -> str:
              f"seeds={seeds}  (torch {torch.__version__})\n")
     L.append("Static-K{0} GPCM, ordinal prediction loss.  Mean +- std over seeds. "
              "acc/QWK on the held-out tail; a/b/theta = Pearson r of recovered vs "
-             "true discrimination / step-thresholds / final-step ability.  All "
-             "deep_irt rows use state-conditioned occurrence-averaged alpha with "
+             "true discrimination / step-thresholds / final-step ability.  The "
+             "deep_irt row uses state-conditioned occurrence-averaged alpha with "
              "the exp(raw) transform (ma-irt's positivity map) and the decoupled "
-             "wide alpha key (ae=64); +wide-beta additionally reads beta from that "
-             "same wide key instead of the cheap item_emb.\n".format(K))
+             "wide item key (ik=64); beta reads that same wide key by default "
+             "(ma-irt's shared-key path), not the cheap item_val_emb.\n".format(K))
     L.append("| variant | acc | QWK | a (r) | b (r) | theta (r) | params | "
              "train s |")
     L.append("|---|---|---|---|---|---|---|---|")
@@ -221,7 +216,7 @@ def main():
 
     blob = {"meta": {"device": device, "K": K, "epochs": epochs,
                      "N": N, "Q": Q, "T": T, "seeds": args.seeds,
-                     "alpha_emb_dim": _ALPHA_EMB_DIM,
+                     "item_key_dim": _ITEM_KEY_DIM,
                      "alpha_log_scale": _ALPHA_LOG_SCALE, "cheap": _CHEAP},
             "rows": rows, "agg": list(agg.values())}
     with (OUT / "ablation_results.json").open("w", encoding="utf-8") as fh:

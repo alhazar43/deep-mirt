@@ -361,7 +361,7 @@ def run_slam(seed: int = 0, prefer_st: bool = True) -> dict:
     # "Cold-start" the held-out items = read their UNTRAINED rows.
     with torch.no_grad():
         held_ids_t = torch.tensor(held_local, dtype=torch.long, device=DEVICE)
-        held_embs = idm.encoder.item_emb(held_ids_t)
+        held_embs = idm.encoder.item_val_emb(held_ids_t)
         b_held = idm.decoder.item_params_sorted(held_embs)["b"]
         id_cold = b_held.mean(dim=-1).cpu().numpy()
     id_sp = spearman(id_cold, obs_held)

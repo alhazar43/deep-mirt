@@ -5,19 +5,32 @@ The encoder is the shared backbone.  It consumes a sequence of (item_id, respons
 pairs and emits a scalar theta at each timestep.  This per-step theta is the
 interface contract between the encoder and any decoder.
 
+Two item embeddings, opposite needs (the key/value framing)
+-----------------------------------------------------------
+An item carries two embeddings with opposite needs.  The VALUE embedding
+(``item_val_emb``, width ``emb_dim``) is thin and feeds the encoder that builds
+the dynamic ability theta.  The KEY embedding (``item_key_emb``, width
+``item_key_dim``) is wide and feeds the decoder readout of the static item
+parameters alpha and beta.  Width follows inverse Fisher: alpha is
+low-information and capacity-hungry so its key is wide, while theta is
+well-determined and is HURT by width (a fat encoder input lets the LSTM memorize
+items into the ability state), so the value stays thin.  Both are trained
+nn.Embeddings; "static" / "dynamic" describes behavior over the sequence (item
+params are occurrence-invariant, ability evolves), not training.
+
 Swappable backbone
 ------------------
-``BaseSeqEncoder`` owns everything the decoder consumes -- the item / response /
-alpha-key embedding tables, the ``theta_proj`` head, the single-shift causal
-alignment, and the public accessors -- and delegates the actual sequence
+``BaseSeqEncoder`` owns everything the decoder consumes -- the item value /
+response / item key embedding tables, the ``theta_proj`` head, the single-shift
+causal alignment, and the public accessors -- and delegates the actual sequence
 modelling to a single per-step hidden producer a subclass implements:
 
     _direct_hidden(item_ids, responses)     -> h (B,T,hidden)  h_t sees (q_<=t, r_<=t)
 
 ``LSTMEncoder`` is the default backbone (a plain ``nn.LSTM``).  A Transformer or
-DKVMN backbone is just another subclass implementing the same producer; the
-decoupled alpha key (``alpha_item_emb``) lives in the base, so it composes with
-ANY backbone with no decoder change.  This is the swappability contract.
+DKVMN backbone is just another subclass implementing the same producer; the wide
+item key (``item_key_emb``) lives in the base, so it composes with ANY backbone
+with no decoder change.  This is the swappability contract.
 
 Interface
 ---------
@@ -26,8 +39,8 @@ encoder.theta_for_prediction(item_ids, responses) -> theta  (B, T)    causal-ali
 encoder.state_for_prediction(item_ids, responses) -> state  (B, T, H) causal-aligned
 encoder.get_final_theta(item_ids, responses)      -> theta  (B,)
 
-The item embedding table lives inside the encoder so the same embedding weights
-are shared between encoding and decoding (both read from the same item
+The item value table lives inside the encoder so the same embedding weights are
+shared between encoding and decoding (both read from the same item
 representations).  The AnchoredExtension in anchor.py exploits this: it appends
 new embedding rows while keeping the encoder weights frozen.
 
@@ -57,13 +70,13 @@ State-conditioned discrimination (the organic alpha feature)
 ------------------------------------------------------------
 ``state_for_prediction`` returns the SAME causal hidden that produces the
 prediction-aligned theta.  A decoder may condition discrimination on
-``[state, item_emb]`` (ma-irt's IRTParameterExtractor recipe) by reading that
-state.  In the DECOUPLED variant (``alpha_emb_dim`` set) the alpha head instead
-reads ``[state, alpha_item_emb]`` -- a SEPARATE wide item table that feeds only
-the alpha head, never the backbone input -- so alpha's item capacity is
-decoupled from theta's.  This is a clean DECODER feature, one backbone pass, one
-shift; it is selected at the DeepIRTModel level via ``state_alpha`` /
-``alpha_emb_dim`` (see deep_irt.py).
+``[state, item_val_emb]`` (ma-irt's IRTParameterExtractor recipe) by reading that
+state.  In the DECOUPLED variant (``item_key_dim`` set) the alpha head instead
+reads ``[state, item_key_emb]`` -- a SEPARATE wide item key that feeds only the
+decoder's static alpha and beta readouts, never the backbone input -- so alpha's
+item capacity is decoupled from theta's.  This is a clean DECODER feature, one
+backbone pass, one shift; it is selected at the DeepIRTModel level via
+``state_alpha`` / ``item_key_dim`` (see deep_irt.py).
 """
 
 import torch
@@ -80,10 +93,12 @@ class BaseSeqEncoder(nn.Module):
 
     Required subclass attributes
     ----------------------------
-    self.theta_proj     : nn.Linear(hidden_dim, 1)
-    self.item_emb       : nn.Embedding(num_items, emb_dim)
-    self.alpha_item_emb : nn.Embedding(num_items, alpha_emb_dim)  -- only when
-                          ``alpha_emb_dim`` is set (the DECOUPLED variant)
+    self.theta_proj    : nn.Linear(hidden_dim, 1)
+    self.item_val_emb  : nn.Embedding(num_items, emb_dim)  -- thin value table
+                         feeding the encoder/theta
+    self.item_key_emb  : nn.Embedding(num_items, item_key_dim)  -- wide key table
+                         feeding the static alpha/beta readouts, only when
+                         ``item_key_dim`` is set (the DECOUPLED variant)
 
     Required subclass methods
     -------------------------
@@ -196,18 +211,18 @@ class LSTMEncoder(BaseSeqEncoder):
     num_items : int
         Total number of items in the embedding table (base B, or extended B+E).
     emb_dim : int
-        Dimensionality of both item and response embeddings.
+        Dimensionality of both the thin item value and response embeddings.
     hidden_dim : int
         LSTM hidden state size.
     n_cats : int
         Number of ordered response categories K (responses in {0, ..., K-1}).
-    alpha_emb_dim : int or None
-        When set, build a SEPARATE wide item-embedding table
-        (``alpha_item_emb``, ``num_items x alpha_emb_dim``) that feeds ONLY the
-        decoder's state-conditioned discrimination head, NOT the LSTM input.
-        This DECOUPLES alpha's item capacity from theta's: the theta-encoder
-        stays at the cheap ``emb_dim`` / ``hidden_dim`` (so static theta and
-        dynamic drift are unchanged) while alpha reads a wide item key.  None
+    item_key_dim : int or None
+        When set, build a SEPARATE wide item KEY table
+        (``item_key_emb``, ``num_items x item_key_dim``) that feeds ONLY the
+        decoder's static alpha and beta readouts, NOT the LSTM input.  This
+        DECOUPLES alpha's item capacity from theta's: the theta-encoder stays at
+        the cheap ``emb_dim`` / ``hidden_dim`` (so static theta and dynamic drift
+        are unchanged) while the static item params read a wide item key.  None
         (default) builds no extra table and is bit-for-bit identical to the
         original encoder.  The table is constructed AFTER all default-path
         modules so the default-path RNG draws are untouched.
@@ -219,26 +234,26 @@ class LSTMEncoder(BaseSeqEncoder):
         emb_dim: int = 8,
         hidden_dim: int = 32,
         n_cats: int = 4,
-        alpha_emb_dim: int | None = None,
+        item_key_dim: int | None = None,
     ) -> None:
         super().__init__()
         self.num_items = num_items
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
         self.n_cats = n_cats
-        self.alpha_emb_dim = alpha_emb_dim
+        self.item_key_dim = item_key_dim
 
-        self.item_emb = nn.Embedding(num_items, emb_dim)
+        self.item_val_emb = nn.Embedding(num_items, emb_dim)
         self.resp_emb = nn.Embedding(n_cats, emb_dim)
 
         self.lstm = nn.LSTM(emb_dim + emb_dim, hidden_dim, batch_first=True)
         self.theta_proj = nn.Linear(hidden_dim, 1)
 
-        # Wide item key for the DECOUPLED alpha head.  Built last and only when
-        # requested, so it never perturbs the default-path init.  It feeds the
-        # decoder's alpha head, never the LSTM input.
-        if alpha_emb_dim is not None:
-            self.alpha_item_emb = nn.Embedding(num_items, alpha_emb_dim)
+        # Wide item key for the DECOUPLED static readouts.  Built last and only
+        # when requested, so it never perturbs the default-path init.  It feeds
+        # the decoder's alpha and beta heads, never the LSTM input.
+        if item_key_dim is not None:
+            self.item_key_emb = nn.Embedding(num_items, item_key_dim)
 
     # ------------------------------------------------------------------
     # Per-step hidden state (the raw responsive stream)
@@ -255,7 +270,7 @@ class LSTMEncoder(BaseSeqEncoder):
         -------
         h : (batch, seq_len, hidden_dim)
         """
-        ie = self.item_emb(item_ids)              # (B, T, emb_dim)
+        ie = self.item_val_emb(item_ids)          # (B, T, emb_dim)
         re = self.resp_emb(responses)             # (B, T, emb_dim)
         x = torch.cat([ie, re], dim=-1)           # (B, T, 2*emb_dim)
         h, _ = self.lstm(x)                       # (B, T, hidden_dim)

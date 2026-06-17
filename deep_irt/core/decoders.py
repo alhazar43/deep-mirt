@@ -1,9 +1,13 @@
 """
 decoders.py -- Three decoders sharing a common item-embedding interface.
 
-All decoders accept the item embedding vector (emb_dim,) produced by the encoder's
-item_emb table and map it to item parameters.  The theta signal (from the encoder)
-is then combined with those parameters to compute a response distribution.
+All decoders accept the thin item VALUE embedding vector (emb_dim,) produced by
+the encoder's ``item_val_emb`` table and map it to item parameters.  In the
+DECOUPLED variant the static alpha/beta readouts instead ride the wide item KEY
+(``item_key_emb`` of width ``item_key_dim``), passed in as ``item_key``; width
+follows inverse Fisher (capacity-hungry alpha wants a wide key, well-determined
+theta wants a thin value).  The theta signal (from the encoder) is then combined
+with the item parameters to compute a response distribution.
 
 Decoder contract
 ----------------
@@ -15,7 +19,7 @@ Each decoder exposes:
     log_probs(theta, **item_params) -> (batch, n_outcomes)
         Compute log-probabilities over the response space.
 
-    nll(theta, item_emb, responses) -> scalar
+    nll(theta, emb, responses) -> scalar
         Convenience: map emb -> params -> log_probs -> NLL.
 
 The four decoders:
@@ -54,20 +58,31 @@ class GPCMDecoder(nn.Module):
 
     Discrimination (a) has two readout modes:
 
-      static map (default)  -- ``a = softplus(fc_a(item_emb))``.  Identical for
-                               every occurrence of an item; the deep_irt's
+      static map (default)  -- ``a = softplus(fc_a(item_val_emb))``.  Identical
+                               for every occurrence of an item; the deep_irt's
                                original behaviour.
       state-conditioned     -- when ``state_dim`` is set, an extra head
-                               ``a = softplus(fc_a_state([state, item_emb]))``
+                               ``a = softplus(fc_a_state([state, item_key]))``
                                reads discrimination from an encoder state PLUS
-                               the item embedding, in the spirit of ma-irt's
+                               the item key, in the spirit of ma-irt's
                                IRTParameterExtractor.  Passing ``state`` to
                                ``item_params`` / ``log_probs`` / ``nll`` selects
                                this head; omitting it falls back to the static
                                map, so models that never pass a state are
                                bit-for-bit identical to the static decoder.
 
-    Step thresholds (b) are always an item-only read (``fc_b(item_emb)``).
+    The item KEY vs VALUE split (width follows inverse Fisher)
+    ----------------------------------------------------------
+    The decoder's STATIC readouts (alpha and beta) ride the wide item KEY when it
+    exists; the thin item VALUE feeds the encoder/theta.  ``item_key_dim`` set
+    (the DECOUPLED variant) means the encoder supplies a separate wide
+    ``item_key`` of that width: the state-conditioned alpha head becomes
+    ``fc_a_state : state_dim + item_key_dim -> 1`` and the step-threshold head
+    becomes ``fc_b : item_key_dim -> n_cats-1``, so BOTH static item parameters
+    read the wide key while theta stays on the cheap encoder.  ``item_key_dim``
+    None (legacy non-decoupled path) keeps alpha and beta on the thin
+    ``emb_dim`` value and is bit-for-bit identical to the original decoder.
+    ``item_key_dim`` requires ``state_dim``.
 
     Discrimination positivity transform (``alpha_log_scale``)
     ---------------------------------------------------------
@@ -84,54 +99,27 @@ class GPCMDecoder(nn.Module):
           head absorbs, not a parameterisation choice, so ``s = 1.0`` (ma-irt's
           setting, plain ``exp(raw)``) is the apples-to-apples value.
 
-    Decoupled alpha key (the DECOUPLED variant)
-    -------------------------------------------
-    When ``alpha_emb_dim`` is set the state-conditioned alpha head reads
-    ``[state, alpha_emb]`` where ``alpha_emb`` is a SEPARATE, wider item key
-    (from the encoder's ``alpha_item_emb`` table) of width ``alpha_emb_dim``,
-    rather than the standard ``item_emb``.  This decouples alpha's item capacity
-    from theta's: the head is ``fc_a_state : state_dim + alpha_emb_dim -> 1``.
-    Step thresholds and the static fallback alpha still read the standard
-    ``item_emb``.  ``alpha_emb_dim`` requires ``state_dim``.
-
-    Wide-key step thresholds (``beta_wide``)
-    ----------------------------------------
-    By default step thresholds are a NARROW read ``fc_b(item_emb)`` of the cheap
-    ``emb_dim`` item embedding.  ma-irt's GPCM decoder instead reads beta from
-    the SAME wide item key it feeds discrimination (its ``q_embed`` of width
-    ``key_dim``), and recovers beta far better (Pearson 0.988 vs the deep_irt's
-    0.942 on static-K4).  ``beta_wide=True`` (requires ``alpha_emb_dim``) mirrors
-    that: ``fc_b`` becomes ``Linear(alpha_emb_dim, n_cats-1)`` and reads the wide
-    ``alpha_emb`` key, so both item parameters ride the wide key while theta stays
-    on the cheap encoder.  ``beta_wide=False`` (default) is bit-for-bit identical
-    to before.
-
     Parameters
     ----------
-    emb_dim       : int
+    emb_dim       : int  -- thin item value width
     n_cats        : int  -- K, number of ordered categories (responses in
                     {0,..,K-1})
     state_dim     : int or None -- when set, build the state-conditioned alpha
-                    head whose input is ``[state, item_emb]`` of width
-                    ``state_dim + emb_dim``.  None (default) builds only the
-                    static ``fc_a`` map and leaves the parameter count unchanged.
-    alpha_emb_dim : int or None -- when set (requires ``state_dim``), the
-                    state-conditioned alpha head instead reads
-                    ``[state, alpha_emb]`` of width ``state_dim + alpha_emb_dim``,
-                    where ``alpha_emb`` is the encoder's separate wide alpha key.
-                    None (default) keeps the head on the standard ``item_emb``.
+                    head.  Its item input is the wide ``item_key`` when
+                    ``item_key_dim`` is set, else the thin ``emb`` value.  None
+                    (default) builds only the static ``fc_a`` map and leaves the
+                    parameter count unchanged.
+    item_key_dim  : int or None -- when set (requires ``state_dim``), both static
+                    readouts ride the encoder's wide item key: the alpha head
+                    reads ``[state, item_key]`` of width
+                    ``state_dim + item_key_dim`` and ``fc_b`` reads
+                    ``item_key`` of width ``item_key_dim``.  None (default) keeps
+                    alpha and beta on the thin ``emb_dim`` value.
     alpha_log_scale : float or None -- discrimination positivity transform.  None
                     (default) uses ``softplus`` and is bit-for-bit identical to
                     before.  A positive float ``s`` uses ``exp(s * raw)``,
                     ma-irt's exponential map (``s = 1.0`` matches ma-irt; the
                     head absorbs the scale constant).
-    beta_wide     : bool -- when True (requires ``alpha_emb_dim``), step
-                    thresholds are read from the wide alpha key:
-                    ``fc_b = Linear(alpha_emb_dim, n_cats-1)`` and ``item_params``
-                    computes ``b = fc_b(alpha_emb)``.  ma-irt's GPCM decoder reads
-                    beta from the same wide item key it feeds discrimination; this
-                    mirrors it.  None/False (default) keeps the narrow
-                    ``fc_b(item_emb)`` read and is bit-for-bit identical.
     """
 
     def __init__(
@@ -139,22 +127,16 @@ class GPCMDecoder(nn.Module):
         emb_dim: int,
         n_cats: int,
         state_dim: int | None = None,
-        alpha_emb_dim: int | None = None,
+        item_key_dim: int | None = None,
         alpha_log_scale: float | None = None,
-        beta_wide: bool = False,
     ) -> None:
         super().__init__()
         if n_cats < 2:
             raise ValueError("n_cats must be >= 2")
-        if alpha_emb_dim is not None and state_dim is None:
+        if item_key_dim is not None and state_dim is None:
             raise ValueError(
-                "alpha_emb_dim (decoupled wide alpha key) requires state_dim; "
+                "item_key_dim (decoupled wide item key) requires state_dim; "
                 "the wide key only feeds the state-conditioned alpha head."
-            )
-        if beta_wide and alpha_emb_dim is None:
-            raise ValueError(
-                "beta_wide (wide-key step thresholds) requires alpha_emb_dim; "
-                "the wide item key beta reads is the decoupled alpha key."
             )
         if alpha_log_scale is not None and alpha_log_scale <= 0.0:
             raise ValueError(
@@ -164,21 +146,20 @@ class GPCMDecoder(nn.Module):
         self.emb_dim = emb_dim
         self.n_cats = n_cats
         self.state_dim = state_dim
-        self.alpha_emb_dim = alpha_emb_dim
+        self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
-        self.beta_wide = beta_wide
 
         self.fc_a = nn.Linear(emb_dim, 1)          # -> raw discrimination
-        # Step thresholds: narrow item_emb read by default; the wide alpha key
-        # when beta_wide (ma-irt's shared-key beta path).
-        beta_in = alpha_emb_dim if beta_wide else emb_dim
+        # Step thresholds: the wide item key whenever it exists (decoupled), else
+        # the thin item value (legacy non-decoupled path).
+        beta_in = item_key_dim if item_key_dim is not None else emb_dim
         self.fc_b = nn.Linear(beta_in, n_cats - 1) # -> step thresholds (raw)
 
         # State-conditioned discrimination head, built only when requested so the
         # default (state-free) decoder is bit-for-bit identical to before.  In
-        # the decoupled variant its item input is the wide alpha key.
+        # the decoupled variant its item input is the wide item key.
         if state_dim is not None:
-            alpha_in = alpha_emb_dim if alpha_emb_dim is not None else emb_dim
+            alpha_in = item_key_dim if item_key_dim is not None else emb_dim
             self.fc_a_state = nn.Linear(state_dim + alpha_in, 1)
 
     # --- positivity transform ---
@@ -203,19 +184,19 @@ class GPCMDecoder(nn.Module):
         self,
         emb: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> dict:
         """
         Parameters
         ----------
-        emb       : (..., emb_dim)
-        state     : (..., state_dim) or None -- when given (and the decoder was
-                    built with ``state_dim``), discrimination is read from the
-                    state-conditioned head; otherwise from the static item-only
-                    map.
-        alpha_emb : (..., alpha_emb_dim) or None -- the wide alpha key for the
-                    decoupled head.  Required when the decoder was built with
-                    ``alpha_emb_dim`` and ``state`` is given; ignored otherwise.
+        emb      : (..., emb_dim) -- thin item value
+        state    : (..., state_dim) or None -- when given (and the decoder was
+                   built with ``state_dim``), discrimination is read from the
+                   state-conditioned head; otherwise from the static item-only
+                   map.
+        item_key : (..., item_key_dim) or None -- the wide item key for the
+                   decoupled static readouts.  Required when the decoder was built
+                   with ``item_key_dim``; ignored otherwise.
 
         Returns
         -------
@@ -230,26 +211,27 @@ class GPCMDecoder(nn.Module):
                     "state-conditioned discrimination.  Pass state_dim to the "
                     "constructor (dual-channel mode)."
                 )
-            if self.alpha_emb_dim is not None:
-                if alpha_emb is None:
+            if self.item_key_dim is not None:
+                if item_key is None:
                     raise RuntimeError(
-                        "GPCMDecoder was built with alpha_emb_dim (decoupled "
-                        "wide alpha key); pass alpha_emb to item_params."
+                        "GPCMDecoder was built with item_key_dim (decoupled "
+                        "wide item key); pass item_key to item_params."
                     )
-                key = alpha_emb
+                key = item_key
             else:
                 key = emb
             a = self._alpha_pos(self.fc_a_state(torch.cat([state, key], dim=-1)))  # > 0
         else:
             a = self._alpha_pos(self.fc_a(emb))   # > 0
-        if self.beta_wide:
-            if alpha_emb is None:
+        # Step thresholds ride the wide item key whenever it exists (decoupled),
+        # else the thin item value.
+        if self.item_key_dim is not None:
+            if item_key is None:
                 raise RuntimeError(
-                    "GPCMDecoder was built with beta_wide (wide-key step "
-                    "thresholds); pass alpha_emb to item_params so beta reads "
-                    "the wide alpha key."
+                    "GPCMDecoder was built with item_key_dim (decoupled wide "
+                    "item key); pass item_key to item_params so beta reads it."
                 )
-            b = self.fc_b(alpha_emb)     # wide-key beta (ma-irt's shared-key path)
+            b = self.fc_b(item_key)      # wide-key beta (ma-irt's shared-key path)
         else:
             b = self.fc_b(emb)           # unconstrained (sorted only at eval time)
         return {"a": a, "b": b}
@@ -258,10 +240,10 @@ class GPCMDecoder(nn.Module):
         self,
         emb: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> dict:
         """Same as item_params but with b sorted (use at evaluation time)."""
-        params = self.item_params(emb, state=state, alpha_emb=alpha_emb)
+        params = self.item_params(emb, state=state, item_key=item_key)
         params["b"] = torch.sort(params["b"], dim=-1).values
         return params
 
@@ -302,14 +284,14 @@ class GPCMDecoder(nn.Module):
         theta: torch.Tensor,
         emb: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Per-item GPCM logits from (theta, item emb, optional state/alpha key).
+        """Per-item GPCM logits from (theta, item value, optional state/item key).
 
         Mirrors ``nll``'s signature but returns the ``(N, K)`` logits for the
         prediction loss instead of computing a likelihood.
         """
-        params = self.item_params(emb, state=state, alpha_emb=alpha_emb)
+        params = self.item_params(emb, state=state, item_key=item_key)
         return self.logits(theta, params["a"], params["b"])
 
     # --- log_probs ---
@@ -346,7 +328,7 @@ class GPCMDecoder(nn.Module):
         emb: torch.Tensor,
         responses: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """
         Compute mean NLL for a flat batch.
@@ -354,20 +336,21 @@ class GPCMDecoder(nn.Module):
         Parameters
         ----------
         theta     : (N,)
-        emb       : (N, emb_dim)
+        emb       : (N, emb_dim)  -- thin item value
         responses : (N,)  long, in {0,..,K-1}
         state     : (N, state_dim) or None -- when given, discrimination is read
                     from the state-conditioned head (dual-channel mode).  None
                     keeps the static item-only alpha and is bit-for-bit
                     identical to the pre-dual-channel decoder.
-        alpha_emb : (N, alpha_emb_dim) or None -- the wide alpha key for the
-                    decoupled head (required when built with ``alpha_emb_dim``).
+        item_key  : (N, item_key_dim) or None -- the wide item key for the
+                    decoupled static readouts (required when built with
+                    ``item_key_dim``).
 
         Returns
         -------
         loss : scalar
         """
-        params = self.item_params(emb, state=state, alpha_emb=alpha_emb)
+        params = self.item_params(emb, state=state, item_key=item_key)
         log_p = self.log_probs(theta, params["a"], params["b"])
         return F.nll_loss(log_p, responses)
 
@@ -393,39 +376,36 @@ class Binary2PLDecoder(nn.Module):
         self,
         emb_dim: int,
         state_dim: int | None = None,
-        alpha_emb_dim: int | None = None,
+        item_key_dim: int | None = None,
         alpha_log_scale: float | None = None,
-        beta_wide: bool = False,
     ) -> None:
         super().__init__()
         self.emb_dim = emb_dim
         self.n_cats = 2
         self.state_dim = state_dim
-        self.alpha_emb_dim = alpha_emb_dim
+        self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
-        self.beta_wide = beta_wide
         self._gpcm = GPCMDecoder(
             emb_dim=emb_dim, n_cats=2, state_dim=state_dim,
-            alpha_emb_dim=alpha_emb_dim, alpha_log_scale=alpha_log_scale,
-            beta_wide=beta_wide,
+            item_key_dim=item_key_dim, alpha_log_scale=alpha_log_scale,
         )
 
     def item_params(
         self,
         emb: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> dict:
         """Returns a and b (single threshold) from embedding."""
-        return self._gpcm.item_params(emb, state=state, alpha_emb=alpha_emb)
+        return self._gpcm.item_params(emb, state=state, item_key=item_key)
 
     def item_params_sorted(
         self,
         emb: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> dict:
-        return self._gpcm.item_params_sorted(emb, state=state, alpha_emb=alpha_emb)
+        return self._gpcm.item_params_sorted(emb, state=state, item_key=item_key)
 
     def log_probs(
         self,
@@ -453,14 +433,14 @@ class Binary2PLDecoder(nn.Module):
         theta: torch.Tensor,
         emb: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Single binary logit z = a * (theta - b); P(y=1) = sigmoid(z).
 
         ``binary_cross_entropy_with_logits(z, y.float())`` is the binary
         prediction loss.  Equals the log-odds of the K=2 GPCM logits.
         """
-        lg = self._gpcm.category_logits(theta, emb, state=state, alpha_emb=alpha_emb)
+        lg = self._gpcm.category_logits(theta, emb, state=state, item_key=item_key)
         return lg[..., 1] - lg[..., 0]            # (N,)
 
     def nll(
@@ -469,11 +449,11 @@ class Binary2PLDecoder(nn.Module):
         emb: torch.Tensor,
         responses: torch.Tensor,
         state: torch.Tensor | None = None,
-        alpha_emb: torch.Tensor | None = None,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Mean NLL for a flat batch of binary responses."""
         return self._gpcm.nll(theta, emb, responses, state=state,
-                              alpha_emb=alpha_emb)
+                              item_key=item_key)
 
 
 # ---------------------------------------------------------------------------
