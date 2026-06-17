@@ -1,10 +1,14 @@
 """run_convergence.py -- the alpha-recovery convergence-RATE experiment (RQ1).
 
-The learning-dynamics study found the decoupling advantage is a CONVERGENCE-RATE
-effect, not an endpoint law: decoupling the discrimination representation (the
-state-conditioned, occurrence-averaged alpha head) lets alpha RANK recovery peel
-up EARLIER, and the early lead WIDENS with K, tracking the Fisher stiffness
-I(theta)/I(alpha) (which grows with the number of categories).
+Records the alpha-recovery trajectory for static-alpha vs state-conditioned
+(dynamic) alpha to test whether the dynamic head wins through the learning
+dynamics and how that tracks K.  FINDING (docs/FISHER_DYNAMICS_STUDY.md, 5 seeds):
+it is NOT an earlier peel-up.  Both curves crawl early (dynamic is not ahead); the
+dynamic head accelerates in mid training (ep20-40) and, at high K, keeps a
+PERMANENT endpoint lead because static-alpha is trapped by the stiffness ceiling
+I(theta)/I(alpha) (which grows with K).  So a mid-training acceleration plus a
+K-growing endpoint gap, not an early lead.  The PREDICTION block below is the
+original hypothesis, kept for the record and partly disconfirmed by this finding.
 
 This runner records the alpha-recovery TRAJECTORY -- Pearson r vs the ground-truth
 discrimination, logged every ``log_every`` epochs via the ``DeepIRTModel.fit``
@@ -114,7 +118,7 @@ def _train_with_trajectory(ds, state_alpha, K, seed, device, epochs, log_every):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--K", type=int, nargs="+", default=[4, 8, 11])
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     ap.add_argument("--epochs", type=int, default=150)
     ap.add_argument("--log-every", type=int, default=5)
     ap.add_argument("--device",
@@ -129,43 +133,57 @@ def main():
         device = "cpu"
 
     print(f"=== convergence: device={device} epochs={args.epochs} "
-          f"log_every={args.log_every} K={args.K} seed={args.seed} ===")
+          f"log_every={args.log_every} K={args.K} seeds={args.seeds} ===")
 
     t_start = time.time()
     written = []
+    show = (1, 5, 10, 20, 40, 80, args.epochs)
     for K in args.K:
-        cfg = BenchDataConfig(
-            name=f"static_k{K}", kind="static", n_cats=K,
-            n_learners=args.n_learners, n_items=args.n_items,
-            seq_len=args.seq_len, seed=args.seed,
-        )
-        ds = generate(cfg)
+        static_runs, dynamic_runs = [], []
+        for seed in args.seeds:
+            ds = generate(BenchDataConfig(
+                name=f"static_k{K}", kind="static", n_cats=K,
+                n_learners=args.n_learners, n_items=args.n_items,
+                seq_len=args.seq_len, seed=seed))
+            static_runs.append(_train_with_trajectory(
+                ds, state_alpha=False, K=K, seed=seed, device=device,
+                epochs=args.epochs, log_every=args.log_every))
+            dynamic_runs.append(_train_with_trajectory(
+                ds, state_alpha=True, K=K, seed=seed, device=device,
+                epochs=args.epochs, log_every=args.log_every))
 
-        print(f"\n--- K={K} ---")
-        traj_static = _train_with_trajectory(
-            ds, state_alpha=False, K=K, seed=args.seed, device=device,
-            epochs=args.epochs, log_every=args.log_every)
-        print(f"  alpha-static  end a_r={traj_static[-1][1]:.3f} "
-              f"({len(traj_static)} points)")
-        traj_dynamic = _train_with_trajectory(
-            ds, state_alpha=True, K=K, seed=args.seed, device=device,
-            epochs=args.epochs, log_every=args.log_every)
-        print(f"  alpha-dynamic end a_r={traj_dynamic[-1][1]:.3f} "
-              f"({len(traj_dynamic)} points)")
+        # All runs log the same epochs (deterministic schedule); align by index.
+        epochs_logged = [e for e, _ in static_runs[0]]
+        s = np.array([[v for _, v in r] for r in static_runs])   # (seeds, T)
+        d = np.array([[v for _, v in r] for r in dynamic_runs])
+        s_mean, s_std = s.mean(0), s.std(0)
+        d_mean, d_std = d.mean(0), d.std(0)
+        gap_mean = d_mean - s_mean
+
+        print(f"\n--- K={K} ({len(args.seeds)} seeds) ---")
+        for i, e in enumerate(epochs_logged):
+            if e in show:
+                print(f"  ep{e:3d}: static={s_mean[i]:.3f}+-{s_std[i]:.3f}  "
+                      f"dynamic={d_mean[i]:.3f}+-{d_std[i]:.3f}  "
+                      f"gap={gap_mean[i]:+.3f}")
 
         blob = {
-            "meta": {"K": K, "seed": args.seed, "epochs": args.epochs,
+            "meta": {"K": K, "seeds": args.seeds, "epochs": args.epochs,
                      "log_every": args.log_every, "device": device,
                      "n_learners": args.n_learners, "n_items": args.n_items,
                      "seq_len": args.seq_len, "item_key_dim": _ITEM_KEY_DIM},
-            "alpha_static": traj_static,
-            "alpha_dynamic": traj_dynamic,
+            "epochs": epochs_logged,
+            "alpha_static_mean": s_mean.tolist(),
+            "alpha_static_std": s_std.tolist(),
+            "alpha_dynamic_mean": d_mean.tolist(),
+            "alpha_dynamic_std": d_std.tolist(),
+            "alpha_static_runs": static_runs,
+            "alpha_dynamic_runs": dynamic_runs,
         }
         path = OUT / f"convergence_K{K}.json"
         with path.open("w", encoding="utf-8") as fh:
             json.dump(blob, fh, indent=2)
         written.append(path)
-        print(f"  wrote {path}")
 
     print(f"\ntotal wall {time.time() - t_start:.1f}s")
     print("wrote: " + ", ".join(str(p) for p in written))
