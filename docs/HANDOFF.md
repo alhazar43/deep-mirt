@@ -1,35 +1,46 @@
-# OrdRec / DuoLingo Mini, Session Handoff (START HERE)
+# Project Handoff (START HERE)
 
-Last updated 2026-06-11. This is the orientation doc for a fresh
+Last updated 2026-06-17. This is the orientation doc for a fresh
 conversation. Read this first, then the pointers at the bottom only as
-needed. Everything here is committed and pushed.
+needed. Everything here is committed locally; origin is out of sync after
+the 2026-06-17 history rewrite (see Repo maintenance).
 
 ## What this project is
 
-Two stacked pieces in one repo (`C:/Users/steph/documents/deep-mirt`).
+Three stacked pieces in one repo (`C:/Users/steph/documents/deep-mirt`).
 
 1. **ma-irt** (`ma-irt/`), a deep ordinal IRT model. DKVMN/LSTM/
    Transformer encoder feeding a GPCM decoder, recovers theta, alpha,
    beta from response sequences. This is the paper under review at
-   IJAIED and is slated for public release. It stays AS-IS. Do not
-   edit it except additive configs, unless a measured major bottleneck
-   forces it (one such audit found none, see pointers).
+   IJAIED and is slated for public release. Now a git submodule
+   (github alhazar43/ma-irt). Frozen Chapter 0; do not edit it except
+   additive configs.
 
-2. **OrdRec** (`rl/`), a new ExRec-style exercise-recommendation
-   framework built on top of frozen ma-irt with a custom PPO. The
-   active research. Modular, adapter-based.
+2. **deep_irt** (`deep_irt/`), the ACTIVE framework. DeepIRTModel with
+   swappable lstm/transformer/dkvmn encoders, decoupled-alpha default,
+   PREDICTION-loss training (IRT as a readout flavor, no model-wise NLL).
+   Holds the RQ1-3 learning-dynamics study (docs/FISHER_DYNAMICS_STUDY.md
+   for RQ1/RQ2, docs/ADYNAMIC_STUDY.md for RQ3) and the workshop deck
+   (docs/slides/workshop.tex + workshop.pdf). 139 tests pass, 3 skipped.
+
+3. **OrdRec** (`rl/`), an ExRec-style exercise-recommendation framework
+   built on a custom PPO, parked at the D1 SLAM milestone. The Duolingo
+   track. Modular, adapter-based.
+
+`overleaf-sync/` is also a git submodule (the paper draft).
 
 ## Branch map
 
-| Branch | Tip | What it holds |
-|---|---|---|
-| **`feat/duolingo-mini`** | **`bb13a93`** | **THE LIVE WORKING BRANCH.** Full OrdRec code (E1-E4.7) + D1 SLAM adapter + the DuoLingo plan + all results. Work here. |
-| `feat/ordrec` | `e960be9` | OrdRec mainline, E1 through E4.7 plus D1. One commit behind the live branch (lacks the plan docs and the decision merge). |
-| `feat/ordrec-e1..e47`, `-d1-slam` | various | Per-milestone branches, all merged, retained for history. Safe to ignore or delete. |
-| `feat/online-step-api`, `feat/v2-simulator-delta-j` | dormant | Abandoned jobrec-era branches. Ignore. |
+| Branch | What it holds |
+|---|---|
+| **`feat/prediction-loss`** | **THE CANONICAL LIVE WORKING BRANCH.** All current work: deep_irt learning-dynamics study + OrdRec (E1-E4.7 + D1 SLAM) + workshop slides. Work here. |
+| `feat/ordrec` | OrdRec mainline pointer; fully contained in prediction-loss ancestry. |
+| `main` | Public-facing ma-irt release line; far behind the research branches. |
 
-`main` is far behind and is the public-facing ma-irt release line; the
-research lives on the feat branches.
+The old per-milestone branches (feat/duolingo-mini, feat/ordrec-e1..e47,
+feat/ordrec-d1-slam, feat/online-step-api, feat/v2-simulator-delta-j) and
+all worktree-* refs were deleted in the 2026-06-17 cleanup; their history
+is preserved in the backup bundle (see Repo maintenance).
 
 ## Status, what is done
 
@@ -50,7 +61,7 @@ maximization. This is the OrdRec paper core.
 **First real-data run (D1).** SlamAdapter on the public Duolingo SLAM
 2018 en_es corpus (2,593 real learners, ~960k responses), K=3 ordinal,
 zero ma-irt edits. ACC 0.682, QWK 0.374, binary-collapsed AUC 0.773.
-Proves ma-irt runs end-to-end on real Duolingo data.
+Proves deep_irt runs end-to-end on real Duolingo data.
 
 **The Duolingo collaboration angle is verified and time-sensitive.** A
 101-agent adversarial verification confirmed the published Duolingo
@@ -80,6 +91,9 @@ class, so the claim is "published line is binary-only," never
 4. **Duolingo outreach.** Open. Recommendation, plan it, gate the cold
    email on D4 so it leads with two pieces of evidence and names the
    S2A3 authors.
+5. **Origin re-add and force-push.** After the history rewrite, origin
+   no longer matches local. Decision pending on whether to re-add the
+   remote and force-push feat/prediction-loss, or leave origin stale.
 
 Priority is LOCKED, the Duolingo / SLAM track is the active build
 priority (user decision 2026-06-11).
@@ -90,32 +104,62 @@ priority (user decision 2026-06-11).
 baselines, tabulate AUC and log-loss, show the real-data result is
 competitive. Then D3/D4 (synthetic mixed-format generator and recovery
 experiment, the IJAIED scientific core). Branch off
-`feat/duolingo-mini`. SLAM config defaults already taken, K=3, es_en
+`feat/prediction-loss`. SLAM config defaults already taken, K=3, es_en
 next. The full D-milestone ladder is in
 `docs/duolingo_mini_plan.md` Section 8.
 
 ## Operating conventions (carry these into the new conversation)
 
-- **Minimum ma-irt edits.** ma-irt is the public paper repo. Extend
-  from `rl/`, additive configs only, see memory `ordrec-ma-irt-boundary`.
+- **Minimum ma-irt edits.** ma-irt is now a submodule (frozen Chapter 0).
+  Extend from `deep_irt/` or `rl/`, additive configs only, see memory
+  `ordrec-ma-irt-boundary`.
 - **Model economy.** Subagents on sonnet, trivial tasks on haiku,
   reserve the top model for the main loop and project-level decisions,
   see memory `model-economy`.
 - **Writing style (strict).** No em-dashes or en-dashes, no colons in
   flowing prose, American English. Applies to all docs and paper text.
 - **Staging discipline.** Never `git add -A`. Explicit paths only.
-  Never stage `__pycache__`, `outputs/`, `rl/data/`, `ma-irt/data/`,
-  `archive/`, or `ma-irt/_plot_encoder_recovery.py` (a persistent
-  untracked stray, leave it alone).
-- **Env.** `conda activate research`, then
-  `PYTHONPATH="rl/src;ma-irt" KMP_DUPLICATE_LIB_OK=TRUE python ...`.
-  Tests, `pytest rl/src/ordrec/ rl/tests/`. CUDA is an RTX 4060 Laptop
-  8 GB. A full PPO synthetic run is ~90s; a world-model train ~4 min.
-- **Workflow pattern.** Milestones were built by background workflows,
-  build in an isolated worktree, verify, document, commit with explicit
-  staging and `Co-Authored-By`, push the feature branch, then the main
+  Never stage `__pycache__`, `outputs/`, `*/data/`, or
+  `ma-irt/_plot_encoder_recovery.py` (a persistent untracked stray,
+  leave it alone).
+- **Attribution.** Commits and PRs carry NO Co-Authored-By and NO
+  Claude/Anthropic attribution. The author is the user only.
+- **Env.** `conda activate research`, then set
+  `PYTHONPATH=".;rl/src;ma-irt"` (Windows semicolon separator) and
+  `KMP_DUPLICATE_LIB_OK=TRUE`. Tests: deep_irt suite via
+  `python -m pytest deep_irt/tests/`; OrdRec suite via
+  `python -m pytest rl/src/ordrec/ rl/tests/`. CUDA is an RTX 4060
+  Laptop 8 GB. A full PPO synthetic run is ~90s; a world-model train
+  ~4 min.
+- **Workflow pattern.** Build in an isolated worktree, verify, document,
+  commit with explicit staging, push the feature branch, then the main
   loop merges with `--no-ff` and re-runs tests. Worktrees must be
   cleaned (`git worktree remove --force`) after each.
+
+## Repo maintenance (2026-06-17)
+
+The 2026-06-17 cleanup made the following permanent changes.
+
+- **Legacy tree removed.** The untracked `legacy/` directory (~5.5 GB,
+  predecessor projects deep-gpcm/akt/pykt/kt-mirt/mirt-dkvmn and old
+  experiment outputs) was deleted. Small paper artifacts inside legacy/
+  were retained.
+- **Git history rewritten.** `git filter-repo` purged dead predecessor
+  trees (kt-gpcm, mirt-dkvmn, kt-mirt, figures, substrate,
+  sn-article-template, archive) and the pre-submodule ma-irt file blobs.
+  The `.git` pack went from 1.44 GiB to 15 MiB.
+- **EdNet kept.** `EdNet-KT1/` (4.1 GB public dataset, used by
+  `deep_irt/ednet_sep`) was NOT removed.
+- **Backup.** Full bundle at
+  `C:/Users/steph/documents/deep-mirt-backup-20260617-1136.bundle`
+  plus a refs snapshot
+  `deep-mirt-refs-20260617-1136.txt`. All deleted branch history is
+  recoverable from the bundle.
+- **Origin removed.** `filter-repo` removed the origin remote. Local
+  history now diverges from origin (origin still holds old branches and
+  the full old history). Do NOT `git fetch` the old origin; doing so
+  re-bloats the pack. Re-adding origin and force-pushing
+  `feat/prediction-loss` is a pending decision (open item 5 above).
 
 ## Pointers (read only if relevant)
 
@@ -128,9 +172,10 @@ next. The full D-milestone ladder is in
 - `rl/results/E47_dynamic_dgp.md`, the headline result writeup, plots
   under `rl/results/plots/e47_*`.
 - `rl/results/D1_slam_en_es.md`, the first real-data run.
+- `docs/FISHER_DYNAMICS_STUDY.md`, the RQ1/RQ2 learning-dynamics study.
+- `docs/ADYNAMIC_STUDY.md`, the RQ3 a_dynamic study.
+- `docs/slides/workshop.pdf`, the workshop deck.
 - `docs/cleanup/_det_deep_research_report.md`, the verified Duolingo
   intelligence (gitignored working doc, local only).
 - `docs/cleanup/_ma_irt_bottleneck_audit.md`, the "keep ma-irt as-is"
   audit (gitignored, local only).
-- `docs/archive/jobrec/README.md`, why the abandoned job-rec direction
-  was dropped (the `archive/rl_jobrec/` code has been removed).

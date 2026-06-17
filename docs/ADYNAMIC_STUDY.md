@@ -1,6 +1,6 @@
 # a_dynamic study: is the neural model's context-dependent discrimination real or an artifact?
 
-Status PRELIMINARY (3 seeds; needs replication). Branch feat/duolingo-mini. Started 2026-06-17.
+Status PRELIMINARY (3 seeds; needs replication). Branch feat/prediction-loss. Started 2026-06-17.
 Phase 1 (is the wiggle real or artifact) and Phase 2 (does it detect planted
 theta-dependence) both DONE; the verdict is directional detection, not calibrated
 magnitude.

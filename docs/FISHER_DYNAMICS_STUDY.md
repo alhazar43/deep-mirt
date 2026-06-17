@@ -1,12 +1,11 @@
 # Fisher-asymmetry and the dynamics of state-conditioned discrimination (RQ1, RQ2)
 
 Status PRELIMINARY (3 to 5 seeds, single architecture, synthetic static-alpha
-data). Branch feat/duolingo-mini. 2026-06-17.
+data). Branch feat/prediction-loss. 2026-06-17.
 
 ## Framing (DKT-home, the translation gap)
 
-That discrimination is low-information and ill-conditioned is classical IRT (cite,
-TODO); this study does not reclaim it. The contribution is the DL-native question
+That discrimination is low-information and ill-conditioned is classical IRT (classical; see Classical grounding below); this study does not reclaim it. The contribution is the DL-native question
 IRT's static theory never poses, what the TRAINING DYNAMICS do with it, whether and
 how fast SGD pins each parameter under a PREDICTION loss, and how a representational
 choice (decoupling) changes that. Fisher information appears only as the backstage
