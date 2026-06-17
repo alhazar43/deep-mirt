@@ -652,6 +652,7 @@ class NRMDecoder(nn.Module):
         emb_dim: int,
         n_options: int,
         correct_option: int = 0,
+        item_key_dim: int | None = None,
     ) -> None:
         super().__init__()
         if n_options < 2:
@@ -663,20 +664,34 @@ class NRMDecoder(nn.Module):
         self.emb_dim = emb_dim
         self.n_options = n_options
         self.correct_option = correct_option
+        self.item_key_dim = item_key_dim
 
-        # emb -> raw per-option slopes and intercepts (centered in item_params)
-        self.fc_a = nn.Linear(emb_dim, n_options)   # -> raw slopes a_k
-        self.fc_c = nn.Linear(emb_dim, n_options)   # -> raw intercepts c_k
+        # Per-option slopes a_k and intercepts c_k.  In the DECOUPLED variant
+        # (item_key_dim set) BOTH read the wide item KEY -- the NRM item
+        # parameters are exactly a_k and c_k, so both go on the fat key while
+        # theta stays on the thin item value, mirroring GPCM's alpha+beta split.
+        # None (default) reads the thin item value and is bit-for-bit identical
+        # to the original item-only NRM.
+        readout_in = item_key_dim if item_key_dim is not None else emb_dim
+        self.fc_a = nn.Linear(readout_in, n_options)   # -> raw slopes a_k
+        self.fc_c = nn.Linear(readout_in, n_options)   # -> raw intercepts c_k
 
     # --- item_params ---
 
-    def item_params(self, item_val: torch.Tensor) -> dict:
+    def item_params(
+        self,
+        item_val: torch.Tensor,
+        item_key: torch.Tensor | None = None,
+    ) -> dict:
         """
-        Map embedding to centered per-option NRM parameters.
+        Map the item embedding to centered per-option NRM parameters.
 
         Parameters
         ----------
-        item_val : (..., emb_dim)
+        item_val : (..., emb_dim)  thin item value (read when not decoupled)
+        item_key : (..., item_key_dim) or None -- the wide item key.  Required
+                   when built with ``item_key_dim`` (the decoupled variant), in
+                   which case BOTH a_k and c_k read it; ignored otherwise.
 
         Returns
         -------
@@ -684,8 +699,17 @@ class NRMDecoder(nn.Module):
             alpha     : (..., K)   per-option slopes, sum_k alpha_k = 0
             intercept : (..., K)   per-option intercepts, sum_k intercept_k = 0
         """
-        a_raw = self.fc_a(item_val)                             # (..., K)
-        c_raw = self.fc_c(item_val)                             # (..., K)
+        if self.item_key_dim is not None:
+            if item_key is None:
+                raise RuntimeError(
+                    "NRMDecoder was built with item_key_dim (decoupled wide "
+                    "item key); pass item_key to item_params."
+                )
+            readout = item_key
+        else:
+            readout = item_val
+        a_raw = self.fc_a(readout)                             # (..., K)
+        c_raw = self.fc_c(readout)                             # (..., K)
         alpha = a_raw - a_raw.mean(dim=-1, keepdim=True)        # sum_k alpha_k = 0
         intercept = c_raw - c_raw.mean(dim=-1, keepdim=True)   # sum_k intercept_k = 0
         return {"alpha": alpha, "intercept": intercept}
@@ -721,13 +745,14 @@ class NRMDecoder(nn.Module):
         self,
         theta: torch.Tensor,
         item_val: torch.Tensor,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Per-item NRM logits from (theta, item value embedding).
+        """Per-item NRM logits from (theta, item value, optional wide item key).
 
         Mirrors ``nll``'s signature but returns the ``(N, K)`` logits for the
         prediction loss instead of computing a likelihood.
         """
-        params = self.item_params(item_val)
+        params = self.item_params(item_val, item_key=item_key)
         return self.logits(theta, params["alpha"], params["intercept"])
 
     # --- log_probs ---
@@ -759,9 +784,11 @@ class NRMDecoder(nn.Module):
         self,
         item_val: torch.Tensor,
         a_floor: float = 0.1,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """
-        2PL-comparable item location from the correct option.
+        2PL-comparable item location from the correct option (a derived readout,
+        not a trained parameter).
 
         beta_i = - intercept_corr / alpha_corr, the ability at which the correct
         option's linear predictor crosses zero.  Higher beta -> harder.
@@ -770,12 +797,13 @@ class NRMDecoder(nn.Module):
         ----------
         item_val : (..., emb_dim)
         a_floor  : minimum |alpha_corr| used in the denominator for stability
+        item_key : (..., item_key_dim) or None -- the wide item key (decoupled)
 
         Returns
         -------
         beta : (...,)  scalar difficulty per item
         """
-        params = self.item_params(item_val)
+        params = self.item_params(item_val, item_key=item_key)
         alpha_corr = params["alpha"][..., self.correct_option]        # (...,)
         intercept_corr = params["intercept"][..., self.correct_option] # (...,)
         # Stabilise the denominator without changing its sign.
@@ -793,6 +821,7 @@ class NRMDecoder(nn.Module):
         theta: torch.Tensor,
         item_val: torch.Tensor,
         responses: torch.Tensor,
+        item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """
         Mean NLL for a flat batch of option choices.
@@ -802,11 +831,12 @@ class NRMDecoder(nn.Module):
         theta     : (N,)
         item_val  : (N, emb_dim)
         responses : (N,)  long, option indices in {0,..,K-1}
+        item_key  : (N, item_key_dim) or None -- the wide item key (decoupled)
 
         Returns
         -------
         loss : scalar
         """
-        params = self.item_params(item_val)
+        params = self.item_params(item_val, item_key=item_key)
         log_p = self.log_probs(theta, params["alpha"], params["intercept"])
         return F.nll_loss(log_p, responses)

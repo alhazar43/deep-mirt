@@ -517,8 +517,12 @@ class DeepIRTModel:
                 }
             elif self.decoder_name == "nrm":
                 assert isinstance(self.decoder, NRMDecoder)
-                params = self.decoder.item_params(embs)
-                beta = self.decoder.item_difficulty(embs)
+                # Decoupled NRM: a_k and c_k read the wide item key; supply it
+                # when it exists (theta stays on the thin item value).
+                item_key = (enc.item_key_emb(item_ids)
+                            if self.item_key_dim is not None else None)
+                params = self.decoder.item_params(embs, item_key=item_key)
+                beta = self.decoder.item_difficulty(embs, item_key=item_key)
                 return {
                     "alpha": params["alpha"].cpu().numpy(),
                     "intercept": params["intercept"].cpu().numpy(),
@@ -843,7 +847,7 @@ class DeepIRTModel:
             )
             return F.binary_cross_entropy_with_logits(z, responses.float())
         if self.decoder_name == "nrm":
-            logits = self.decoder.logits_from_emb(theta, emb)
+            logits = self.decoder.logits_from_emb(theta, emb, item_key=item_key)
             return self.loss_fn(logits, responses)
         # gpcm (ordinal): WeightedOrdinalLoss on the GPCM logits.
         logits = self.decoder.logits_from_emb(
@@ -924,5 +928,6 @@ class DeepIRTModel:
                 emb_dim=emb_dim,
                 n_options=n_cats,
                 correct_option=correct_option,
+                item_key_dim=item_key_dim,
             )
         raise ValueError(f"Unknown decoder: {name}")
