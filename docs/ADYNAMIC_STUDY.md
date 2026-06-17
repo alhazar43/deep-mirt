@@ -144,10 +144,15 @@ Findings.
    theta0) = 1.14` (slightly INFLATED, which would only deflate `k` further), so the
    scale-corrected calibration `k/c = 0.034` barely differs from `k`. The ~30x
    attenuation is therefore genuine HEAD SHRINKAGE, not a scale mismatch. Mechanism,
-   the head reads the encoder state and the GPCM likelihood is barely sensitive to
-   the alpha-theta slope (the SAME low-Fisher story that makes alpha hard to recover
-   at all, RQ1), so the optimizer fixes the SIGN and RANK of the dependence but not
-   its size. State-conditioned alpha is therefore a RANK / direction detector of
+   the head reads the encoder state and the ordinal PREDICTION loss (WOL, the
+   class-weighted ordinal-penalised cross-entropy on the GPCM logits, no model-wise
+   NLL) is barely sensitive to the alpha-theta slope near theta=beta. Cross-entropy
+   on the GPCM logits is a reweighted GPCM NLL, so its curvature in alpha is the GPCM
+   Fisher information, `I(alpha) ~ (theta-beta)^2`, which vanishes at theta=beta, the
+   SAME low-Fisher story that makes alpha hard to recover at all (RQ1). The loss the
+   optimizer actually descends is locally flat in alpha there, so it fixes the SIGN
+   and RANK of the dependence but not its size. State-conditioned alpha is therefore
+   a RANK / direction detector of
    theta-dependent discrimination, not a calibrated estimate of it; reading the size
    of `a_dynamic` as the strength of context-dependence is wrong by a large factor.
 
@@ -176,7 +181,7 @@ predictions cleanly, one held, one did not.
 - Calibration `k` FALLS monotonically with K (sigma=0.4, 0.058 -> 0.040 -> 0.028;
   same direction at sigma=0.2), the magnitude shrinkage WORSENS as K grows. That
   matches the low-Fisher prediction, higher K makes alpha relatively less
-  informative so the likelihood pressure on the alpha-theta slope weakens further.
+  informative so the prediction-loss gradient on the alpha-theta slope weakens further.
   Caveat, the scale `c` was only measured at K=4 (1.14), so the cross-K `k` trend is
   suggestive of the Fisher mechanism, not a scale-clean proof.
 - The null-bias slope std also shrinks with K (0.039, 0.015, 0.013), the linear
@@ -201,8 +206,9 @@ low Fisher of alpha is the binding constraint.
   artifact (theta recovers at corr 0.96, scale c=1.14, so k/c=0.034 ~ k). Lifting
   `k` off ~0.04 toward a calibrated estimate would need a head with stronger
   gradient pressure on the alpha-theta slope (the regularized split, or an
-  auxiliary loss that rewards the slope directly), since the bare GPCM likelihood
-  does not supply it. This is the open MAGNITUDE problem; detection (rank) is solved.
+  auxiliary loss that rewards the slope directly), since the bare ordinal prediction
+  loss (cross-entropy on the GPCM logits) does not supply it where Fisher is low.
+  This is the open MAGNITUDE problem; detection (rank) is solved.
 - RQ1 (alpha-vs-beta dynamic asymmetry) and RQ2 (convergence-rate curves) are
   CONFIRMED, see docs/FISHER_DYNAMICS_STUDY.md.
 
