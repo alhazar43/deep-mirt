@@ -133,22 +133,29 @@ Findings.
    and needs almost no bias control. (Result 2's "linear correlation cancels" cut
    both ways, it kills the naive detector but it also kills the bias, leaving the
    linear PLANTED signal clean.)
-3. MAGNITUDE IS NOT RECOVERED, ONLY RANK. Calibration `k ~ 0.04` at both sigmas
-   (stable), the recovered slope is ~4% of the planted magnitude, a ~25x shrinkage.
-   The head reads the encoder state (a weak, indirect theta proxy) and the GPCM
-   likelihood is barely sensitive to the alpha-theta slope (the low-Fisher story),
-   so the optimizer fixes the SIGN and RANK of the dependence but not its size. The
-   `k` value is also confounded by the unidentified model-vs-true theta scale, so
-   magnitude is not claimable from this readout regardless. State-conditioned alpha
-   is therefore a RANK / direction detector of theta-dependent discrimination, not a
-   calibrated estimate of it; reading the size of `a_dynamic` as the strength of
-   context-dependence is wrong by a large, unidentified factor.
+3. MAGNITUDE IS NOT RECOVERED, ONLY RANK, AND THE SHRINKAGE IS GENUINE (not a
+   scale artifact). Calibration `k ~ 0.04` at both sigmas (stable), the recovered
+   slope is ~4% of the planted magnitude, a ~25x shrinkage. A natural objection is
+   identifiability, the model's latent theta is fixed only up to an affine scale and
+   in `a*(theta-b)` discrimination scales inversely with theta's scale, so a
+   compressed internal theta would deflate the alpha slope by the same factor. The
+   decomposition rules this out (3 seeds, sigma=0.4): the model's per-learner theta
+   recovers true theta0 at corr 0.96 on essentially the right scale, `c = OLS(theta_hat,
+   theta0) = 1.14` (slightly INFLATED, which would only deflate `k` further), so the
+   scale-corrected calibration `k/c = 0.034` barely differs from `k`. The ~30x
+   attenuation is therefore genuine HEAD SHRINKAGE, not a scale mismatch. Mechanism,
+   the head reads the encoder state and the GPCM likelihood is barely sensitive to
+   the alpha-theta slope (the SAME low-Fisher story that makes alpha hard to recover
+   at all, RQ1), so the optimizer fixes the SIGN and RANK of the dependence but not
+   its size. State-conditioned alpha is therefore a RANK / direction detector of
+   theta-dependent discrimination, not a calibrated estimate of it; reading the size
+   of `a_dynamic` as the strength of context-dependence is wrong by a large factor.
 
 Verdict. The neural-IRT-native quantity `a_dynamic` does carry real signal about
 genuine context-dependent discrimination, recoverable in rank once read as a linear
 log-alpha-on-theta slope, which simultaneously dodges the Fisher-tail bias. Its
-magnitude is heavily attenuated and scale-unidentified, so the honest claim is
-DIRECTIONAL detection, not calibrated measurement.
+magnitude is heavily and genuinely attenuated (~30x head shrinkage, not a scale
+artifact), so the honest claim is DIRECTIONAL detection, not calibrated measurement.
 
 ## Implications / next steps
 
@@ -160,10 +167,12 @@ DIRECTIONAL detection, not calibrated measurement.
   split (a zero-mean-pinned, penalized dynamic residual `d` on a static `s`) is now
   a MAGNITUDE problem, not a detection one, it would be the route to lifting `k`
   off ~0.04 toward a calibrated estimate if magnitude recovery is ever wanted.
-- Magnitude calibration is open and confounded by the unidentified model-vs-true
-  theta scale. A cheap control, recover the model's per-learner theta, regress on
-  true theta0 for the scale ratio `c`, and report `k / c`, would separate genuine
-  head shrinkage from the scale mismatch. Until then magnitude is not claimed.
+- Magnitude is genuinely shrunk ~30x, RESOLVED as head shrinkage not a scale
+  artifact (theta recovers at corr 0.96, scale c=1.14, so k/c=0.034 ~ k). Lifting
+  `k` off ~0.04 toward a calibrated estimate would need a head with stronger
+  gradient pressure on the alpha-theta slope (the regularized split, or an
+  auxiliary loss that rewards the slope directly), since the bare GPCM likelihood
+  does not supply it. This is the open MAGNITUDE problem; detection (rank) is solved.
 - RQ1 (alpha-vs-beta dynamic asymmetry) and RQ2 (convergence-rate curves) are
   CONFIRMED, see docs/FISHER_DYNAMICS_STUDY.md.
 
@@ -201,7 +210,9 @@ Fisher-tail bias gets published as a discovery.
 python deep_irt/bench/_adynamic_probe.py          # Result 1 (N-sweep null probe, temp)
 python deep_irt/bench/_adyn_theta_relation.py     # Result 2 (relation study, temp)
 python deep_irt/bench/run_phase2_signal.py --device cuda   # Phase 2 (signal detection)
+python deep_irt/bench/_phase2_scale.py            # Phase 2 magnitude decomposition (temp)
 ```
-Results 1 and 2 are temporary probes (static-alpha synthetic, the null). Phase 2 is
-the committed runner; it writes deep_irt/bench/outputs/phase2_signal.json (summary +
-per-item slopes) and depends on the additive `alpha_theta_slope` generator option.
+Results 1 and 2 and the magnitude decomposition are temporary probes (static-alpha
+synthetic, the null). Phase 2 is the committed runner; it writes
+deep_irt/bench/outputs/phase2_signal.json (summary + per-item slopes) and depends on
+the additive `alpha_theta_slope` generator option.
