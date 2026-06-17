@@ -1,11 +1,11 @@
 """nrm_datagen.py -- synthetic SEQUENCE data from a TRUE Bock (1972) NRM.
 
 The engine head-to-head NRM bench needs ground truth the GPCM bench does not
-carry: per-option slopes a_k, per-option intercepts c_k, a correct-option
-location beta, and a true (static or dynamic) ability theta.  This generator
-samples those item parameters and emits per-learner option-choice sequences,
-matched in shape (N learners x T steps, Q items, K options) to the GPCM bench
-(``deep_irt/bench/datagen.py``) so the two are directly comparable.
+carry: per-option slopes a_k, per-option intercepts c_k, and a true (static or
+dynamic) ability theta.  This generator samples those item parameters and emits
+per-learner option-choice sequences, matched in shape (N learners x T steps, Q
+items, K options) to the GPCM bench (``deep_irt/bench/datagen.py``) so the two
+are directly comparable.
 
 It deliberately mirrors ``deep_irt/nrmfmt/data_gen.py`` for the item-parameter
 sampling (correct-option location planted as s_i, Bock centering applied so the
@@ -56,7 +56,6 @@ class NRMGroundTruth:
     theta0: np.ndarray            # (N,) initial / mean ability
     a: np.ndarray                 # (Q, K) per-option slopes (Bock-centered)
     c: np.ndarray                 # (Q, K) per-option intercepts (Bock-centered)
-    beta: np.ndarray              # (Q,) correct-option location -c_corr/a_corr
     correct_option: int
     theta_traj: Optional[np.ndarray] = None   # (N, T) per-step true theta or None
 
@@ -96,8 +95,7 @@ def _sample_item_params(Q: int, K: int, correct: int, rng) -> tuple:
 
     a = a - a.mean(axis=1, keepdims=True)                        # sum_k a_k = 0
     c = c - c.mean(axis=1, keepdims=True)                        # sum_k c_k = 0
-    beta = -c[:, correct] / a[:, correct]                        # centered location
-    return a, c, beta
+    return a, c
 
 
 def _nrm_probs(theta: float, a_row: np.ndarray, c_row: np.ndarray) -> np.ndarray:
@@ -116,7 +114,7 @@ def generate(cfg: NRMDataConfig) -> NRMDataset:
     rng = np.random.default_rng(cfg.seed)
     N, Q, T, K = cfg.n_learners, cfg.n_items, cfg.seq_len, cfg.n_options
 
-    a, c, beta = _sample_item_params(Q, K, cfg.correct_option, rng)
+    a, c = _sample_item_params(Q, K, cfg.correct_option, rng)
     theta0 = rng.standard_normal(N)
 
     theta_traj = None
@@ -146,7 +144,7 @@ def generate(cfg: NRMDataConfig) -> NRMDataset:
     val_idx = np.sort(perm[n_train:])
 
     gt = NRMGroundTruth(
-        theta0=theta0, a=a, c=c, beta=beta,
+        theta0=theta0, a=a, c=c,
         correct_option=cfg.correct_option, theta_traj=theta_traj,
     )
     return NRMDataset(

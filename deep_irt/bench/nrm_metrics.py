@@ -3,8 +3,8 @@
 The SAME functions score both engines (ma-irt-NRM and deep_irt-NRM).  An engine
 hands back, for its held-out positions, the predicted OPTION probabilities and
 the true option labels; and for recovery, its per-item per-option slopes a_k and
-intercepts c_k, the correct-option location beta, and per-learner (or per-step)
-theta.  Nothing here knows which engine produced the numbers.
+intercepts c_k, and per-learner (or per-step) theta.  Nothing here knows which
+engine produced the numbers.
 
 Prediction (nominal -- QWK is meaningless for unordered options)
 ----------------------------------------------------------------
@@ -16,8 +16,6 @@ Recovery (Spearman + Pearson, sign/scale aligned)
 -------------------------------------------------
 - theta : recovered vs true ability.  Static -> per-learner final-step theta vs
           constant true theta.  Dynamic -> honest within-learner net drift.
-- beta  : correct-option location (-c_corr/a_corr), the NRM analogue of 2PL
-          difficulty.
 - a_k   : per-option slopes, mean-centered (both sides) before scoring so the
           Bock representatives are comparable; sign aligned to truth.
 - c_k   : per-option intercepts, mean-centered before scoring; sign aligned.
@@ -118,13 +116,11 @@ def theta_recovery_dynamic(theta_hat_traj, theta_true_traj) -> dict:
     }
 
 
-def item_recovery(a_hat, c_hat, beta_hat, a_true, c_true, beta_true,
-                  seen=None) -> dict:
-    """Per-option slope / intercept and correct-option location recovery.
+def item_recovery(a_hat, c_hat, a_true, c_true, seen=None) -> dict:
+    """Per-option slope / intercept recovery.
 
     a_hat, a_true : (Q, K)   per-option slopes
     c_hat, c_true : (Q, K)   per-option intercepts
-    beta_hat, beta_true : (Q,)  correct-option location
     seen          : optional boolean index of items the model actually saw.
 
     a_k and c_k are mean-centered across options on BOTH sides before scoring
@@ -133,12 +129,10 @@ def item_recovery(a_hat, c_hat, beta_hat, a_true, c_true, beta_true,
     """
     a_hat = np.asarray(a_hat, dtype=float); a_true = np.asarray(a_true, dtype=float)
     c_hat = np.asarray(c_hat, dtype=float); c_true = np.asarray(c_true, dtype=float)
-    beta_hat = np.asarray(beta_hat, dtype=float); beta_true = np.asarray(beta_true, dtype=float)
 
     if seen is not None:
         a_hat, a_true = a_hat[seen], a_true[seen]
         c_hat, c_true = c_hat[seen], c_true[seen]
-        beta_hat, beta_true = beta_hat[seen], beta_true[seen]
 
     # Mean-center both sides across the option axis (Bock representative).
     a_hat_c = _center_options(a_hat).ravel()
@@ -148,13 +142,10 @@ def item_recovery(a_hat, c_hat, beta_hat, a_true, c_true, beta_true,
 
     a_hat_s = _align_sign(a_hat_c, a_true_c)
     c_hat_s = _align_sign(c_hat_c, c_true_c)
-    beta_hat_s = _align_sign(beta_hat, beta_true)
 
     return {
         "a_spearman": _spearman(a_hat_s, a_true_c),
         "a_pearson": _pearson(a_hat_s, a_true_c),
         "c_spearman": _spearman(c_hat_s, c_true_c),
         "c_pearson": _pearson(c_hat_s, c_true_c),
-        "beta_spearman": _spearman(beta_hat_s, beta_true),
-        "beta_pearson": _pearson(beta_hat_s, beta_true),
     }

@@ -40,7 +40,7 @@ The four decoders:
                      distribution is softmax_k(a_k * theta + c_k).  Consumes option
                      indices {0,..,K-1} like GPCM consumes ordinal levels, but the
                      categories carry no order.  One option is designated "correct"
-                     so a 2PL-comparable difficulty scale can be recovered.
+                     for data generation and accuracy scoring.
 """
 
 import torch
@@ -626,20 +626,6 @@ class NRMDecoder(nn.Module):
     pins down a unique representative of each equivalence class so the recovered
     a_k / c_k are comparable across fits.
 
-    Recoverable difficulty scale
-    ----------------------------
-    For cross-format comparison with 2PL/GPCM we expose a scalar item location
-    derived from the designated-correct option.  Define the correct option's
-    linear predictor f_corr(theta) = a_corr * theta + c_corr.  Its zero-crossing
-
-        beta_i = - c_corr / a_corr
-
-    is the NRM analogue of 2PL difficulty: the ability at which the correct
-    option's utility crosses zero (higher beta_i -> harder item).  This is the
-    standard NRM location for the keyed option and is directly comparable to the
-    2PL b parameter and the GPCM mean threshold.  A small floor on |a_corr|
-    keeps the division stable.
-
     Parameters
     ----------
     emb_dim       : int
@@ -777,42 +763,6 @@ class NRMDecoder(nn.Module):
         log_probs : (batch, K)
         """
         return F.log_softmax(self.logits(theta, alpha, intercept), dim=1)
-
-    # --- difficulty scale (correct-option location) ---
-
-    def item_difficulty(
-        self,
-        item_val: torch.Tensor,
-        a_floor: float = 0.1,
-        item_key: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        """
-        2PL-comparable item location from the correct option (a derived readout,
-        not a trained parameter).
-
-        beta_i = - intercept_corr / alpha_corr, the ability at which the correct
-        option's linear predictor crosses zero.  Higher beta -> harder.
-
-        Parameters
-        ----------
-        item_val : (..., emb_dim)
-        a_floor  : minimum |alpha_corr| used in the denominator for stability
-        item_key : (..., item_key_dim) or None -- the wide item key (decoupled)
-
-        Returns
-        -------
-        beta : (...,)  scalar difficulty per item
-        """
-        params = self.item_params(item_val, item_key=item_key)
-        alpha_corr = params["alpha"][..., self.correct_option]        # (...,)
-        intercept_corr = params["intercept"][..., self.correct_option] # (...,)
-        # Stabilise the denominator without changing its sign.
-        denom = torch.sign(alpha_corr) * alpha_corr.abs().clamp_min(a_floor)
-        # sign(0) == 0 would zero the denom; guard that degenerate case.
-        denom = torch.where(
-            denom == 0, torch.full_like(denom, a_floor), denom
-        )
-        return -intercept_corr / denom
 
     # --- nll convenience ---
 

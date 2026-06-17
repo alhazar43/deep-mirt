@@ -12,7 +12,7 @@ ma-irt's GPCM head reads three signals from the encoder output:
 
     theta = ability_network(student_summary)            # item-BLIND ability
     alpha = exp(disc_net([joint_summary, item_embed]))  # STATE-CONDITIONED
-    beta  = threshold(item_embed)                        # item-only thresholds
+    b     = threshold(item_embed)                        # item-only thresholds (GPCM)
 
 The two structural tricks that are exactly ma-irt's edge:
   1. theta read from the item-BLIND ``student_summary`` (the separated ability
@@ -32,8 +32,7 @@ The NRM head mirrors both:
 ``center`` is the SAME mean-centering identifiability convention as deep_irt's
 ``NRMDecoder`` (sum_k a_k = 0, sum_k c_k = 0), which is likelihood-neutral
 (softmax shift-invariant) so the recovered a_k / c_k are directly comparable
-across the two engines.  The correct-option location beta = -c_corr / a_corr is
-the NRM analogue of 2PL/GPCM difficulty (a_floor stabilises the division).
+across the two engines.
 
 Contrast with deep_irt's NRM head (``decoders.NRMDecoder``): there a_k and c_k
 are BOTH item-only linear maps of the item embedding.  Here a_k is conditioned
@@ -84,7 +83,7 @@ class NRMHead(nn.Module):
         input_dim: width of the encoder summaries (student / joint).
         question_dim: width of the encoder item embedding.
         n_options: K, number of unordered options.
-        correct_option: index of the designated-correct option (for beta).
+        correct_option: index of the designated-correct option.
         ability_scale: multiplier on raw theta (matches ma-irt's ability_scale).
         slopes_mode: ``"state_conditioned"`` | ``"item_only"`` (see above).
     """
@@ -188,7 +187,7 @@ class MaIrtNRM(nn.Module):
         n_questions: item bank size Q (items are 1-indexed; 0 = padding).
         n_options: K, number of unordered options.
         encoder: ``"lstm"`` or ``"dkvmn"``.
-        correct_option: designated-correct option index (for beta recovery).
+        correct_option: designated-correct option index.
         d_model / summary_dim: encoder hidden width.
         key_dim: item-key (question) embedding width.
         value_dim: value-side (q, r) -> v embedding width.

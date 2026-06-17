@@ -6,8 +6,8 @@ each (engine x dataset x seed) cell it records:
 
   - prediction : top-1 acc, multiclass NLL, macro-averaged OvR AUC (NO QWK --
                  options are unordered).
-  - recovery   : ability theta; correct-option location beta; per-option slopes
-                 a_k; per-option intercepts c_k (Spearman, sign/center aligned).
+  - recovery   : ability theta; per-option slopes a_k; per-option intercepts
+                 c_k (Spearman, sign/center aligned).
   - cost       : trainable params, train wall-clock, infer wall-clock.
 
 Engines
@@ -75,8 +75,7 @@ def run_cell(engine, ds) -> dict:
 
     rec = engine.recover()
     seen = rec.get("seen", None)
-    item = M.item_recovery(rec["a"], rec["c"], rec["beta"],
-                           ds.gt.a, ds.gt.c, ds.gt.beta, seen=seen)
+    item = M.item_recovery(rec["a"], rec["c"], ds.gt.a, ds.gt.c, seen=seen)
 
     if ds.cfg.kind == "dynamic":
         theta = M.theta_recovery_dynamic(rec["theta_traj"], ds.gt.theta_traj)
@@ -176,7 +175,7 @@ def main():
                 rows.append(r)
                 print(f"   {r['label']:22s} acc={r['acc']:.3f} nll={r['nll']:.3f} "
                       f"auc={r['macro_auc']:.3f} | theta={r['theta_headline']:.3f} "
-                      f"beta={r['beta_spearman']:.3f} a_k={r['a_spearman']:.3f} "
+                      f"a_k={r['a_spearman']:.3f} "
                       f"c_k={r['c_spearman']:.3f} t={r['train_time']:.1f}s")
 
     # ---- persist + render ----
@@ -197,7 +196,7 @@ def main():
 # ---------------------------------------------------------------------------
 
 _METRICS = ["acc", "nll", "macro_auc", "theta_headline",
-            "beta_spearman", "a_spearman", "c_spearman"]
+            "a_spearman", "c_spearman"]
 _COST = ["n_params", "train_time", "infer_time"]
 
 
@@ -226,7 +225,7 @@ def render_table(rows, device, epochs, N, Q, T, seeds, kinds) -> str:
             # theta_headline carries an unidentified latent ORIENTATION (its
             # sign flips freely across seeds), so the recovery quality is the
             # magnitude. Aggregate |theta| per seed; otherwise +0.9 and -0.9
-            # runs would cancel to ~0. beta/a_k/c_k are already sign-aligned
+            # runs would cancel to ~0. a_k/c_k are already sign-aligned
             # to truth inside item_recovery, so they are left as stored.
             if m == "theta_headline" and v is not None and v == v:
                 v = abs(v)
@@ -237,8 +236,8 @@ def render_table(rows, device, epochs, N, Q, T, seeds, kinds) -> str:
     lines.append(f"device={device}  epochs={epochs}  N={N}  Q={Q}  T={T}  "
                  f"K=4  seeds={seeds}  (torch {torch.__version__})\n")
     lines.append("| engine/encoder | dataset | acc | NLL | macroAUC | |theta| | "
-                 "beta (sp) | a_k (sp) | c_k (sp) | params | train s |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+                 "a_k (sp) | c_k (sp) | params | train s |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
 
     dataset_names = [f"nrm_{k}" for k in kinds]
     for dsname in dataset_names:
@@ -254,22 +253,20 @@ def render_table(rows, device, epochs, N, Q, T, seeds, kinds) -> str:
                 f"| {label} | {dsname} | "
                 f"{_fmt(*cells['acc'])} | {_fmt(*cells['nll'])} | "
                 f"{_fmt(*cells['macro_auc'])} | {_fmt(*cells['theta_headline'])} | "
-                f"{_fmt(*cells['beta_spearman'])} | {_fmt(*cells['a_spearman'])} | "
+                f"{_fmt(*cells['a_spearman'])} | "
                 f"{_fmt(*cells['c_spearman'])} | {np_mean} | {tt_mean:.1f} |"
             )
 
     lines.append(
         "\nNotes: |theta| = |Spearman| of recovered vs true ability (the latent "
         "orientation is unidentified so the sign is dropped; static: "
-        "final-step level; dynamic: within-learner net drift). beta = "
-        "correct-option location -c_corr/a_corr (NRM analogue of 2PL "
-        "difficulty). a_k / c_k = Spearman of recovered per-option slopes / "
-        "intercepts vs truth, both mean-centered (Bock) and sign-aligned before "
-        "scoring. NLL = multiclass cross-entropy (lower better). macroAUC = "
-        "macro-averaged one-vs-rest AUC. QWK omitted (options unordered). "
-        "ma-irt-NRM: theta item-blind, slopes a_k state-conditioned on "
-        "[joint,item]. deep_irt-NRM: a_k / c_k item-only. Cells are "
-        "mean±sd over seeds.")
+        "final-step level; dynamic: within-learner net drift). a_k / c_k = "
+        "Spearman of recovered per-option slopes / intercepts vs truth, both "
+        "mean-centered (Bock) and sign-aligned before scoring. NLL = multiclass "
+        "cross-entropy (lower better). macroAUC = macro-averaged one-vs-rest AUC. "
+        "QWK omitted (options unordered). ma-irt-NRM: theta item-blind, slopes "
+        "a_k state-conditioned on [joint,item]. deep_irt-NRM: a_k / c_k "
+        "item-only. Cells are mean±sd over seeds.")
     return "\n".join(lines)
 
 

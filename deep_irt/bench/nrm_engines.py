@@ -18,7 +18,7 @@ Both expose:
     fit()              -> trains on the train learners (per-token NLL).
     predict_heldout()  -> (probs (M,K), targets (M,)) on the held-out tail of
                           the VAL learners.
-    recover()          -> dict with a (Q,K), c (Q,K), beta (Q,), theta_final (N,),
+    recover()          -> dict with a (Q,K), c (Q,K), theta_final (N,),
                           theta_traj (N,T), and (ma-irt) a `seen` mask.
     cost()             -> dict: n_params, train_time.
 
@@ -100,11 +100,10 @@ class DeepIRTNRMEngine:
         params = self.model.recover_item_params()                 # all Q items
         a_hat = params["alpha"]                                    # (Q,K)
         c_hat = params["intercept"]                                # (Q,K)
-        beta_hat = params["beta"]                                  # (Q,)
         it = torch.tensor(self.ds.items0, dtype=torch.long, device=self.device)
         rp = torch.tensor(self.ds.responses, dtype=torch.long, device=self.device)
         theta_traj = self.model.track(it, rp).cpu().numpy()        # (N,T)
-        return {"a": a_hat, "c": c_hat, "beta": beta_hat,
+        return {"a": a_hat, "c": c_hat,
                 "theta_final": theta_traj[:, -1], "theta_traj": theta_traj}
 
     def cost(self):
@@ -203,12 +202,10 @@ class MaIrtNRMEngine:
     def recover(self):
         """ma-irt recovery convention: per-item a_k / c_k averaged over all
         (learner, step) occurrences (they are per-step due to state-conditioning),
-        then re-centered across options and beta = -c_corr/a_corr computed from
-        the per-item averages.  theta per-step trajectory.
+        then re-centered across options.  theta per-step trajectory.
         """
         Q = self.ds.cfg.n_items
         K = self.ds.cfg.n_options
-        corr = self.ds.cfg.correct_option
         q_all = torch.tensor(self.ds.items0 + 1, dtype=torch.long, device=self.device)
         r_all = torch.tensor(self.ds.responses, dtype=torch.long, device=self.device)
         self.model.eval()
@@ -232,16 +229,9 @@ class MaIrtNRMEngine:
         # re-center defensively so the Bock representative is exact).
         a_hat = a_hat - a_hat.mean(axis=1, keepdims=True)
         c_hat = c_hat - c_hat.mean(axis=1, keepdims=True)
-        # Correct-option location beta = -c_corr / a_corr (a_floor like deep_irt).
-        a_corr = a_hat[:, corr]
-        c_corr = c_hat[:, corr]
-        a_floor = 0.1
-        denom_b = np.sign(a_corr) * np.maximum(np.abs(a_corr), a_floor)
-        denom_b = np.where(denom_b == 0, a_floor, denom_b)
-        beta_hat = -c_corr / denom_b
         seen = cnt > 0
 
-        return {"a": a_hat, "c": c_hat, "beta": beta_hat,
+        return {"a": a_hat, "c": c_hat,
                 "theta_final": theta[:, -1], "theta_traj": theta, "seen": seen}
 
     def cost(self):

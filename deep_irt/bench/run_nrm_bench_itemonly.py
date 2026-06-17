@@ -98,8 +98,8 @@ def render_table(rows, device, epochs, N, Q, T, seeds, kinds) -> str:
     lines.append(f"device={device}  epochs={epochs}  N={N}  Q={Q}  T={T}  "
                  f"K=4  seeds={seeds}  (torch {torch.__version__})\n")
     lines.append("| engine/encoder | dataset | acc | NLL | macroAUC | |theta| | "
-                 "beta (sp) | a_k (sp) | c_k (sp) | params | train s |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+                 "a_k (sp) | c_k (sp) | params | train s |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
 
     dataset_names = [f"nrm_{k}" for k in kinds]
     for dsname in dataset_names:
@@ -115,21 +115,20 @@ def render_table(rows, device, epochs, N, Q, T, seeds, kinds) -> str:
                 f"| {label} | {dsname} | "
                 f"{_fmt(*cells['acc'])} | {_fmt(*cells['nll'])} | "
                 f"{_fmt(*cells['macro_auc'])} | {_fmt(*cells['theta_headline'])} | "
-                f"{_fmt(*cells['beta_spearman'])} | {_fmt(*cells['a_spearman'])} | "
+                f"{_fmt(*cells['a_spearman'])} | "
                 f"{_fmt(*cells['c_spearman'])} | {np_mean} | {tt_mean:.1f} |"
             )
 
     lines.append(
         "\nNotes: |theta| = |Spearman| of recovered vs true ability (latent "
         "orientation unidentified, sign dropped; static: final-step level; "
-        "dynamic: within-learner net drift). beta = correct-option location "
-        "-c_corr/a_corr. a_k / c_k = Spearman of recovered per-option slopes / "
-        "intercepts vs truth, Bock mean-centered + sign-aligned. NLL = multiclass "
-        "cross-entropy (lower better). macroAUC = macro OvR AUC. QWK omitted "
-        "(options unordered). Engines: deep_irt a_k/c_k item-only; ma-irt/nrm "
-        "a_k STATE-CONDITIONED on [joint,item]; ma-irt/nrm-itemonly a_k ITEM-ONLY "
-        "(item_embed), theta item-blind in both ma-irt heads. Cells mean±sd over "
-        "seeds.")
+        "dynamic: within-learner net drift). a_k / c_k = Spearman of recovered "
+        "per-option slopes / intercepts vs truth, Bock mean-centered + "
+        "sign-aligned. NLL = multiclass cross-entropy (lower better). macroAUC = "
+        "macro OvR AUC. QWK omitted (options unordered). Engines: deep_irt "
+        "a_k/c_k item-only; ma-irt/nrm a_k STATE-CONDITIONED on [joint,item]; "
+        "ma-irt/nrm-itemonly a_k ITEM-ONLY (item_embed), theta item-blind in both "
+        "ma-irt heads. Cells mean±sd over seeds.")
     return "\n".join(lines)
 
 
@@ -194,7 +193,7 @@ def main():
                 rows.append(r)
                 print(f"   {r['label']:28s} acc={r['acc']:.3f} nll={r['nll']:.3f} "
                       f"auc={r['macro_auc']:.3f} | theta={r['theta_headline']:.3f} "
-                      f"beta={r['beta_spearman']:.3f} a_k={r['a_spearman']:.3f} "
+                      f"a_k={r['a_spearman']:.3f} "
                       f"c_k={r['c_spearman']:.3f} t={r['train_time']:.1f}s")
 
     with (OUT / "nrm_bench_itemonly_results.json").open("w", encoding="utf-8") as fh:

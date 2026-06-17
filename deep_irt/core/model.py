@@ -486,8 +486,8 @@ class DeepIRTModel:
             ``state_alpha`` mode also returns 'seen' (Q,) bool for items that
             appeared in the sequences.
         For "bt":              dict with 'strength' (M,) array
-        For "nrm":             dict with 'a' (M, K), 'c' (M, K) per-option params
-                               and 'beta' (M,) correct-option difficulty
+        For "nrm":             dict with 'alpha' (M, K) and 'intercept' (M, K)
+                               per-option params
         All values are numpy arrays on cpu, sorted b for GPCM/binary.
         """
         if self._uses_state:
@@ -522,11 +522,9 @@ class DeepIRTModel:
                 item_key = (enc.item_key_emb(item_ids)
                             if self.item_key_dim is not None else None)
                 params = self.decoder.item_params(embs, item_key=item_key)
-                beta = self.decoder.item_difficulty(embs, item_key=item_key)
                 return {
                     "alpha": params["alpha"].cpu().numpy(),
                     "intercept": params["intercept"].cpu().numpy(),
-                    "beta": beta.cpu().numpy(),
                 }
             else:
                 assert isinstance(self.decoder, BradleyTerryDecoder)

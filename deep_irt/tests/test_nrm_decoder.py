@@ -10,11 +10,9 @@ Test IDs
 3. test_log_probs_valid -- log_probs rows are valid log-distributions.
 4. test_gradient_flow -- nll backprops finite grads to the embedding and both
    linear maps.
-5. test_difficulty_finite -- the correct-option location beta is finite even when
-   a slope is tiny (the a_floor guard works).
-6. test_deep_irt_recovery -- a DeepIRTModel(decoder="nrm") fit on synthetic MC
-   data recovers the planted difficulty scale and ability (Spearman).
-7. test_cross_format_transfer -- a shared-embedding 2PL + NRM model places
+5. test_deep_irt_recovery -- a DeepIRTModel(decoder="nrm") fit on synthetic MC
+   data recovers the planted a_k / c_k and ability (Spearman).
+6. test_cross_format_transfer -- a shared-embedding 2PL + NRM model places
    held-out-format items on the shared scale, beating an independent baseline
    (the binary-vs-nominal RQ1 proof, in miniature).
 """
@@ -104,18 +102,6 @@ def test_gradient_flow():
     assert torch.isfinite(dec.fc_a.weight.grad).all()
 
 
-def test_difficulty_finite():
-    torch.manual_seed(4)
-    dec = NRMDecoder(emb_dim=8, n_options=4, correct_option=0)
-    # Force the correct-option slope tiny by zeroing its emb path contribution
-    with torch.no_grad():
-        dec.fc_a.weight.zero_()
-        dec.fc_a.bias.zero_()   # raw slopes all 0 -> centered slopes all 0
-    emb = torch.randn(5, 8)
-    beta = dec.item_difficulty(emb, a_floor=0.1)
-    assert torch.isfinite(beta).all()
-
-
 # ---------------------------------------------------------------------------
 # Synthetic recovery via DeepIRTModel(decoder="nrm")
 # ---------------------------------------------------------------------------
@@ -130,8 +116,7 @@ def _gen_nrm_items(n_items, K, correct, seed):
     c[:, correct] = -a_corr * beta
     a -= a.mean(axis=1, keepdims=True)
     c -= c.mean(axis=1, keepdims=True)
-    beta_c = -c[:, correct] / a[:, correct]
-    return a, c, beta_c
+    return a, c
 
 
 def _gen_mc(a, c, n_items, K, n_learners, seed):
@@ -153,16 +138,16 @@ def _gen_mc(a, c, n_items, K, n_learners, seed):
 
 
 def test_deep_irt_recovery():
-    """Fit recovers the planted difficulty scale and ability.
+    """Fit recovers the planted per-option slopes / intercepts and ability.
 
     Thresholds reflect this deliberately small, fast config (50 items, 600
     learners, 250 epochs).  The full validation (60 items, 800 learners, 300
-    epochs) reaches difficulty Spearman ~0.99 and ability ~0.80; here the bars
+    epochs) reaches a_k Spearman ~0.99 and ability ~0.80; here the bars
     are set to confirm clear, sign-correct recovery without flakiness.
     """
     N_ITEMS, K, CORRECT, N_LEARN = 50, 4, 0, 600
-    a, c, beta_true = _gen_nrm_items(N_ITEMS, K, CORRECT, seed=0)
-    items_t, resp_t, theta_true = _gen_mc(a, c, N_ITEMS, K, N_LEARN, seed=0)
+    a_true, c_true = _gen_nrm_items(N_ITEMS, K, CORRECT, seed=0)
+    items_t, resp_t, theta_true = _gen_mc(a_true, c_true, N_ITEMS, K, N_LEARN, seed=0)
 
     model = DeepIRTModel(
         num_items=N_ITEMS, emb_dim=8, hidden_dim=32, n_cats=K,
@@ -171,13 +156,16 @@ def test_deep_irt_recovery():
     model.fit(items_t, resp_t, n_epochs=250, verbose=False)
 
     params = model.recover_item_params()
-    beta_rec = _align(params["beta"], beta_true)
-    beta_sp = _spearman(beta_rec, beta_true)
+    # a_k recovery: mean-center both sides (Bock representative), sign-align.
+    a_hat_c = params["alpha"] - params["alpha"].mean(axis=-1, keepdims=True)
+    a_true_c = a_true - a_true.mean(axis=1, keepdims=True)
+    a_hat_s = _align(a_hat_c.ravel(), a_true_c.ravel())
+    a_sp = _spearman(a_hat_s, a_true_c.ravel())
 
     theta_rec = model.track(items_t, resp_t).cpu().numpy()[:, -1]
     theta_sp = _spearman(_align(theta_rec, theta_true), theta_true)
 
-    assert beta_sp >= 0.7, f"difficulty recovery weak: {beta_sp:.3f}"
+    assert a_sp >= 0.7, f"a_k recovery weak: {a_sp:.3f}"
     assert theta_sp >= 0.5, f"ability recovery weak: {theta_sp:.3f}"
 
 
