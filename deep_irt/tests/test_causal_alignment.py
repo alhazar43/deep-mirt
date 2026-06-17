@@ -3,27 +3,17 @@ state-conditioned alpha engine.
 
 ONE convention, pinned here
 ---------------------------
-For EVERY variant, the theta/state used to predict the response at step t is a
-function of the interaction history STRICTLY BEFORE t -- (q_{<t}, r_{<t})
-INCLUDING the immediately preceding interaction (q_{t-1}, r_{t-1}) -- and never
-of r_t.  Exactly one shift, total.  This is the alignment ma-irt's encoders use.
-
-The historical "dual-channel" engine is INVALIDATED and removed.  It was an
-ad-hoc two-stream hack, and its item-blind state was DOUBLE-shifted: the
-``_item_blind`` pass already right-shifts the value stream internally, then the
-downstream code shifted again, so it predicted step t from history < t-1 and
-dropped interaction t-1.  The bug is regression-tested below
-(``test_item_blind_prediction_keeps_previous_interaction``): the item-blind
-prediction theta at the LAST step MUST move when (q_{t-1}, r_{t-1}) changes.
-Under the old double shift it did not.
+The theta/state used to predict the response at step t is a function of the
+interaction history STRICTLY BEFORE t -- (q_{<t}, r_{<t}) INCLUDING the
+immediately preceding interaction (q_{t-1}, r_{t-1}) -- and never of r_t.
+Exactly one shift, total.  This is the alignment ma-irt's encoders use.
 
 Contracts
 ---------
-1. ``theta_for_prediction`` / ``state_for_prediction`` are exactly one shift for
-   the DIRECT path (equal to shifting the raw responsive theta once) and zero
-   extra shift for the ITEM-BLIND path (the internal shift is the only one).
-2. In BOTH paths the step-t prediction theta does NOT see r_t (causal) but DOES
-   depend on interaction t-1 (the bug regression test).
+1. ``theta_for_prediction`` / ``state_for_prediction`` are exactly one shift
+   (equal to shifting the raw responsive theta once).
+2. The step-t prediction theta does NOT see r_t (causal) but DOES depend on
+   interaction t-1.
 3. ``state_alpha=False`` is bit-for-bit identical to the static decoder.
 4. ``state_alpha=True`` builds the state head, trains, reports a responsive
    (direct) theta track, reads an occurrence-averaged state-conditioned alpha,
@@ -51,10 +41,10 @@ def _data(num_items=10, n_cats=4, n=16, t=12, seed=0):
     return it, rp
 
 
-def _enc(num_items=10, n_cats=4, separate_theta=False, seed=_SEED):
+def _enc(num_items=10, n_cats=4, seed=_SEED):
     torch.manual_seed(seed)
     return LSTMEncoder(num_items=num_items, emb_dim=4, hidden_dim=8,
-                       n_cats=n_cats, separate_theta=separate_theta)
+                       n_cats=n_cats)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +57,7 @@ def test_direct_prediction_is_one_shift_of_raw_theta():
     This is the legacy convention (literal 0 prior at t=0), kept exactly so the
     static engine stays bit-identical.
     """
-    enc = _enc(separate_theta=False)
+    enc = _enc()
     it, rp = _data()
     with torch.no_grad():
         raw = enc.encode(it, rp)                       # (B, T) responsive
@@ -76,70 +66,25 @@ def test_direct_prediction_is_one_shift_of_raw_theta():
     assert torch.allclose(pred, manual, atol=1e-7)
 
 
-def test_item_blind_prediction_applies_no_extra_shift():
-    """ITEM-BLIND path: the internal shift is the ONLY shift.
-
-    encode() already returns the internally-shifted (aligned) theta, so
-    theta_for_prediction must equal encode() with NO further shift -- a second
-    shift is the historical double-shift bug.
-    """
-    enc = _enc(separate_theta=True)
-    it, rp = _data()
-    with torch.no_grad():
-        aligned = enc.encode(it, rp)                   # already shifted internally
-        pred = enc.theta_for_prediction(it, rp)
-        double = LSTMEncoder._shift(aligned)           # the WRONG path
-    assert torch.allclose(pred, aligned, atol=1e-7)
-    # And it must NOT equal the double-shifted version (they differ at t>=1).
-    assert not torch.allclose(pred, double, atol=1e-5)
-
-
 # ---------------------------------------------------------------------------
-# Contract 2: causal + keeps interaction t-1 (the bug regression test)
+# Contract 2: causal + keeps interaction t-1
 # ---------------------------------------------------------------------------
 
 def test_prediction_theta_does_not_see_current_response():
-    """The step-t prediction theta must be invariant to r_t (strict causality),
-    for both the direct and item-blind paths."""
-    for sep in (False, True):
-        enc = _enc(separate_theta=sep)
-        it, rp = _data()
-        rp2 = rp.clone()
-        rp2[:, -1] = (rp2[:, -1] + 1) % enc.n_cats     # perturb ONLY r_T
-        with torch.no_grad():
-            a = enc.theta_for_prediction(it, rp)[:, -1]
-            b = enc.theta_for_prediction(it, rp2)[:, -1]
-        assert torch.allclose(a, b, atol=1e-7), f"separate_theta={sep}"
-
-
-def test_item_blind_prediction_keeps_previous_interaction():
-    """REGRESSION: the item-blind step-T prediction theta MUST depend on the
-    previous interaction (q_{T-1}, r_{T-1}).
-
-    Under the old double shift the item-blind prediction theta at T was a
-    function of history < T-1 and was INVARIANT to (q_{T-1}, r_{T-1}); this test
-    fails on that bug and passes on the single-shift fix.
-    """
-    enc = _enc(separate_theta=True)
+    """The step-t prediction theta must be invariant to r_t (strict causality)."""
+    enc = _enc()
     it, rp = _data()
-
-    rp_prev = rp.clone()
-    rp_prev[:, -2] = (rp_prev[:, -2] + 1) % enc.n_cats   # perturb r_{T-1}
-    it_prev = it.clone()
-    it_prev[:, -2] = (it_prev[:, -2] + 1) % enc.num_items  # perturb q_{T-1}
-
+    rp2 = rp.clone()
+    rp2[:, -1] = (rp2[:, -1] + 1) % enc.n_cats     # perturb ONLY r_T
     with torch.no_grad():
-        base = enc.theta_for_prediction(it, rp)[:, -1]
-        moved_r = enc.theta_for_prediction(it, rp_prev)[:, -1]
-        moved_q = enc.theta_for_prediction(it_prev, rp)[:, -1]
-    assert not torch.allclose(base, moved_r, atol=1e-6), "blind to r_{T-1}"
-    assert not torch.allclose(base, moved_q, atol=1e-6), "blind to q_{T-1}"
+        a = enc.theta_for_prediction(it, rp)[:, -1]
+        b = enc.theta_for_prediction(it, rp2)[:, -1]
+    assert torch.allclose(a, b, atol=1e-7)
 
 
 def test_direct_prediction_keeps_previous_interaction():
-    """Same guarantee for the direct path: the step-T prediction theta depends
-    on (q_{T-1}, r_{T-1}) but not on r_T."""
-    enc = _enc(separate_theta=False)
+    """The step-T prediction theta depends on (q_{T-1}, r_{T-1}) but not on r_T."""
+    enc = _enc()
     it, rp = _data()
     rp_prev = rp.clone()
     rp_prev[:, -2] = (rp_prev[:, -2] + 1) % enc.n_cats
@@ -154,22 +99,16 @@ def test_state_and_theta_share_the_same_aligned_hidden():
     theta_proj(state[t]).  At t=0 the direct path keeps the legacy theta prior
     (0) while the state prior is the zero vector, so they may differ only there.
     """
-    for sep in (False, True):
-        enc = _enc(separate_theta=sep)
-        it, rp = _data()
-        with torch.no_grad():
-            theta, state = enc.aligned_theta_and_state(it, rp)
-            from_state = enc.theta_proj(state).squeeze(-1)
-        # t >= 1 must agree exactly (same shifted hidden).
-        assert torch.allclose(theta[:, 1:], from_state[:, 1:], atol=1e-7), \
-            f"sep={sep}"
-        if sep:
-            # Item-blind: state[0] = h_0 (start-token pass), so they agree at 0 too.
-            assert torch.allclose(theta[:, 0], from_state[:, 0], atol=1e-7)
-        else:
-            # Direct: theta[0] == 0 (legacy prior); state[0] == zero vector.
-            assert torch.allclose(theta[:, 0], torch.zeros_like(theta[:, 0]))
-            assert torch.allclose(state[:, 0], torch.zeros_like(state[:, 0]))
+    enc = _enc()
+    it, rp = _data()
+    with torch.no_grad():
+        theta, state = enc.aligned_theta_and_state(it, rp)
+        from_state = enc.theta_proj(state).squeeze(-1)
+    # t >= 1 must agree exactly (same shifted hidden).
+    assert torch.allclose(theta[:, 1:], from_state[:, 1:], atol=1e-7)
+    # Direct: theta[0] == 0 (legacy prior); state[0] == zero vector.
+    assert torch.allclose(theta[:, 0], torch.zeros_like(theta[:, 0]))
+    assert torch.allclose(state[:, 0], torch.zeros_like(state[:, 0]))
 
 
 # ---------------------------------------------------------------------------

@@ -25,14 +25,9 @@ Per-step hidden
     read_t = w_t @ Mv                                        (hidden_dim)
     h_t    = tanh(summary_proj([read_t, key_t]))             (hidden_dim)
 
-``_direct_hidden`` writes (q_t, r_t) BEFORE reading, so h_t sees (q_t, r_t).
-``_item_blind_hidden`` reads BEFORE writing (the standard DKVMN read-before-write):
-the read pools value writes of steps < t only, so the RESPONSE history is strictly
-before t.  Note the honest caveat: the read is addressed by ``key_t``, the current
-item's key, so it is item-aware in ADDRESSING while response-history-only in
-CONTENT.  This is the closest DKVMN analog to the deep_irt's item-blind contract
-(a fully item-blind address would have no natural DKVMN form).  The bench uses the
-direct path, so ``_direct_hidden`` correctness is what matters most.
+``_direct_hidden`` writes (q_t, r_t) BEFORE reading, so h_t sees (q_t, r_t).  The
+base single-shift then carries h_{t-1} into the step-t prediction state, so the
+predicting state is item-blind for the current step by construction.
 """
 
 import torch
@@ -57,12 +52,6 @@ class DKVMNEncoder(BaseSeqEncoder):
         state-conditioned alpha head matches.
     n_cats : int
         Response categories K (responses in {0, ..., K-1}).
-    separate_theta : bool
-        Same contract as ``LSTMEncoder``.  When True, ``encode`` reads theta from
-        the item-blind (read-before-write) stream.  No learned token is needed
-        for that path (the memory init is the start state), so no extra parameter
-        is built -- parity with the principle that the item-blind path adds no
-        current-question signal.
     alpha_emb_dim : int or None
         When set, build the SEPARATE wide alpha key (``alpha_item_emb``) feeding
         only the decoder's discrimination head, never the memory.  Built LAST so
@@ -79,7 +68,6 @@ class DKVMNEncoder(BaseSeqEncoder):
         emb_dim: int = 8,
         hidden_dim: int = 32,
         n_cats: int = 4,
-        separate_theta: bool = False,
         alpha_emb_dim: int | None = None,
         memory_size: int = 20,
         key_dim: int | None = None,
@@ -89,7 +77,6 @@ class DKVMNEncoder(BaseSeqEncoder):
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
         self.n_cats = n_cats
-        self.separate_theta = separate_theta
         self.alpha_emb_dim = alpha_emb_dim
         self.memory_size = memory_size
         self.key_dim = key_dim if key_dim is not None else emb_dim
@@ -149,13 +136,10 @@ class DKVMNEncoder(BaseSeqEncoder):
         self,
         item_ids: torch.Tensor,
         responses: torch.Tensor,
-        write_before_read: bool,
     ) -> torch.Tensor:
         """Step through the sequence, returning per-step hidden (B, T, hidden).
 
-        write_before_read=True  -> direct: write (q_t,r_t) then read (h_t sees t).
-        write_before_read=False -> item-blind: read then write (h_t pools writes
-                                   of steps < t; addressed by the current key).
+        Write (q_t, r_t) then read, so h_t sees the current interaction.
         """
         B, T = item_ids.shape
         keys = self.key_proj(self.item_emb(item_ids))         # (B, T, key_dim)
@@ -169,16 +153,12 @@ class DKVMNEncoder(BaseSeqEncoder):
             key_t = keys[:, t]                                # (B, key_dim)
             v_t = values[:, t]                                # (B, hidden)
             w_t = self._address(key_t)                        # (B, memory_size)
-            if write_before_read:
-                mv = self._write(mv, w_t, v_t)
-                out.append(self._summary(w_t, mv, key_t))
-            else:
-                out.append(self._summary(w_t, mv, key_t))
-                mv = self._write(mv, w_t, v_t)
+            mv = self._write(mv, w_t, v_t)
+            out.append(self._summary(w_t, mv, key_t))
         return torch.stack(out, dim=1)                        # (B, T, hidden)
 
     # ------------------------------------------------------------------
-    # Per-step hidden producers (the two raw streams)
+    # Per-step hidden producer (the raw responsive stream)
     # ------------------------------------------------------------------
 
     def _direct_hidden(
@@ -193,22 +173,4 @@ class DKVMNEncoder(BaseSeqEncoder):
         -------
         h : (batch, seq_len, hidden_dim)
         """
-        return self._run(item_ids, responses, write_before_read=True)
-
-    def _item_blind_hidden(
-        self, item_ids: torch.Tensor, responses: torch.Tensor
-    ) -> torch.Tensor:
-        """Item-blind hidden via read-before-write.
-
-        At step t the read pools value-memory writes of steps < t only, so the
-        RESPONSE history is strictly before t.  Honest caveat: the read is
-        addressed by ``key_t`` (the current item's key), so it is item-aware in
-        ADDRESSING while response-history-only in CONTENT -- the standard DKVMN
-        read-before-write, the closest DKVMN analog to the deep_irt's item-blind
-        contract.  Already in prediction alignment; no further shift downstream.
-
-        Returns
-        -------
-        h : (batch, seq_len, hidden_dim)
-        """
-        return self._run(item_ids, responses, write_before_read=False)
+        return self._run(item_ids, responses)

@@ -47,12 +47,9 @@ from deep_irt.core.model import DeepIRTModel
 class DeepIRTEngine:
     """Plain-LSTM deep_irt engine with a swappable deep_irt decoder.
 
-    The organic single-pass engine.  Two orthogonal levers:
-
-      ``separate_theta`` -- theta source.  False (default) = the direct
-        responsive stream over ``[item_emb(q_t), resp_emb(r_t)]`` (the reported
-        dynamic track).  True = the item-blind stream (ma-irt's read-before-write
-        ability pass).  Both obey the single-shift alignment contract.
+    The organic single-pass engine.  Theta is read from the direct responsive
+    stream over ``[item_emb(q_t), resp_emb(r_t)]`` (the reported dynamic track),
+    obeying the single-shift alignment contract.
 
       ``state_alpha`` -- a clean optional DECODER feature (gpcm/binary).  When
         True the discrimination is read from the prediction-aligned encoder
@@ -63,35 +60,32 @@ class DeepIRTEngine:
     ``emb_dim`` / ``hidden_dim`` are exposed so the engine can be run at a
     capacity matched to the ma-irt reference (a fair equal-params fight).
 
-    The label is suffixed ``/direct`` or ``/separate`` (theta source) with a
-    ``+sa`` marker when state_alpha is on.
+    The label carries a ``+sa`` marker when state_alpha is on.
     """
 
     def __init__(self, ds, decoder="gpcm", emb_dim=8, hidden_dim=32,
-                 separate_theta=False, state_alpha=False, alpha_emb_dim=None,
+                 state_alpha=False, alpha_emb_dim=None,
                  alpha_log_scale=None, encoder="lstm", encoder_kwargs=None,
                  device="cpu", seed=0):
         self.ds = ds
         self.decoder = decoder
-        self.separate_theta = separate_theta
         self.state_alpha = state_alpha
         self.alpha_emb_dim = alpha_emb_dim
         self.alpha_log_scale = alpha_log_scale
         self.encoder_kind = encoder
         self.device = torch.device(device)
         self.seed = seed
-        variant = "separate" if separate_theta else "direct"
         sa = "+sa" if state_alpha else ""
         de = f"+ae{alpha_emb_dim}" if alpha_emb_dim is not None else ""
         xp = f"+exp{alpha_log_scale}" if alpha_log_scale is not None else ""
         bk = encoder.upper()
-        self.label = f"deep_irt-{bk}/{decoder}/{variant}{sa}{de}{xp}"
+        self.label = f"deep_irt-{bk}/{decoder}/{sa}{de}{xp}"
         self.encoder_name = (
-            f"{bk}({variant}{sa}{de}{xp},e{emb_dim}h{hidden_dim})")
+            f"{bk}({sa}{de}{xp},e{emb_dim}h{hidden_dim})")
         K = ds.cfg.n_cats
         self.model = DeepIRTModel(
             num_items=ds.cfg.n_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
-            n_cats=K, decoder=decoder, separate_theta=separate_theta,
+            n_cats=K, decoder=decoder,
             state_alpha=state_alpha, alpha_emb_dim=alpha_emb_dim,
             alpha_log_scale=alpha_log_scale, decouple=False, encoder=encoder,
             encoder_kwargs=encoder_kwargs,

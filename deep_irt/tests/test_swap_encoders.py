@@ -39,11 +39,10 @@ def _data(num_items=10, n_cats=4, n=16, t=12, seed=0):
 
 
 def _enc(kind, num_items=10, n_cats=4, emb_dim=4, hidden_dim=8,
-         separate_theta=False, alpha_emb_dim=None, seed=_SEED):
+         alpha_emb_dim=None, seed=_SEED):
     torch.manual_seed(seed)
     common = dict(num_items=num_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
-                  n_cats=n_cats, separate_theta=separate_theta,
-                  alpha_emb_dim=alpha_emb_dim)
+                  n_cats=n_cats, alpha_emb_dim=alpha_emb_dim)
     if kind == "transformer":
         return TransformerEncoder(**common, n_heads=2, n_layers=2)
     return DKVMNEncoder(**common, memory_size=8)
@@ -98,16 +97,15 @@ def test_prediction_theta_does_not_see_current_or_future_responses(kind):
     causal _direct_hidden guarantees it excludes later responses too.
     """
     it, rp = _data()
-    for sep in (False, True):
-        enc = _enc(kind, separate_theta=sep)
-        enc.eval()
-        t = it.size(1) // 2
-        rp2 = rp.clone()
-        rp2[:, t:] = (rp2[:, t:] + 1) % enc.n_cats
-        with torch.no_grad():
-            a = enc.theta_for_prediction(it, rp)[:, :t]
-            b = enc.theta_for_prediction(it, rp2)[:, :t]
-        assert torch.allclose(a, b, atol=1e-6), f"{kind} sep={sep}"
+    enc = _enc(kind)
+    enc.eval()
+    t = it.size(1) // 2
+    rp2 = rp.clone()
+    rp2[:, t:] = (rp2[:, t:] + 1) % enc.n_cats
+    with torch.no_grad():
+        a = enc.theta_for_prediction(it, rp)[:, :t]
+        b = enc.theta_for_prediction(it, rp2)[:, :t]
+    assert torch.allclose(a, b, atol=1e-6), f"{kind}"
 
 
 # ---------------------------------------------------------------------------

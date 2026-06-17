@@ -193,7 +193,6 @@ def build_extended_encoder(
         emb_dim=emb_dim,
         hidden_dim=hidden_dim,
         n_cats=n_cats,
-        separate_theta=base_encoder.separate_theta,
     ).to(device)
 
     with torch.no_grad():
@@ -202,8 +201,6 @@ def build_extended_encoder(
         ext_enc.resp_emb.weight.copy_(base_encoder.resp_emb.weight)
         ext_enc.lstm.load_state_dict(base_encoder.lstm.state_dict())
         ext_enc.theta_proj.load_state_dict(base_encoder.theta_proj.state_dict())
-        if base_encoder.separate_theta:
-            ext_enc.interaction_start.copy_(base_encoder.interaction_start)
 
     for p in ext_enc.parameters():
         p.requires_grad_(False)

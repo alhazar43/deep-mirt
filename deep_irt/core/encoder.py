@@ -10,13 +10,12 @@ Swappable backbone
 ``BaseSeqEncoder`` owns everything the decoder consumes -- the item / response /
 alpha-key embedding tables, the ``theta_proj`` head, the single-shift causal
 alignment, and the public accessors -- and delegates the actual sequence
-modelling to two per-step hidden producers a subclass implements:
+modelling to a single per-step hidden producer a subclass implements:
 
     _direct_hidden(item_ids, responses)     -> h (B,T,hidden)  h_t sees (q_<=t, r_<=t)
-    _item_blind_hidden(item_ids, responses) -> h (B,T,hidden)  h_t sees (q_<t,  r_<t)
 
 ``LSTMEncoder`` is the default backbone (a plain ``nn.LSTM``).  A Transformer or
-DKVMN backbone is just another subclass implementing the same two producers; the
+DKVMN backbone is just another subclass implementing the same producer; the
 decoupled alpha key (``alpha_item_emb``) lives in the base, so it composes with
 ANY backbone with no decoder change.  This is the swappability contract.
 
@@ -38,35 +37,21 @@ For EVERY backbone, the ability/state used to predict the response at step t is 
 function of the interaction history STRICTLY BEFORE t -- that is, of
 (q_{<t}, r_{<t}) INCLUDING the immediately preceding interaction (q_{t-1},
 r_{t-1}) -- and NEVER of the current response r_t.  This is the same convention
-ma-irt's encoders use (``ma-irt/models/encoders/lstm.py``): the value stream is
+ma-irt's encoders use (``ma-irt/models/encoders/lstm.py``): the hidden is
 right-shifted by exactly ONE position and the decoder consumes the resulting
 hidden directly.  Exactly one shift, total.
 
-Two ways to realise that single shift:
+``_direct_hidden`` returns h_t that sees (q_{<=t}, r_{<=t}).  ``encode`` returns
+``theta_proj(h)`` -- the RAW, responsive per-step theta.  To PREDICT step t we
+need the hidden AFTER history 0..t-1, so ``aligned_theta_and_state`` applies ONE
+right-shift: position t carries h_{t-1} = function of (q_{<t}, r_{<t}).  The
+shift drops r_t (causal) AND means the predicting state's most recent item is
+q_{t-1}, not q_t -- so it is item-blind for the current step by construction.
+The decoder still reads the CURRENT item embedding q_t directly for alpha/beta,
+so ability and current-item identity are separated ORGANICALLY in one pass.
 
-  DIRECT path (separate_theta=False)
-      ``_direct_hidden`` returns h_t that sees (q_{<=t}, r_{<=t}).  ``encode``
-      returns ``theta_proj(h)`` -- the RAW, responsive per-step theta.  To
-      PREDICT step t we need the hidden AFTER history 0..t-1, so
-      ``aligned_theta_and_state`` applies ONE right-shift: position t carries
-      h_{t-1} = function of (q_{<t}, r_{<t}).  The shift drops r_t (causal) AND
-      means the predicting state's most recent item is q_{t-1}, not q_t -- so it
-      is item-blind for the current step by construction.  The decoder still
-      reads the CURRENT item embedding q_t directly for alpha/beta, so ability
-      and current-item identity are separated ORGANICALLY in one pass.
-
-  ITEM-BLIND path (separate_theta=True)
-      ``_item_blind_hidden`` returns h_t that ALREADY excludes the current item
-      (the value stream is right-shifted internally with a learned start token,
-      a faithful port of ma-irt's separated ability stream).  ``encode`` returns
-      that already-aligned theta and ``aligned_theta_and_state`` applies NO
-      further shift (a second shift would drop interaction t-1 -- the historical
-      double-shift bug).
-
-So ``encode`` differs between the two paths (raw-responsive vs already-aligned),
-but ``aligned_theta_and_state`` is aligned IDENTICALLY for both, and every
-training / evaluation / recovery path uses ONLY those accessors.  Callers never
-reason about how many shifts to apply.
+Every training / evaluation / recovery path uses ONLY the ``aligned_theta_and_state``
+accessors, so callers never reason about how many shifts to apply.
 
 State-conditioned discrimination (the organic alpha feature)
 ------------------------------------------------------------
@@ -89,13 +74,12 @@ class BaseSeqEncoder(nn.Module):
     """Backbone-agnostic IRT head shared by every sequence encoder.
 
     A subclass builds the embedding tables + ``theta_proj`` in ``__init__`` and
-    implements ``_direct_hidden`` / ``_item_blind_hidden``.  Everything the
-    decoder consumes -- the single-shift alignment, the raw responsive
-    ``encode``, the final-step readout -- lives here and is backbone-agnostic.
+    implements ``_direct_hidden``.  Everything the decoder consumes -- the
+    single-shift alignment, the raw responsive ``encode``, the final-step
+    readout -- lives here and is backbone-agnostic.
 
     Required subclass attributes
     ----------------------------
-    self.separate_theta : bool
     self.theta_proj     : nn.Linear(hidden_dim, 1)
     self.item_emb       : nn.Embedding(num_items, emb_dim)
     self.alpha_item_emb : nn.Embedding(num_items, alpha_emb_dim)  -- only when
@@ -104,23 +88,16 @@ class BaseSeqEncoder(nn.Module):
     Required subclass methods
     -------------------------
     _direct_hidden(item_ids, responses)     -> (B, T, hidden)  h_t sees q_<=t, r_<=t
-    _item_blind_hidden(item_ids, responses) -> (B, T, hidden)  h_t sees q_<t,  r_<t
     """
 
     # ------------------------------------------------------------------
-    # Per-step hidden producers (backbone-specific; subclass MUST override)
+    # Per-step hidden producer (backbone-specific; subclass MUST override)
     # ------------------------------------------------------------------
 
     def _direct_hidden(
         self, item_ids: torch.Tensor, responses: torch.Tensor
     ) -> torch.Tensor:
         """Raw responsive hidden: h_t is a function of (q_{<=t}, r_{<=t})."""
-        raise NotImplementedError
-
-    def _item_blind_hidden(
-        self, item_ids: torch.Tensor, responses: torch.Tensor
-    ) -> torch.Tensor:
-        """Item-blind hidden: h_t is a function of (q_{<t}, r_{<t}) only."""
         raise NotImplementedError
 
     # ------------------------------------------------------------------
@@ -132,19 +109,14 @@ class BaseSeqEncoder(nn.Module):
     ) -> torch.Tensor:
         """Encode response sequences into per-step latent ability.
 
-        DIRECT path: the RAW responsive theta (h_t sees q_t, r_t).  ITEM-BLIND
-        path: theta read from the internally-shifted, current-question-free
-        stream.  Use ``theta_for_prediction`` for the causally-aligned theta in
-        BOTH paths.
+        Returns the RAW responsive theta (h_t sees q_t, r_t).  Use
+        ``theta_for_prediction`` for the causally-aligned theta.
 
         Returns
         -------
         theta : (batch, seq_len)  float -- scalar ability at each timestep
         """
-        if self.separate_theta:
-            h = self._item_blind_hidden(item_ids, responses)
-        else:
-            h = self._direct_hidden(item_ids, responses)
+        h = self._direct_hidden(item_ids, responses)
         return self.theta_proj(h).squeeze(-1)
 
     def aligned_theta_and_state(
@@ -156,20 +128,14 @@ class BaseSeqEncoder(nn.Module):
         state-conditioned decoder reads theta and the alpha-state from the same
         causal hidden without a second stream.
 
-          DIRECT      raw h_t sees (q_t, r_t).  state = right-shift(h), so
-                      state[t] = h_{t-1} (history < t).  theta = right-shift of
-                      the RAW theta, so theta[0] = 0 (the legacy prior) and
-                      theta[t>=1] = theta_proj(h_{t-1}) = theta_proj(state[t]).
-          ITEM-BLIND  the hidden is already internally right-shifted; state = h,
-                      theta = theta_proj(h).  No further shift.
+        Raw h_t sees (q_t, r_t).  state = right-shift(h), so state[t] = h_{t-1}
+        (history < t).  theta = right-shift of the RAW theta, so theta[0] = 0
+        (the legacy prior) and theta[t>=1] = theta_proj(h_{t-1}) =
+        theta_proj(state[t]).
 
         At t=0 both priors mean "no history": theta is 0 and state is the zero
         vector -- mutually consistent.
         """
-        if self.separate_theta:
-            h = self._item_blind_hidden(item_ids, responses)   # already aligned
-            theta = self.theta_proj(h).squeeze(-1)
-            return theta, h
         h = self._direct_hidden(item_ids, responses)           # h_t sees q_t,r_t
         state = self._shift(h)                                  # h_{t-1}
         theta = self._shift(self.theta_proj(h).squeeze(-1))     # legacy 0 prior
@@ -180,8 +146,8 @@ class BaseSeqEncoder(nn.Module):
     ) -> torch.Tensor:
         """Per-step hidden used to PREDICT step t (the alignment contract).
 
-        For both paths state[t] is a function of the history strictly before t,
-        including (q_{t-1}, r_{t-1}), never r_t.  Exactly one shift, total.
+        state[t] is a function of the history strictly before t, including
+        (q_{t-1}, r_{t-1}), never r_t.  Exactly one shift, total.
         """
         return self.aligned_theta_and_state(item_ids, responses)[1]
 
@@ -235,12 +201,6 @@ class LSTMEncoder(BaseSeqEncoder):
         LSTM hidden state size.
     n_cats : int
         Number of ordered response categories K (responses in {0, ..., K-1}).
-    separate_theta : bool
-        When False (default) ``encode`` uses the original single-LSTM path and
-        the module is bit-for-bit identical to the pre-toggle encoder.  When
-        True ``encode`` reads theta from an item-blind, internally right-shifted
-        stream, the faithful port of ma-irt's separated ability pathway.  Both
-        paths share the SINGLE-SHIFT alignment contract via the base class.
     alpha_emb_dim : int or None
         When set, build a SEPARATE wide item-embedding table
         (``alpha_item_emb``, ``num_items x alpha_emb_dim``) that feeds ONLY the
@@ -259,7 +219,6 @@ class LSTMEncoder(BaseSeqEncoder):
         emb_dim: int = 8,
         hidden_dim: int = 32,
         n_cats: int = 4,
-        separate_theta: bool = False,
         alpha_emb_dim: int | None = None,
     ) -> None:
         super().__init__()
@@ -267,7 +226,6 @@ class LSTMEncoder(BaseSeqEncoder):
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
         self.n_cats = n_cats
-        self.separate_theta = separate_theta
         self.alpha_emb_dim = alpha_emb_dim
 
         self.item_emb = nn.Embedding(num_items, emb_dim)
@@ -276,14 +234,6 @@ class LSTMEncoder(BaseSeqEncoder):
         self.lstm = nn.LSTM(emb_dim + emb_dim, hidden_dim, batch_first=True)
         self.theta_proj = nn.Linear(hidden_dim, 1)
 
-        # Learned "start" interaction token for the item-blind internal shift.
-        # Constructed ONLY when separate_theta is requested so the default-path
-        # RNG draws (and hence the initialised weights) are untouched -- the
-        # default path is bit-for-bit identical to the original encoder.
-        if separate_theta:
-            self.interaction_start = nn.Parameter(torch.zeros(emb_dim + emb_dim))
-            nn.init.normal_(self.interaction_start, std=0.02)
-
         # Wide item key for the DECOUPLED alpha head.  Built last and only when
         # requested, so it never perturbs the default-path init.  It feeds the
         # decoder's alpha head, never the LSTM input.
@@ -291,7 +241,7 @@ class LSTMEncoder(BaseSeqEncoder):
             self.alpha_item_emb = nn.Embedding(num_items, alpha_emb_dim)
 
     # ------------------------------------------------------------------
-    # Per-step hidden state (the two raw streams)
+    # Per-step hidden state (the raw responsive stream)
     # ------------------------------------------------------------------
 
     def _direct_hidden(
@@ -299,8 +249,7 @@ class LSTMEncoder(BaseSeqEncoder):
     ) -> torch.Tensor:
         """Raw responsive hidden: h_t is a function of (q_{<=t}, r_{<=t}).
 
-        The LSTM sees the current interaction (q_t, r_t) at step t.  This is the
-        original single-LSTM path.
+        The LSTM sees the current interaction (q_t, r_t) at step t.
 
         Returns
         -------
@@ -310,28 +259,4 @@ class LSTMEncoder(BaseSeqEncoder):
         re = self.resp_emb(responses)             # (B, T, emb_dim)
         x = torch.cat([ie, re], dim=-1)           # (B, T, 2*emb_dim)
         h, _ = self.lstm(x)                       # (B, T, hidden_dim)
-        return h
-
-    def _item_blind_hidden(
-        self, item_ids: torch.Tensor, responses: torch.Tensor
-    ) -> torch.Tensor:
-        """Item-blind hidden: h_t is a function of (q_{<t}, r_{<t}) only.
-
-        The value stream ``[item_emb, resp_emb]`` is right-shifted by one with a
-        learned start token and fed through the LSTM with NO current-question
-        signal, so the hidden at step t has not seen the current step's item
-        identity -- the faithful port of ma-irt's read-before-write ability pass.
-        Already in prediction alignment; no further shift is applied downstream.
-
-        Returns
-        -------
-        h : (batch, seq_len, hidden_dim)
-        """
-        ie = self.item_emb(item_ids)                  # (B, T, emb_dim)
-        re = self.resp_emb(responses)                 # (B, T, emb_dim)
-        v_full = torch.cat([ie, re], dim=-1)          # (B, T, 2*emb_dim)
-        B = v_full.size(0)
-        start = self.interaction_start.expand(B, 1, -1)        # (B, 1, 2*emb_dim)
-        v_shifted = torch.cat([start, v_full[:, :-1]], dim=1)  # (B, T, 2*emb_dim)
-        h, _ = self.lstm(v_shifted)                   # (B, T, hidden_dim)
         return h

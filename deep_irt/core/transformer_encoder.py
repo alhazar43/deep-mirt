@@ -11,10 +11,7 @@ decoder change.  This is the swappability contract.
 The per-step token is ``x_t = input_proj([item_emb(q_t), resp_emb(r_t)])`` of
 width ``hidden_dim``, plus a learned positional embedding.  A causal mask keeps
 attention strictly to positions <= t, so ``_direct_hidden`` returns h_t seeing
-(q_<=t, r_<=t).  ``_item_blind_hidden`` right-shifts the token stream by one
-with a learned start token before attending, so h_t excludes the current item
-(parity with ``LSTMEncoder._item_blind_hidden``: no current-question signal in
-the item-blind path).
+(q_<=t, r_<=t).
 """
 
 import torch
@@ -39,10 +36,6 @@ class TransformerEncoder(BaseSeqEncoder):
         (Linear(hidden_dim + alpha_emb_dim, 1)) matches.
     n_cats : int
         Response categories K (responses in {0, ..., K-1}).
-    separate_theta : bool
-        Same contract as ``LSTMEncoder``.  When True, ``encode`` reads theta
-        from the item-blind, internally right-shifted stream; the learned start
-        token is built ONLY in this case (parity with LSTMEncoder).
     alpha_emb_dim : int or None
         When set, build the SEPARATE wide alpha key (``alpha_item_emb``) that
         feeds only the decoder's discrimination head, never the token input.
@@ -63,7 +56,6 @@ class TransformerEncoder(BaseSeqEncoder):
         emb_dim: int = 8,
         hidden_dim: int = 32,
         n_cats: int = 4,
-        separate_theta: bool = False,
         alpha_emb_dim: int | None = None,
         n_heads: int = 4,
         n_layers: int = 2,
@@ -75,7 +67,6 @@ class TransformerEncoder(BaseSeqEncoder):
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
         self.n_cats = n_cats
-        self.separate_theta = separate_theta
         self.alpha_emb_dim = alpha_emb_dim
         self.n_heads = n_heads
         self.n_layers = n_layers
@@ -97,14 +88,6 @@ class TransformerEncoder(BaseSeqEncoder):
         )
         self.transformer = nn.TransformerEncoder(layer, num_layers=n_layers)
         self.theta_proj = nn.Linear(hidden_dim, 1)
-
-        # Learned start token for the item-blind internal shift.  Width hidden_dim
-        # (the token stream lives in hidden space after input_proj).  Built only
-        # when separate_theta is requested, like LSTMEncoder, so the default-path
-        # inits are untouched.
-        if separate_theta:
-            self.token_start = nn.Parameter(torch.zeros(hidden_dim))
-            nn.init.normal_(self.token_start, std=0.02)
 
         # Wide item key for the DECOUPLED alpha head.  Built last and only when
         # requested, so it never perturbs the other inits.  Feeds the decoder's
@@ -138,7 +121,7 @@ class TransformerEncoder(BaseSeqEncoder):
         return self.transformer(x, mask=mask, is_causal=True)
 
     # ------------------------------------------------------------------
-    # Per-step hidden producers (the two raw streams)
+    # Per-step hidden producer (the raw responsive stream)
     # ------------------------------------------------------------------
 
     def _direct_hidden(
@@ -154,27 +137,4 @@ class TransformerEncoder(BaseSeqEncoder):
         h : (batch, seq_len, hidden_dim)
         """
         x = self._add_positions(self._tokens(item_ids, responses))
-        return self._attend(x)
-
-    def _item_blind_hidden(
-        self, item_ids: torch.Tensor, responses: torch.Tensor
-    ) -> torch.Tensor:
-        """Item-blind hidden: h_t is a function of (q_{<t}, r_{<t}) only.
-
-        The token stream is right-shifted by one with a learned start token
-        before positions and causal attention are applied, so the hidden at step
-        t has not seen the current step's item identity -- the faithful port of
-        ma-irt's read-before-write ability pass and parity with
-        ``LSTMEncoder._item_blind_hidden`` (no current-question signal).  Already
-        in prediction alignment; no further shift is applied downstream.
-
-        Returns
-        -------
-        h : (batch, seq_len, hidden_dim)
-        """
-        tokens = self._tokens(item_ids, responses)             # (B, T, hidden)
-        B = tokens.size(0)
-        start = self.token_start.expand(B, 1, -1)              # (B, 1, hidden)
-        shifted = torch.cat([start, tokens[:, :-1]], dim=1)    # (B, T, hidden)
-        x = self._add_positions(shifted)
         return self._attend(x)

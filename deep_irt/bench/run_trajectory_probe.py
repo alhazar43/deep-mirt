@@ -76,7 +76,6 @@ _BASE = dict(
     state_alpha=True,
     alpha_log_scale=1.0,
     decoder="gpcm",
-    separate_theta=False,
 )
 
 CONFIGS = {
@@ -107,7 +106,6 @@ def _build_model(cfg: dict, num_items: int, n_cats: int,
         hidden_dim=cfg["hidden_dim"],
         n_cats=n_cats,
         decoder=cfg["decoder"],
-        separate_theta=cfg["separate_theta"],
         state_alpha=cfg["state_alpha"],
         alpha_emb_dim=cfg.get("alpha_emb_dim"),
         alpha_log_scale=cfg.get("alpha_log_scale"),

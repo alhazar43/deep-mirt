@@ -17,15 +17,11 @@ Selectable decoders (pass decoder="gpcm"|"binary"|"bt"|"nrm" to __init__):
 
 The organic single-pass engine
 ------------------------------
-The encoder is run ONCE per forward (no double pass).  Two orthogonal levers
-shape what the engine reads:
-
-  separate_theta : where theta comes from.  False -> the direct responsive
-      stream (h_t sees the current interaction; the reported dynamic track).
-      True -> the item-blind stream (ma-irt's read-before-write ability pass).
-      The SINGLE-SHIFT alignment contract (encoder.theta_for_prediction /
-      state_for_prediction) holds for both, so theta used to predict step t is
-      always a function of history strictly before t.
+The encoder is run ONCE per forward (no double pass).  Theta comes from the
+direct responsive stream (h_t sees the current interaction; the reported dynamic
+track).  The SINGLE-SHIFT alignment contract (encoder.theta_for_prediction /
+state_for_prediction) means the theta used to predict step t is always a
+function of history strictly before t.
 
   state_alpha : a clean optional DECODER feature (gpcm/binary only).  When True
       the GPCM/binary decoder reads discrimination from
@@ -80,19 +76,12 @@ class DeepIRTModel:
     decoder     : str -- "gpcm" | "binary" | "bt" | "nrm"
     correct_option : int -- for "nrm", index of the designated-correct option
                             (default 0); ignored by other decoders
-    separate_theta : bool -- when True, theta is read from the encoder's
-                            item-blind stream (faithful port of ma-irt's
-                            separated ability pathway).  Default False keeps the
-                            direct responsive theta path bit-for-bit identical.
     state_alpha : bool -- when True (gpcm/binary only), discrimination is read
                             from the prediction-aligned encoder state plus the
                             item embedding (ma-irt's IRTParameterExtractor
                             recipe) and occurrence-averaged per item at recovery.
                             Default False keeps the static item-only alpha map
-                            and is bit-for-bit identical.  Orthogonal to
-                            separate_theta (they may be combined: in that case the
-                            state-conditioned alpha conditions on the item-blind
-                            state).
+                            and is bit-for-bit identical.
     alpha_emb_dim : int or None -- the DECOUPLED alpha variant (requires
                             state_alpha; gpcm/binary only).  When set, the
                             encoder gets a SEPARATE wide item-embedding table of
@@ -132,7 +121,6 @@ class DeepIRTModel:
         n_cats: int = 4,
         decoder: str = "gpcm",
         correct_option: int = 0,
-        separate_theta: bool = False,
         state_alpha: Optional[bool] = None,
         alpha_emb_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
@@ -189,7 +177,6 @@ class DeepIRTModel:
         self.n_cats = n_cats
         self.decoder_name = decoder
         self.correct_option = correct_option
-        self.separate_theta = separate_theta
         self.state_alpha = state_alpha
         self.alpha_emb_dim = alpha_emb_dim
         self.alpha_log_scale = alpha_log_scale
@@ -209,7 +196,7 @@ class DeepIRTModel:
 
         torch.manual_seed(seed)
         self.encoder = self._make_encoder(
-            encoder, num_items, emb_dim, hidden_dim, n_cats, separate_theta,
+            encoder, num_items, emb_dim, hidden_dim, n_cats,
             alpha_emb_dim, self.encoder_kwargs,
         ).to(device)
 
@@ -783,7 +770,6 @@ class DeepIRTModel:
         emb_dim: int,
         hidden_dim: int,
         n_cats: int,
-        separate_theta: bool,
         alpha_emb_dim: Optional[int],
         kw: dict,
     ) -> nn.Module:
@@ -798,8 +784,7 @@ class DeepIRTModel:
         """
         common = dict(
             num_items=num_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
-            n_cats=n_cats, separate_theta=separate_theta,
-            alpha_emb_dim=alpha_emb_dim,
+            n_cats=n_cats, alpha_emb_dim=alpha_emb_dim,
         )
         if kind == "lstm":
             return LSTMEncoder(**common)
