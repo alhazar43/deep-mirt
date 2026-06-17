@@ -20,7 +20,9 @@ from deep_irt.bench.run_alpha_fix_bench import run_cell
 
 # (label, kind, encoder, emb_dim, alpha_emb_dim, encoder_kwargs)
 CONFIGS = [
-    ("ma-irt MAGPCM", "mairt", "dkvmn", None, None, None),
+    ("ma-irt dkvmn", "mairt", "dkvmn", None, None, None),
+    ("ma-irt lstm", "mairt", "lstm_gpcm", None, None, None),
+    ("ma-irt transf", "mairt", "transformer_gpcm", None, None, None),
 ]
 for enc, ekw in [("lstm", None),
                  ("transformer", {"n_heads": 2, "n_layers": 2}),
@@ -53,7 +55,7 @@ def predm(eng):
 
 def build(kind, enc, emb, ae, ekw, ds, seed, device):
     if kind == "mairt":
-        return MaIrtEngine(ds, encoder="dkvmn", separate_theta=True,
+        return MaIrtEngine(ds, encoder=enc, separate_theta=True,
                            device=device, seed=seed)
     return DeepIRTEngine(ds, decoder="gpcm", emb_dim=emb, hidden_dim=32,
                          state_alpha=True, alpha_emb_dim=ae, alpha_log_scale=1.0,
