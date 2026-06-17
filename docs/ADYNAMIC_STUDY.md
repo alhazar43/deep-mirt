@@ -166,6 +166,13 @@ log-alpha-on-theta slope, which simultaneously dodges the Fisher-tail bias. Its
 magnitude is heavily and genuinely attenuated (~30x head shrinkage, not a scale
 artifact), so the honest claim is DIRECTIONAL detection, not calibrated measurement.
 
+Prior art (2026-06-17 lit pass). No neural KT state-conditions DISCRIMINATION, the
+closest (SAD-IRT, NCDM) state-condition DIFFICULTY; the classical relatives are
+D2PMM person-discrimination (a per-person constant, theta-INDEPENDENT) and
+non-uniform DIF (a group-level slope-by-ability interaction, not within-person). So
+both the modeling (state-conditioned alpha) and the rank-vs-magnitude diagnostic are
+novel. See memory [[dynamics-recovery-prior-art]].
+
 ### K-robustness (K in {2, 4, 8}, 3 seeds)
 
 Repeating the detection test across K confirms it generalizes and splits the two

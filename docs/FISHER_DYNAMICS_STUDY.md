@@ -48,7 +48,28 @@ Same architectural change, applied to a low-Fisher and a high-Fisher parameter.
 | 8 | 0.914 | 0.951 | +0.037 | 0.982 | 0.983 | +0.001 |
 | 11 | 0.755 | 0.951 | +0.196 | 0.980 | 0.979 | -0.001 |
 
-mean delta_alpha = +0.042, mean delta_beta = +0.003, Spearman(delta_alpha, K) = +0.877.
+mean delta_alpha = +0.042, mean delta_beta = +0.003, Pearson(delta_alpha, K) = +0.877
+(this is np.corrcoef, a PEARSON; the rank Spearman(delta_alpha, K) = +0.70, lower
+because of the noisy non-monotone mid-K; an earlier draft mislabeled the Pearson as
+"Spearman").
+
+Mechanism figure (deep_irt/bench/_fisher_ratio.py, fisher_ratio.png). The GPCM
+stiffness E[I(theta)]/E[I(alpha)] computed analytically under the bench priors
+(K=2 cross-checked against the closed-form 2PL) GROWS monotonically with K:
+0.98, 1.94, 2.81, 3.77, 5.34 for K = 2,4,6,8,11, because E[I(alpha)] plateaus
+(0.20 -> 0.49) while E[I(theta)] keeps climbing (0.20 -> 2.61). delta_alpha tracks it
+(Pearson on log-stiffness +0.87). At K=2 stiffness ~ 1 and delta_alpha < 0 (the
+dynamic head only adds noise); the benefit switches on as stiffness climbs.
+
+Classical grounding (lit pass, 2026-06-17). That discrimination is the
+LOW-information parameter is classical (I(a) ~ (theta-b)^2 P(1-P), vanishing at
+theta=b; confirmed by a primary GRM Monte Carlo). But the K-GROWTH of the dynamic
+benefit is NOT anticipated by classical estimation theory and runs COUNTER to it,
+the best primary evidence (PLOS One 2024 GRM) finds K NEGLIGIBLE (or, Frontiers
+2019, harmful) for STATIC discrimination recovery, attributing it to per-category
+information dilution. The dynamic, occurrence-pooled readout escapes that dilution.
+So finding RQ1 is the prediction-side, learning-dynamics counterpart to a result
+static estimation theory gets the opposite way.
 
 CONFIRMED. Making the low-Fisher alpha dynamic helps and the help GROWS with K;
 making the high-Fisher beta dynamic does essentially nothing at any K. The K=2
