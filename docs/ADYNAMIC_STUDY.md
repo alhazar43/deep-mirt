@@ -157,6 +157,36 @@ log-alpha-on-theta slope, which simultaneously dodges the Fisher-tail bias. Its
 magnitude is heavily and genuinely attenuated (~30x head shrinkage, not a scale
 artifact), so the honest claim is DIRECTIONAL detection, not calibrated measurement.
 
+### K-robustness (K in {2, 4, 8}, 3 seeds)
+
+Repeating the detection test across K confirms it generalizes and splits the two
+predictions cleanly, one held, one did not.
+
+| K | corr(signal,g) sigma=0.2 | corr(signal,g) sigma=0.4 | calib k sigma=0.4 | null slope std |
+|---|---|---|---|---|
+| 2 | +0.421 | +0.492 | 0.058 | 0.039 |
+| 4 | +0.438 | +0.666 | 0.040 | 0.015 |
+| 8 | +0.358 | +0.621 | 0.028 | 0.013 |
+
+- Detection is robustly positive and dose-responsive at EVERY K, but does NOT rise
+  monotonically with K (a modest K=2 -> K=4 lift, then a noisy plateau at K=8). The
+  "more categories sharpen the state so detection improves" prediction does not
+  hold, detection rank is largely K-insensitive within seed noise. So whatever caps
+  the rank is not state sharpness.
+- Calibration `k` FALLS monotonically with K (sigma=0.4, 0.058 -> 0.040 -> 0.028;
+  same direction at sigma=0.2), the magnitude shrinkage WORSENS as K grows. That
+  matches the low-Fisher prediction, higher K makes alpha relatively less
+  informative so the likelihood pressure on the alpha-theta slope weakens further.
+  Caveat, the scale `c` was only measured at K=4 (1.14), so the cross-K `k` trend is
+  suggestive of the Fisher mechanism, not a scale-clean proof.
+- The null-bias slope std also shrinks with K (0.039, 0.015, 0.013), the linear
+  slope is estimated more cleanly with more categories, which is why differencing
+  matters least at high K.
+
+Net, the directional-detection-not-magnitude verdict holds across K, and the one
+quantitative K-trend (calibration degrading with K) points the same way as RQ1, the
+low Fisher of alpha is the binding constraint.
+
 ## Implications / next steps
 
 - Phase 2 is DONE (see above) and turned the instrument question on its head. The
