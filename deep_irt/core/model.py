@@ -99,6 +99,16 @@ class DeepIRTModel:
                             uses ``exp(s * raw)``, ma-irt's exponential map
                             (``s = 1.0`` matches ma-irt; the MLP head absorbs the
                             scale constant).
+    state_beta  : bool -- the dynamic-beta arm (gpcm/binary only; requires
+                            state_alpha=True AND item_key_dim).  When True the step
+                            thresholds are read from a state-conditioned head
+                            ``fc_b_state([state, item_key])`` -- the EXACT mirror
+                            of the state_alpha discrimination head -- and
+                            occurrence-averaged per item at recovery (instead of
+                            the static item-key read).  This makes difficulty
+                            per-occurrence so the alpha-dynamic vs beta-dynamic
+                            comparison is clean.  Default False keeps the static
+                            beta and is bit-for-bit identical.
     decouple    : bool -- when True (DEFAULT) the GPCM/binary model uses the
                             decoupled architecture (state_alpha + a separate
                             item_key_dim=64 wide item key + exp link), the
@@ -125,6 +135,7 @@ class DeepIRTModel:
         state_alpha: Optional[bool] = None,
         item_key_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
+        state_beta: bool = False,
         decouple: bool = True,
         encoder: str = "lstm",
         encoder_kwargs: Optional[dict] = None,
@@ -161,17 +172,28 @@ class DeepIRTModel:
                 "state_alpha is defined for the GPCM/binary decoders (it routes "
                 f"a state-conditioned discrimination), not decoder='{decoder}'."
             )
-        if item_key_dim is not None and not state_alpha:
-            raise ValueError(
-                "item_key_dim (the decoupled wide item key) requires "
-                "state_alpha=True; the wide key only feeds the state-conditioned "
-                "alpha head."
-            )
+        # ``item_key_dim`` (the wide item key) feeds the static step-threshold
+        # head and, when a state is present, the state-conditioned alpha/beta
+        # heads.  It is therefore valid on its own (a capacity-matched all-static
+        # decoupled config: static alpha on the thin value, static beta on the
+        # wide key), so no state head is required.
         if alpha_log_scale is not None and decoder not in ("gpcm", "binary"):
             raise ValueError(
                 "alpha_log_scale (the exp discrimination transform) is defined for "
                 f"the GPCM/binary decoders, not decoder='{decoder}'."
             )
+        if state_beta:
+            if decoder not in ("gpcm", "binary"):
+                raise ValueError(
+                    "state_beta (state-conditioned step thresholds) is defined "
+                    f"for the GPCM/binary decoders, not decoder='{decoder}'."
+                )
+            if item_key_dim is None:
+                raise ValueError(
+                    "state_beta requires item_key_dim (the decoupled wide item "
+                    "key); the head reads [state, item_key], the exact mirror of "
+                    "the state_alpha head."
+                )
         self.num_items = num_items
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
@@ -181,6 +203,7 @@ class DeepIRTModel:
         self.state_alpha = state_alpha
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.state_beta = state_beta
         self.decouple = decouple
         self.encoder_kind = encoder
         self.encoder_kwargs = dict(encoder_kwargs or {})
@@ -204,10 +227,16 @@ class DeepIRTModel:
         # In state_alpha mode the GPCM/binary decoder gets a state-conditioned
         # alpha head whose state input is the encoder's prediction-aligned state.
         # In the decoupled variant its item key is the wide item_key_emb.
-        decoder_state_dim = hidden_dim if state_alpha else None
+        # The decoder gets a state input whenever EITHER head is state-
+        # conditioned (alpha via state_alpha, beta via state_beta).  The explicit
+        # ``state_alpha`` flag gates the discrimination head independently, so
+        # beta can be dynamic while alpha stays static (and vice versa).
+        self._uses_state = bool(state_alpha) or bool(state_beta)
+        decoder_state_dim = hidden_dim if self._uses_state else None
         self.decoder: nn.Module = self._make_decoder(
             decoder, emb_dim, n_cats, correct_option, state_dim=decoder_state_dim,
             item_key_dim=item_key_dim, alpha_log_scale=alpha_log_scale,
+            state_alpha=bool(state_alpha), state_beta=state_beta,
         )
         self.decoder = self.decoder.to(device)
 
@@ -228,6 +257,7 @@ class DeepIRTModel:
         verbose: bool = True,
         mask: Optional[Tensor] = None,
         batch_size: Optional[int] = None,
+        callback=None,
     ) -> dict:
         """
         Train encoder + decoder on base-item sequences.
@@ -246,6 +276,15 @@ class DeepIRTModel:
                      dimension. None (default) means full-batch, which
                      preserves the exact existing behaviour when mask is
                      also None.
+        callback   : optional callable, called once per epoch as
+                     ``callback(epoch, loss_value, self)`` AFTER the optimizer
+                     step (epoch is 1-based, loss_value is the epoch's final/mean
+                     loss).  It is fire-and-forget: a raised ``StopIteration`` is
+                     swallowed (the loop continues), and any return value is
+                     ignored.  This lets a runner recover the model every k epochs
+                     WITHOUT re-initializing the optimizer (chunked fit calls
+                     would reset Adam).  None (default) = no behavior change,
+                     bit-for-bit identical.
 
         Returns
         -------
@@ -312,6 +351,15 @@ class DeepIRTModel:
 
             if verbose and (epoch % 50 == 0 or epoch == 1):
                 print(f"  [Fit] epoch {epoch:4d}  loss={final_loss:.4f}")
+
+            # Fire-and-forget per-epoch hook (e.g. a runner recovering the model
+            # every k epochs).  A raised StopIteration is swallowed so the hook
+            # cannot abort training; any return value is ignored.
+            if callback is not None:
+                try:
+                    callback(epoch, final_loss, self)
+                except StopIteration:
+                    pass
 
         # "final_nll" kept as a back-compat alias; under the prediction loss it
         # holds the final WOL/CE value, not an IRT-likelihood NLL.
@@ -442,7 +490,7 @@ class DeepIRTModel:
                                and 'beta' (M,) correct-option difficulty
         All values are numpy arrays on cpu, sorted b for GPCM/binary.
         """
-        if self.state_alpha:
+        if self._uses_state:
             return self._recover_item_params_state_alpha(item_ids, responses)
 
         enc = self._get_encoder(use_extended)
@@ -458,7 +506,11 @@ class DeepIRTModel:
             embs = enc.item_val_emb(item_ids)       # (M, emb_dim)
             if self.decoder_name in ("gpcm", "binary"):
                 assert isinstance(self.decoder, (GPCMDecoder, Binary2PLDecoder))
-                params = self.decoder.item_params_sorted(embs)
+                # All-static decoupled config: the static beta head reads the wide
+                # item key, so supply it when it exists.
+                item_key = (enc.item_key_emb(item_ids)
+                            if self.item_key_dim is not None else None)
+                params = self.decoder.item_params_sorted(embs, item_key=item_key)
                 return {
                     "a": params["a"].squeeze(-1).cpu().numpy(),
                     "b": params["b"].cpu().numpy(),
@@ -535,19 +587,27 @@ class DeepIRTModel:
             )
             alpha = params["a"].squeeze(-1).reshape(N, T).cpu().numpy()  # (N, T)
 
-            # Per-item beta, occurrence-invariant (an item-only read).  Beta reads
-            # the wide item key whenever it exists (decoupled, ma-irt's shared-key
-            # path), else the thin item value.
-            all_ids = torch.arange(Q, device=self.device)
-            if self.item_key_dim is not None:
-                b_all = self.decoder.item_params_sorted(
-                    enc.item_val_emb(all_ids),
-                    item_key=enc.item_key_emb(all_ids),
-                )["b"]
+            if self.state_beta:
+                # Dynamic beta: the per-occurrence state-conditioned step
+                # thresholds come straight from the same item_params call (the
+                # exact mirror of alpha) and are occurrence-averaged below.  Sort
+                # AFTER averaging so the recovered thresholds are ascending.
+                beta_occ = params["b"].reshape(N, T, self.n_cats - 1)
+                beta_occ = beta_occ.cpu().numpy()                   # (N, T, K-1)
             else:
-                b_all = self.decoder.item_params_sorted(
-                    enc.item_val_emb(all_ids))["b"]
-            b_hat = b_all.cpu().numpy()                              # (Q, K-1)
+                # Static beta, occurrence-invariant (an item-only read).  Beta
+                # reads the wide item key whenever it exists (decoupled, ma-irt's
+                # shared-key path), else the thin item value.
+                all_ids = torch.arange(Q, device=self.device)
+                if self.item_key_dim is not None:
+                    b_all = self.decoder.item_params_sorted(
+                        enc.item_val_emb(all_ids),
+                        item_key=enc.item_key_emb(all_ids),
+                    )["b"]
+                else:
+                    b_all = self.decoder.item_params_sorted(
+                        enc.item_val_emb(all_ids))["b"]
+                b_hat = b_all.cpu().numpy()                          # (Q, K-1)
 
         items = item_ids.cpu().numpy()                              # (N, T)
         a_sum = np.zeros(Q)
@@ -556,6 +616,16 @@ class DeepIRTModel:
         np.add.at(a_cnt, items.ravel(), 1.0)
         a_hat = a_sum / np.maximum(a_cnt, 1.0)
         seen = a_cnt > 0
+
+        if self.state_beta:
+            # Occurrence-average the state-conditioned thresholds per item, then
+            # sort ascending -- the same recovery recipe alpha uses, applied to
+            # the K-1 threshold vector.
+            K1 = self.n_cats - 1
+            b_sum = np.zeros((Q, K1))
+            np.add.at(b_sum, items.ravel(), beta_occ.reshape(N * T, K1))
+            b_hat = b_sum / np.maximum(a_cnt[:, None], 1.0)         # (Q, K-1)
+            b_hat = np.sort(b_hat, axis=1)
         return {"a": a_hat, "b": b_hat, "seen": seen}
 
     # ------------------------------------------------------------------
@@ -712,8 +782,10 @@ class DeepIRTModel:
         embs_flat = embs.view(batch * T, self.emb_dim)
         resp_flat = responses.reshape(batch * T)
 
-        if self.state_alpha:
-            # One aligned hidden -> theta and the alpha state, no second pass.
+        if self._uses_state:
+            # One aligned hidden -> theta and the alpha/beta state, no second
+            # pass.  Used whenever EITHER head is state-conditioned (state_alpha
+            # for discrimination, state_beta for the step thresholds).
             theta_in, state_in = self.encoder.aligned_theta_and_state(
                 item_ids, responses
             )
@@ -730,7 +802,13 @@ class DeepIRTModel:
             theta_in = self.encoder.theta_for_prediction(item_ids, responses)
             theta_flat = theta_in.reshape(batch * T)
             state_flat = None
-            key_flat = None
+            # A wide item key with NO state head still feeds the static beta head
+            # (the all-static decoupled config), so thread it when it exists.
+            if self.item_key_dim is not None:
+                item_keys = self.encoder.item_key_emb(item_ids)
+                key_flat = item_keys.reshape(batch * T, self.item_key_dim)
+            else:
+                key_flat = None
 
         # Select valid positions (no-op when mask is None).
         if mask is not None:
@@ -826,15 +904,19 @@ class DeepIRTModel:
         state_dim: Optional[int] = None,
         item_key_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
+        state_alpha: bool = True,
+        state_beta: bool = False,
     ) -> nn.Module:
         if name == "gpcm":
             return GPCMDecoder(emb_dim=emb_dim, n_cats=n_cats, state_dim=state_dim,
                                item_key_dim=item_key_dim,
-                               alpha_log_scale=alpha_log_scale)
+                               alpha_log_scale=alpha_log_scale,
+                               state_alpha=state_alpha, state_beta=state_beta)
         if name == "binary":
             return Binary2PLDecoder(emb_dim=emb_dim, state_dim=state_dim,
                                     item_key_dim=item_key_dim,
-                                    alpha_log_scale=alpha_log_scale)
+                                    alpha_log_scale=alpha_log_scale,
+                                    state_alpha=state_alpha, state_beta=state_beta)
         if name == "bt":
             return BradleyTerryDecoder(emb_dim=emb_dim)
         if name == "nrm":

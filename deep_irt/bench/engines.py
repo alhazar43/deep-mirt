@@ -65,7 +65,7 @@ class DeepIRTEngine:
 
     def __init__(self, ds, decoder="gpcm", emb_dim=8, hidden_dim=32,
                  state_alpha=False, item_key_dim=None,
-                 alpha_log_scale=None,
+                 alpha_log_scale=None, state_beta=False,
                  encoder="lstm", encoder_kwargs=None,
                  device="cpu", seed=0):
         self.ds = ds
@@ -73,22 +73,27 @@ class DeepIRTEngine:
         self.state_alpha = state_alpha
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.state_beta = state_beta
+        # The state-conditioned path (one aligned pass -> theta + state + wide
+        # key) is used whenever EITHER head is dynamic.
+        self.uses_state = bool(state_alpha) or bool(state_beta)
         self.encoder_kind = encoder
         self.device = torch.device(device)
         self.seed = seed
         sa = "+sa" if state_alpha else ""
+        sb = "+sb" if state_beta else ""
         de = f"+ik{item_key_dim}" if item_key_dim is not None else ""
         xp = f"+exp{alpha_log_scale}" if alpha_log_scale is not None else ""
         bk = encoder.upper()
-        self.label = f"deep_irt-{bk}/{decoder}/{sa}{de}{xp}"
+        self.label = f"deep_irt-{bk}/{decoder}/{sa}{sb}{de}{xp}"
         self.encoder_name = (
-            f"{bk}({sa}{de}{xp},e{emb_dim}h{hidden_dim})")
+            f"{bk}({sa}{sb}{de}{xp},e{emb_dim}h{hidden_dim})")
         K = ds.cfg.n_cats
         self.model = DeepIRTModel(
             num_items=ds.cfg.n_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
             n_cats=K, decoder=decoder,
             state_alpha=state_alpha, item_key_dim=item_key_dim,
-            alpha_log_scale=alpha_log_scale,
+            alpha_log_scale=alpha_log_scale, state_beta=state_beta,
             decouple=False, encoder=encoder,
             encoder_kwargs=encoder_kwargs,
             device=self.device, seed=seed,
@@ -118,8 +123,9 @@ class DeepIRTEngine:
         it = it.to(self.device); rp = rp.to(self.device)
         embs = self.model.encoder.item_val_emb(it)                 # (B,T,emb)
 
-        if self.state_alpha:
-            # ONE pass -> aligned theta (for the likelihood) and the alpha state.
+        if self.uses_state:
+            # ONE pass -> aligned theta (for the likelihood) and the state that
+            # feeds the dynamic alpha and/or beta head.
             theta_in, state_in = self.model.encoder.aligned_theta_and_state(it, rp)
             # Decoupled wide item key (separate item table; not the LSTM input).
             if self.item_key_dim is not None:
@@ -130,7 +136,11 @@ class DeepIRTEngine:
             # theta_in[t] = ability after history 0..t-1 -> predicts response[t]
             theta_in = self.model.encoder.theta_for_prediction(it, rp)  # (B,T)
             state_in = None
-            item_keys = None
+            # A wide key with no state head still feeds the static beta read.
+            if self.item_key_dim is not None:
+                item_keys = self.model.encoder.item_key_emb(it)         # (B,T,ik)
+            else:
+                item_keys = None
 
         probs_full = []
         for t in range(T):
@@ -148,8 +158,8 @@ class DeepIRTEngine:
 
     @torch.no_grad()
     def recover(self):
-        if self.state_alpha:
-            # State-conditioned alpha, occurrence-averaged over all sequences.
+        if self.uses_state:
+            # State-conditioned alpha/beta, occurrence-averaged over all sequences.
             it_all = torch.tensor(self.ds.items0, dtype=torch.long,
                                   device=self.device)
             rp_all = torch.tensor(self.ds.responses, dtype=torch.long,

@@ -120,6 +120,16 @@ class GPCMDecoder(nn.Module):
                     before.  A positive float ``s`` uses ``exp(s * raw)``,
                     ma-irt's exponential map (``s = 1.0`` matches ma-irt; the
                     head absorbs the scale constant).
+    state_beta    : bool -- when True (requires both ``state_dim`` and
+                    ``item_key_dim``) the step thresholds are read from a
+                    state-conditioned head ``fc_b_state([state, item_key])``
+                    instead of the static ``fc_b(item_key)``, the EXACT mirror of
+                    the state-conditioned alpha head.  This is the dynamic-beta
+                    arm: difficulty becomes per-occurrence, conditioned on the
+                    same prediction-aligned state alpha uses.  Default False keeps
+                    the static (item-only) beta read and is bit-for-bit identical
+                    (``fc_b_state`` is built last, so the state_alpha init RNG is
+                    untouched).
     """
 
     def __init__(
@@ -129,25 +139,44 @@ class GPCMDecoder(nn.Module):
         state_dim: int | None = None,
         item_key_dim: int | None = None,
         alpha_log_scale: float | None = None,
+        state_alpha: bool = True,
+        state_beta: bool = False,
     ) -> None:
         super().__init__()
         if n_cats < 2:
             raise ValueError("n_cats must be >= 2")
-        if item_key_dim is not None and state_dim is None:
-            raise ValueError(
-                "item_key_dim (decoupled wide item key) requires state_dim; "
-                "the wide key only feeds the state-conditioned alpha head."
-            )
+        # ``item_key_dim`` (the wide item key) feeds the static step-threshold
+        # head ``fc_b`` and, when a state is present, the state-conditioned alpha
+        # head.  It is therefore meaningful WITHOUT a state too (a static
+        # wide-key beta -- the capacity-matched all-static decoupled baseline), so
+        # no state_dim is required here.
         if alpha_log_scale is not None and alpha_log_scale <= 0.0:
             raise ValueError(
                 f"alpha_log_scale must be > 0 (the exp scale), got "
                 f"{alpha_log_scale}.  Use None for softplus."
             )
+        if state_beta and state_dim is None:
+            raise ValueError(
+                "state_beta (the state-conditioned step-threshold head) requires "
+                "state_dim; the head reads [state, item_key]."
+            )
+        if state_beta and item_key_dim is None:
+            raise ValueError(
+                "state_beta requires item_key_dim (the decoupled wide item key); "
+                "the head reads [state, item_key], mirroring the state_alpha head."
+            )
+        # ``state_alpha`` gates whether the discrimination head is state-
+        # conditioned.  It is meaningful only when a state is available
+        # (``state_dim`` set); with no state the decoder is the legacy static map
+        # and ``state_alpha`` is moot.  Decoupling alpha from beta (so beta can be
+        # dynamic while alpha stays static) needs this explicit gate.
+        self.alpha_is_state = bool(state_alpha) and state_dim is not None
         self.emb_dim = emb_dim
         self.n_cats = n_cats
         self.state_dim = state_dim
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.state_beta = state_beta
 
         self.fc_a = nn.Linear(emb_dim, 1)          # -> raw discrimination
         # Step thresholds: the wide item key whenever it exists (decoupled), else
@@ -155,12 +184,22 @@ class GPCMDecoder(nn.Module):
         beta_in = item_key_dim if item_key_dim is not None else emb_dim
         self.fc_b = nn.Linear(beta_in, n_cats - 1) # -> step thresholds (raw)
 
-        # State-conditioned discrimination head, built only when requested so the
+        # State-conditioned discrimination head, built only when the alpha head is
+        # state-conditioned (``state_alpha`` and a state available), so the
         # default (state-free) decoder is bit-for-bit identical to before.  In
         # the decoupled variant its item input is the wide item key.
-        if state_dim is not None:
+        if self.alpha_is_state:
             alpha_in = item_key_dim if item_key_dim is not None else emb_dim
             self.fc_a_state = nn.Linear(state_dim + alpha_in, 1)
+
+        # State-conditioned step-threshold head, the EXACT mirror of fc_a_state
+        # for beta.  Built only when requested (requires state_dim AND
+        # item_key_dim) and ONLY after fc_a_state above so the state_alpha
+        # default-path init RNG is untouched (default state_beta=False is
+        # bit-for-bit identical).  Reads [state, item_key] of width
+        # state_dim + item_key_dim -> n_cats-1 raw step thresholds.
+        if state_beta:
+            self.fc_b_state = nn.Linear(state_dim + item_key_dim, n_cats - 1)
 
     # --- positivity transform ---
 
@@ -190,10 +229,12 @@ class GPCMDecoder(nn.Module):
         Parameters
         ----------
         emb      : (..., emb_dim) -- thin item value
-        state    : (..., state_dim) or None -- when given (and the decoder was
-                   built with ``state_dim``), discrimination is read from the
-                   state-conditioned head; otherwise from the static item-only
-                   map.
+        state    : (..., state_dim) or None -- the prediction-aligned state.  When
+                   the alpha head is state-conditioned (``state_alpha``)
+                   discrimination reads it; when the beta head is state-
+                   conditioned (``state_beta``) the step thresholds read it.  A
+                   state may be supplied for beta alone, in which case alpha still
+                   uses the static map (alpha and beta are gated independently).
         item_key : (..., item_key_dim) or None -- the wide item key for the
                    decoupled static readouts.  Required when the decoder was built
                    with ``item_key_dim``; ignored otherwise.
@@ -204,13 +245,12 @@ class GPCMDecoder(nn.Module):
             a : (..., 1)      discrimination (softplus, always > 0)
             b : (..., K-1)    step thresholds (raw; sort before evaluation)
         """
-        if state is not None:
-            if self.state_dim is None:
-                raise RuntimeError(
-                    "GPCMDecoder was built without state_dim; cannot read a "
-                    "state-conditioned discrimination.  Pass state_dim to the "
-                    "constructor (dual-channel mode)."
-                )
+        # Discrimination.  State-conditioned ONLY when the alpha head was built
+        # state-conditioned (``state_alpha``) AND a state is supplied; a state
+        # passed solely for the beta head does NOT pull alpha off its static map,
+        # and omitting the state falls back to the static map (the legacy
+        # contract -- item-only recovery reads still work).
+        if self.alpha_is_state and state is not None:
             if self.item_key_dim is not None:
                 if item_key is None:
                     raise RuntimeError(
@@ -223,9 +263,26 @@ class GPCMDecoder(nn.Module):
             a = self._alpha_pos(self.fc_a_state(torch.cat([state, key], dim=-1)))  # > 0
         else:
             a = self._alpha_pos(self.fc_a(emb))   # > 0
-        # Step thresholds ride the wide item key whenever it exists (decoupled),
-        # else the thin item value.
-        if self.item_key_dim is not None:
+        # Step thresholds.  Three modes, in priority order:
+        #   state_beta on  -> b = fc_b_state([state, item_key]), the per-occurrence
+        #                     state-conditioned threshold (the dynamic-beta arm,
+        #                     the exact mirror of the state-conditioned alpha).
+        #   item_key_dim   -> b = fc_b(item_key), wide static item-key threshold
+        #                     (ma-irt's shared-key path).
+        #   otherwise      -> b = fc_b(emb), thin item-value threshold (legacy).
+        if self.state_beta:
+            if state is None:
+                raise RuntimeError(
+                    "GPCMDecoder was built with state_beta (state-conditioned "
+                    "step thresholds); pass state to item_params so beta reads it."
+                )
+            if item_key is None:
+                raise RuntimeError(
+                    "GPCMDecoder was built with state_beta (which requires the "
+                    "wide item key); pass item_key to item_params so beta reads it."
+                )
+            b = self.fc_b_state(torch.cat([state, item_key], dim=-1))
+        elif self.item_key_dim is not None:
             if item_key is None:
                 raise RuntimeError(
                     "GPCMDecoder was built with item_key_dim (decoupled wide "
@@ -378,6 +435,8 @@ class Binary2PLDecoder(nn.Module):
         state_dim: int | None = None,
         item_key_dim: int | None = None,
         alpha_log_scale: float | None = None,
+        state_alpha: bool = True,
+        state_beta: bool = False,
     ) -> None:
         super().__init__()
         self.emb_dim = emb_dim
@@ -385,9 +444,11 @@ class Binary2PLDecoder(nn.Module):
         self.state_dim = state_dim
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.state_beta = state_beta
         self._gpcm = GPCMDecoder(
             emb_dim=emb_dim, n_cats=2, state_dim=state_dim,
             item_key_dim=item_key_dim, alpha_log_scale=alpha_log_scale,
+            state_alpha=state_alpha, state_beta=state_beta,
         )
 
     def item_params(
