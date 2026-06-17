@@ -57,8 +57,8 @@ def test_identifiability_sum_to_zero():
     dec = NRMDecoder(emb_dim=8, n_options=4, correct_option=0)
     emb = torch.randn(6, 8)
     p = dec.item_params(emb)
-    assert torch.allclose(p["a"].sum(-1), torch.zeros(6), atol=1e-5)
-    assert torch.allclose(p["c"].sum(-1), torch.zeros(6), atol=1e-5)
+    assert torch.allclose(p["alpha"].sum(-1), torch.zeros(6), atol=1e-5)
+    assert torch.allclose(p["intercept"].sum(-1), torch.zeros(6), atol=1e-5)
 
 
 def test_shift_invariance():
@@ -74,8 +74,8 @@ def test_shift_invariance():
     theta = torch.randn(5)
     p1 = dec.item_params(emb)
     p2 = dec2.item_params(emb)
-    lp1 = dec.log_probs(theta, p1["a"], p1["c"])
-    lp2 = dec2.log_probs(theta, p2["a"], p2["c"])
+    lp1 = dec.log_probs(theta, p1["alpha"], p1["intercept"])
+    lp2 = dec2.log_probs(theta, p2["alpha"], p2["intercept"])
     assert torch.allclose(lp1, lp2, atol=1e-5)
 
 
@@ -85,7 +85,7 @@ def test_log_probs_valid():
     emb = torch.randn(7, 8)
     theta = torch.randn(7)
     p = dec.item_params(emb)
-    lp = dec.log_probs(theta, p["a"], p["c"])
+    lp = dec.log_probs(theta, p["alpha"], p["intercept"])
     assert lp.shape == (7, 4)
     assert torch.allclose(lp.exp().sum(-1), torch.ones(7), atol=1e-5)
 

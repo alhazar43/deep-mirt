@@ -114,11 +114,11 @@ class LogNormalRTDecoder(nn.Module):
 
     # --- item_params ---
 
-    def item_params(self, emb: torch.Tensor) -> dict:
+    def item_params(self, item_val: torch.Tensor) -> dict:
         """
         Parameters
         ----------
-        emb : (..., emb_dim)
+        item_val : (..., emb_dim)
 
         Returns
         -------
@@ -126,9 +126,9 @@ class LogNormalRTDecoder(nn.Module):
             beta      : (..., 1)   time-intensity (real-valued)
             log_sigma : (..., 1)   log residual scale on log-time
         """
-        beta = self.fc_beta(emb)                       # (..., 1)
+        beta = self.fc_beta(item_val)                       # (..., 1)
         if self.per_item_sigma:
-            log_sigma = self.fc_log_sigma(emb)         # (..., 1)
+            log_sigma = self.fc_log_sigma(item_val)         # (..., 1)
         else:
             shape = beta.shape
             log_sigma = self.log_sigma.expand(shape)   # broadcast shared scale
@@ -174,7 +174,7 @@ class LogNormalRTDecoder(nn.Module):
     def nll(
         self,
         tau: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         log_rt: torch.Tensor,
     ) -> torch.Tensor:
         """
@@ -182,15 +182,15 @@ class LogNormalRTDecoder(nn.Module):
 
         Parameters
         ----------
-        tau    : (N,)            person speed latents
-        emb    : (N, emb_dim)
-        log_rt : (N,)            observed log response times
+        tau      : (N,)            person speed latents
+        item_val : (N, emb_dim)
+        log_rt   : (N,)            observed log response times
 
         Returns
         -------
         loss : scalar
         """
-        params = self.item_params(emb)
+        params = self.item_params(item_val)
         ld = self.log_density(tau, params["beta"], params["log_sigma"], log_rt)
         return -ld.mean()
 
@@ -255,11 +255,11 @@ class BetaResponseDecoder(nn.Module):
 
     # --- item_params ---
 
-    def item_params(self, emb: torch.Tensor) -> dict:
+    def item_params(self, item_val: torch.Tensor) -> dict:
         """
         Parameters
         ----------
-        emb : (..., emb_dim)
+        item_val : (..., emb_dim)
 
         Returns
         -------
@@ -268,10 +268,10 @@ class BetaResponseDecoder(nn.Module):
             b   : (..., 1)   difficulty (real)
             phi : (..., 1)   precision (> 0)
         """
-        a = F.softplus(self.fc_a(emb))                 # > 0
-        b = self.fc_b(emb)
+        a = F.softplus(self.fc_a(item_val))                 # > 0
+        b = self.fc_b(item_val)
         if self.per_item_phi:
-            phi = F.softplus(self.fc_log_phi(emb)) + 1e-3
+            phi = F.softplus(self.fc_log_phi(item_val)) + 1e-3
         else:
             phi = (F.softplus(self.log_phi_raw) + 1e-3).expand(a.shape)
         return {"a": a, "b": b, "phi": phi}
@@ -333,7 +333,7 @@ class BetaResponseDecoder(nn.Module):
     def nll(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         responses: torch.Tensor,
     ) -> torch.Tensor:
         """
@@ -342,14 +342,14 @@ class BetaResponseDecoder(nn.Module):
         Parameters
         ----------
         theta     : (N,)
-        emb       : (N, emb_dim)
+        item_val  : (N, emb_dim)
         responses : (N,)   floats in (0,1)
 
         Returns
         -------
         loss : scalar
         """
-        params = self.item_params(emb)
+        params = self.item_params(item_val)
         ld = self.log_density(
             theta, params["a"], params["b"], params["phi"], responses
         )
@@ -408,11 +408,11 @@ class PoissonCountDecoder(nn.Module):
 
     # --- item_params ---
 
-    def item_params(self, emb: torch.Tensor) -> dict:
+    def item_params(self, item_val: torch.Tensor) -> dict:
         """
         Parameters
         ----------
-        emb : (..., emb_dim)
+        item_val : (..., emb_dim)
 
         Returns
         -------
@@ -420,9 +420,9 @@ class PoissonCountDecoder(nn.Module):
             b : (..., 1)   difficulty / log-rate offset (real)
             a : (..., 1)   discrimination (> 0); only when discrimination=True
         """
-        b = self.fc_b(emb)
+        b = self.fc_b(item_val)
         if self.discrimination:
-            a = F.softplus(self.fc_a(emb))             # > 0
+            a = F.softplus(self.fc_a(item_val))             # > 0
             return {"a": a, "b": b}
         return {"b": b}
 
@@ -467,7 +467,7 @@ class PoissonCountDecoder(nn.Module):
     def nll(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         responses: torch.Tensor,
     ) -> torch.Tensor:
         """
@@ -476,14 +476,14 @@ class PoissonCountDecoder(nn.Module):
         Parameters
         ----------
         theta     : (N,)
-        emb       : (N, emb_dim)
+        item_val  : (N, emb_dim)
         responses : (N,)   non-negative counts
 
         Returns
         -------
         loss : scalar
         """
-        params = self.item_params(emb)
+        params = self.item_params(item_val)
         a = params.get("a", None)
         lp = self.log_probs(theta, params["b"], responses, a=a)
         return -lp.mean()

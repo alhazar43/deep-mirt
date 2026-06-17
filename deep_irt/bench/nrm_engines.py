@@ -83,7 +83,7 @@ class DeepIRTNRMEngine:
         h = self.ds.cfg.n_holdout
         it, rp = self._tensor(self.ds.val_idx)
         it = it.to(self.device); rp = rp.to(self.device)
-        theta_in = self.model.encoder.shifted_theta(it, rp)        # (B,T)
+        theta_in = self.model.encoder.theta_for_prediction(it, rp)  # (B,T)
         embs = self.model.encoder.item_val_emb(it)                 # (B,T,emb)
         probs_full = []
         for t in range(T):
@@ -98,8 +98,8 @@ class DeepIRTNRMEngine:
     @torch.no_grad()
     def recover(self):
         params = self.model.recover_item_params()                 # all Q items
-        a_hat = params["a"]                                        # (Q,K)
-        c_hat = params["c"]                                        # (Q,K)
+        a_hat = params["alpha"]                                    # (Q,K)
+        c_hat = params["intercept"]                                # (Q,K)
         beta_hat = params["beta"]                                  # (Q,)
         it = torch.tensor(self.ds.items0, dtype=torch.long, device=self.device)
         rp = torch.tensor(self.ds.responses, dtype=torch.long, device=self.device)

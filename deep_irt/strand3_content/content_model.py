@@ -132,7 +132,7 @@ class ContentModel:
         dec.eval()
         with torch.no_grad():
             embs = enc.item_val_emb(item_ids)                # content reprs
-            b = dec.item_params_sorted(embs)["b"]            # (M, K-1)
+            b = dec.item_params_sorted(embs)["beta"]          # (M, K-1)
         return self._scalar_difficulty(b)
 
     def cold_start_difficulty(self, new_text_features: torch.Tensor) -> np.ndarray:
@@ -146,5 +146,5 @@ class ContentModel:
         dec.eval()
         with torch.no_grad():
             rep = self.content_emb.cold_start_repr(new_text_features)  # (n_new, emb_dim)
-            b = dec.item_params_sorted(rep)["b"]                       # (n_new, K-1)
+            b = dec.item_params_sorted(rep)["beta"]                    # (n_new, K-1)
         return self._scalar_difficulty(b)

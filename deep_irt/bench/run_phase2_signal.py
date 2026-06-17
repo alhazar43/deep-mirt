@@ -71,7 +71,7 @@ def _alpha_per_pos(model, items, resp, device):
     key = enc.item_key_emb(it)
     p = dec.item_params(val.reshape(Nn * Tt, -1), state=state.reshape(Nn * Tt, H),
                         item_key=key.reshape(Nn * Tt, -1))
-    return p["a"].reshape(Nn, Tt).cpu().numpy()
+    return p["alpha"].reshape(Nn, Tt).cpu().numpy()
 
 
 def _per_item_logslope(a, items, theta, Q):

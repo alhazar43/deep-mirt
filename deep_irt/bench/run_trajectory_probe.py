@@ -170,10 +170,10 @@ def train_with_checkpoints(
 
                 # ----- alpha recovery (state_alpha -> occurrence-averaged) -----
                 rec = model.recover_item_params(it_all, rp_all)
-                a_hat = rec["a"]
+                a_hat = rec["alpha"]
                 seen = rec.get("seen")
                 im = M.item_recovery(
-                    a_hat, rec["b"], ds.gt.a, ds.gt.b, seen=seen
+                    a_hat, rec["beta"], ds.gt.a, ds.gt.b, seen=seen
                 )
                 alpha_spearman = im["a_spearman"]
 
@@ -311,7 +311,7 @@ def _forward_lstm_only(
         item_key=None,
     )
 
-    log_p = model.decoder.log_probs(theta_flat, params["a"], params["b"])
+    log_p = model.decoder.log_probs(theta_flat, params["alpha"], params["beta"])
     return F.nll_loss(log_p, resp_flat)
 
 
@@ -423,7 +423,7 @@ def _full_forward(
     resp_flat  = responses.reshape(B * T)
 
     params = model.decoder.item_params(emb_flat, state=state_flat, item_key=None)
-    log_p = model.decoder.log_probs(theta_flat, params["a"], params["b"])
+    log_p = model.decoder.log_probs(theta_flat, params["alpha"], params["beta"])
     return F.nll_loss(log_p, resp_flat)
 
 

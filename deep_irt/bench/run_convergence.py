@@ -76,7 +76,7 @@ def _alpha_recovery(model: DeepIRTModel, it, rp, a_true) -> float:
         rec = model.recover_item_params(it, rp)
     else:
         rec = model.recover_item_params()           # per-item static read (Q,)
-    a_hat = np.asarray(rec["a"], dtype=float)
+    a_hat = np.asarray(rec["alpha"], dtype=float)
     seen = rec.get("seen")
     if seen is not None:
         a_hat, a_ref = a_hat[seen], a_true[seen]

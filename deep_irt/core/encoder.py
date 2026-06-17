@@ -176,12 +176,6 @@ class BaseSeqEncoder(nn.Module):
         """
         return self.aligned_theta_and_state(item_ids, responses)[0]
 
-    def shifted_theta(
-        self, item_ids: torch.Tensor, responses: torch.Tensor
-    ) -> torch.Tensor:
-        """Alias of ``theta_for_prediction`` (the single-shift alignment)."""
-        return self.theta_for_prediction(item_ids, responses)
-
     def get_final_theta(
         self, item_ids: torch.Tensor, responses: torch.Tensor
     ) -> torch.Tensor:

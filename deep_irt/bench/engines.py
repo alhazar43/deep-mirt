@@ -69,15 +69,14 @@ class DeepIRTEngine:
                  encoder="lstm", encoder_kwargs=None,
                  device="cpu", seed=0):
         self.ds = ds
-        self.decoder = decoder
+        self.decoder_name = decoder
         self.state_alpha = state_alpha
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
         self.state_beta = state_beta
         # The state-conditioned path (one aligned pass -> theta + state + wide
         # key) is used whenever EITHER head is dynamic.
-        self.uses_state = bool(state_alpha) or bool(state_beta)
-        self.encoder_kind = encoder
+        self._uses_state = bool(state_alpha) or bool(state_beta)
         self.device = torch.device(device)
         self.seed = seed
         sa = "+sa" if state_alpha else ""
@@ -123,7 +122,7 @@ class DeepIRTEngine:
         it = it.to(self.device); rp = rp.to(self.device)
         embs = self.model.encoder.item_val_emb(it)                 # (B,T,emb)
 
-        if self.uses_state:
+        if self._uses_state:
             # ONE pass -> aligned theta (for the likelihood) and the state that
             # feeds the dynamic alpha and/or beta head.
             theta_in, state_in = self.model.encoder.aligned_theta_and_state(it, rp)
@@ -158,7 +157,7 @@ class DeepIRTEngine:
 
     @torch.no_grad()
     def recover(self):
-        if self.uses_state:
+        if self._uses_state:
             # State-conditioned alpha/beta, occurrence-averaged over all sequences.
             it_all = torch.tensor(self.ds.items0, dtype=torch.long,
                                   device=self.device)
@@ -166,21 +165,21 @@ class DeepIRTEngine:
                                   device=self.device)
             rec = self.model.recover_item_params(it_all, rp_all)
             theta_traj = self.model.track(it_all, rp_all).cpu().numpy()  # (N,T)
-            return {"a": rec["a"], "b": rec["b"],
+            return {"a": rec["alpha"], "b": rec["beta"],
                     "theta_final": theta_traj[:, -1], "theta_traj": theta_traj,
                     "seen": rec["seen"]}
 
         params = self.model.recover_item_params()                 # all Q items
-        if self.decoder == "nrm":
-            # NRM exposes per-option a (Q,K) and a correct-option location beta
+        if self.decoder_name == "nrm":
+            # NRM exposes per-option alpha (Q,K) and a correct-option location beta
             # (Q,). It carries no ordinal step-thresholds, so item-param recovery
             # against the GPCM ground truth is not defined; run_bench scores NRM
             # on prediction + theta only and marks a/b as N/A.
-            a_hat = params["a"]                                  # (Q,K)
+            a_hat = params["alpha"]                              # (Q,K)
             b_hat = params.get("beta")                           # (Q,)
         else:
-            a_hat = params["a"]                                  # (Q,)
-            b_hat = params["b"]                                  # (Q,K-1)
+            a_hat = params["alpha"]                              # (Q,)
+            b_hat = params["beta"]                               # (Q,K-1)
         # theta per learner: final-step theta over the FULL sequence
         it = torch.tensor(self.ds.items0, dtype=torch.long, device=self.device)
         rp = torch.tensor(self.ds.responses, dtype=torch.long, device=self.device)

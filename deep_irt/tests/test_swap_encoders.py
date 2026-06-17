@@ -147,13 +147,13 @@ def test_state_width_is_hidden_dim_regardless_of_item_key(kind):
 def _fit_and_check_recovery(model, it, rp, num_items, n_cats):
     model.fit(it, rp, n_epochs=5, verbose=False)
     rec = model.recover_item_params(it, rp)
-    assert rec["a"].shape == (num_items,)
-    assert rec["b"].shape == (num_items, n_cats - 1)
+    assert rec["alpha"].shape == (num_items,)
+    assert rec["beta"].shape == (num_items, n_cats - 1)
     assert rec["seen"].shape == (num_items,)
     assert bool(rec["seen"].all())
-    assert torch.isfinite(torch.tensor(rec["a"])).all()
-    assert torch.isfinite(torch.tensor(rec["b"])).all()
-    assert (rec["a"] > 0).all()
+    assert torch.isfinite(torch.tensor(rec["alpha"])).all()
+    assert torch.isfinite(torch.tensor(rec["beta"])).all()
+    assert (rec["alpha"] > 0).all()
 
 
 @pytest.mark.parametrize("kind", _BACKBONES)
@@ -194,10 +194,10 @@ def test_end_to_end_plain(kind):
     r = m.fit(it, rp, n_epochs=5, verbose=False)
     assert math.isfinite(r["final_nll"])
     rec = m.recover_item_params()                     # static: all items
-    assert rec["a"].shape == (num_items,)
-    assert rec["b"].shape == (num_items, n_cats - 1)
-    assert (rec["a"] > 0).all()
-    assert torch.isfinite(torch.tensor(rec["a"])).all()
+    assert rec["alpha"].shape == (num_items,)
+    assert rec["beta"].shape == (num_items, n_cats - 1)
+    assert (rec["alpha"] > 0).all()
+    assert torch.isfinite(torch.tensor(rec["alpha"])).all()
 
 
 # ---------------------------------------------------------------------------
@@ -226,5 +226,5 @@ def test_wide_key_moves_alpha_not_theta(kind):
     assert torch.allclose(theta_before, theta_after, atol=1e-6), \
         f"{kind}: theta moved when only the alpha key changed"
     assert not torch.allclose(
-        torch.tensor(rec_before["a"]), torch.tensor(rec_after["a"]),
+        torch.tensor(rec_before["alpha"]), torch.tensor(rec_after["alpha"]),
         atol=1e-4), f"{kind}: discrimination did not move with the alpha key"

@@ -55,7 +55,7 @@ def test_link_none_is_bit_identical():
     assert math.isclose(r1["final_nll"], r2["final_nll"], rel_tol=1e-12)
     rec1 = m_default.recover_item_params(it, rp)
     rec2 = m_none.recover_item_params(it, rp)
-    assert torch.allclose(torch.tensor(rec1["a"]), torch.tensor(rec2["a"]),
+    assert torch.allclose(torch.tensor(rec1["alpha"]), torch.tensor(rec2["alpha"]),
                           atol=1e-12)
 
 
@@ -69,7 +69,7 @@ def test_exp_link_is_exact_on_static_head():
     g = torch.Generator().manual_seed(0)
     emb = torch.randn(7, 4, generator=g)
     raw = dec.fc_a(emb)                       # (7, 1) raw discrimination
-    a = dec.item_params(emb)["a"]             # static path: state=None
+    a = dec.item_params(emb)["alpha"]             # static path: state=None
     assert torch.allclose(a, torch.exp(s * raw), atol=1e-7)
     # and NOT softplus
     assert not torch.allclose(a, F.softplus(raw), atol=1e-4)
@@ -80,7 +80,7 @@ def test_softplus_default_on_static_head():
     g = torch.Generator().manual_seed(1)
     emb = torch.randn(7, 4, generator=g)
     raw = dec.fc_a(emb)
-    a = dec.item_params(emb)["a"]
+    a = dec.item_params(emb)["alpha"]
     assert torch.allclose(a, F.softplus(raw), atol=1e-7)
 
 
@@ -91,7 +91,7 @@ def test_exp_link_is_exact_on_state_head():
     emb = torch.randn(5, 4, generator=g)
     state = torch.randn(5, 8, generator=g)
     raw = dec.fc_a_state(torch.cat([state, emb], dim=-1))
-    a = dec.item_params(emb, state=state)["a"]
+    a = dec.item_params(emb, state=state)["alpha"]
     assert torch.allclose(a, torch.exp(s * raw), atol=1e-7)
 
 
@@ -140,7 +140,7 @@ def test_binary_decoder_threads_link():
     g = torch.Generator().manual_seed(3)
     emb = torch.randn(6, 4, generator=g)
     raw = dec._gpcm.fc_a(emb)
-    a = dec.item_params(emb)["a"]
+    a = dec.item_params(emb)["alpha"]
     assert torch.allclose(a, torch.exp(s * raw), atol=1e-7)
 
 
@@ -156,8 +156,8 @@ def test_exp_link_composes_with_decoupled_key():
     r = m.fit(it, rp, n_epochs=15, verbose=False)
     assert math.isfinite(r["final_nll"])
     rec = m.recover_item_params(it, rp)
-    assert rec["a"].shape == (10,)
-    assert (rec["a"] > 0).all()        # exp link is strictly positive
+    assert rec["alpha"].shape == (10,)
+    assert (rec["alpha"] > 0).all()        # exp link is strictly positive
 
 
 # ---------------------------------------------------------------------------

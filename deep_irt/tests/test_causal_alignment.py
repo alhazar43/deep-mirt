@@ -201,11 +201,11 @@ def test_state_alpha_recovery_shapes_and_variation():
     m = _model(num_items=10, n_cats=4, state_alpha=True)
     m.fit(it, rp, n_epochs=20, verbose=False)
     rec = m.recover_item_params(it, rp)
-    assert rec["a"].shape == (10,)
-    assert rec["b"].shape == (10, 3)
+    assert rec["alpha"].shape == (10,)
+    assert rec["beta"].shape == (10, 3)
     assert rec["seen"].shape == (10,)
     assert rec["seen"].all()
-    assert float(rec["a"].std()) > 0.0
+    assert float(rec["alpha"].std()) > 0.0
 
 
 def test_state_alpha_recovery_requires_sequences():

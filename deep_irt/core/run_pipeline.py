@@ -378,13 +378,13 @@ def stage3a_binary(data: dict, stage1: dict, n_epochs: int = 300) -> dict:
 
     # Recover item difficulty from binary model
     params_bin = model_bin.recover_item_params()
-    # b has shape (B, 1) for K=2; squeeze to (B,)
-    d_bin = params_bin["b"].squeeze(-1)                   # (B,) "difficulty"
+    # beta has shape (B, 1) for K=2; squeeze to (B,)
+    d_bin = params_bin["beta"].squeeze(-1)                # (B,) "difficulty"
 
     # Recover item difficulty from GPCM model (stage 1): mean of thresholds
     gpcm_model: DeepIRTModel = stage1["model"]
     params_gpcm = gpcm_model.recover_item_params()
-    d_gpcm = params_gpcm["b"].mean(axis=1)               # (B,) mean of K-1 thresholds
+    d_gpcm = params_gpcm["beta"].mean(axis=1)            # (B,) mean of K-1 thresholds
 
     # Align signs before comparing
     d_bin_aligned = align_sign(d_bin, d_gpcm)
@@ -506,7 +506,7 @@ def stage3b_bt(data: dict, stage1: dict, n_epochs: int = 500) -> dict:
 
     # GPCM difficulty from stage1 (mean threshold)
     gpcm_params = gpcm_model.recover_item_params()
-    d_gpcm = gpcm_params["b"].mean(axis=1)        # (B,)
+    d_gpcm = gpcm_params["beta"].mean(axis=1)     # (B,)
 
     # Align signs before cross-format comparison
     s_true_np = s_true

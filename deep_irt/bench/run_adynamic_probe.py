@@ -38,7 +38,7 @@ def alpha_per_pos(model, items, resp, device):
     p = dec.item_params(val.reshape(N * T, -1),
                         state=state.reshape(N * T, H),
                         item_key=key.reshape(N * T, -1))
-    a = p["a"].reshape(N, T).cpu().numpy()
+    a = p["alpha"].reshape(N, T).cpu().numpy()
     th = theta.reshape(N, T).cpu().numpy()
     return a, th
 

@@ -36,8 +36,8 @@ def extract(model, items, resp, device):
     key = enc.item_key_emb(it)
     p = dec.item_params(val.reshape(Nn * T, -1), state=state.reshape(Nn * T, H),
                         item_key=key.reshape(Nn * T, -1))
-    a = p["a"].reshape(Nn, T).cpu().numpy()
-    b = p["b"].reshape(Nn, T, -1).cpu().numpy()
+    a = p["alpha"].reshape(Nn, T).cpu().numpy()
+    b = p["beta"].reshape(Nn, T, -1).cpu().numpy()
     th = theta.reshape(Nn, T).cpu().numpy()
     return a, b, th
 

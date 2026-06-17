@@ -119,7 +119,7 @@ def test_wide_key_moves_alpha_not_theta():
     assert torch.allclose(theta_before, theta_after, atol=1e-7), \
         "theta moved when only the item key changed"
     assert not torch.allclose(
-        torch.tensor(rec_before["a"]), torch.tensor(rec_after["a"]), atol=1e-4), \
+        torch.tensor(rec_before["alpha"]), torch.tensor(rec_after["alpha"]), atol=1e-4), \
         "discrimination did not move when the item key changed"
 
 
@@ -158,8 +158,8 @@ def test_item_key_dim_alone_is_all_static_decoupled():
     r = m.fit(it, rp, n_epochs=12, verbose=False)
     assert math.isfinite(r["final_nll"])
     rec = m.recover_item_params()                  # static read, no state needed
-    assert rec["a"].shape == (10,)
-    assert rec["b"].shape == (10, 3)
+    assert rec["alpha"].shape == (10,)
+    assert rec["beta"].shape == (10, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -171,10 +171,10 @@ def test_decoupled_recovery_shapes_and_variation():
     m = _model(num_items=10, n_cats=4, item_key_dim=16)
     m.fit(it, rp, n_epochs=25, verbose=False)
     rec = m.recover_item_params(it, rp)
-    assert rec["a"].shape == (10,)
-    assert rec["b"].shape == (10, 3)
+    assert rec["alpha"].shape == (10,)
+    assert rec["beta"].shape == (10, 3)
     assert rec["seen"].shape == (10,) and rec["seen"].all()
-    assert float(rec["a"].std()) > 0.0
+    assert float(rec["alpha"].std()) > 0.0
 
 
 def test_decoupled_trains_and_predicts():
@@ -222,7 +222,7 @@ def test_wide_key_moves_beta():
             torch.randn_like(m.encoder.item_key_emb.weight))
     rec_after = m.recover_item_params(it, rp)
     assert not torch.allclose(
-        torch.tensor(rec_before["b"]), torch.tensor(rec_after["b"]), atol=1e-4), \
+        torch.tensor(rec_before["beta"]), torch.tensor(rec_after["beta"]), atol=1e-4), \
         "beta did not move when the wide item key changed"
 
 
@@ -231,8 +231,8 @@ def test_wide_beta_recovery_shapes():
     m = _model(num_items=10, n_cats=4, item_key_dim=16)
     m.fit(it, rp, n_epochs=20, verbose=False)
     rec = m.recover_item_params(it, rp)
-    assert rec["a"].shape == (10,)
-    assert rec["b"].shape == (10, 3)
+    assert rec["alpha"].shape == (10,)
+    assert rec["beta"].shape == (10, 3)
     assert rec["seen"].shape == (10,) and rec["seen"].all()
 
 
@@ -248,7 +248,7 @@ def test_wide_beta_binary_decoder():
     r = m.fit(it, rp, n_epochs=15, verbose=False)
     assert math.isfinite(r["final_nll"])
     rec = m.recover_item_params(it, rp)
-    assert rec["b"].shape == (10, 1)
+    assert rec["beta"].shape == (10, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -286,7 +286,7 @@ def test_state_beta_requires_item_key():
                      state_beta=True, seed=_SEED)
     assert hasattr(m.decoder, "fc_b_state")        # dynamic beta head built
     assert not hasattr(m.decoder, "fc_a_state")    # alpha stays static
-    assert not m.decoder.alpha_is_state
+    assert not m.decoder.state_alpha
 
 
 def test_state_beta_head_is_built_and_wired():
@@ -337,7 +337,7 @@ def test_state_beta_state_and_key_move_beta():
             torch.randn_like(m.encoder.item_key_emb.weight))
     rec_key = m.recover_item_params(it, rp)
     assert not torch.allclose(
-        torch.tensor(rec_before["b"]), torch.tensor(rec_key["b"]), atol=1e-4), \
+        torch.tensor(rec_before["beta"]), torch.tensor(rec_key["beta"]), atol=1e-4), \
         "beta did not move when the wide item key changed"
 
     # the state (LSTM) moves beta too -- this is the dynamic part
@@ -347,7 +347,7 @@ def test_state_beta_state_and_key_move_beta():
             p.add_(0.3 * torch.randn_like(p))
     rec_state = m.recover_item_params(it, rp)
     assert not torch.allclose(
-        torch.tensor(rec_b2["b"]), torch.tensor(rec_state["b"]), atol=1e-4), \
+        torch.tensor(rec_b2["beta"]), torch.tensor(rec_state["beta"]), atol=1e-4), \
         "beta did not move when the prediction state changed"
 
 
@@ -357,11 +357,11 @@ def test_state_beta_recovery_shapes_sorted():
     m = _model_sb(num_items=10, n_cats=4, item_key_dim=16)
     m.fit(it, rp, n_epochs=25, verbose=False)
     rec = m.recover_item_params(it, rp)
-    assert rec["a"].shape == (10,)
-    assert rec["b"].shape == (10, 3)
+    assert rec["alpha"].shape == (10,)
+    assert rec["beta"].shape == (10, 3)
     assert rec["seen"].shape == (10,) and rec["seen"].all()
     import numpy as np
-    assert bool(np.all(np.diff(rec["b"], axis=1) >= -1e-6)), "beta not ascending"
+    assert bool(np.all(np.diff(rec["beta"], axis=1) >= -1e-6)), "beta not ascending"
 
 
 def test_beta_dynamic_alpha_static_arm():
@@ -387,9 +387,9 @@ def test_beta_dynamic_alpha_static_arm():
             p.add_(0.5 * torch.randn_like(p))
     rec1 = m.recover_item_params(it, rp)
     # alpha is static -> invariant to the state; beta is dynamic -> moves.
-    assert np.allclose(rec0["a"], rec1["a"], atol=1e-5), \
+    assert np.allclose(rec0["alpha"], rec1["alpha"], atol=1e-5), \
         "static alpha moved when the state changed"
-    assert not np.allclose(rec0["b"], rec1["b"], atol=1e-4), \
+    assert not np.allclose(rec0["beta"], rec1["beta"], atol=1e-4), \
         "dynamic beta did not move when the state changed"
 
 
@@ -405,7 +405,7 @@ def test_state_beta_binary_decoder():
     r = m.fit(it, rp, n_epochs=15, verbose=False)
     assert math.isfinite(r["final_nll"])
     rec = m.recover_item_params(it, rp)
-    assert rec["b"].shape == (10, 1)
+    assert rec["beta"].shape == (10, 1)
 
 
 # ---------------------------------------------------------------------------

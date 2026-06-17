@@ -170,7 +170,7 @@ class GPCMDecoder(nn.Module):
         # (``state_dim`` set); with no state the decoder is the legacy static map
         # and ``state_alpha`` is moot.  Decoupling alpha from beta (so beta can be
         # dynamic while alpha stays static) needs this explicit gate.
-        self.alpha_is_state = bool(state_alpha) and state_dim is not None
+        self.state_alpha = bool(state_alpha) and state_dim is not None
         self.emb_dim = emb_dim
         self.n_cats = n_cats
         self.state_dim = state_dim
@@ -188,7 +188,7 @@ class GPCMDecoder(nn.Module):
         # state-conditioned (``state_alpha`` and a state available), so the
         # default (state-free) decoder is bit-for-bit identical to before.  In
         # the decoupled variant its item input is the wide item key.
-        if self.alpha_is_state:
+        if self.state_alpha:
             alpha_in = item_key_dim if item_key_dim is not None else emb_dim
             self.fc_a_state = nn.Linear(state_dim + alpha_in, 1)
 
@@ -250,7 +250,7 @@ class GPCMDecoder(nn.Module):
         # passed solely for the beta head does NOT pull alpha off its static map,
         # and omitting the state falls back to the static map (the legacy
         # contract -- item-only recovery reads still work).
-        if self.alpha_is_state and state is not None:
+        if self.state_alpha and state is not None:
             if self.item_key_dim is not None:
                 if item_key is None:
                     raise RuntimeError(
@@ -291,7 +291,7 @@ class GPCMDecoder(nn.Module):
             b = self.fc_b(item_key)      # wide-key beta (ma-irt's shared-key path)
         else:
             b = self.fc_b(emb)           # unconstrained (sorted only at eval time)
-        return {"a": a, "b": b}
+        return {"alpha": a, "beta": b}
 
     def item_params_sorted(
         self,
@@ -299,9 +299,9 @@ class GPCMDecoder(nn.Module):
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
     ) -> dict:
-        """Same as item_params but with b sorted (use at evaluation time)."""
+        """Same as item_params but with beta sorted (use at evaluation time)."""
         params = self.item_params(emb, state=state, item_key=item_key)
-        params["b"] = torch.sort(params["b"], dim=-1).values
+        params["beta"] = torch.sort(params["beta"], dim=-1).values
         return params
 
     # --- logits (pre-softmax category scores; the prediction-loss target) ---
@@ -309,12 +309,12 @@ class GPCMDecoder(nn.Module):
     def logits(
         self,
         theta: torch.Tensor,
-        a: torch.Tensor,
-        b: torch.Tensor,
+        alpha: torch.Tensor,
+        beta: torch.Tensor,
     ) -> torch.Tensor:
         """GPCM per-category logits psi (the readout the prediction loss scores).
 
-        psi_0 = 0;  psi_k = sum_{c=1..k} a * (theta - b_{c-1}),  k=1..K-1.
+        psi_0 = 0;  psi_k = sum_{c=1..k} alpha * (theta - beta_{c-1}),  k=1..K-1.
         ``log_softmax(psi)`` recovers the GPCM log-prob; the prediction loss
         (WeightedOrdinalLoss) scores ``psi`` directly, exactly as ma-irt feeds
         its GPCM logits to ``CombinedLoss``.
@@ -322,8 +322,8 @@ class GPCMDecoder(nn.Module):
         Parameters
         ----------
         theta : (batch,) or (batch, 1)
-        a     : (batch, 1)
-        b     : (batch, K-1)
+        alpha : (batch, 1)
+        beta  : (batch, K-1)
 
         Returns
         -------
@@ -331,15 +331,15 @@ class GPCMDecoder(nn.Module):
         """
         if theta.dim() == 1:
             theta = theta.unsqueeze(1)            # (batch, 1)
-        diff = a * (theta - b)                    # (batch, K-1)
+        diff = alpha * (theta - beta)             # (batch, K-1)
         psi_pos = torch.cumsum(diff, dim=1)       # (batch, K-1)
         zeros = torch.zeros(theta.size(0), 1, device=theta.device)
         return torch.cat([zeros, psi_pos], dim=1)  # (batch, K)
 
-    def category_logits(
+    def logits_from_emb(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
@@ -348,41 +348,41 @@ class GPCMDecoder(nn.Module):
         Mirrors ``nll``'s signature but returns the ``(N, K)`` logits for the
         prediction loss instead of computing a likelihood.
         """
-        params = self.item_params(emb, state=state, item_key=item_key)
-        return self.logits(theta, params["a"], params["b"])
+        params = self.item_params(item_val, state=state, item_key=item_key)
+        return self.logits(theta, params["alpha"], params["beta"])
 
     # --- log_probs ---
 
     def log_probs(
         self,
         theta: torch.Tensor,
-        a: torch.Tensor,
-        b: torch.Tensor,
+        alpha: torch.Tensor,
+        beta: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute GPCM log-probabilities.
 
         psi_0 = 0
-        psi_k = sum_{c=1..k}  a * (theta - b_{c-1})   for k=1..K-1
+        psi_k = sum_{c=1..k}  alpha * (theta - beta_{c-1})   for k=1..K-1
 
         Parameters
         ----------
         theta : (batch,) or (batch, 1)
-        a     : (batch, 1)
-        b     : (batch, K-1)
+        alpha : (batch, 1)
+        beta  : (batch, K-1)
 
         Returns
         -------
         log_probs : (batch, K)
         """
-        return F.log_softmax(self.logits(theta, a, b), dim=1)
+        return F.log_softmax(self.logits(theta, alpha, beta), dim=1)
 
     # --- nll convenience ---
 
     def nll(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         responses: torch.Tensor,
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
@@ -393,7 +393,7 @@ class GPCMDecoder(nn.Module):
         Parameters
         ----------
         theta     : (N,)
-        emb       : (N, emb_dim)  -- thin item value
+        item_val  : (N, emb_dim)  -- thin item value
         responses : (N,)  long, in {0,..,K-1}
         state     : (N, state_dim) or None -- when given, discrimination is read
                     from the state-conditioned head (dual-channel mode).  None
@@ -407,8 +407,8 @@ class GPCMDecoder(nn.Module):
         -------
         loss : scalar
         """
-        params = self.item_params(emb, state=state, item_key=item_key)
-        log_p = self.log_probs(theta, params["a"], params["b"])
+        params = self.item_params(item_val, state=state, item_key=item_key)
+        log_p = self.log_probs(theta, params["alpha"], params["beta"])
         return F.nll_loss(log_p, responses)
 
 
@@ -453,26 +453,26 @@ class Binary2PLDecoder(nn.Module):
 
     def item_params(
         self,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
     ) -> dict:
-        """Returns a and b (single threshold) from embedding."""
-        return self._gpcm.item_params(emb, state=state, item_key=item_key)
+        """Returns alpha and beta (single threshold) from embedding."""
+        return self._gpcm.item_params(item_val, state=state, item_key=item_key)
 
     def item_params_sorted(
         self,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
     ) -> dict:
-        return self._gpcm.item_params_sorted(emb, state=state, item_key=item_key)
+        return self._gpcm.item_params_sorted(item_val, state=state, item_key=item_key)
 
     def log_probs(
         self,
         theta: torch.Tensor,
-        a: torch.Tensor,
-        b: torch.Tensor,
+        alpha: torch.Tensor,
+        beta: torch.Tensor,
     ) -> torch.Tensor:
         """
         Returns log-probs for {0, 1}.
@@ -480,40 +480,40 @@ class Binary2PLDecoder(nn.Module):
         Parameters
         ----------
         theta : (batch,) or (batch, 1)
-        a     : (batch, 1)
-        b     : (batch, 1)   single threshold
+        alpha : (batch, 1)
+        beta  : (batch, 1)   single threshold
 
         Returns
         -------
         log_probs : (batch, 2)
         """
-        return self._gpcm.log_probs(theta, a, b)
+        return self._gpcm.log_probs(theta, alpha, beta)
 
     def binary_logit(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Single binary logit z = a * (theta - b); P(y=1) = sigmoid(z).
+        """Single binary logit z = alpha * (theta - beta); P(y=1) = sigmoid(z).
 
         ``binary_cross_entropy_with_logits(z, y.float())`` is the binary
         prediction loss.  Equals the log-odds of the K=2 GPCM logits.
         """
-        lg = self._gpcm.category_logits(theta, emb, state=state, item_key=item_key)
+        lg = self._gpcm.logits_from_emb(theta, item_val, state=state, item_key=item_key)
         return lg[..., 1] - lg[..., 0]            # (N,)
 
     def nll(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         responses: torch.Tensor,
         state: torch.Tensor | None = None,
         item_key: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Mean NLL for a flat batch of binary responses."""
-        return self._gpcm.nll(theta, emb, responses, state=state,
+        return self._gpcm.nll(theta, item_val, responses, state=state,
                               item_key=item_key)
 
 
@@ -544,23 +544,23 @@ class BradleyTerryDecoder(nn.Module):
         self.emb_dim = emb_dim
         self.fc_s = nn.Linear(emb_dim, 1)  # emb -> item strength scalar
 
-    def item_strength(self, emb: torch.Tensor) -> torch.Tensor:
+    def item_strength(self, item_val: torch.Tensor) -> torch.Tensor:
         """
         Compute item strength from embedding.
 
         Parameters
         ----------
-        emb : (..., emb_dim)
+        item_val : (..., emb_dim)
 
         Returns
         -------
         strength : (..., 1)
         """
-        return self.fc_s(emb)
+        return self.fc_s(item_val)
 
-    def item_params(self, emb: torch.Tensor) -> dict:
+    def item_params(self, item_val: torch.Tensor) -> dict:
         """Unified interface: returns {'strength': (..., 1)}."""
-        return {"strength": self.item_strength(emb)}
+        return {"strength": self.item_strength(item_val)}
 
     def log_prob_i_beats_j(
         self,
@@ -691,44 +691,44 @@ class NRMDecoder(nn.Module):
 
     # --- item_params ---
 
-    def item_params(self, emb: torch.Tensor) -> dict:
+    def item_params(self, item_val: torch.Tensor) -> dict:
         """
         Map embedding to centered per-option NRM parameters.
 
         Parameters
         ----------
-        emb : (..., emb_dim)
+        item_val : (..., emb_dim)
 
         Returns
         -------
         dict with:
-            a : (..., K)   per-option slopes, sum_k a_k = 0
-            c : (..., K)   per-option intercepts, sum_k c_k = 0
+            alpha     : (..., K)   per-option slopes, sum_k alpha_k = 0
+            intercept : (..., K)   per-option intercepts, sum_k intercept_k = 0
         """
-        a_raw = self.fc_a(emb)                       # (..., K)
-        c_raw = self.fc_c(emb)                       # (..., K)
-        a = a_raw - a_raw.mean(dim=-1, keepdim=True)  # sum_k a_k = 0
-        c = c_raw - c_raw.mean(dim=-1, keepdim=True)  # sum_k c_k = 0
-        return {"a": a, "c": c}
+        a_raw = self.fc_a(item_val)                             # (..., K)
+        c_raw = self.fc_c(item_val)                             # (..., K)
+        alpha = a_raw - a_raw.mean(dim=-1, keepdim=True)        # sum_k alpha_k = 0
+        intercept = c_raw - c_raw.mean(dim=-1, keepdim=True)   # sum_k intercept_k = 0
+        return {"alpha": alpha, "intercept": intercept}
 
     # --- logits (pre-softmax option scores; the prediction-loss target) ---
 
     def logits(
         self,
         theta: torch.Tensor,
-        a: torch.Tensor,
-        c: torch.Tensor,
+        alpha: torch.Tensor,
+        intercept: torch.Tensor,
     ) -> torch.Tensor:
-        """NRM per-option logits ``a_k * theta + c_k`` (unordered).
+        """NRM per-option logits ``alpha_k * theta + intercept_k`` (unordered).
 
         The nominal prediction loss is plain cross-entropy on these logits,
         with NO ordinal-distance penalty: the options carry no order.
 
         Parameters
         ----------
-        theta : (batch,) or (batch, 1)
-        a     : (batch, K)  per-option slopes (already centered)
-        c     : (batch, K)  per-option intercepts (already centered)
+        theta     : (batch,) or (batch, 1)
+        alpha     : (batch, K)  per-option slopes (already centered)
+        intercept : (batch, K)  per-option intercepts (already centered)
 
         Returns
         -------
@@ -736,83 +736,83 @@ class NRMDecoder(nn.Module):
         """
         if theta.dim() == 1:
             theta = theta.unsqueeze(1)               # (batch, 1)
-        return a * theta + c                         # (batch, K)
+        return alpha * theta + intercept             # (batch, K)
 
-    def category_logits(
+    def logits_from_emb(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
     ) -> torch.Tensor:
-        """Per-item NRM logits from (theta, item emb).
+        """Per-item NRM logits from (theta, item value embedding).
 
         Mirrors ``nll``'s signature but returns the ``(N, K)`` logits for the
         prediction loss instead of computing a likelihood.
         """
-        params = self.item_params(emb)
-        return self.logits(theta, params["a"], params["c"])
+        params = self.item_params(item_val)
+        return self.logits(theta, params["alpha"], params["intercept"])
 
     # --- log_probs ---
 
     def log_probs(
         self,
         theta: torch.Tensor,
-        a: torch.Tensor,
-        c: torch.Tensor,
+        alpha: torch.Tensor,
+        intercept: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute NRM log-probabilities over the K options.
 
         Parameters
         ----------
-        theta : (batch,) or (batch, 1)
-        a     : (batch, K)  per-option slopes (already centered)
-        c     : (batch, K)  per-option intercepts (already centered)
+        theta     : (batch,) or (batch, 1)
+        alpha     : (batch, K)  per-option slopes (already centered)
+        intercept : (batch, K)  per-option intercepts (already centered)
 
         Returns
         -------
         log_probs : (batch, K)
         """
-        return F.log_softmax(self.logits(theta, a, c), dim=1)
+        return F.log_softmax(self.logits(theta, alpha, intercept), dim=1)
 
     # --- difficulty scale (correct-option location) ---
 
     def item_difficulty(
         self,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         a_floor: float = 0.1,
     ) -> torch.Tensor:
         """
         2PL-comparable item location from the correct option.
 
-        beta_i = - c_corr / a_corr, the ability at which the correct option's
-        linear predictor crosses zero.  Higher beta -> harder.
+        beta_i = - intercept_corr / alpha_corr, the ability at which the correct
+        option's linear predictor crosses zero.  Higher beta -> harder.
 
         Parameters
         ----------
-        emb     : (..., emb_dim)
-        a_floor : minimum |a_corr| used in the denominator for stability
+        item_val : (..., emb_dim)
+        a_floor  : minimum |alpha_corr| used in the denominator for stability
 
         Returns
         -------
         beta : (...,)  scalar difficulty per item
         """
-        params = self.item_params(emb)
-        a_corr = params["a"][..., self.correct_option]   # (...,)
-        c_corr = params["c"][..., self.correct_option]   # (...,)
+        params = self.item_params(item_val)
+        alpha_corr = params["alpha"][..., self.correct_option]        # (...,)
+        intercept_corr = params["intercept"][..., self.correct_option] # (...,)
         # Stabilise the denominator without changing its sign.
-        denom = torch.sign(a_corr) * a_corr.abs().clamp_min(a_floor)
+        denom = torch.sign(alpha_corr) * alpha_corr.abs().clamp_min(a_floor)
         # sign(0) == 0 would zero the denom; guard that degenerate case.
         denom = torch.where(
             denom == 0, torch.full_like(denom, a_floor), denom
         )
-        return -c_corr / denom
+        return -intercept_corr / denom
 
     # --- nll convenience ---
 
     def nll(
         self,
         theta: torch.Tensor,
-        emb: torch.Tensor,
+        item_val: torch.Tensor,
         responses: torch.Tensor,
     ) -> torch.Tensor:
         """
@@ -821,13 +821,13 @@ class NRMDecoder(nn.Module):
         Parameters
         ----------
         theta     : (N,)
-        emb       : (N, emb_dim)
+        item_val  : (N, emb_dim)
         responses : (N,)  long, option indices in {0,..,K-1}
 
         Returns
         -------
         loss : scalar
         """
-        params = self.item_params(emb)
-        log_p = self.log_probs(theta, params["a"], params["c"])
+        params = self.item_params(item_val)
+        log_p = self.log_probs(theta, params["alpha"], params["intercept"])
         return F.nll_loss(log_p, responses)

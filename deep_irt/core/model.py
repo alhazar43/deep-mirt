@@ -205,7 +205,7 @@ class DeepIRTModel:
         self.alpha_log_scale = alpha_log_scale
         self.state_beta = state_beta
         self.decouple = decouple
-        self.encoder_kind = encoder
+        self.encoder_name = encoder
         self.encoder_kwargs = dict(encoder_kwargs or {})
         self.device = device
         self.seed = seed
@@ -512,16 +512,16 @@ class DeepIRTModel:
                             if self.item_key_dim is not None else None)
                 params = self.decoder.item_params_sorted(embs, item_key=item_key)
                 return {
-                    "a": params["a"].squeeze(-1).cpu().numpy(),
-                    "b": params["b"].cpu().numpy(),
+                    "alpha": params["alpha"].squeeze(-1).cpu().numpy(),
+                    "beta": params["beta"].cpu().numpy(),
                 }
             elif self.decoder_name == "nrm":
                 assert isinstance(self.decoder, NRMDecoder)
                 params = self.decoder.item_params(embs)
                 beta = self.decoder.item_difficulty(embs)
                 return {
-                    "a": params["a"].cpu().numpy(),
-                    "c": params["c"].cpu().numpy(),
+                    "alpha": params["alpha"].cpu().numpy(),
+                    "intercept": params["intercept"].cpu().numpy(),
                     "beta": beta.cpu().numpy(),
                 }
             else:
@@ -585,14 +585,14 @@ class DeepIRTModel:
                 state=state_in.reshape(N * T, self.hidden_dim),
                 item_key=key_flat,
             )
-            alpha = params["a"].squeeze(-1).reshape(N, T).cpu().numpy()  # (N, T)
+            alpha = params["alpha"].squeeze(-1).reshape(N, T).cpu().numpy()  # (N, T)
 
             if self.state_beta:
                 # Dynamic beta: the per-occurrence state-conditioned step
                 # thresholds come straight from the same item_params call (the
                 # exact mirror of alpha) and are occurrence-averaged below.  Sort
                 # AFTER averaging so the recovered thresholds are ascending.
-                beta_occ = params["b"].reshape(N, T, self.n_cats - 1)
+                beta_occ = params["beta"].reshape(N, T, self.n_cats - 1)
                 beta_occ = beta_occ.cpu().numpy()                   # (N, T, K-1)
             else:
                 # Static beta, occurrence-invariant (an item-only read).  Beta
@@ -603,10 +603,10 @@ class DeepIRTModel:
                     b_all = self.decoder.item_params_sorted(
                         enc.item_val_emb(all_ids),
                         item_key=enc.item_key_emb(all_ids),
-                    )["b"]
+                    )["beta"]
                 else:
                     b_all = self.decoder.item_params_sorted(
-                        enc.item_val_emb(all_ids))["b"]
+                        enc.item_val_emb(all_ids))["beta"]
                 b_hat = b_all.cpu().numpy()                          # (Q, K-1)
 
         items = item_ids.cpu().numpy()                              # (N, T)
@@ -626,7 +626,7 @@ class DeepIRTModel:
             np.add.at(b_sum, items.ravel(), beta_occ.reshape(N * T, K1))
             b_hat = b_sum / np.maximum(a_cnt[:, None], 1.0)         # (Q, K-1)
             b_hat = np.sort(b_hat, axis=1)
-        return {"a": a_hat, "b": b_hat, "seen": seen}
+        return {"alpha": a_hat, "beta": b_hat, "seen": seen}
 
     # ------------------------------------------------------------------
     # Extend item bank (anchored)
@@ -668,11 +668,11 @@ class DeepIRTModel:
                 "For BT, call fit_pairs() with new-item embeddings after "
                 "prepending them to the embedding table manually."
             )
-        if self.encoder_kind != "lstm":
+        if self.encoder_name != "lstm":
             raise NotImplementedError(
                 "Anchored extension currently supports only the LSTM backbone "
                 f"(build_extended_encoder is LSTM-specific), not "
-                f"encoder='{self.encoder_kind}'."
+                f"encoder='{self.encoder_name}'."
             )
 
         result = anchored_extend(
@@ -699,8 +699,8 @@ class DeepIRTModel:
             ext_embs = result["ext_emb_weight"].to(self.device)
             assert isinstance(self.decoder, (GPCMDecoder, Binary2PLDecoder))
             params = self.decoder.item_params_sorted(ext_embs)
-            result["a_ext"] = params["a"].squeeze(-1).cpu().numpy()
-            result["b_ext"] = params["b"].cpu().numpy()
+            result["a_ext"] = params["alpha"].squeeze(-1).cpu().numpy()
+            result["b_ext"] = params["beta"].cpu().numpy()
 
         return result
 
@@ -843,10 +843,10 @@ class DeepIRTModel:
             )
             return F.binary_cross_entropy_with_logits(z, responses.float())
         if self.decoder_name == "nrm":
-            logits = self.decoder.category_logits(theta, emb)
+            logits = self.decoder.logits_from_emb(theta, emb)
             return self.loss_fn(logits, responses)
         # gpcm (ordinal): WeightedOrdinalLoss on the GPCM logits.
-        logits = self.decoder.category_logits(
+        logits = self.decoder.logits_from_emb(
             theta, emb, state=state, item_key=item_key
         )
         return self.loss_fn(logits, responses)
