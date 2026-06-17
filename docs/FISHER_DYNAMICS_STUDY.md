@@ -1,7 +1,19 @@
 # Fisher-asymmetry and the dynamics of state-conditioned discrimination (RQ1, RQ2)
 
 Status PRELIMINARY (3 to 5 seeds, single architecture, synthetic static-alpha
-data). Branch feat/prediction-loss. 2026-06-17.
+data). Branch feat/duolingo-mini. 2026-06-17.
+
+## Framing (DKT-home, the translation gap)
+
+That discrimination is low-information and ill-conditioned is classical IRT (cite,
+TODO); this study does not reclaim it. The contribution is the DL-native question
+IRT's static theory never poses, what the TRAINING DYNAMICS do with it, whether and
+how fast SGD pins each parameter under a PREDICTION loss, and how a representational
+choice (decoupling) changes that. Fisher information appears only as the backstage
+bridge (a parameter's leverage on the prediction yhat); the front-stage story and
+the claims are learning dynamics, for a DKT / DL / EduAI audience. See the project
+memory framing rule. The objective throughout is the prediction loss on y vs yhat,
+not a model-wise likelihood; the IRT triple is the route to yhat, not the estimand.
 
 ## Question
 
