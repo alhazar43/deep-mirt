@@ -173,3 +173,97 @@ def test_decoupled_trains_and_predicts():
     m_cheap = _model(num_items=10, alpha_emb_dim=None)
     r_cheap = m_cheap.fit(it, rp, n_epochs=15, verbose=False)
     assert not math.isclose(r["final_nll"], r_cheap["final_nll"], rel_tol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# beta_wide: step thresholds read the wide alpha key (ma-irt's shared-key beta)
+# ---------------------------------------------------------------------------
+
+def _model_bw(num_items=10, n_cats=4, alpha_emb_dim=16, beta_wide=False,
+              emb_dim=4, hidden_dim=8, seed=_SEED):
+    return DeepIRTModel(
+        num_items=num_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
+        n_cats=n_cats, decoder="gpcm", state_alpha=True,
+        alpha_emb_dim=alpha_emb_dim, beta_wide=beta_wide,
+        device=_DEVICE, seed=seed,
+    )
+
+
+def test_beta_wide_requires_alpha_emb_dim():
+    try:
+        DeepIRTModel(num_items=10, emb_dim=4, hidden_dim=8, n_cats=4,
+                     decoder="gpcm", state_alpha=True, alpha_emb_dim=None,
+                     beta_wide=True)
+    except ValueError as e:
+        assert "beta_wide" in str(e) and "alpha_emb_dim" in str(e)
+    else:
+        raise AssertionError("expected ValueError for beta_wide w/o alpha_emb_dim")
+
+
+def test_beta_wide_wires_fc_b_to_wide_key():
+    m = _model_bw(num_items=12, emb_dim=4, hidden_dim=8, alpha_emb_dim=16,
+                  beta_wide=True)
+    # fc_b now reads the wide alpha key (16), not the narrow item_emb (4).
+    assert m.decoder.fc_b.in_features == 16
+    # alpha head still reads [state(8), alpha_key(16)].
+    assert m.decoder.fc_a_state.in_features == 8 + 16
+    # LSTM input still cheap.
+    assert m.encoder.lstm.input_size == 2 * 4
+
+
+def test_beta_wide_false_keeps_narrow_fc_b():
+    m = _model_bw(num_items=12, emb_dim=4, hidden_dim=8, alpha_emb_dim=16,
+                  beta_wide=False)
+    assert m.decoder.fc_b.in_features == 4   # narrow item_emb read, unchanged
+
+
+def test_beta_wide_key_moves_beta():
+    """Perturbing the wide alpha key moves recovered beta under beta_wide."""
+    it, rp = _data(num_items=10, n=24, t=20)
+    m = _model_bw(num_items=10, alpha_emb_dim=16, beta_wide=True)
+    m.fit(it, rp, n_epochs=20, verbose=False)
+    rec_before = m.recover_item_params(it, rp)
+    with torch.no_grad():
+        m.encoder.alpha_item_emb.weight.add_(
+            torch.randn_like(m.encoder.alpha_item_emb.weight))
+    rec_after = m.recover_item_params(it, rp)
+    assert not torch.allclose(
+        torch.tensor(rec_before["b"]), torch.tensor(rec_after["b"]), atol=1e-4), \
+        "beta did not move when the wide alpha key changed (beta_wide off?)"
+
+
+def test_beta_wide_recovery_shapes():
+    it, rp = _data(num_items=10, n_cats=4, n=24, t=20)
+    m = _model_bw(num_items=10, n_cats=4, alpha_emb_dim=16, beta_wide=True)
+    m.fit(it, rp, n_epochs=20, verbose=False)
+    rec = m.recover_item_params(it, rp)
+    assert rec["a"].shape == (10,)
+    assert rec["b"].shape == (10, 3)
+    assert rec["seen"].shape == (10,) and rec["seen"].all()
+
+
+def test_beta_wide_changes_objective():
+    """beta_wide is a genuinely different model from narrow-beta decoupled."""
+    it, rp = _data(num_items=10, n=24, t=20)
+    m_wide = _model_bw(num_items=10, alpha_emb_dim=16, beta_wide=True)
+    m_narrow = _model_bw(num_items=10, alpha_emb_dim=16, beta_wide=False)
+    r_wide = m_wide.fit(it, rp, n_epochs=15, verbose=False)
+    r_narrow = m_narrow.fit(it, rp, n_epochs=15, verbose=False)
+    assert math.isfinite(r_wide["final_nll"])
+    assert not math.isclose(r_wide["final_nll"], r_narrow["final_nll"],
+                            rel_tol=1e-6)
+
+
+def test_beta_wide_binary_decoder():
+    """beta_wide threads through the binary (K=2) decoder too."""
+    it, rp = _data(num_items=10, n_cats=2, n=20, t=15)
+    m = DeepIRTModel(
+        num_items=10, emb_dim=4, hidden_dim=8, n_cats=2, decoder="binary",
+        state_alpha=True, alpha_emb_dim=16, beta_wide=True,
+        device=_DEVICE, seed=_SEED,
+    )
+    assert m.decoder._gpcm.fc_b.in_features == 16
+    r = m.fit(it, rp, n_epochs=15, verbose=False)
+    assert math.isfinite(r["final_nll"])
+    rec = m.recover_item_params(it, rp)
+    assert rec["b"].shape == (10, 1)

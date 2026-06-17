@@ -98,6 +98,15 @@ class DeepIRTModel:
                             uses ``exp(s * raw)``, ma-irt's exponential map
                             (``s = 1.0`` matches ma-irt; the MLP head absorbs the
                             scale constant).
+    beta_wide   : bool -- when True (requires alpha_emb_dim; gpcm/binary only),
+                            the decoder's step-threshold head reads the wide
+                            ``alpha_item_emb`` key instead of the narrow item_emb.
+                            ma-irt feeds beta and alpha from the same wide item
+                            key; this mirrors it so beta rides the wide key while
+                            theta stays on the cheap encoder.  Recovery reads beta
+                            from the wide key, occurrence-averaged like alpha.
+                            Default False keeps the narrow beta read and is
+                            bit-for-bit identical.
     decouple    : bool -- when True (DEFAULT) the GPCM/binary model uses the
                             decoupled discrimination architecture (state_alpha + a
                             separate emb=64 alpha item table + exp link), the
@@ -124,6 +133,7 @@ class DeepIRTModel:
         state_alpha: Optional[bool] = None,
         alpha_emb_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
+        beta_wide: bool = False,
         decouple: bool = True,
         encoder: str = "lstm",
         encoder_kwargs: Optional[dict] = None,
@@ -171,6 +181,16 @@ class DeepIRTModel:
                 "alpha_log_scale (the exp discrimination transform) is defined for "
                 f"the GPCM/binary decoders, not decoder='{decoder}'."
             )
+        if beta_wide and decoder not in ("gpcm", "binary"):
+            raise ValueError(
+                "beta_wide (wide-key step thresholds) is defined for the "
+                f"GPCM/binary decoders, not decoder='{decoder}'."
+            )
+        if beta_wide and alpha_emb_dim is None:
+            raise ValueError(
+                "beta_wide (wide-key step thresholds) requires alpha_emb_dim; "
+                "beta reads the same wide alpha key the discrimination head does."
+            )
         self.num_items = num_items
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
@@ -180,6 +200,7 @@ class DeepIRTModel:
         self.state_alpha = state_alpha
         self.alpha_emb_dim = alpha_emb_dim
         self.alpha_log_scale = alpha_log_scale
+        self.beta_wide = beta_wide
         self.decouple = decouple
         self.encoder_kind = encoder
         self.encoder_kwargs = dict(encoder_kwargs or {})
@@ -207,6 +228,7 @@ class DeepIRTModel:
         self.decoder: nn.Module = self._make_decoder(
             decoder, emb_dim, n_cats, correct_option, state_dim=decoder_state_dim,
             alpha_emb_dim=alpha_emb_dim, alpha_log_scale=alpha_log_scale,
+            beta_wide=beta_wide,
         )
         self.decoder = self.decoder.to(device)
 
@@ -534,9 +556,17 @@ class DeepIRTModel:
             )
             alpha = params["a"].squeeze(-1).reshape(N, T).cpu().numpy()  # (N, T)
 
-            # Per-item beta from the item embedding alone (occurrence-invariant).
+            # Per-item beta, occurrence-invariant (an item-only read).  By
+            # default beta reads the cheap item_emb; under beta_wide it reads the
+            # wide alpha key (ma-irt's shared-key path), so feed alpha_item_emb.
             all_ids = torch.arange(Q, device=self.device)
-            b_all = self.decoder.item_params_sorted(enc.item_emb(all_ids))["b"]
+            if self.beta_wide:
+                b_all = self.decoder.item_params_sorted(
+                    enc.item_emb(all_ids),
+                    alpha_emb=enc.alpha_item_emb(all_ids),
+                )["b"]
+            else:
+                b_all = self.decoder.item_params_sorted(enc.item_emb(all_ids))["b"]
             b_hat = b_all.cpu().numpy()                              # (Q, K-1)
 
         items = item_ids.cpu().numpy()                              # (N, T)
@@ -815,15 +845,18 @@ class DeepIRTModel:
         state_dim: Optional[int] = None,
         alpha_emb_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
+        beta_wide: bool = False,
     ) -> nn.Module:
         if name == "gpcm":
             return GPCMDecoder(emb_dim=emb_dim, n_cats=n_cats, state_dim=state_dim,
                                alpha_emb_dim=alpha_emb_dim,
-                               alpha_log_scale=alpha_log_scale)
+                               alpha_log_scale=alpha_log_scale,
+                               beta_wide=beta_wide)
         if name == "binary":
             return Binary2PLDecoder(emb_dim=emb_dim, state_dim=state_dim,
                                     alpha_emb_dim=alpha_emb_dim,
-                                    alpha_log_scale=alpha_log_scale)
+                                    alpha_log_scale=alpha_log_scale,
+                                    beta_wide=beta_wide)
         if name == "bt":
             return BradleyTerryDecoder(emb_dim=emb_dim)
         if name == "nrm":

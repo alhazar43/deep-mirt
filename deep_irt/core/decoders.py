@@ -94,6 +94,18 @@ class GPCMDecoder(nn.Module):
     Step thresholds and the static fallback alpha still read the standard
     ``item_emb``.  ``alpha_emb_dim`` requires ``state_dim``.
 
+    Wide-key step thresholds (``beta_wide``)
+    ----------------------------------------
+    By default step thresholds are a NARROW read ``fc_b(item_emb)`` of the cheap
+    ``emb_dim`` item embedding.  ma-irt's GPCM decoder instead reads beta from
+    the SAME wide item key it feeds discrimination (its ``q_embed`` of width
+    ``key_dim``), and recovers beta far better (Pearson 0.988 vs the deep_irt's
+    0.942 on static-K4).  ``beta_wide=True`` (requires ``alpha_emb_dim``) mirrors
+    that: ``fc_b`` becomes ``Linear(alpha_emb_dim, n_cats-1)`` and reads the wide
+    ``alpha_emb`` key, so both item parameters ride the wide key while theta stays
+    on the cheap encoder.  ``beta_wide=False`` (default) is bit-for-bit identical
+    to before.
+
     Parameters
     ----------
     emb_dim       : int
@@ -113,6 +125,13 @@ class GPCMDecoder(nn.Module):
                     before.  A positive float ``s`` uses ``exp(s * raw)``,
                     ma-irt's exponential map (``s = 1.0`` matches ma-irt; the
                     head absorbs the scale constant).
+    beta_wide     : bool -- when True (requires ``alpha_emb_dim``), step
+                    thresholds are read from the wide alpha key:
+                    ``fc_b = Linear(alpha_emb_dim, n_cats-1)`` and ``item_params``
+                    computes ``b = fc_b(alpha_emb)``.  ma-irt's GPCM decoder reads
+                    beta from the same wide item key it feeds discrimination; this
+                    mirrors it.  None/False (default) keeps the narrow
+                    ``fc_b(item_emb)`` read and is bit-for-bit identical.
     """
 
     def __init__(
@@ -122,6 +141,7 @@ class GPCMDecoder(nn.Module):
         state_dim: int | None = None,
         alpha_emb_dim: int | None = None,
         alpha_log_scale: float | None = None,
+        beta_wide: bool = False,
     ) -> None:
         super().__init__()
         if n_cats < 2:
@@ -130,6 +150,11 @@ class GPCMDecoder(nn.Module):
             raise ValueError(
                 "alpha_emb_dim (decoupled wide alpha key) requires state_dim; "
                 "the wide key only feeds the state-conditioned alpha head."
+            )
+        if beta_wide and alpha_emb_dim is None:
+            raise ValueError(
+                "beta_wide (wide-key step thresholds) requires alpha_emb_dim; "
+                "the wide item key beta reads is the decoupled alpha key."
             )
         if alpha_log_scale is not None and alpha_log_scale <= 0.0:
             raise ValueError(
@@ -141,9 +166,13 @@ class GPCMDecoder(nn.Module):
         self.state_dim = state_dim
         self.alpha_emb_dim = alpha_emb_dim
         self.alpha_log_scale = alpha_log_scale
+        self.beta_wide = beta_wide
 
         self.fc_a = nn.Linear(emb_dim, 1)          # -> raw discrimination
-        self.fc_b = nn.Linear(emb_dim, n_cats - 1) # -> step thresholds (raw)
+        # Step thresholds: narrow item_emb read by default; the wide alpha key
+        # when beta_wide (ma-irt's shared-key beta path).
+        beta_in = alpha_emb_dim if beta_wide else emb_dim
+        self.fc_b = nn.Linear(beta_in, n_cats - 1) # -> step thresholds (raw)
 
         # State-conditioned discrimination head, built only when requested so the
         # default (state-free) decoder is bit-for-bit identical to before.  In
@@ -213,7 +242,16 @@ class GPCMDecoder(nn.Module):
             a = self._alpha_pos(self.fc_a_state(torch.cat([state, key], dim=-1)))  # > 0
         else:
             a = self._alpha_pos(self.fc_a(emb))   # > 0
-        b = self.fc_b(emb)               # unconstrained (sorted only at eval time)
+        if self.beta_wide:
+            if alpha_emb is None:
+                raise RuntimeError(
+                    "GPCMDecoder was built with beta_wide (wide-key step "
+                    "thresholds); pass alpha_emb to item_params so beta reads "
+                    "the wide alpha key."
+                )
+            b = self.fc_b(alpha_emb)     # wide-key beta (ma-irt's shared-key path)
+        else:
+            b = self.fc_b(emb)           # unconstrained (sorted only at eval time)
         return {"a": a, "b": b}
 
     def item_params_sorted(
@@ -357,6 +395,7 @@ class Binary2PLDecoder(nn.Module):
         state_dim: int | None = None,
         alpha_emb_dim: int | None = None,
         alpha_log_scale: float | None = None,
+        beta_wide: bool = False,
     ) -> None:
         super().__init__()
         self.emb_dim = emb_dim
@@ -364,9 +403,11 @@ class Binary2PLDecoder(nn.Module):
         self.state_dim = state_dim
         self.alpha_emb_dim = alpha_emb_dim
         self.alpha_log_scale = alpha_log_scale
+        self.beta_wide = beta_wide
         self._gpcm = GPCMDecoder(
             emb_dim=emb_dim, n_cats=2, state_dim=state_dim,
             alpha_emb_dim=alpha_emb_dim, alpha_log_scale=alpha_log_scale,
+            beta_wide=beta_wide,
         )
 
     def item_params(

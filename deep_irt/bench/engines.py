@@ -65,29 +65,33 @@ class DeepIRTEngine:
 
     def __init__(self, ds, decoder="gpcm", emb_dim=8, hidden_dim=32,
                  state_alpha=False, alpha_emb_dim=None,
-                 alpha_log_scale=None, encoder="lstm", encoder_kwargs=None,
+                 alpha_log_scale=None, beta_wide=False,
+                 encoder="lstm", encoder_kwargs=None,
                  device="cpu", seed=0):
         self.ds = ds
         self.decoder = decoder
         self.state_alpha = state_alpha
         self.alpha_emb_dim = alpha_emb_dim
         self.alpha_log_scale = alpha_log_scale
+        self.beta_wide = beta_wide
         self.encoder_kind = encoder
         self.device = torch.device(device)
         self.seed = seed
         sa = "+sa" if state_alpha else ""
         de = f"+ae{alpha_emb_dim}" if alpha_emb_dim is not None else ""
         xp = f"+exp{alpha_log_scale}" if alpha_log_scale is not None else ""
+        bw = "+bw" if beta_wide else ""
         bk = encoder.upper()
-        self.label = f"deep_irt-{bk}/{decoder}/{sa}{de}{xp}"
+        self.label = f"deep_irt-{bk}/{decoder}/{sa}{de}{xp}{bw}"
         self.encoder_name = (
-            f"{bk}({sa}{de}{xp},e{emb_dim}h{hidden_dim})")
+            f"{bk}({sa}{de}{xp}{bw},e{emb_dim}h{hidden_dim})")
         K = ds.cfg.n_cats
         self.model = DeepIRTModel(
             num_items=ds.cfg.n_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
             n_cats=K, decoder=decoder,
             state_alpha=state_alpha, alpha_emb_dim=alpha_emb_dim,
-            alpha_log_scale=alpha_log_scale, decouple=False, encoder=encoder,
+            alpha_log_scale=alpha_log_scale, beta_wide=beta_wide,
+            decouple=False, encoder=encoder,
             encoder_kwargs=encoder_kwargs,
             device=self.device, seed=seed,
         )
