@@ -15,7 +15,7 @@ For each fit, every item's per-occurrence state-conditioned alpha_jt is read and
 regressed (OLS) on the TRUE theta at that position -- external, so no
 latent-variable circularity.  The per-item slope estimates log-alpha's linear
 dependence on theta, which is EXACTLY the planted form (log alpha = log a +
-gamma*theta).  The Fisher-tail null bias (ADYNAMIC_STUDY Result 2) is non-monotone
+gamma*theta).  The Fisher-tail null bias (docs/LEARNING_DYNAMICS_STUDY.md section 4, RQ3) is non-monotone
 in theta and nearly cancels under this linear projection, so it barely contaminates
 the slope; the matched-null difference removes what remains.
 

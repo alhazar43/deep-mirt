@@ -12,17 +12,18 @@ Per-milestone results, `rl/results/E<n>_<topic>.md`.
 ## 1. Status snapshot
 
 - **Date created.** 2026-06-08
-- **Date last updated.** 2026-06-11
-- **Current state.** D1 (DuoLingo SLAM baseline) complete on
-  `feat/ordrec-d1-slam`. First MAGPCM training run on real Duolingo data
-  (SLAM 2018 en\_es, K=3 ordinal, 2,593 learners, 4,998 items). MAGPCM
-  trains stably with standard hyperparameters; 5-epoch baseline ACC = 0.682,
-  QWK = 0.374, AUC (binary-collapsed) = 0.773. `SlamAdapter` added to the
-  data layer. 228 tests pass. Results at `rl/results/D1_slam_en_es.md`.
-- **Active branch.** `feat/ordrec-d1-slam`.
-- **Next milestone.** E5: real Eedi K=4 run with
-  `resample_probe_at_terminal: true`. Only external dependency is the
-  raw Eedi NeurIPS 2020 Task 3+4 csvs.
+- **Date last updated.** 2026-06-17
+- **Current state.** D1 (DuoLingo SLAM baseline) complete. First MAGPCM
+  training run on real Duolingo data (SLAM 2018 en\_es, K=3 ordinal, 2,593
+  learners, 4,998 items). MAGPCM trains stably with standard
+  hyperparameters; 5-epoch baseline ACC = 0.682, QWK = 0.374, AUC
+  (binary-collapsed) = 0.773. `SlamAdapter` added to the data layer. 228
+  tests pass. Results at `rl/results/D1_slam_en_es.md`.
+- **Active branch.** `feat/prediction-loss` (the per-milestone branches
+  were deleted in the 2026-06-17 cleanup; see `docs/HANDOFF.md`).
+- **Next milestone.** D2: SLAM es\_en track plus LSTM and
+  logistic-regression baselines. E5 (Eedi K=4) is paused behind the
+  Duolingo track, pending the raw Eedi NeurIPS 2020 Task 3+4 csvs.
 
 The five locked design corrections from the strategic plan are intact.
 
@@ -40,11 +41,11 @@ The five locked design corrections from the strategic plan are intact.
 
 | Milestone | Status | Branch | Tip | Tasks | DoD | Notes |
 |---|---|---|---|---|---|---|
-| **E1**, data adapters | complete (merged) | `feat/ordrec` | `267ea82` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/E1_data_layer.md`. |
-| **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (merged) | `feat/ordrec` | `f5c536e` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/E2_envs_layer.md`. |
-| **E3**, env + reward + wiring | complete (merged) | `feat/ordrec` | `eaa404a` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/E3_env_reward.md`. |
-| **E4**, RL library + training loop + smoke | complete (merged) | `feat/ordrec` | `4e2fc72` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/E4_rl_library.md`. |
-| **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by the CONSOLIDATE verdict in `docs/cleanup/_ordrec_maintainability_review.md`. |
+| **E1**, data adapters | complete (merged) | `feat/ordrec` | `267ea82` | `data/{base,schema,split,synthetic,placeholder_2pl,ma_irt_bridge,eedi}.py`, 5 test files, Eedi fixture, two configs | met | 42 tests pass. Synthetic smoke training `r_theta=0.88` in 5 epochs. See `rl/results/archive/E1_data_layer.md`. |
+| **E2**, per-item lookup + EdNet + ASSISTments + bench | complete (merged) | `feat/ordrec` | `f5c536e` | `envs/{frozen_magpcm,item_cache,bench_forward}.py`, `data/{ednet,assist}.py`, `rl/scripts/prepare_eedi_csv.py`, 5 new test files | met | 82 tests pass (27 envs + 13 new adapter + 42 E1). Bench at `rl/results/E2_bench_forward.{json,md}`. Cache keyed by `(dataset_name, ckpt_sha7)`. See `rl/results/archive/E2_envs_layer.md`. |
+| **E3**, env + reward + wiring | complete (merged) | `feat/ordrec` | `eaa404a` | `envs/{base,ordrec_env,action_mask}.py`, the full `reward/` package, `rl/tests/test_env_reward_wiring.py` | met | 126 tests pass (44 new E3 + 82 pre-E3). Four-component reward sums to `r_total`, three-source mask blocks every probe id. See `rl/results/archive/E3_env_reward.md`. |
+| **E4**, RL library + training loop + smoke | complete (merged) | `feat/ordrec` | `4e2fc72` | `training/{base,rollout,gae,ppo,utils}.py`, `bc_warmstart/{bc,static_mve}.py`, `scripts/{train_ppo,sanity_toy_env,eval_policy}.py`, `configs/{ppo_eedi_k4,ppo_synth_smoke}.yaml` | met | 146 tests pass (20 new E4 + 126 pre-E4). PPO on the toy env goes from `1.062` to `2.000` over 20 updates. PPO on the synthetic adapter runs 5 updates and saves `best.pt`. See `rl/results/archive/E4_rl_library.md`. |
+| **E4.6a**, hardening slice A | complete | `feat/ordrec-e46a` | `ac40b68` | review items A1-A4, per-key component-metric denominators + regression test, calibrated reward-scale bands, `train_ppo.py`/`eval_policy.py` smoke tests + shared `rl/tests/conftest.py`, PPO local sampling generator | met | 150 tests pass (4 new). Gate, full suite green twice plus bc_smoke in isolation 3x. Motivated by a maintainability-review CONSOLIDATE verdict. |
 | **E4.5**, synthetic headline run | complete | `feat/ordrec-e45` | `dbb6cb4` | MA-GPCM world model trained (theta r=0.968), 200 BC updates + 500 PPO updates, four-policy eval (PPO/BC/Fisher/random), headline plots + results report | met | PPO does NOT beat max-Fisher by return. Ranking: random > PPO > BC-only > max-Fisher. Exposure penalty dominates; random wins by avoiding it entirely. Buffer capacity mismatch caused r_voi=0 throughout training. This run is the A-side of the E4.6b A/B comparison. See `rl/results/E45_synth_headline.md`. |
 | **E4.6b**, hardening slice B | complete | `feat/ordrec-e46b` | `3278b31` | B0+B4 buffer rework (one row per env-step), B1-B6 code quality, R1 exposure recalibration, R2 VOI diagnosis, R3 BC teacher soft-target, B5 stratified probe, A/B rerun, C1 doc consolidation | met | 209 tests pass. B-side PPO: -0.570 vs random -0.537. Honest negative on static synthetic DGP. RC3 (VOI saturation) open. Results at `rl/results/E46b_ab_comparison.md`. |
 | **D1**, DuoLingo SLAM baseline | complete | `feat/ordrec-d1-slam` | tbd | `SlamAdapter` (SLAM 2018 en\_es K=3), 14 unit tests, 5 fixture files, `ordrec_slam_k3.yaml` config, MAGPCM training run, `eval_d1_slam.py`, results doc | met | 228 tests pass. ACC=0.682, QWK=0.374, AUC=0.773 (5-epoch run). See `rl/results/D1_slam_en_es.md`. |
@@ -56,7 +57,7 @@ The five locked design corrections from the strategic plan are intact.
 
 ## 3. Change log (reverse chronological)
 
-- **2026-06-11, direction decision, Duolingo track promoted to active priority.** User locked the Duolingo / SLAM track as the build priority over the OrdRec E5 Eedi headline (which is paused pending the user's Eedi csv download). Rationale, the SLAM track is unblocked and the adversarial verification (`docs/cleanup/_det_deep_research_report.md`) found the collaboration window time-sensitive, Duolingo's own June 2026 S2A3 paper names the polytomous gap as roadmap work. `feat/duolingo-mini` is now the live working branch, brought current with `feat/ordrec` at `e960be9` so it carries E1 through E4.7 plus D1. Next milestone D2 (es\_en track plus baselines). Three forks remain open (paper structure, the mixed-K ma-irt edit, outreach timing); recommendations recorded in `docs/duolingo_mini_plan.md` Section 0.
+- **2026-06-11, direction decision, Duolingo track promoted to active priority.** User locked the Duolingo / SLAM track as the build priority over the OrdRec E5 Eedi headline (which is paused pending the user's Eedi csv download). Rationale, the SLAM track is unblocked and the adversarial verification found the collaboration window time-sensitive, Duolingo's own June 2026 S2A3 paper names the polytomous gap as roadmap work. `feat/duolingo-mini` is now the live working branch, brought current with `feat/ordrec` at `e960be9` so it carries E1 through E4.7 plus D1. Next milestone D2 (es\_en track plus baselines). Three forks remain open (paper structure, the mixed-K ma-irt edit, outreach timing); recommendations recorded in `docs/duolingo_mini_plan.md` Section 0.
 
 - **2026-06-11, D1 complete (DuoLingo SLAM baseline).**
   Branch `feat/ordrec-d1-slam` off `feat/ordrec` at `fd46286`.
@@ -195,9 +196,8 @@ The five locked design corrections from the strategic plan are intact.
   `feat/ordrec-e46a` at `ac40b68`, 4 commits stacked on
   `feat/ordrec` tip `4e2fc72` (E4 merged). Motivated by the
   four-auditor maintainability review of the E1-E4 stack, which
-  returned a CONSOLIDATE verdict (full review at
-  `docs/cleanup/_ordrec_maintainability_review.md`, raw audit
-  digest at `docs/cleanup/_ordrec_audit_digest.md`). The slice
+  returned a CONSOLIDATE verdict (review + audit digest archived as
+  gitignored working docs). The slice
   fixed only the four blocking items that would have corrupted
   the E4.5 synthetic headline run. Per review item C6 this is a
   change-log subsection, not a standalone milestone record.

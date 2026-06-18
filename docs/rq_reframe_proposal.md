@@ -4,7 +4,7 @@ Maps the existing RQ1-8 + RQ5c battery and the content-channel cold-start
 onto the PI's settled question framework, exposes the cells the new frame
 opens, and proposes a reframed, prioritized RQ list. This feeds
 `docs/RESULTS_v2.md`. It is a planning document, not paper prose. The result
-ledger stays `substrate/RESULTS.md`; the live state stays memory
+ledger stays `deep_irt/RESULTS.md`; the live state stays memory
 `thesis-vision`.
 
 ## The new frame, in one place

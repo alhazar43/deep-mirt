@@ -1,5 +1,9 @@
 # Learning-dynamics toy for the alpha-theta coupling: derivation and verdict
 
+> THEORY APPENDIX of `docs/LEARNING_DYNAMICS_STUDY.md`. Standalone derivations
+> (gauge proof, rank-wall proofs, free-table invariant Sec 10, GPCM Fisher table
+> Sec 11.5, rung-7 GD-vs-Adam controls Sec 12). The main study links here.
+
 Phase 3 of `LEARNING_DYNAMICS_STUDY.md`. Goal: build the simplest analytically
 tractable 2PL model that could exhibit the alpha-recovery degradation under
 representation sharing, and decide via the global-optimum-vs-gradient-flow

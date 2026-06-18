@@ -4,7 +4,7 @@ This document is the concrete realization of `Thesis_overview.md` and
 `Engineering_overview.md`. It was first written as a forward plan. It is
 now rewritten as the verified narrative, organized around the result the
 experiments converged on. The scattered record is in
-`substrate/RESULTS.md`. This is the argument.
+`deep_irt/RESULTS.md`. This is the argument.
 
 ## Working title
 

@@ -105,7 +105,7 @@ Run the full suite from the repository root.
 python -m pytest rl/src/ordrec/ rl/tests/ -v
 ```
 
-209 tests as of E4.6b. The suite runs in under 20 seconds on CPU.
+228 tests (E4.7/D1). The suite runs in under 20 seconds on CPU.
 
 ---
 

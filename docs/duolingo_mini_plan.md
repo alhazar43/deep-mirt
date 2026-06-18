@@ -3,6 +3,10 @@
 Status, PROMOTED FROM EXPLORATION TO ACTIVE TRACK on 2026-06-11.
 Scope, rl/-side adapters plus this docs file, with minimum or zero
 edits to the public ma-irt repo. This document is self-contained.
+See `docs/duolingo_mini_research_appendix.md` for the supporting
+tables (gap table, SLAM dataset facts, ordinal coercion scheme,
+positioning table, enable/disable detail with code pointers, AI-era
+facts, and adversarial-verification verdict table).
 
 ## 0. Decisions log
 
@@ -208,7 +212,7 @@ in Section 6.
 ### Adversarial verification update, 2026-06-11
 
 A deep-research pass (101 agents, 3-vote adversarial verification per
-claim, full report at docs/cleanup/_det_deep_research_report.md)
+claim)
 stress-tested the pitch's load-bearing claim. The outcome sharpens the
 pitch in three ways and corrects two errors.
 

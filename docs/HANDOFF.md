@@ -19,8 +19,8 @@ Three stacked pieces in one repo (`C:/Users/steph/documents/deep-mirt`).
 2. **deep_irt** (`deep_irt/`), the ACTIVE framework. DeepIRTModel with
    swappable lstm/transformer/dkvmn encoders, decoupled-alpha default,
    PREDICTION-loss training (IRT as a readout flavor, no model-wise NLL).
-   Holds the RQ1-3 learning-dynamics study (docs/FISHER_DYNAMICS_STUDY.md
-   for RQ1/RQ2, docs/ADYNAMIC_STUDY.md for RQ3) and the workshop deck
+   Holds the RQ1-3 learning-dynamics study (docs/LEARNING_DYNAMICS_STUDY.md,
+   sections 3 and 4 for RQ1/RQ2 and RQ3) and the workshop deck
    (docs/slides/workshop.tex + workshop.pdf). 139 tests pass, 3 skipped.
 
 3. **OrdRec** (`rl/`), an ExRec-style exercise-recommendation framework
@@ -172,10 +172,6 @@ The 2026-06-17 cleanup made the following permanent changes.
 - `rl/results/E47_dynamic_dgp.md`, the headline result writeup, plots
   under `rl/results/plots/e47_*`.
 - `rl/results/D1_slam_en_es.md`, the first real-data run.
-- `docs/FISHER_DYNAMICS_STUDY.md`, the RQ1/RQ2 learning-dynamics study.
-- `docs/ADYNAMIC_STUDY.md`, the RQ3 a_dynamic study.
+- `docs/LEARNING_DYNAMICS_STUDY.md`, the consolidated RQ1-3 learning-dynamics
+  study (theory appendix `docs/learning_dynamics_toy.md`).
 - `docs/slides/workshop.pdf`, the workshop deck.
-- `docs/cleanup/_det_deep_research_report.md`, the verified Duolingo
-  intelligence (gitignored working doc, local only).
-- `docs/cleanup/_ma_irt_bottleneck_audit.md`, the "keep ma-irt as-is"
-  audit (gitignored, local only).

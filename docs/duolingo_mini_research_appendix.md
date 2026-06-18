@@ -1,7 +1,9 @@
 # DuoLingo Mini Research Appendix
 
-Four research streams condensed. Full plan at
-`docs/duolingo_mini_plan.md`.
+Appendix to `docs/duolingo_mini_plan.md`. Tables and citations that
+support the plan's four research streams. Narrative that repeats plan
+Sections 1, 4, 5, and 6 is trimmed here; read those sections for the
+full framing and adversarial-verification prose.
 
 ---
 
@@ -13,7 +15,7 @@ Four research streams condensed. Full plan at
 |---|---|---|
 | Interactive Reading Task (Attali et al. 2022) | Frontiers in AI | "Need for psychometric models combining discrete and continuous grades" |
 | AutoIRT (Sharpnack et al. 2024) | arXiv 2409.08823 | Binary 2PL/3PL only; extension to richer item types acknowledged |
-| BanditCAT (Sharpnack et al. 2025) | ICML | Binary CAT; same open extension |
+| BanditCAT (Sharpnack et al. 2025) | PMLR v264 workshop | Binary CAT; same open extension |
 | BERT-IRT (Yancey et al. 2024) | BEA at ACL | Item cold-start via BERT features; binary only |
 | Jump-Starting (McCarthy et al. 2021) | EMNLP | Parameter transfer for adaptive tests; binary |
 
@@ -42,36 +44,7 @@ Four research streams condensed. Full plan at
 
 Thresholds fit on train split only, persisted to coercion_artefacts.json.
 
-### Cheapest collaboration path (no outreach required)
-
-1. Cite-and-compare in IJAIED related work, names the gap they state.
-2. Run SLAM D1 to D2, report AUC/log-loss against SLAM-era LSTM and
-   logistic baselines. Real-data credibility with zero coordination.
-3. Post preprint after D4, email Kevin Yancey or Geoff LaFlair with
-   the result. Opens the collaboration surface from a position of
-   evidence.
-
-### Struggles-informed outreach sequencing
-
-The AI-era pressure (Stream 4) fixes the order and the framing.
-
-1. Preprint first. Demonstrate ordinal calibration on public data,
-   D1 SLAM plus D4 synthetic recovery, so the first contact starts
-   from evidence not a proposal.
-2. Cold contact naming the published gaps by author, Sharpnack,
-   LaFlair, Yancey, von Davier, on the 2PL/3PL-only AutoIRT and
-   BanditCAT line. Pitch the ordinal AutoIRT extension, the rank-1
-   collaboration surface, pitchable with no inside data.
-3. Hold the efficacy-infrastructure frame (longitudinal theta as proof
-   the app teaches) for a second conversation. Stronger frame, but it
-   needs a data partnership and reads as a larger ask.
-4. Carry trust-repair co-publication as a sweetener, not a standalone
-   ask. A peer-reviewed measurement paper with named academic
-   co-authors counters the post-backlash quality narrative, but it
-   strengthens the ordinal-AutoIRT or efficacy pitch rather than
-   leading.
-5. Frame everything as measurement and validation science. Anything
-   reading as "another AI feature" is radioactive post-backlash.
+Outreach sequencing and collaboration-path ranking: see plan Section 6.
 
 ---
 
@@ -194,12 +167,10 @@ Appendix B of the plan and do not appear in the milestone sequence.
 
 ---
 
-## Stream 4. AI-era struggles and the collaboration framing
+## Stream 4. AI-era struggles: key facts table
 
-Source memo, `docs/cleanup/_duolingo_struggles_research.md` (gitignored
-working doc). Six facts that shape which research is fundable now.
-
-### Key facts
+For the narrative framing and collaboration-ranking rationale, see plan
+Section 5.
 
 | Fact | Date | Detail |
 |---|---|---|
@@ -210,27 +181,9 @@ working doc). Six facts that shape which research is fundable now.
 | DET cheating pressure | EMNLP 2024 | LLM-assisted cheating arms race, their contrastive detection paper reports 1.7x over classifiers at 0.1% false positive, institutional acceptance still growing. |
 | Efficacy gap | Mar 2026 | Best external RCT (Kim et al., Studies in Second Language Acquisition, n=183) shows comparable-to-classroom not better, no published calibrated longitudinal ability estimate from their own data. |
 
-### Struggles-informed collaboration ranking
+### Adversarial verification verdict table, 2026-06-11
 
-| Rank | Surface | Why now | Inside data |
-|---|---|---|---|
-| 1 | Ordinal/GPCM extension of AutoIRT | Named gap in their own 2PL/3PL-only published work, calibration rigor not a new feature | No, pitchable on public data |
-| 2 | Longitudinal theta as efficacy-evidence infrastructure | Answers the "does it teach?" gap, strongest frame | Yes, needs a data partnership |
-| 3 | Trust repair via academic co-publication | Counters the post-backlash quality narrative | Sweetener, not standalone |
-| 4 | DET person-fit and cheating detection | Real need, but they hold a sophisticated stack, hard cold entry | Yes, DET session data |
-
-### The reframe in one line
-
-The struggles raise the value of measurement-grade research (the
-efficacy gap and the AI-content calibration gap are pressure points
-ma-irt speaks to) while making anything that reads as "another AI
-feature" radioactive. Pitch validation science, not generation.
-
-## Stream 5. Adversarial verification of the pitch claim, 2026-06-11
-
-A deep-research pass (101 agents, 5 search angles, 15 sources, 3-vote
-adversarial verification per claim) stress-tested the load-bearing
-claim. Full report at docs/cleanup/_det_deep_research_report.md.
+For the full verification narrative, see plan Section 5.
 
 | Verdict | Finding |
 |---|---|
@@ -241,15 +194,3 @@ claim. Full report at docs/cleanup/_det_deep_research_report.md.
 | Refuted 0-3 | "ML-graded responses bypass IRT entirely", false for speaking and listening, true only for writing |
 | Corrected | Operational layer already ingests continuous and explicit polytomous grades under an UNDOCUMENTED model class, so claim "published line is binary-only", never "Duolingo is binary-only" |
 | Corrected | BanditCAT venue is PMLR v264 workshop, not ICML main. Read Aloud removed July 2025. The "discrete and continuous grades" goal sentence was never located verbatim, do not quote it |
-
-Urgency note. S2A3 puts the classical polytomous extension on
-Duolingo's own roadmap, so the pitch window for static GPCM
-calibration alone is closing. The defensible lead is ordinal PLUS
-longitudinal deep tracking, which their roadmap does not cover. D1 on
-SLAM plus the E4.7 dynamic-tracking result are the evidence pair.
-
-Open questions only Duolingo can answer. Which model class scores the
-operational polytomous grades. Whether the AutoIRT-launched item types
-went live on the certified DET after October 2024. Current
-affiliations of the named researchers beyond the S2A3 co-authorship
-signal.

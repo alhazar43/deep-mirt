@@ -5,7 +5,7 @@ real-data validation. Planned by a Fable-5 high-level pass (2026-06-12),
 executed by the main loop dispatching Opus and Sonnet agents, deep-research,
 and workflows. Fable-5 is reserved for high-level planning, never execution.
 
-Companion to `substrate/RESULTS.md` (the experiment ledger) and memory
+Companion to `deep_irt/RESULTS.md` (the experiment ledger) and memory
 `thesis-vision`. This file is the forward agenda, not the result log.
 
 ## Where we stand
@@ -16,10 +16,10 @@ claims are proven only on data generated from known parameters. This agenda
 turns them into real-data claims.
 
 Three load-bearing facts the planning pass surfaced from the code.
-- The flagship joint-format result (`substrate/jointfmt/`) uses a static
+- The flagship joint-format result (`deep_irt/jointfmt/`) uses a static
   per-respondent theta, not the LSTM encoder. Dynamic format-agnostic is an
   unbuilt integration, not a config flag.
-- `substrate/core/` has no masking, no mini-batching, and a single fixed K,
+- `deep_irt/core/` has no masking, no mini-batching, and a single fixed K,
   so it cannot ingest real variable-length, mixed-format data as is.
 - The repo already has written adapters for Eedi, ASSISTments, EdNet, and
   SLAM in `rl/src/ordrec/data/`, but only SLAM raw data is on disk.

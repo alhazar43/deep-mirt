@@ -27,11 +27,18 @@ GPU PyTorch builds are picked from
 
 ## Usage
 
-The active project lives in [`ma-irt/`](ma-irt/). See its
-[README](ma-irt/README.md) for the script usage manual, model list, and
-configuration layout.
+`ma-irt/` is the frozen Chapter-0 codebase that backs the MA-GPCM paper.
+Its [README](ma-irt/README.md) has the script usage manual, model list, and
+configuration layout for reproducing the paper results.
+
+The active research framework extends from `ma-irt/` and lives in
+[`deep_irt/`](deep_irt/README.md) and `rl/`. New models, decoders, and
+experiments belong there.
 
 ## Reference docs
+
+The four links below are ma-irt-scoped (frozen) references for the MA-GPCM
+paper architecture and tooling.
 
 - [`docs/architecture.md`](docs/architecture.md) — model structure, ability
   pathway, GPCM head

@@ -2,7 +2,7 @@
 
 Records the alpha-recovery trajectory for static-alpha vs state-conditioned
 (dynamic) alpha to test whether the dynamic head wins through the learning
-dynamics and how that tracks K.  FINDING (docs/FISHER_DYNAMICS_STUDY.md, 5 seeds):
+dynamics and how that tracks K.  FINDING (docs/LEARNING_DYNAMICS_STUDY.md section 3, RQ1/RQ2, 5 seeds):
 it is NOT an earlier peel-up.  Both curves crawl early (dynamic is not ahead); the
 dynamic head accelerates in mid training (ep20-40) and, at high K, keeps a
 PERMANENT endpoint lead because static-alpha is trapped by the stiffness ceiling
