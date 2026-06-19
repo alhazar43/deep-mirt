@@ -183,3 +183,7 @@ rl/data/
 /EdNet-Contents/
 EdNet-*.zip
 
+# KDD Cup 2010 raw data (large; extracted under data/, do not commit)
+/data/
+/kddcup_challenge.tar.gz
+

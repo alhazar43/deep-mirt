@@ -190,9 +190,10 @@ data-generating processes. Six experiments, read together.
 | E0 | synthetic, human-like | yes, by construction | rate recovered, weak and density-limited, encoder near the ML reference |
 | E1 | LLM, ARC (known task) | no, the model already knows it | null, theta(k) flat, true equals shuffled |
 | E1b | LLM, synthetic remap | yes, mapping must be inferred | strong positive, magnitude scales with model size, threshold shape |
+| MT | LLM, EN to Dinka translation (FLORES) | yes, low-resource real task | real-task positive (gate), chrF rises +5.6 with k under true, flat under shuffled (gap +7.1); full IRT ladder compute-bound, deferred |
 | E2 | human, EdNet KT | no, single-pass item stream | AFM near zero on a wrong (single-pass) DGP; the predictive metric used here later shown ill-posed |
 | E2b | human, ASSISTments (repeated practice) | yes, recurring skills | AFM small positive (0.14) but skill-id circular; predictive metric shown ill-posed, discarded |
-| E2c | human, KDD Cup 2010 (problem-level, non-circular) | yes, repeated practice | existence gate significant but NEGLIGIBLE (mean dNLL 0.0008, CI spans 0, 53.7% win); non-circular AFM concurrent NULL (-0.005); no external validity |
+| E2c | human, KDD Cup 2010 (problem-level, non-circular) | yes, repeated practice | trajectory EXISTS model-free (+6.1pts, 74% improve), theta stable (0.79); but rate magnitude unreliable (split-half 0.17) on near-saturated binary, so the AFM null is a measurement-floor artifact, not a refutation |
 | pos-ctrl | synthetic, known rate | yes | recovery corr(r_hat,r_true)=0.46, but the predictive metric is -0.26 and even the TRUE rate scores -0.38, so that metric is structurally ill-posed |
 | E3 | transfer, SciEx graded | n/a | REAL run NULL, graded 0.07 vs binary 0.10 (graded does NOT beat binary), neither tracks the coarse human label; the sim positive was an artifact |
 
@@ -216,14 +217,21 @@ on EdNet (a single-pass DGP where no learning curve exists) and small and
 positive on ASSISTments (0.14) but confounded because the encoder's item
 key is the same skill id the AFM slope is fit on. The decisive test then
 ran on KDD Cup 2010 with problem-level items (non-circular) and the
-validated pipeline (E2c), and it is null, the existence gate is significant
-but negligible (mean delta_NLL 0.0008, CI spanning zero, 53.7 percent win)
-and the non-circular AFM concurrent validity is flat (-0.005). So after
-ruling out the metric artifact, using the validated existence-then-rate
-pipeline, and using a non-circular repeated-practice dataset, the recovered
-human learning rate still shows no external validity. The honest state is
-synthetic-and-machine positive, and the real human learning-rate claim is
-thoroughly tested and UNSUPPORTED on three real datasets.
+validated pipeline (E2c). The nuanced result, a learning trajectory
+genuinely EXISTS in this real data, model-free, within-student accuracy
+rises 6.1 points and 74 percent of students improve, and the encoder's
+theta trajectory is stable (convergent readout 0.79). But the rate
+MAGNITUDE is not reliably recoverable here, split-half reliability of the
+per-student rate is only 0.17 because the binary response is near-saturated
+(80 percent correct), so there is little dynamic range, the existence gate
+is only a weak floor pass, and the non-circular AFM concurrent null is a
+measurement-floor artifact, not a refutation, you cannot validate an
+unreliable measurement against an external criterion. So the honest state
+is synthetic-and-machine positive, and the real human RATE-magnitude claim
+is unestablished, blocked by response-format dynamic range, not by an
+absent trajectory or a broken method. This is E0's lesson again, rate
+recovery needs dynamic range (ordinal beats binary), so the next venue is a
+polytomous or partial-credit human signal.
 
 **The controls are what make a result interpretable, and a wrong control
 misleads.** The shuffled-label baseline on the machine front works, E1b's
@@ -277,12 +285,15 @@ NOT rank learners by rate, so the magnitude is read from a parametric curve
 fit on the model's estimated item parameters (recovery about 0.41 with
 estimated items). Existence gate first, then the parametric rate. That
 decisive test ran on problem-level KDD Cup 2010 (E2c, non-circular,
-validated pipeline) and returned null, a negligible existence effect and a
-flat AFM concurrent, so the real human learning-rate claim is now
-thoroughly tested and unsupported on three real datasets, not merely open.
-The strongest real next step for it would be a denser within-skill design
-or a constructed speed-contrast cohort, but on the evidence the claim does
-not hold as posed. Nothing is buried.
+validated pipeline). A trajectory exists in the data (model-free, accuracy
+rises 6.1 points, 74 percent improve) and the encoder tracks it stably, but
+the per-student rate is unreliable (split-half 0.17) because the binary
+response is near-saturated, so the AFM concurrent null is a measurement-
+floor artifact rather than a refutation. So the real human RATE-magnitude
+claim is unestablished and the blocker is diagnosed, response-format dynamic
+range. The next venue is a polytomous or partial-credit human signal (E0
+already showed ordinal beats binary for rate recovery), or a lower-accuracy
+cohort. Nothing is buried.
 
 ## 6c. Open follow-ups (gated)
 

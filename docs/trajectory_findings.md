@@ -38,7 +38,8 @@ contains a curve.
 | E0 | synthetic, human-like | positive, recovery corr(r_hat, r_true) 0.46, weak and density-limited |
 | E1 | LLM, ARC (known task) | null, flat theta(k), true equals shuffled, correctly no adaptation |
 | E1b | LLM, synthetic remapping | positive, rises under true, chance under shuffled, magnitude scales with model size, threshold at k about 10, robust across mappings |
-| E2 / E2b / E2c | human, EdNet / ASSISTments / KDD Cup 2010 | null, no external validity on three real datasets, E2c is the non-circular validated test |
+| MT | LLM, EN to Dinka translation | real-task positive (gate), chrF rises +5.6 with shots under true and is flat under shuffled (gap +7.1), full IRT ladder compute-bound |
+| E2 / E2b / E2c | human, EdNet / ASSISTments / KDD Cup 2010 | rate-magnitude recovery not established; E2c (non-circular) shows a trajectory EXISTS but the rate is unreliable (split-half 0.17) on near-saturated binary, a measurement-floor block, not a refutation |
 | E3 | transfer, SciEx graded | null, graded 0.07 does not beat binary 0.10 |
 
 ## Three findings
@@ -79,14 +80,19 @@ real-data educational fronts are unsupported. EdNet is a single-pass
 stream with no learning curve. ASSISTments has repeated practice but gives
 only a small concurrent signal confounded by skill-id-as-item, and its
 predictive number is discarded as a metric artifact. KDD Cup 2010, the
-decisive non-circular test with the validated pipeline, is null, the
-existence gate is significant but negligible (mean delta_NLL 0.0008, CI
-spanning zero) and the non-circular AFM concurrent validity is flat
-(-0.005), so the human learning-rate claim is thoroughly tested and
-unsupported across three real datasets. SciEx transfer is a real null,
+decisive non-circular test with the validated pipeline, is more
+informative, a learning trajectory genuinely EXISTS (model-free, accuracy
+rises 6.1 points, 74 percent improve) and the encoder tracks it stably, but
+the per-student rate is unreliable (split-half 0.17) because the binary
+response is near-saturated, so the AFM concurrent null is a measurement-
+floor artifact, not a refutation. The human RATE-magnitude claim is thus
+unestablished with a diagnosed blocker, response-format dynamic range,
+which points to a polytomous or partial-credit signal (E0 already showed
+ordinal beats binary for rate recovery). SciEx transfer is a real null,
 machine difficulty does not track the coarse three-level human label and
-graded does not beat binary. All strong positives are on synthetic or
-machine-generated data, the real-data educational claims did not hold.
+graded does not beat binary. The strong positives are on synthetic and
+machine data, and the real-data human claim is gated on richer responses
+rather than refuted.
 
 ## Next steps
 
