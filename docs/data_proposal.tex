@@ -1,0 +1,81 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{titlesec}
+
+\titlespacing*{\section}{0pt}{1.4ex plus .2ex}{0.6ex}
+\titleformat{\section}{\normalfont\large\bfseries}{}{0em}{}
+\setlength{\parskip}{0.5em}
+\setlist[enumerate]{leftmargin=1.4em,topsep=3pt,itemsep=4pt}
+
+\title{\vspace{-3em}Data Proposal\\[0.2em]
+\large Item-response data for measuring ability and tracking its change}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-3.5em}
+
+\section*{Research context}
+
+We are developing a measurement model that estimates a respondent's
+ability from a history of item responses and tracks how that ability
+changes over time. It places different response formats on a single
+common scale and can link new items onto an existing scale without a full
+recalibration. We have evaluated it on simulated and public data, and we
+are now seeking real response data to test it at scale. We would value
+whatever can be shared, suitably anonymized and under an agreement that
+works for you.
+
+\section*{Data of interest}
+
+Listed roughly in order of value to us, and any single category is useful
+on its own. In every case a respondent identifier, an item or test
+identifier, a score, and a date or sequence index are usually enough to
+begin. Richer detail is welcome but not required.
+
+\begin{enumerate}
+  \item \textbf{Longitudinal response data.} Repeated measurements of the
+  same respondents across occasions, terms, or years. This is the most
+  valuable category, since it lets us estimate ability growth and its
+  rate.
+
+  \item \textbf{Item-level responses.} Scored responses at the item level
+  rather than test totals, with a reasonable number of respondents per
+  item. Dichotomous and polytomous scoring are equally welcome.
+
+  \item \textbf{Existing item analyses.} Any item parameters or
+  calibrations already available for these items, together with the model
+  used. These give us a reference to benchmark our own estimates against.
+
+  \item \textbf{Linking or equating designs.} Response data connected
+  across forms, groups, or years through common items. Knowing which items
+  are shared is the only addition we need here. This supports our work on
+  extending a scale without recalibration.
+
+  \item \textbf{Mixed-format assessments.} Tests combining formats, for
+  example selected-response with constructed-response or rubric-scored
+  items, ideally for the same respondents. A format label per item is
+  helpful. These let us place several formats on one scale.
+
+  \item \textbf{Item content or descriptors (optional).} Item text, or
+  topic and skill classifications, carrying no respondent information.
+  This supports content-based placement of new items and the modeling of
+  skill dimensions.
+\end{enumerate}
+
+\section*{Scope, format, and governance}
+
+A small extract is enough to begin. One subject area, a few thousand
+respondents, or a limited time window would already let us run a first
+study. We can work with anonymized or pseudonymized data in any common
+tabular format, at whatever level of detail and coverage you are
+comfortable releasing. We are glad to work under a data-sharing or
+non-disclosure agreement, to restrict use to research, and not to
+redistribute. A small pilot first, then more if it proves useful, suits us
+well.
+
+\end{document}
