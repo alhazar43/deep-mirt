@@ -1,0 +1,1202 @@
+[
+  {
+    "id": "FRUIT_016",
+    "word": "cherimoya",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_037",
+    "word": "marking gauge",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_001",
+    "word": "skiff",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_043",
+    "word": "grease gun",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_011",
+    "word": "fire truck",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_021",
+    "word": "delivery van",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_013",
+    "word": "jellyfish",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_002",
+    "word": "grasshopper",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_014",
+    "word": "buffaloberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_044",
+    "word": "toucan",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_036",
+    "word": "cable car",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_020",
+    "word": "bar clamp",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_028",
+    "word": "coupe",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_026",
+    "word": "marang",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_008",
+    "word": "orbital sander",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_017",
+    "word": "clamp",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_045",
+    "word": "macaw",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_030",
+    "word": "hatchback",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_030",
+    "word": "meerkat",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_003",
+    "word": "mosquito",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_009",
+    "word": "palm sander",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_015",
+    "word": "clam",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_042",
+    "word": "stork",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_026",
+    "word": "SUV",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_036",
+    "word": "scribe",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_012",
+    "word": "soldering iron",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_047",
+    "word": "finch",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_010",
+    "word": "ambulance",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_005",
+    "word": "firefly",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_044",
+    "word": "rivet gun",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_037",
+    "word": "cassowary",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_022",
+    "word": "mail truck",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_012",
+    "word": "earthworm",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_036",
+    "word": "wombat",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_003",
+    "word": "reciprocating saw",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_019",
+    "word": "sapodilla",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_011",
+    "word": "thimbleberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_045",
+    "word": "staple gun",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_032",
+    "word": "armadillo",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_022",
+    "word": "torque wrench",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_021",
+    "word": "pipe clamp",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_010",
+    "word": "salmonberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_010",
+    "word": "tarantula",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_044",
+    "word": "supersonic jet",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_010",
+    "word": "detail sander",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_002",
+    "word": "currant",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_025",
+    "word": "jeep",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_006",
+    "word": "destroyer",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_023",
+    "word": "longan",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_013",
+    "word": "taxi",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_005",
+    "word": "aircraft carrier",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_045",
+    "word": "muscadine",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_003",
+    "word": "tugboat",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_045",
+    "word": "fighter jet",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_043",
+    "word": "peacock",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_000",
+    "word": "butterfly",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_011",
+    "word": "heat gun",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_042",
+    "word": "caulking gun",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_016",
+    "word": "oyster",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_030",
+    "word": "carambola",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_002",
+    "word": "barge",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_038",
+    "word": "kiwi bird",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_006",
+    "word": "bench grinder",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_026",
+    "word": "open-end wrench",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_035",
+    "word": "monorail",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_028",
+    "word": "pulasan",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_015",
+    "word": "minivan",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_019",
+    "word": "squid",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_014",
+    "word": "starfish",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_027",
+    "word": "needle-nose pliers",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_046",
+    "word": "bomber",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_029",
+    "word": "locking pliers",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_015",
+    "word": "feijoa",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_034",
+    "word": "uglifruit",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_015",
+    "word": "multimeter",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_046",
+    "word": "cockatoo",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_004",
+    "word": "icebreaker",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_029",
+    "word": "salak",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_004",
+    "word": "marionberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_046",
+    "word": "glue gun",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_035",
+    "word": "yuzu",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_018",
+    "word": "dump truck",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_009",
+    "word": "battleship",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_033",
+    "word": "trolleybus",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_042",
+    "word": "turboprop",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_033",
+    "word": "platypus",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_018",
+    "word": "shrimp",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_040",
+    "word": "biplane",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_023",
+    "word": "armored car",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_025",
+    "word": "box wrench",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_013",
+    "word": "wineberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_033",
+    "word": "kumquat",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_048",
+    "word": "VTOL",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_000",
+    "word": "dinghy",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_005",
+    "word": "angle grinder",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_022",
+    "word": "pitaya",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_027",
+    "word": "jaguar",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_034",
+    "word": "center punch",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_012",
+    "word": "police car",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_001",
+    "word": "elderberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_024",
+    "word": "Allen wrench",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_004",
+    "word": "ladybug",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_029",
+    "word": "leopard",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_033",
+    "word": "bradawl",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_049",
+    "word": "sultana",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_048",
+    "word": "champagne grape",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_031",
+    "word": "station wagon",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_024",
+    "word": "tank",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_048",
+    "word": "drawknife",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_034",
+    "word": "tram",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_028",
+    "word": "slip-joint pliers",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_020",
+    "word": "garbage truck",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_034",
+    "word": "kangaroo",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_048",
+    "word": "hummingbird",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_019",
+    "word": "C-clamp",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_038",
+    "word": "maglev",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_049",
+    "word": "tiltrotor",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_032",
+    "word": "minibus",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_027",
+    "word": "convertible",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_021",
+    "word": "bison",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_031",
+    "word": "bael",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_027",
+    "word": "langsat",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_009",
+    "word": "scorpion",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_032",
+    "word": "jujube",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_014",
+    "word": "crimper",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_019",
+    "word": "cement mixer",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_039",
+    "word": "blood orange",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_018",
+    "word": "atemoya",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_003",
+    "word": "loganberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_040",
+    "word": "cara cara",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_044",
+    "word": "Buddha's hand",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_041",
+    "word": "whooping crane",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_043",
+    "word": "finger lime",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_016",
+    "word": "pickup truck",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_049",
+    "word": "burnisher",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_007",
+    "word": "belt sander",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_025",
+    "word": "bobcat",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_030",
+    "word": "channel-lock pliers",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_047",
+    "word": "stealth bomber",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_024",
+    "word": "caimito",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_008",
+    "word": "lingonberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_002",
+    "word": "miter saw",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_017",
+    "word": "mussel",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_049",
+    "word": "woodpecker",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_042",
+    "word": "etrog",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_025",
+    "word": "santol",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_041",
+    "word": "seaplane",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_020",
+    "word": "moose",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_046",
+    "word": "scuppernong",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_031",
+    "word": "mongoose",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_037",
+    "word": "funicular",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "VEHICLE_017",
+    "word": "semi truck",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "ANIMAL_011",
+    "word": "snail",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_017",
+    "word": "soursop",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_038",
+    "word": "pomelo",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_041",
+    "word": "satsuma",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_024",
+    "word": "coyote",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_047",
+    "word": "concord grape",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_032",
+    "word": "awl",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_040",
+    "word": "T-bevel",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_036",
+    "word": "bergamot",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_031",
+    "word": "wire cutters",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_039",
+    "word": "albatross",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_018",
+    "word": "vise",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_037",
+    "word": "citron",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_035",
+    "word": "nail set",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_040",
+    "word": "heron",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_001",
+    "word": "dragonfly",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_021",
+    "word": "jabuticaba",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_000",
+    "word": "band saw",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_014",
+    "word": "limousine",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_006",
+    "word": "cloudberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_007",
+    "word": "frigate",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_041",
+    "word": "dividers",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_016",
+    "word": "voltage tester",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "FRUIT_000",
+    "word": "boysenberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "VEHICLE_043",
+    "word": "jumbo jet",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_047",
+    "word": "spokeshave",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "TOOL_004",
+    "word": "oscillating tool",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "VEHICLE_029",
+    "word": "sedan",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "FRUIT_009",
+    "word": "bearberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_005",
+    "word": "serviceberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "ANIMAL_023",
+    "word": "caribou",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_007",
+    "word": "bumblebee",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_008",
+    "word": "caterpillar",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_008",
+    "word": "cruiser",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_001",
+    "word": "table saw",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_022",
+    "word": "elk",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "VEHICLE_039",
+    "word": "hyperloop",
+    "category": "VEHICLE",
+    "gold_letter": "D"
+  },
+  {
+    "id": "TOOL_023",
+    "word": "socket wrench",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_026",
+    "word": "lynx",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_038",
+    "word": "combination square",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_035",
+    "word": "koala",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "FRUIT_007",
+    "word": "bilberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_012",
+    "word": "dewberry",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "FRUIT_020",
+    "word": "cupuacu",
+    "category": "FRUIT",
+    "gold_letter": "A"
+  },
+  {
+    "id": "TOOL_039",
+    "word": "speed square",
+    "category": "TOOL",
+    "gold_letter": "B"
+  },
+  {
+    "id": "ANIMAL_006",
+    "word": "wasp",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "ANIMAL_028",
+    "word": "cheetah",
+    "category": "ANIMAL",
+    "gold_letter": "C"
+  },
+  {
+    "id": "TOOL_013",
+    "word": "wire stripper",
+    "category": "TOOL",
+    "gold_letter": "B"
+  }
+]

@@ -1,0 +1,119 @@
+{
+  "experiment": "E2d",
+  "dataset": "KDD Cup 2010, algebra_2008_2009_train",
+  "response_type": "graded K=4 (errors = Incorrects+Hints)",
+  "grading_rule": "3 if errors==0, 2 if errors==1, 1 if errors in {2,3}, 0 if errors>=4",
+  "cohort": {
+    "n_students_filtered": 2717,
+    "min_seq_len": 200,
+    "seq_len_median": 2280.0,
+    "seq_len_p90": 7349.400000000002,
+    "seq_len_max": 17547,
+    "item_vocab_size": 50000,
+    "n_kcs": 515,
+    "mean_steps_per_kc_per_student": 30.035133059783032
+  },
+  "training": {
+    "train_losses": [
+      2.1468414664268494,
+      1.3689459492178524,
+      1.318803394542021,
+      1.29410040027955,
+      1.2748909697813147,
+      1.2572787789737476,
+      1.2406362715889425,
+      1.2221705808359034,
+      1.2030451753560234,
+      1.1845757540534525,
+      1.167314532925101,
+      1.1530344135621016,
+      1.140429188223446,
+      1.1298247996498556,
+      1.1217843714882345,
+      1.1140117119340336,
+      1.10784912109375,
+      1.1031910847215092,
+      1.0985658554469837,
+      1.0938646793365479,
+      1.0906149219064152,
+      1.087125532767352,
+      1.084185828180874,
+      1.0818516769829918,
+      1.0792204351986157,
+      1.0767454925705404,
+      1.0750609460998983,
+      1.0731782580123228,
+      1.0713151430382448,
+      1.0692895247655756
+    ],
+    "final_train_loss": 1.0692895247655756,
+    "wall_time_s": 7.970693111419678,
+    "peak_vram_mb": 210.194432,
+    "n_epochs": 30,
+    "batch_size": 64,
+    "vocab_size": 50000,
+    "n_cats": 4,
+    "decoder": "gpcm"
+  },
+  "validation": {
+    "within_student_graded_gain": {
+      "n": 2717,
+      "first_quartile_graded": 2.474639124526002,
+      "last_quartile_graded": 2.6334259404940448,
+      "mean_gain_graded": 0.1587868159680425,
+      "mean_gain_graded_ci_lo": 0.14981312291345025,
+      "mean_gain_graded_ci_hi": 0.1679125575858815,
+      "frac_improving_graded": 0.770702981229297,
+      "mean_gain_binary": 0.06077419591970709,
+      "overall_binary_rate": 0.8042356961868177
+    },
+    "existence_gate": {
+      "n_students": 2717,
+      "mean_delta_nll": -0.10844172951430019,
+      "mean_delta_nll_ci_lo": -0.11259715089339346,
+      "mean_delta_nll_ci_hi": -0.10412468918570954,
+      "frac_pos": 0.13875598086124402,
+      "wilcoxon_stat": 265352.0,
+      "wilcoxon_p": 1.0,
+      "tail_frac": 0.2,
+      "comparator": "full_window_static_theta_gpcm"
+    },
+    "existence_verdict": "FAIL: static model not beaten by trajectory model.",
+    "oracle_magnitude": {
+      "n_finite": 2717,
+      "mean": 0.7756223959940219,
+      "median": 0.28214343272200304,
+      "p90": 3.0
+    },
+    "afm_concurrent_noncircular": {
+      "rho": 0.025965841196016696,
+      "ci_lo": -0.010158875821465943,
+      "ci_hi": 0.06230723682476078,
+      "n": 2716,
+      "n_afm_finite": 2716
+    },
+    "split_half_reliability": {
+      "rho": 0.19004976947654625,
+      "ci_lo": 0.15010438505962304,
+      "ci_hi": 0.22544151843952334,
+      "n": 2717
+    },
+    "convergent_aligned_vs_responsive": {
+      "rho": 0.911539723599626,
+      "ci_lo": 0.8942271140928528,
+      "ci_hi": 0.9264823948822701,
+      "n": 2717
+    }
+  },
+  "comparison_e2c": {
+    "e2c_sh_rho": 0.17,
+    "e2c_afm_rho": -0.005,
+    "e2c_delta_nll": 0.0008,
+    "e2d_sh_rho": 0.19004976947654625,
+    "e2d_afm_rho": 0.025965841196016696,
+    "e2d_delta_nll": -0.10844172951430019
+  },
+  "verdict": "NULL on MAGNITUDE: rate reliability improved vs E2c (split-half rho=0.19 vs E2c 0.17). Non-circular AFM concurrent: rho=0.026 [-0.010, 0.062] vs E2c -0.005. Existence gate: FAIL: static model not beaten by trajectory model.. Graded scoring did NOT rescue the human rate: even with K=4 dynamic range, the per-student oracle rate is not sufficiently self-consistent to yield an interpretable AFM concurrent. The limiting factor may be insufficient sequence length or structural misfit of the exponential learning curve to KDD practice data.",
+  "wall_time_s": 226.74822068214417,
+  "peak_vram_mb": 3413.553152
+}
