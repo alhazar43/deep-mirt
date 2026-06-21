@@ -194,6 +194,7 @@ data-generating processes. Six experiments, read together.
 | E2 | human, EdNet KT | no, single-pass item stream | AFM near zero on a wrong (single-pass) DGP; the predictive metric used here later shown ill-posed |
 | E2b | human, ASSISTments (repeated practice) | yes, recurring skills | AFM small positive (0.14) but skill-id circular; predictive metric shown ill-posed, discarded |
 | E2c | human, KDD Cup 2010 (problem-level, non-circular) | yes, repeated practice | trajectory EXISTS model-free (+6.1pts, 74% improve), theta stable (0.79); but rate magnitude unreliable (split-half 0.17) on near-saturated binary, so the AFM null is a measurement-floor artifact, not a refutation |
+| E2d | human, KDD graded K=4 (Incorrects+Hints) | yes, repeated practice | tested whether graded scoring rescues the rate, it does NOT, the K=4 signal is still 80% top-category so no range was added, split-half 0.19, AFM 0.026 (null), existence gate fails; the saturation is a DATA-property limit, not a binarization artifact |
 | pos-ctrl | synthetic, known rate | yes | recovery corr(r_hat,r_true)=0.46, but the predictive metric is -0.26 and even the TRUE rate scores -0.38, so that metric is structurally ill-posed |
 | E3 | transfer, SciEx graded | n/a | REAL run NULL, graded 0.07 vs binary 0.10 (graded does NOT beat binary), neither tracks the coarse human label; the sim positive was an artifact |
 
@@ -289,11 +290,16 @@ validated pipeline). A trajectory exists in the data (model-free, accuracy
 rises 6.1 points, 74 percent improve) and the encoder tracks it stably, but
 the per-student rate is unreliable (split-half 0.17) because the binary
 response is near-saturated, so the AFM concurrent null is a measurement-
-floor artifact rather than a refutation. So the real human RATE-magnitude
-claim is unestablished and the blocker is diagnosed, response-format dynamic
-range. The next venue is a polytomous or partial-credit human signal (E0
-already showed ordinal beats binary for rate recovery), or a lower-accuracy
-cohort. Nothing is buried.
+floor artifact rather than a refutation. E2d then tested the obvious fix,
+a graded K=4 response from the KDD error counts, and it does NOT rescue the
+rate, because the graded signal is STILL 80 percent top-category, the
+saturation is intrinsic to these mastery-oriented logs, not a binarization
+artifact. So the real human RATE-magnitude claim is unestablished and the
+blocker is now fully diagnosed, it is the DATA response distribution
+(near-saturation, little per-step dynamic range), not the coding and not the
+method (E0 recovers the rate when the signal carries it). The next venue is
+a genuinely error-rich or partial-credit human corpus, not another standard
+KT log. Nothing is buried.
 
 ## 6c. Open follow-ups (gated)
 

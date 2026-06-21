@@ -39,7 +39,7 @@ contains a curve.
 | E1 | LLM, ARC (known task) | null, flat theta(k), true equals shuffled, correctly no adaptation |
 | E1b | LLM, synthetic remapping | positive, rises under true, chance under shuffled, magnitude scales with model size, threshold at k about 10, robust across mappings |
 | MT | LLM, EN to Dinka translation | real-task positive (gate), chrF rises +5.6 with shots under true and is flat under shuffled (gap +7.1), full IRT ladder compute-bound |
-| E2 / E2b / E2c | human, EdNet / ASSISTments / KDD Cup 2010 | rate-magnitude recovery not established; E2c (non-circular) shows a trajectory EXISTS but the rate is unreliable (split-half 0.17) on near-saturated binary, a measurement-floor block, not a refutation |
+| E2 / E2b / E2c / E2d | human, EdNet / ASSISTments / KDD (binary + graded) | rate-magnitude recovery not established; a trajectory EXISTS but the per-student rate is unreliable because the KT response signal is intrinsically near-saturated (graded K=4 still 80% top-category in E2d), a data-property limit, not the coding or the method |
 | E3 | transfer, SciEx graded | null, graded 0.07 does not beat binary 0.10 |
 
 ## Three findings
@@ -85,10 +85,14 @@ informative, a learning trajectory genuinely EXISTS (model-free, accuracy
 rises 6.1 points, 74 percent improve) and the encoder tracks it stably, but
 the per-student rate is unreliable (split-half 0.17) because the binary
 response is near-saturated, so the AFM concurrent null is a measurement-
-floor artifact, not a refutation. The human RATE-magnitude claim is thus
-unestablished with a diagnosed blocker, response-format dynamic range,
-which points to a polytomous or partial-credit signal (E0 already showed
-ordinal beats binary for rate recovery). SciEx transfer is a real null,
+floor artifact, not a refutation. E2d tested whether a graded K=4 response
+rescues it and it does not, the graded signal is still 80 percent
+top-category, so the saturation is intrinsic to these mastery-oriented
+tutoring logs rather than an artifact of binary coding. The human
+RATE-magnitude claim is thus unestablished with a fully diagnosed blocker,
+the data response distribution itself, which points to a genuinely error-
+rich or partial-credit corpus (E0 recovers the rate when the signal carries
+it). SciEx transfer is a real null,
 machine difficulty does not track the coarse three-level human label and
 graded does not beat binary. The strong positives are on synthetic and
 machine data, and the real-data human claim is gated on richer responses
