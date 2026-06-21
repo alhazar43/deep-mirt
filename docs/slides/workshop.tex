@@ -3,12 +3,13 @@
 \usecolortheme{seahorse}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
+\setbeamertemplate{section in toc}[sections numbered]
 \usepackage{booktabs}
 \usepackage{graphicx}
 \graphicspath{{figs/}}
 
 \title[What a prediction model learns about its questions]{What a prediction model figures out about its test questions}
-\subtitle{and the one it learns only roughly}
+\subtitle{which numbers it recovers, how fast, and why}
 \author{Wenrui Yuan}
 \date{}
 
@@ -16,175 +17,256 @@
 
 \begin{frame}\titlepage\end{frame}
 
-% ---------------------------------------------------------------------------
-\begin{frame}{The setup}
+% ===========================================================================
+\section{Setup}
+
+\begin{frame}{Prediction is not the same as measurement}
 We train a model to do one job, predict whether a learner answers the next
-question correctly. Answers can be right or wrong, or graded into a few levels
-(right or wrong is two levels, a five point grade is five).
+question correctly. Answers are right or wrong, or graded into a few levels.
 \medskip
 
-To predict well, the model ends up working out three numbers on its own.
+To predict well, the model works out three numbers on its own.
 \begin{itemize}
-\item \textbf{score}, how strong the learner is.
-\item \textbf{difficulty}, how hard the question is.
+\item \textbf{score}, how strong a learner is.
+\item \textbf{difficulty}, how hard a question is.
 \item \textbf{sharpness}, how clearly a question tells apart strong and weak learners.
 \end{itemize}
 \medskip
 
-On a sharp question, strong learners almost always get it and weak ones almost
-never. On a dull question, everyone is near a coin flip no matter their strength.
-\medskip
-
-We never hand the model these numbers. It is graded only on predicting answers.
-On made-up data the true numbers are known, so we can check how well the model's
-numbers match them, from 0 (no match) to 1 (perfect order).
+We never supply these numbers and we never add a target for them. The model is
+graded only on its answer predictions. The research question is whether good
+prediction also gives back faithful measurement, and that is not guaranteed.
 \end{frame}
 
-% ---------------------------------------------------------------------------
-\begin{frame}{The question}
-\begin{block}{}
-When a model learns only by predicting answers, which of the three numbers does
-it get right, how fast, and why?
-\end{block}
-\medskip
-
-Short answer. It gets the learner's score and the question's difficulty easily.
-It struggles with the question's sharpness. The rest of the talk is why, what
-helps, and one tempting explanation we tested and ruled out.
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{Two of the three numbers are easy, one is not}
-\begin{columns}
-\begin{column}{0.62\textwidth}
-\includegraphics[width=\linewidth]{s1_three_speeds.png}
-\end{column}
-\begin{column}{0.36\textwidth}
-\small
-Score and difficulty climb to a near perfect match within the first few to
-twenty training steps. Sharpness rises slowly and never quite catches up,
-settling a notch below the other two (about 0.93 on the same 0 to 1 scale,
-against 0.97 and 0.99).
-\medskip
-
-With more answer levels the gap is wider. So the model gets two of the three
-numbers almost for free and works much harder for the third.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{Why sharpness is the hard one}
-\begin{columns}
-\begin{column}{0.6\textwidth}
-\includegraphics[width=\linewidth]{s4_why_hard.png}
-\end{column}
-\begin{column}{0.38\textwidth}
-\small
-A model can only learn a number as well as its prediction leans on that number.
-\medskip
-
-The prediction leans heavily on score and difficulty. It barely leans on
-sharpness. Sharpness only changes the prediction for learners whose strength is
-close to a question's difficulty. For everyone far above or far below, the answer
-is nearly settled either way, so sharpness makes almost no difference. Add more
-answer levels and the prediction leans on it even less.
-\medskip
-
-That weak signal is the main reason sharpness is slow and unreliable.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{A fix aimed straight at the hard number}
-\begin{columns}
-\begin{column}{0.58\textwidth}
-\includegraphics[width=\linewidth]{s2_sharpness_help.png}
-\end{column}
-\begin{column}{0.4\textwidth}
-\footnotesize
-Give each question's sharpness two parts, a fixed part for the question plus a
-small extra part that shifts with the learner's recent answers.
-\medskip
-
-The match to true sharpness improves, mostly by getting there faster and more
-reliably, and the gain grows with more answer levels, up to about $+0.20$ at
-eleven.
-\medskip
-
-Two controls make it real. The same change to difficulty does almost nothing
-(grey bars), and a size-matched plain model does not close the gap.
-\medskip
-
-Caveat, at two answer levels it slightly hurts, so this helps richer grading
-scales, not the simplest right or wrong case.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{A tempting explanation we tested and ruled out}
-\begin{columns}
-\begin{column}{0.58\textwidth}
-\includegraphics[width=\linewidth]{s3_formula_distractor.png}
-\end{column}
-\begin{column}{0.4\textwidth}
-\footnotesize
-Sharpness must be a positive number. A common trick is to learn a free number
-and pass it through an always-positive formula. We suspected one formula, the
-exponential, was the secret.
-\medskip
-
-Compared fairly, each given the same starting point and its own best settings,
-they all tie. Only the crude options lag, the one that can still slip negative
-and the one that flattens to zero and stops responding.
-\medskip
-
-A follow-up idea, that the exponential helps by changing the training step
-sizes, also failed its own test. Being positive and smooth helps, the
-exponential does not. What actually helps is the previous slide's fix, giving
-sharpness its own dedicated part of the model.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{How far to trust the history part}
-We planted a real, known link between a question's sharpness and the learner's
-strength, then asked the history-adjusted part to find it.
+\begin{frame}{What we measure, and how}
+On made-up data the three true numbers are known, so we can score the model's
+recovered numbers against them.
 \medskip
 
 \begin{itemize}
-\item It picks up the \textbf{direction} of the link.
-\item It badly \textbf{underestimates the size} of the link.
-\item It shows a little signal even when we planted none, so a small adjustment can be noise, not a real link.
+\item We report \textbf{match in order} (rank agreement, 0 to 1), not raw values.
+The scale and zero point of these numbers are not fixed by the data, only their
+pattern is, so we compare order rather than raw values.
+\item We track recovery \textbf{over training}, not just at the end, because the
+path matters as much as the endpoint.
+\item Every claim below carries a \textbf{control}, a capacity match, a negative
+control, a matched starting point, or a matched null, stated on each slide.
 \end{itemize}
 \medskip
 
-So we read the history part for direction, not for amount. A bigger history
-adjustment is not the same as a stronger real effect.
+Four findings follow. Each is one observation, one hypothesis, one designed test,
+one result.
 \end{frame}
 
-% ---------------------------------------------------------------------------
+% ===========================================================================
+\section{Finding 1, sharpness is the hard number}
+
+\begin{frame}{Finding 1, observation and hypothesis}
+\begin{columns}
+\begin{column}{0.58\textwidth}
+\includegraphics[width=\linewidth]{s1_three_speeds.png}
+\end{column}
+\begin{column}{0.4\textwidth}
+\footnotesize
+\textbf{Observation.} Score and difficulty reach a near perfect match within the
+first few to twenty training steps. Sharpness rises slowly and settles a notch
+lower (about 0.93 against 0.97 and 0.99). It is consistently the last of the
+three to come in.
+\medskip
+
+\textbf{Hypothesis.} Sharpness lags because the prediction barely depends on it.
+A model can only pin down a number through that number's effect on the predicted
+answer, so a number the prediction is insensitive to is learned slowly.
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Finding 1, design and result}
+\begin{columns}
+\begin{column}{0.55\textwidth}
+\includegraphics[width=\linewidth]{s4_why_hard.png}
+\end{column}
+\begin{column}{0.43\textwidth}
+\footnotesize
+\textbf{Design.} Measure how much the predicted answer moves when each number is
+nudged (its sensitivity, the Fisher information), and compare that ordering to
+the recovery speeds. Repeat across answer levels.
+\medskip
+
+\textbf{Result.} The prediction leans heavily on score and difficulty and weakly
+on sharpness. For a learner at a question's level the odds stay near a coin flip
+whatever its sharpness, and far above or below the answer is near certain either
+way, so only the band between is sensitive. The overall pull is small and shrinks
+with answer levels, from about 1.0 at two levels to 0.19 at eleven.
+\medskip
+
+\textbf{Conclusion.} A number's leverage on the prediction governs how fast and
+how well it is recovered. Sharpness is the low-leverage number.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ===========================================================================
+\section{Finding 2, a fix aimed at the hard number}
+
+\begin{frame}{Finding 2, hypothesis and design}
+\textbf{Hypothesis.} If sharpness is starved of signal, give it a richer readout.
+Let each question's sharpness be a fixed part for the question plus a small extra
+part that shifts with what the learner has answered so far.
+\medskip
+
+\textbf{Design.} Four model variants, holding everything else equal.
+\begin{itemize}\footnotesize
+\item fixed sharpness, narrow, the baseline.
+\item fixed sharpness, wide, a \textbf{capacity-matched control} (same added size,
+no history).
+\item fixed plus history sharpness, the variant under test.
+\item fixed plus history applied to \textbf{difficulty}, a \textbf{negative
+control} on a high-leverage number.
+\end{itemize}
+We compare recovery across answer levels and over training, not at the endpoint
+alone.
+\end{frame}
+
+\begin{frame}{Finding 2, result}
+\begin{columns}
+\begin{column}{0.56\textwidth}
+\includegraphics[width=\linewidth]{s2_sharpness_help.png}
+\end{column}
+\begin{column}{0.42\textwidth}
+\footnotesize
+\textbf{Result.} The history part lifts sharpness recovery, and the lift grows
+with answer levels, up to about $+0.20$ at eleven. The same change to difficulty
+does almost nothing, and the capacity-matched wide baseline does not close the
+gap where the history part helps (it pays in score recovery instead), so the gain
+is specific, not just added size.
+\medskip
+
+\textbf{Two honest bounds.} The benefit is in speed and reliability, both
+variants tie if trained to convergence, and the recovered quantity is the order
+of sharpness, not its size. At two answer levels the extra part slightly hurts.
+\medskip
+
+\textbf{Conclusion.} A targeted readout helps the low-leverage number recover
+faster and more reliably, more so as the task gets richer, without an endpoint
+cost.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ===========================================================================
+\section{Finding 3, a tempting explanation, tested and ruled out}
+
+\begin{frame}{Finding 3, hypothesis and design}
+\textbf{Hypothesis.} Sharpness must stay positive, so it is read through an
+always-positive formula. A natural guess is that one particular choice, the
+exponential, is what makes sharpness learnable, because of how it rescales the
+updates during training.
+\medskip
+
+\textbf{Design.} A fair contest between always-positive formulas (exponential,
+softplus and its variants, sigmoid, and the cruder raw, relu, square).
+\begin{itemize}\footnotesize
+\item \textbf{Matched starting point}, every formula begins at the same effective
+sharpness, so none is handed a head start.
+\item \textbf{Per-formula learning-rate tuning}, so no formula simply had a better
+rate.
+\item A \textbf{direct test} of the training-step idea, optimizing sharpness
+alone with the other two numbers fixed to truth, under each step rule.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Finding 3, result}
+\begin{columns}
+\begin{column}{0.56\textwidth}
+\includegraphics[width=\linewidth]{s3_formula_distractor.png}
+\end{column}
+\begin{column}{0.42\textwidth}
+\footnotesize
+\textbf{Result.} Under the fair contest, all the smooth formulas tie (within
+about 0.02). Only the crude ones lag, the one that can still slip negative and
+the one that flattens to zero and stops responding. The direct test of the
+training-step idea also comes up empty, the step rules converge to the same
+recovery.
+\medskip
+
+\textbf{Conclusion.} The exponential is not special. Staying positive matters and
+being smooth matters, the particular formula does not. The hypothesis is ruled
+out, a distractor removed. The direct test shows the positive formula does not
+reshape the training in any decisive way. The benefit instead traces to the
+dedicated readout of Finding 2.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ===========================================================================
+\section{Finding 4, how far to trust the history part}
+
+\begin{frame}{Finding 4, design, result, and limit}
+\textbf{Design.} Plant a real, known link between a question's sharpness and the
+learner's strength, then ask the history part to recover it. Compare against a
+matched control with no planted link, so any baseline structure is subtracted.
+\medskip
+
+\textbf{Result.}
+\begin{itemize}\footnotesize
+\item It recovers the \textbf{direction} of the planted link.
+\item It recovers the \textbf{size} only weakly, about 4 percent of the true effect, a roughly 25-fold shrinkage.
+\item It shows a little structure even when nothing is planted, so a small
+adjustment can be noise.
+\end{itemize}
+\medskip
+
+\textbf{Conclusion.} Read the history part for direction, not for amount. This
+matches Finding 1, the prediction has too little leverage on sharpness to pin its
+magnitude, only its ordering.
+\end{frame}
+
+% ===========================================================================
+\section{Why, the mechanism}
+
+\begin{frame}{Why the low-leverage number is the slow one}
+The four findings share one cause, set out in the supporting analysis.
+\medskip
+
+\begin{itemize}
+\item The prediction's sensitivity to sharpness works out to the learner-question
+gap times the answer's uncertainty, (score minus difficulty) times $p(1-p)$. It is
+zero when the learner sits at the question's level, and zero far away, so its
+overall pull is small and shrinks as answer levels grow.
+\item That weak signal sets the \textbf{rate} at which sharpness is learned, not a
+permanent error. With unlimited data and training the gap closes, which is why the
+fix is a speed gain, not an endpoint gain.
+\item The same weak signal is why magnitude is not recovered, only order.
+\end{itemize}
+\medskip
+
+This is a modest, local account that explains the pattern. It is the support, not
+the headline. The headline is the measured behavior.
+\end{frame}
+
+% ===========================================================================
+\section{Takeaway}
+
 \begin{frame}{Takeaway}
 \begin{block}{One line}
 A model trained only to predict answers learns each question number only as well
 as the prediction leans on it.
 \end{block}
 \medskip
-\begin{itemize}
-\item Sharpness is the number the prediction barely leans on, so it is learned
-slowly and only roughly.
-\item Giving sharpness a fixed part plus a history-adjusted part helps, more so
-with more answer levels. It is a gain in speed and reliability, and it recovers
-the order of sharpness, not its exact size.
-\item We ruled out the idea that a special positive formula was the key.
-Positivity and smoothness matter, the formula does not.
+\begin{itemize}\small
+\item Score and difficulty are easy. Sharpness is the low-leverage number, learned
+slowly and only in order.
+\item A fixed plus history readout helps sharpness recover faster and more
+reliably, more so with more answer levels, with no endpoint cost. It gives the
+order of sharpness, not its size.
+\item We tested and ruled out the idea that a special positive formula was the
+key. Staying positive and smooth matters, the formula does not.
 \end{itemize}
 \medskip
-\footnotesize Honest limits, made-up data, a few repeats, one model type. Next
-step, a check on real learner data.
+\footnotesize \textbf{Scope.} Made-up data, three to ten repeats, one model family.
+\textbf{Next.} A check on real learner data, where the true numbers are unknown
+and we test stability instead of recovery.
 \end{frame}
 
 \end{document}
