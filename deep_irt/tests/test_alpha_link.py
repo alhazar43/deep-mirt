@@ -1,11 +1,14 @@
-"""Tests for the discrimination positivity transform (``alpha_log_scale``).
+"""Tests for the discrimination map (``alpha_log_scale`` / ``alpha_pos_map``).
 
 The GPCM/binary decoder pushes the raw discrimination-head output through a
-positive map (GPCM needs ``a > 0``), one of two transforms:
+map, historically one of two transforms:
 
   softplus (default, ``alpha_log_scale=None``) -- the original transform.
   exponential (``alpha_log_scale=s``)          -- ``exp(s * raw)``, ma-irt's
       transform; with ``s = 1.0`` it is plain ``exp(raw)``.
+
+The named ``alpha_pos_map`` API extends this for the E5 positivity-geometry
+ablation while preserving the old ``alpha_log_scale`` path exactly.
 
 Contracts pinned here
 ---------------------
@@ -16,6 +19,7 @@ Contracts pinned here
    it is a genuinely different positivity map, not a no-op.
 4. Validation: ``alpha_log_scale <= 0`` raises; the transform is GPCM/binary-only.
 5. The exp transform composes with the decoupled wide item key.
+6. Named alpha maps implement their exact formulas and thread through the model.
 """
 
 from __future__ import annotations
@@ -84,6 +88,54 @@ def test_softplus_default_on_static_head():
     assert torch.allclose(a, F.softplus(raw), atol=1e-7)
 
 
+def test_named_alpha_maps_are_exact():
+    raw = torch.tensor([[-2.0], [-0.5], [0.0], [0.5], [2.0]])
+    cases = [
+        ("identity", {}, raw),
+        ("raw", {}, raw),
+        ("relu", {}, F.relu(raw)),
+        ("softplus", {}, F.softplus(raw)),
+        ("softplus_eps", {"epsilon": 0.2}, F.softplus(raw) + 0.2),
+        ("scaled_softplus", {"scale": 2.5}, 2.5 * F.softplus(raw)),
+        ("temperature_softplus", {"temperature": 0.3}, F.softplus(0.3 * raw)),
+        ("sigmoid", {}, torch.sigmoid(raw)),
+        ("scaled_sigmoid", {"scale": 3.0}, 3.0 * torch.sigmoid(raw)),
+        ("square", {"epsilon": 0.1}, raw.square() + 0.1),
+        ("exp", {"scale": 0.3}, torch.exp(0.3 * raw)),
+        (
+            "clipped_exp",
+            {"scale": 2.0, "clip_min": -1.0, "clip_max": 1.0},
+            torch.exp(torch.clamp(2.0 * raw, min=-1.0, max=1.0)),
+        ),
+        (
+            "clipped_identity",
+            {"clip_min": -0.7, "clip_max": 1.1},
+            torch.clamp(raw, min=-0.7, max=1.1),
+        ),
+        (
+            "clipped_relu",
+            {"clip_min": 0.0, "clip_max": 1.1},
+            torch.clamp(F.relu(raw), min=0.0, max=1.1),
+        ),
+    ]
+    for name, kwargs, expected in cases:
+        dec = GPCMDecoder(
+            emb_dim=4, n_cats=4,
+            alpha_pos_map=name, alpha_pos_kwargs=kwargs,
+        )
+        actual = dec._alpha_pos(raw)
+        assert torch.allclose(actual, expected, atol=1e-7), name
+
+
+def test_named_exp_map_uses_scale_kwarg():
+    raw = torch.tensor([[-2.0], [0.0], [2.0]])
+    dec = GPCMDecoder(
+        emb_dim=4, n_cats=4,
+        alpha_pos_map="exp", alpha_pos_kwargs={"scale": 0.4},
+    )
+    assert torch.allclose(dec._alpha_pos(raw), torch.exp(0.4 * raw), atol=1e-7)
+
+
 def test_exp_link_is_exact_on_state_head():
     s = 0.3
     dec = GPCMDecoder(emb_dim=4, n_cats=4, state_dim=8, alpha_log_scale=s)
@@ -124,6 +176,42 @@ def test_nonpositive_log_scale_raises():
             raise AssertionError(f"expected ValueError for alpha_log_scale={bad}")
 
 
+def test_bad_named_map_config_raises():
+    bad_configs = [
+        dict(alpha_pos_map="unknown"),
+        dict(alpha_pos_map="scaled_softplus", alpha_pos_kwargs={"scale": 0.0}),
+        dict(alpha_pos_map="softplus", alpha_pos_kwargs={"typo": 1.0}),
+        dict(alpha_pos_map="temperature_softplus",
+             alpha_pos_kwargs={"temperature": -1.0}),
+        dict(alpha_pos_map="square", alpha_pos_kwargs={"epsilon": 0.0}),
+        dict(alpha_pos_map="clipped_exp",
+             alpha_pos_kwargs={"clip_min": 2.0, "clip_max": 1.0}),
+        dict(alpha_pos_map="clipped_identity",
+             alpha_pos_kwargs={"clip_min": 2.0, "clip_max": 1.0}),
+        dict(alpha_pos_map="clipped_relu",
+             alpha_pos_kwargs={"clip_min": 2.0, "clip_max": 1.0}),
+    ]
+    for kw in bad_configs:
+        try:
+            GPCMDecoder(emb_dim=4, n_cats=4, **kw)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for {kw}")
+
+
+def test_named_map_rejects_alpha_log_scale_mix():
+    try:
+        GPCMDecoder(
+            emb_dim=4, n_cats=4,
+            alpha_pos_map="exp", alpha_log_scale=0.4,
+        )
+    except ValueError as e:
+        assert "alpha_log_scale" in str(e)
+    else:
+        raise AssertionError("expected ValueError when mixing alpha map APIs")
+
+
 def test_link_is_gpcm_binary_only():
     try:
         DeepIRTModel(num_items=10, emb_dim=4, hidden_dim=8, n_cats=4,
@@ -134,6 +222,16 @@ def test_link_is_gpcm_binary_only():
         raise AssertionError("expected ValueError for alpha_log_scale on nrm")
 
 
+def test_named_map_is_gpcm_binary_only():
+    try:
+        DeepIRTModel(num_items=10, emb_dim=4, hidden_dim=8, n_cats=4,
+                       decoder="nrm", alpha_pos_map="softplus")
+    except ValueError as e:
+        assert "alpha_pos_map" in str(e)
+    else:
+        raise AssertionError("expected ValueError for alpha_pos_map on nrm")
+
+
 def test_binary_decoder_threads_link():
     s = 0.3
     dec = Binary2PLDecoder(emb_dim=4, alpha_log_scale=s)
@@ -142,6 +240,51 @@ def test_binary_decoder_threads_link():
     raw = dec._gpcm.fc_a(emb)
     a = dec.item_params(emb)["alpha"]
     assert torch.allclose(a, torch.exp(s * raw), atol=1e-7)
+
+
+def test_binary_decoder_threads_named_map():
+    dec = Binary2PLDecoder(
+        emb_dim=4,
+        alpha_pos_map="scaled_softplus",
+        alpha_pos_kwargs={"scale": 2.0},
+    )
+    g = torch.Generator().manual_seed(4)
+    emb = torch.randn(6, 4, generator=g)
+    raw = dec._gpcm.fc_a(emb)
+    a = dec.item_params(emb)["alpha"]
+    assert torch.allclose(a, 2.0 * F.softplus(raw), atol=1e-7)
+
+
+def test_deepirt_model_threads_named_map():
+    it, rp = _data()
+    m = DeepIRTModel(
+        num_items=10, emb_dim=4, hidden_dim=8, n_cats=4,
+        decoder="gpcm", state_alpha=True,
+        alpha_pos_map="scaled_sigmoid",
+        alpha_pos_kwargs={"scale": 2.0},
+        device=_DEVICE, seed=_SEED,
+    )
+    assert m.alpha_pos_map == "scaled_sigmoid"
+    assert m.decoder.alpha_pos_map == "scaled_sigmoid"
+    r = m.fit(it, rp, n_epochs=10, verbose=False)
+    assert math.isfinite(r["final_nll"])
+    rec = m.recover_item_params(it, rp)
+    assert rec["alpha"].shape == (10,)
+
+
+def test_grad_clip_norm_validation():
+    it, rp = _data()
+    m = DeepIRTModel(
+        num_items=10, emb_dim=4, hidden_dim=8, n_cats=4,
+        decoder="gpcm", state_alpha=True,
+        device=_DEVICE, seed=_SEED,
+    )
+    try:
+        m.fit(it, rp, n_epochs=1, verbose=False, grad_clip_norm=0.0)
+    except ValueError as e:
+        assert "grad_clip_norm" in str(e)
+    else:
+        raise AssertionError("expected ValueError for non-positive grad_clip_norm")
 
 
 # ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -83,6 +83,8 @@ class BenchDataset:
     val_idx: np.ndarray
     # per-(learner,step) true theta used at each answered position (N, T)
     theta_at_step: np.ndarray = field(default=None)
+    # Optional runner-specific diagnostics, e.g. learner response-style scores.
+    aux: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

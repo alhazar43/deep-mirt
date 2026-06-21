@@ -99,6 +99,11 @@ class DeepIRTModel:
                             uses ``exp(s * raw)``, ma-irt's exponential map
                             (``s = 1.0`` matches ma-irt; the MLP head absorbs the
                             scale constant).
+    alpha_pos_map : str or None -- named discrimination map for the positive-map
+                            ablation.  None preserves the ``alpha_log_scale``
+                            compatibility path.  Valid maps are implemented by
+                            ``GPCMDecoder``.
+    alpha_pos_kwargs : dict or None -- map constants for ``alpha_pos_map``.
     state_beta  : bool -- the dynamic-beta arm (gpcm/binary only; requires
                             state_alpha=True AND item_key_dim).  When True the step
                             thresholds are read from a state-conditioned head
@@ -113,10 +118,11 @@ class DeepIRTModel:
                             decoupled architecture (state_alpha + a separate
                             item_key_dim=64 wide item key + exp link), the
                             validated deep-irt s_0.  Applied ONLY when none of
-                            state_alpha / item_key_dim / alpha_log_scale is set
-                            explicitly (passing any one defers to manual config);
-                            a no-op for the bt/nrm decoders.  Pass decouple=False
-                            for the plain (legacy) GPCM path.
+                            state_alpha / item_key_dim / alpha_log_scale /
+                            alpha_pos_map is set explicitly (passing any one
+                            defers to manual config); a no-op for the bt/nrm
+                            decoders.  Pass decouple=False for the plain
+                            (legacy) GPCM path.
     device      : torch.device
     seed        : int
     """
@@ -135,6 +141,8 @@ class DeepIRTModel:
         state_alpha: Optional[bool] = None,
         item_key_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
+        alpha_pos_map: Optional[str] = None,
+        alpha_pos_kwargs: Optional[dict] = None,
         state_beta: bool = False,
         decouple: bool = True,
         encoder: str = "lstm",
@@ -161,7 +169,8 @@ class DeepIRTModel:
         # (legacy) path.
         if state_alpha is None:
             if (decouple and decoder in ("gpcm", "binary")
-                    and item_key_dim is None and alpha_log_scale is None):
+                    and item_key_dim is None and alpha_log_scale is None
+                    and alpha_pos_map is None):
                 state_alpha = True
                 item_key_dim = 64
                 alpha_log_scale = 1.0
@@ -181,6 +190,11 @@ class DeepIRTModel:
             raise ValueError(
                 "alpha_log_scale (the exp discrimination transform) is defined for "
                 f"the GPCM/binary decoders, not decoder='{decoder}'."
+            )
+        if alpha_pos_map is not None and decoder not in ("gpcm", "binary"):
+            raise ValueError(
+                "alpha_pos_map (the discrimination map) is defined for the "
+                f"GPCM/binary decoders, not decoder='{decoder}'."
             )
         if state_beta:
             if decoder not in ("gpcm", "binary"):
@@ -203,6 +217,8 @@ class DeepIRTModel:
         self.state_alpha = state_alpha
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.alpha_pos_map = alpha_pos_map
+        self.alpha_pos_kwargs = dict(alpha_pos_kwargs or {})
         self.state_beta = state_beta
         self.decouple = decouple
         self.encoder_name = encoder
@@ -236,6 +252,7 @@ class DeepIRTModel:
         self.decoder: nn.Module = self._make_decoder(
             decoder, emb_dim, n_cats, correct_option, state_dim=decoder_state_dim,
             item_key_dim=item_key_dim, alpha_log_scale=alpha_log_scale,
+            alpha_pos_map=alpha_pos_map, alpha_pos_kwargs=self.alpha_pos_kwargs,
             state_alpha=bool(state_alpha), state_beta=state_beta,
         )
         self.decoder = self.decoder.to(device)
@@ -258,6 +275,7 @@ class DeepIRTModel:
         mask: Optional[Tensor] = None,
         batch_size: Optional[int] = None,
         callback=None,
+        grad_clip_norm: Optional[float] = None,
     ) -> dict:
         """
         Train encoder + decoder on base-item sequences.
@@ -285,6 +303,9 @@ class DeepIRTModel:
                      WITHOUT re-initializing the optimizer (chunked fit calls
                      would reset Adam).  None (default) = no behavior change,
                      bit-for-bit identical.
+        grad_clip_norm : optional positive float.  When set, clip the global
+                     encoder+decoder gradient norm before every Adam step.  None
+                     (default) leaves historical training unchanged.
 
         Returns
         -------
@@ -310,6 +331,9 @@ class DeepIRTModel:
         full_batch = batch_size is None or batch_size >= N
 
         params = list(self.encoder.parameters()) + list(self.decoder.parameters())
+        if grad_clip_norm is not None and grad_clip_norm <= 0.0:
+            raise ValueError("grad_clip_norm must be positive when provided.")
+
         optimizer = optim.Adam(params, lr=lr)
 
         # Seeded shuffle generator -- separate from the global seed so that
@@ -328,6 +352,8 @@ class DeepIRTModel:
                 optimizer.zero_grad()
                 loss = self._compute_loss(item_ids, responses, mask=mask)
                 loss.backward()
+                if grad_clip_norm is not None:
+                    nn.utils.clip_grad_norm_(params, grad_clip_norm)
                 optimizer.step()
                 final_loss = loss.item()
             else:
@@ -344,6 +370,8 @@ class DeepIRTModel:
                     optimizer.zero_grad()
                     loss = self._compute_loss(b_ids, b_resp, mask=b_mask)
                     loss.backward()
+                    if grad_clip_norm is not None:
+                        nn.utils.clip_grad_norm_(params, grad_clip_norm)
                     optimizer.step()
                     epoch_loss += loss.item()
                     n_batches += 1
@@ -906,6 +934,8 @@ class DeepIRTModel:
         state_dim: Optional[int] = None,
         item_key_dim: Optional[int] = None,
         alpha_log_scale: Optional[float] = None,
+        alpha_pos_map: Optional[str] = None,
+        alpha_pos_kwargs: Optional[dict] = None,
         state_alpha: bool = True,
         state_beta: bool = False,
     ) -> nn.Module:
@@ -913,11 +943,15 @@ class DeepIRTModel:
             return GPCMDecoder(emb_dim=emb_dim, n_cats=n_cats, state_dim=state_dim,
                                item_key_dim=item_key_dim,
                                alpha_log_scale=alpha_log_scale,
+                               alpha_pos_map=alpha_pos_map,
+                               alpha_pos_kwargs=alpha_pos_kwargs,
                                state_alpha=state_alpha, state_beta=state_beta)
         if name == "binary":
             return Binary2PLDecoder(emb_dim=emb_dim, state_dim=state_dim,
                                     item_key_dim=item_key_dim,
                                     alpha_log_scale=alpha_log_scale,
+                                    alpha_pos_map=alpha_pos_map,
+                                    alpha_pos_kwargs=alpha_pos_kwargs,
                                     state_alpha=state_alpha, state_beta=state_beta)
         if name == "bt":
             return BradleyTerryDecoder(emb_dim=emb_dim)

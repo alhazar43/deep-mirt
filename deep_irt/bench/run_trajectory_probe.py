@@ -349,7 +349,7 @@ def _forward_beta_only(
     # alpha from detached state and detached emb (both carry no E gradient here):
     key = torch.cat([state_flat.detach(), emb_flat_d], dim=-1)
     raw_a = model.decoder.fc_a_state(key)
-    a = torch.exp(model.decoder.alpha_log_scale * raw_a)
+    a = model.decoder._alpha_pos(raw_a)
 
     log_p = model.decoder.log_probs(theta_flat.detach(), a, b)
     return F.nll_loss(log_p, resp_flat)
@@ -393,7 +393,7 @@ def _forward_alpha_only(
     # We detach state so gradient through E only via the direct emb key, not state.
     key = torch.cat([state_flat.detach(), emb_flat], dim=-1)
     raw_a = model.decoder.fc_a_state(key)
-    a = torch.exp(model.decoder.alpha_log_scale * raw_a)
+    a = model.decoder._alpha_pos(raw_a)
 
     log_p = model.decoder.log_probs(theta_flat.detach(), a, b)
     return F.nll_loss(log_p, resp_flat)

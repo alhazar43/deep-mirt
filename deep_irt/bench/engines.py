@@ -65,7 +65,8 @@ class DeepIRTEngine:
 
     def __init__(self, ds, decoder="gpcm", emb_dim=8, hidden_dim=32,
                  state_alpha=False, item_key_dim=None,
-                 alpha_log_scale=None, state_beta=False,
+                 alpha_log_scale=None, alpha_pos_map=None,
+                 alpha_pos_kwargs=None, state_beta=False,
                  encoder="lstm", encoder_kwargs=None,
                  device="cpu", seed=0):
         self.ds = ds
@@ -73,6 +74,8 @@ class DeepIRTEngine:
         self.state_alpha = state_alpha
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.alpha_pos_map = alpha_pos_map
+        self.alpha_pos_kwargs = dict(alpha_pos_kwargs or {})
         self.state_beta = state_beta
         # The state-conditioned path (one aligned pass -> theta + state + wide
         # key) is used whenever EITHER head is dynamic.
@@ -82,7 +85,10 @@ class DeepIRTEngine:
         sa = "+sa" if state_alpha else ""
         sb = "+sb" if state_beta else ""
         de = f"+ik{item_key_dim}" if item_key_dim is not None else ""
-        xp = f"+exp{alpha_log_scale}" if alpha_log_scale is not None else ""
+        if alpha_pos_map is not None:
+            xp = f"+map:{alpha_pos_map}"
+        else:
+            xp = f"+exp{alpha_log_scale}" if alpha_log_scale is not None else ""
         bk = encoder.upper()
         self.label = f"deep_irt-{bk}/{decoder}/{sa}{sb}{de}{xp}"
         self.encoder_name = (
@@ -92,7 +98,8 @@ class DeepIRTEngine:
             num_items=ds.cfg.n_items, emb_dim=emb_dim, hidden_dim=hidden_dim,
             n_cats=K, decoder=decoder,
             state_alpha=state_alpha, item_key_dim=item_key_dim,
-            alpha_log_scale=alpha_log_scale, state_beta=state_beta,
+            alpha_log_scale=alpha_log_scale, alpha_pos_map=alpha_pos_map,
+            alpha_pos_kwargs=self.alpha_pos_kwargs, state_beta=state_beta,
             decouple=False, encoder=encoder,
             encoder_kwargs=encoder_kwargs,
             device=self.device, seed=seed,
@@ -104,11 +111,19 @@ class DeepIRTEngine:
         rp = torch.tensor(self.ds.responses[idx], dtype=torch.long)
         return it, rp
 
-    def fit(self, n_epochs=120, lr=1e-2, batch_size=None):
+    def fit(
+        self,
+        n_epochs=120,
+        lr=1e-2,
+        batch_size=None,
+        callback=None,
+        grad_clip_norm=None,
+    ):
         it, rp = self._tensor(self.ds.train_idx)
         t0 = time.time()
         self.model.fit(it, rp, n_epochs=n_epochs, lr=lr, verbose=False,
-                       batch_size=batch_size)
+                       batch_size=batch_size, callback=callback,
+                       grad_clip_norm=grad_clip_norm)
         self._train_time = time.time() - t0
         return self
 

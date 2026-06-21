@@ -15,6 +15,10 @@ Planted sigma=0.4, the same config as run_phase2_signal. Temp probe.
 """
 from __future__ import annotations
 
+import json
+import time
+from pathlib import Path
+
 import numpy as np
 import torch
 
@@ -26,9 +30,42 @@ from deep_irt.bench.run_phase2_signal import (
 
 K, N, Q, T, EPOCHS, SIGMA = 4, 2000, 60, 60, 150, 0.4
 SEEDS = (0, 1, 2)
+_HERE = Path(__file__).resolve().parent
+OUT = _HERE / "outputs"
+OUT.mkdir(exist_ok=True)
+
+
+def _render(rows, summary, meta):
+    lines = ["# Phase-2 Magnitude Decomposition\n"]
+    lines.append(
+        f"K={meta['K']} sigma={meta['sigma']} N={meta['N']} Q={meta['Q']} "
+        f"T={meta['T']} epochs={meta['epochs']} seeds={meta['seeds']} "
+        f"device={meta['device']}\n"
+    )
+    lines.append("| seed | k raw | theta scale c | k/c | corr(theta_hat, theta0) |")
+    lines.append("|---:|---:|---:|---:|---:|")
+    for row in rows:
+        lines.append(
+            f"| {row['seed']} | {row['k_raw']:.3f} | "
+            f"{row['theta_scale']:.3f} | {row['k_over_c']:.3f} | "
+            f"{row['theta_corr']:.3f} |"
+        )
+    lines.append(
+        f"\nMean: k(raw)={summary['k_raw_mean']:.3f}, "
+        f"c={summary['theta_scale_mean']:.3f}, "
+        f"k/c={summary['k_over_c_mean']:.3f}, "
+        f"corr(theta_hat,theta0)={summary['theta_corr_mean']:.3f}.\n"
+    )
+    lines.append(
+        "Interpretation: theta scale is near one, so the small calibration k is "
+        "not explained by latent theta compression.  The planted residual is "
+        "directionally detected but strongly attenuated in magnitude."
+    )
+    return "\n".join(lines) + "\n"
 
 
 def main():
+    t0 = time.time()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"=== Phase-2 magnitude decomposition, K={K} sigma={SIGMA} N={N} "
           f"{len(SEEDS)} seeds device={device} ===")
@@ -60,12 +97,47 @@ def main():
         rho = _corr(theta_hat, ds.gt.theta0)
 
         kc = k / c if abs(c) > 1e-9 else float("nan")
-        rows.append((k, c, kc, rho))
+        rows.append({
+            "seed": seed,
+            "k_raw": float(k),
+            "theta_scale": float(c),
+            "k_over_c": float(kc),
+            "theta_corr": float(rho),
+        })
         print(f"{seed:4d} {k:8.3f} {c:15.3f} {kc:8.3f} {rho:22.3f}")
 
-    a = np.array(rows)
-    print(f"\nMEAN  k(raw)={a[:,0].mean():.3f}  c={a[:,1].mean():.3f}  "
-          f"k/c={a[:,2].mean():.3f}  corr(theta_hat,theta0)={a[:,3].mean():.3f}")
+    summary = {
+        "k_raw_mean": float(np.mean([r["k_raw"] for r in rows])),
+        "theta_scale_mean": float(np.mean([r["theta_scale"] for r in rows])),
+        "k_over_c_mean": float(np.mean([r["k_over_c"] for r in rows])),
+        "theta_corr_mean": float(np.mean([r["theta_corr"] for r in rows])),
+    }
+    print(f"\nMEAN  k(raw)={summary['k_raw_mean']:.3f}  "
+          f"c={summary['theta_scale_mean']:.3f}  "
+          f"k/c={summary['k_over_c_mean']:.3f}  "
+          f"corr(theta_hat,theta0)={summary['theta_corr_mean']:.3f}")
+
+    meta = {
+        "K": K,
+        "N": N,
+        "Q": Q,
+        "T": T,
+        "epochs": EPOCHS,
+        "sigma": SIGMA,
+        "seeds": list(SEEDS),
+        "device": device,
+        "elapsed_s": time.time() - t0,
+        "torch_version": torch.__version__,
+    }
+    out_json = OUT / "phase2_scale.json"
+    out_md = OUT / "phase2_scale_table.md"
+    out_json.write_text(
+        json.dumps({"meta": meta, "rows": rows, "summary": summary}, indent=2),
+        encoding="utf-8",
+    )
+    out_md.write_text(_render(rows, summary, meta), encoding="utf-8")
+    print(f"wrote {out_json}")
+    print(f"wrote {out_md}")
 
 
 if __name__ == "__main__":

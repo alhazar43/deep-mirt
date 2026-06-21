@@ -34,6 +34,21 @@ examined.
 > downgraded. The decoupled deep-irt ENGINE decision is unaffected, it stands on
 > its empirical merits. The final converged contribution is in Section 2.7.
 
+> ADDENDUM (2026-06-21, positive-map and E7/E7a controls). The later
+> positive-map study further narrows the mechanism. The exp-specific story is
+> not supported: across K=2,4,8, exp does not beat the best smooth non-exp map
+> by a meaningful margin under matched effective-alpha initialization and LR
+> controls. A direct-alpha optimizer control with true theta and beta frozen
+> rejects the scalar alpha-space preconditioner-only explanation: with a wide LR
+> grid, direct alpha-space update rules mostly converge to the same recovery
+> band. The live wording is therefore smooth positive-map stability under neural
+> representation learning, not exp optimality and not scalar alpha-space
+> preconditioning alone. The post-E7 neural isolation supports this: clipped
+> raw/ReLU plus gradient clipping does not rescue the learned-model gap across
+> K=2,4,8, while freezing the backbone or encoder breaks recovery. See
+> `docs/learning_dynamics_progress.md`, E5 to E7a, and outputs
+> `alpha_map_*`, `direct_alpha_geometry_*`, and `neural_map_isolation_*`.
+
 ### The phenomenon (precise)
 
 Neural and amortized IRT reads ability (theta), discrimination (alpha), and

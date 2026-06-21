@@ -43,6 +43,8 @@ The four decoders:
                      for data generation and accuracy scoring.
 """
 
+from typing import Any
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -84,20 +86,23 @@ class GPCMDecoder(nn.Module):
     ``emb_dim`` value and is bit-for-bit identical to the original decoder.
     ``item_key_dim`` requires ``state_dim``.
 
-    Discrimination positivity transform (``alpha_log_scale``)
-    ---------------------------------------------------------
-    The raw discrimination head output is pushed through a positive map.  GPCM
-    needs ``a > 0``, so the raw scalar gets one of two positivity transforms
-    (nothing is being "linked" in the scale-equating sense):
+    Discrimination map (``alpha_pos_map`` / ``alpha_log_scale``)
+    ------------------------------------------------------------
+    The raw discrimination head output is pushed through a configurable map.  By
+    default this stays bit-for-bit compatible with the historical behavior:
 
-      softplus (default, ``alpha_log_scale=None``) -- ``a = softplus(raw)``, the
-          deep_irt's original transform.  Kept as the default so every model
-          that does not pass ``alpha_log_scale`` is bit-for-bit identical.
-      exponential (``alpha_log_scale=s`` for s>0) -- ``a = exp(s * raw)``,
-          ma-irt's transform (reimplemented locally, not imported, to respect
-          the frozen-Chapter-0 boundary).  ``s`` is a gradient-damping scale the
-          head absorbs, not a parameterisation choice, so ``s = 1.0`` (ma-irt's
-          setting, plain ``exp(raw)``) is the apples-to-apples value.
+      softplus (``alpha_pos_map=None`` and ``alpha_log_scale=None``) --
+          ``a = softplus(raw)``, the original transform.
+      exponential (``alpha_pos_map=None`` and ``alpha_log_scale=s``) --
+          ``a = exp(s * raw)``, ma-irt's transform.  ``s=1.0`` is plain exp.
+
+    The named ``alpha_pos_map`` path is for the controlled positivity-geometry
+    ablation.  It deliberately includes both positive maps and unconstrained
+    controls: ``identity``, ``relu``, ``softplus``, ``softplus_eps``,
+    ``scaled_softplus``, ``temperature_softplus``, ``sigmoid``,
+    ``scaled_sigmoid``, ``square``, ``exp``, ``clipped_exp``,
+    ``clipped_identity``, and ``clipped_relu``.  Optional map constants live in
+    ``alpha_pos_kwargs``.
 
     Parameters
     ----------
@@ -120,6 +125,11 @@ class GPCMDecoder(nn.Module):
                     before.  A positive float ``s`` uses ``exp(s * raw)``,
                     ma-irt's exponential map (``s = 1.0`` matches ma-irt; the
                     head absorbs the scale constant).
+    alpha_pos_map  : str or None -- named map for positivity-geometry ablations.
+                    None preserves the ``alpha_log_scale`` compatibility path.
+    alpha_pos_kwargs : dict or None -- map constants.  Supported keys are
+                    ``scale``, ``temperature``, ``epsilon``, ``clip_min``, and
+                    ``clip_max``.
     state_beta    : bool -- when True (requires both ``state_dim`` and
                     ``item_key_dim``) the step thresholds are read from a
                     state-conditioned head ``fc_b_state([state, item_key])``
@@ -139,6 +149,8 @@ class GPCMDecoder(nn.Module):
         state_dim: int | None = None,
         item_key_dim: int | None = None,
         alpha_log_scale: float | None = None,
+        alpha_pos_map: str | None = None,
+        alpha_pos_kwargs: dict[str, Any] | None = None,
         state_alpha: bool = True,
         state_beta: bool = False,
     ) -> None:
@@ -150,11 +162,12 @@ class GPCMDecoder(nn.Module):
         # head.  It is therefore meaningful WITHOUT a state too (a static
         # wide-key beta -- the capacity-matched all-static decoupled baseline), so
         # no state_dim is required here.
-        if alpha_log_scale is not None and alpha_log_scale <= 0.0:
-            raise ValueError(
-                f"alpha_log_scale must be > 0 (the exp scale), got "
-                f"{alpha_log_scale}.  Use None for softplus."
-            )
+        self._alpha_pos_map_explicit = alpha_pos_map is not None
+        self.alpha_pos_map = self._resolve_alpha_pos_map(
+            alpha_pos_map, alpha_log_scale
+        )
+        self.alpha_pos_kwargs = dict(alpha_pos_kwargs or {})
+        self._validate_alpha_pos_config(alpha_log_scale)
         if state_beta and state_dim is None:
             raise ValueError(
                 "state_beta (the state-conditioned step-threshold head) requires "
@@ -203,19 +216,132 @@ class GPCMDecoder(nn.Module):
 
     # --- positivity transform ---
 
+    @staticmethod
+    def _resolve_alpha_pos_map(
+        alpha_pos_map: str | None,
+        alpha_log_scale: float | None,
+    ) -> str:
+        """Resolve the old log-scale switch into the named map vocabulary."""
+        if alpha_pos_map is None:
+            return "softplus" if alpha_log_scale is None else "exp"
+        return alpha_pos_map.lower().replace("-", "_")
+
+    def _validate_alpha_pos_config(self, alpha_log_scale: float | None) -> None:
+        choices = {
+            "identity",
+            "raw",
+            "relu",
+            "softplus",
+            "softplus_eps",
+            "scaled_softplus",
+            "temperature_softplus",
+            "sigmoid",
+            "scaled_sigmoid",
+            "square",
+            "exp",
+            "clipped_exp",
+            "clipped_identity",
+            "clipped_relu",
+        }
+        if self.alpha_pos_map not in choices:
+            raise ValueError(
+                f"alpha_pos_map must be one of {sorted(choices)}, got "
+                f"{self.alpha_pos_map!r}."
+            )
+        allowed_keys = {"scale", "temperature", "epsilon", "clip_min", "clip_max"}
+        unknown = set(self.alpha_pos_kwargs) - allowed_keys
+        if unknown:
+            raise ValueError(
+                f"unknown alpha_pos_kwargs keys {sorted(unknown)}; allowed keys "
+                f"are {sorted(allowed_keys)}."
+            )
+        if alpha_log_scale is not None and self._alpha_pos_map_explicit:
+            raise ValueError(
+                "Do not combine alpha_log_scale with alpha_pos_map.  Use "
+                "alpha_log_scale only for the legacy exp path, or use "
+                "alpha_pos_kwargs={'scale': ...} with alpha_pos_map."
+            )
+        if alpha_log_scale is not None and alpha_log_scale <= 0.0:
+            raise ValueError(
+                f"alpha_log_scale must be > 0 (the exp scale), got "
+                f"{alpha_log_scale}.  Use None for softplus."
+            )
+        positive_keys = ("scale", "temperature", "epsilon")
+        for key in positive_keys:
+            if key in self.alpha_pos_kwargs and self.alpha_pos_kwargs[key] <= 0.0:
+                raise ValueError(f"alpha_pos_kwargs[{key!r}] must be > 0.")
+        if self.alpha_pos_map in ("clipped_exp", "clipped_identity", "clipped_relu"):
+            lo = self.alpha_pos_kwargs.get("clip_min", -20.0)
+            hi = self.alpha_pos_kwargs.get("clip_max", 20.0)
+            if lo >= hi:
+                raise ValueError(
+                    f"{self.alpha_pos_map} requires clip_min < clip_max."
+                )
+
+    def _alpha_kw(self, key: str, default: float) -> float:
+        return float(self.alpha_pos_kwargs.get(key, default))
+
     def _alpha_pos(self, raw: torch.Tensor) -> torch.Tensor:
-        """Push the raw discrimination output through a positive map.
+        """Map raw discrimination output to the effective discrimination.
 
         ``alpha_log_scale is None`` -> ``softplus(raw)`` (the original transform,
         bit-for-bit identical).  ``alpha_log_scale = s`` -> ``exp(s * raw)``,
         ma-irt's exponential map.  ``s`` is a gradient-damping scale the head
         absorbs, so ``s = 1.0`` (plain ``exp(raw)``) is the apples-to-apples
-        value.  Reimplemented here (not imported from ma-irt) to respect the
-        frozen-Chapter-0 boundary.
+        value.  Named maps are used for the positivity-geometry ablation.
         """
-        if self.alpha_log_scale is None:
+        m = self.alpha_pos_map
+        if m in ("identity", "raw"):
+            return raw
+        if m == "relu":
+            return F.relu(raw)
+        if m == "softplus":
             return F.softplus(raw)
-        return torch.exp(self.alpha_log_scale * raw)
+        if m == "softplus_eps":
+            return F.softplus(raw) + self._alpha_kw("epsilon", 1e-6)
+        if m == "scaled_softplus":
+            return self._alpha_kw("scale", 1.0) * F.softplus(raw)
+        if m == "temperature_softplus":
+            return F.softplus(self._alpha_kw("temperature", 1.0) * raw)
+        if m == "sigmoid":
+            return torch.sigmoid(raw)
+        if m == "scaled_sigmoid":
+            return self._alpha_kw("scale", 1.0) * torch.sigmoid(raw)
+        if m == "square":
+            return raw.square() + self._alpha_kw("epsilon", 1e-6)
+        if m == "exp":
+            scale = (
+                float(self.alpha_log_scale)
+                if self.alpha_log_scale is not None
+                else self._alpha_kw("scale", 1.0)
+            )
+            return torch.exp(scale * raw)
+        if m == "clipped_exp":
+            scale = (
+                float(self.alpha_log_scale)
+                if self.alpha_log_scale is not None
+                else self._alpha_kw("scale", 1.0)
+            )
+            z = scale * raw
+            z = torch.clamp(
+                z,
+                min=self._alpha_kw("clip_min", -20.0),
+                max=self._alpha_kw("clip_max", 20.0),
+            )
+            return torch.exp(z)
+        if m == "clipped_identity":
+            return torch.clamp(
+                raw,
+                min=self._alpha_kw("clip_min", -20.0),
+                max=self._alpha_kw("clip_max", 20.0),
+            )
+        if m == "clipped_relu":
+            return torch.clamp(
+                F.relu(raw),
+                min=self._alpha_kw("clip_min", 0.0),
+                max=self._alpha_kw("clip_max", 20.0),
+            )
+        raise RuntimeError(f"unhandled alpha_pos_map={m!r}")
 
     # --- item_params ---
 
@@ -435,6 +561,8 @@ class Binary2PLDecoder(nn.Module):
         state_dim: int | None = None,
         item_key_dim: int | None = None,
         alpha_log_scale: float | None = None,
+        alpha_pos_map: str | None = None,
+        alpha_pos_kwargs: dict[str, Any] | None = None,
         state_alpha: bool = True,
         state_beta: bool = False,
     ) -> None:
@@ -444,10 +572,13 @@ class Binary2PLDecoder(nn.Module):
         self.state_dim = state_dim
         self.item_key_dim = item_key_dim
         self.alpha_log_scale = alpha_log_scale
+        self.alpha_pos_map = alpha_pos_map
+        self.alpha_pos_kwargs = dict(alpha_pos_kwargs or {})
         self.state_beta = state_beta
         self._gpcm = GPCMDecoder(
             emb_dim=emb_dim, n_cats=2, state_dim=state_dim,
             item_key_dim=item_key_dim, alpha_log_scale=alpha_log_scale,
+            alpha_pos_map=alpha_pos_map, alpha_pos_kwargs=alpha_pos_kwargs,
             state_alpha=state_alpha, state_beta=state_beta,
         )
 
