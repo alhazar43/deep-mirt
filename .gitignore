@@ -187,3 +187,12 @@ EdNet-*.zip
 /data/
 /kddcup_challenge.tar.gz
 
+# Scratch probes under bench (temporary, _-prefixed; kept on disk, out of git)
+deep_irt/bench/_*.py
+
+# Superseded GPT-drafted planning drafts (kept on disk, out of git;
+# the live integrated plan is docs/learning_dynamics_research_plan.md)
+/alpha_learning_dynamics_integrated_research_plan.md
+/learning_dynamics_guidelines_neural_irt.md
+/read_reframe_neural_kt_irt.md
+

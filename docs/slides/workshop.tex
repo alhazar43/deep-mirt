@@ -7,8 +7,8 @@
 \usepackage{graphicx}
 \graphicspath{{figs/}}
 
-\title[Fisher leverage in neural IRT]{What a prediction-trained neural IRT learns about its parameters}
-\subtitle{A learning-dynamics view of discrimination recovery}
+\title[What a prediction model learns about its questions]{What a prediction model figures out about its test questions}
+\subtitle{and the one it learns only roughly}
 \author{Wenrui Yuan}
 \date{}
 
@@ -17,181 +17,174 @@
 \begin{frame}\titlepage\end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{The setup, and the question}
-Neural knowledge tracing exposes IRT-style parameters, a per-step ability
-$\theta$, item discrimination $\alpha$, step thresholds $\beta$, but it is trained
-to \textbf{predict the next response}, not to estimate those parameters.
+\begin{frame}{The setup}
+We train a model to do one job, predict whether a learner answers the next
+question correctly. Answers can be right or wrong, or graded into a few levels
+(right or wrong is two levels, a five point grade is five).
 \medskip
 
-The IRT structure is the \emph{flavor}, the route to $\hat y$. The objective is a
-prediction loss on $y$ vs $\hat y$ (cross-entropy / weighted ordinal loss on the
-decoder logits), not a model-wise likelihood.
+To predict well, the model ends up working out three numbers on its own.
+\begin{itemize}
+\item \textbf{score}, how strong the learner is.
+\item \textbf{difficulty}, how hard the question is.
+\item \textbf{sharpness}, how clearly a question tells apart strong and weak learners.
+\end{itemize}
 \medskip
 
-\begin{block}{Question}
-Under a prediction objective, \textbf{which} IRT parameters does the model recover,
-how \textbf{fast}, and \textbf{why}?
+On a sharp question, strong learners almost always get it and weak ones almost
+never. On a dull question, everyone is near a coin flip no matter their strength.
+\medskip
+
+We never hand the model these numbers. It is graded only on predicting answers.
+On made-up data the true numbers are known, so we can check how well the model's
+numbers match them, from 0 (no match) to 1 (perfect order).
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{The question}
+\begin{block}{}
+When a model learns only by predicting answers, which of the three numbers does
+it get right, how fast, and why?
 \end{block}
+\medskip
+
+Short answer. It gets the learner's score and the question's difficulty easily.
+It struggles with the question's sharpness. The rest of the talk is why, what
+helps, and one tempting explanation we tested and ruled out.
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{The spine: prediction pins a parameter by its Fisher leverage}
-A prediction loss constrains a parameter only through that parameter's
-\textbf{leverage on $\hat y$}, how much the predicted response distribution moves
-when the parameter moves. That leverage \emph{is} the Fisher information.
-\medskip
-
-For the 2PL/GPCM,
-\[
-  I(\theta) = a^2\,\mathrm{Var}_k(k), \qquad
-  I(\alpha) \propto (\theta-\beta)^2\,P(1-P)\ \ \to 0 \ \text{at}\ \theta=\beta .
-\]
-Discrimination is the \textbf{low-information} parameter (classical result; its
-information vanishes exactly where targeted responses concentrate).
-\medskip
-
-\begin{alertblock}{Prediction (testable)}
-$\theta,\beta$ are high-leverage, prediction pins them. $\alpha$ is low-leverage,
-prediction recovers it poorly, and a richer readout should help \emph{it}
-specifically.
-\end{alertblock}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{Act 1, the benefit of a dynamic $\alpha$ tracks Fisher stiffness}
-\begin{columns}
-\begin{column}{0.52\textwidth}
-\includegraphics[width=\linewidth]{fisher_ratio.png}
-\end{column}
-\begin{column}{0.46\textwidth}
-\small
-State-conditioning the \textbf{low-Fisher} $\alpha$ (occurrence-averaged) helps its
-recovery; doing the same to the high-Fisher $\beta$ does nothing
-($\overline{\Delta\beta}\approx0$). Parameter-specific, not generic flexibility.
-\medskip
-
-The benefit $\Delta\alpha$ grows with the GPCM stiffness $I(\theta)/I(\alpha)$
-(Pearson on $\log$-stiffness $+0.87$). At $K{=}2$ stiffness $\approx 1$ and the
-dynamic head only adds noise ($\Delta\alpha<0$); the benefit switches on as
-stiffness climbs.
-\medskip
-
-\textbf{Counter to static theory:} classical estimation finds $K$ \emph{negligible}
-(or harmful) for static $\alpha$ recovery (per-category dilution). The dynamic,
-occurrence-pooled readout escapes that dilution.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{Act 2, the advantage is a convergence-rate effect (grounded)}
+\begin{frame}{Two of the three numbers are easy, one is not}
 \begin{columns}
 \begin{column}{0.62\textwidth}
-\includegraphics[width=\linewidth]{fig_convergence.png}
+\includegraphics[width=\linewidth]{s1_three_speeds.png}
 \end{column}
 \begin{column}{0.36\textwidth}
 \small
-Not an earlier start, a \textbf{mid-training acceleration}, then a permanent
-\textbf{endpoint gap that grows with $K$}: static $\alpha$ is trapped by the
-stiffness ceiling, the dynamic head breaks through.
+Score and difficulty climb to a near perfect match within the first few to
+twenty training steps. Sharpness rises slowly and never quite catches up,
+settling a notch below the other two (about 0.93 on the same 0 to 1 scale,
+against 0.97 and 0.99).
 \medskip
 
-This is the IRT instance of a known principle, per-direction learning speed set by
-information-geometry conditioning (Saxe 2014; Cao 2019, NTK; Transtrum 2015,
-sloppy models). \textbf{Grounded, not a black box.}
+With more answer levels the gap is wider. So the model gets two of the three
+numbers almost for free and works much harder for the third.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{Act 3, dynamic $\alpha$ detects ability-dependent discrimination}
+\begin{frame}{Why sharpness is the hard one}
 \begin{columns}
-\begin{column}{0.62\textwidth}
-\includegraphics[width=\linewidth]{fig_rq3.png}
+\begin{column}{0.6\textwidth}
+\includegraphics[width=\linewidth]{s4_why_hard.png}
 \end{column}
-\begin{column}{0.36\textwidth}
+\begin{column}{0.38\textwidth}
 \small
-Plant $\alpha_{\text{eff}}=a\,e^{\gamma\theta}$ (matched null). Read as the linear
-slope of $\log\alpha$ on the \emph{true} $\theta$, the model \textbf{detects} the
-planted dependence in \textbf{rank} (corr $0.4$ to $0.67$, dose-responsive,
-null$\approx 0$).
+A model can only learn a number as well as its prediction leans on that number.
 \medskip
 
-But \textbf{magnitude is not recovered} ($k\!\approx\!0.04$, a $\sim$30$\times$
-shrinkage; ruled clean of the $\theta$-scale confound, $k/c{=}0.034$ at $c{=}1.14$).
-Prediction cannot pin $\alpha$'s magnitude where its leverage vanishes.
+The prediction leans heavily on score and difficulty. It barely leans on
+sharpness. Sharpness only changes the prediction for learners whose strength is
+close to a question's difficulty. For everyone far above or far below, the answer
+is nearly settled either way, so sharpness makes almost no difference. Add more
+answer levels and the prediction leans on it even less.
 \medskip
 
-\textbf{Caution:} the \emph{size} of a dynamic $\alpha$ is not the strength of
-context-dependence.
+That weak signal is the main reason sharpness is slow and unreliable.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{Endpoint recovery, and reproducibility}
+\begin{frame}{A fix aimed straight at the hard number}
 \begin{columns}
-\begin{column}{0.55\textwidth}
-\includegraphics[width=\linewidth]{fig_endpoint.png}
+\begin{column}{0.58\textwidth}
+\includegraphics[width=\linewidth]{s2_sharpness_help.png}
 \end{column}
-\begin{column}{0.43\textwidth}
-\small
-On the dimension prior work competes on (endpoint recovery), the model is strong:
-at $K{=}4$, $\theta/\alpha/\beta$ recover at $0.93/0.94/0.99$ (Pearson $r$). At
-$K{=}2$ the \emph{static} config is indicated, the dynamic readout is for high
-stiffness (Act 1).
+\begin{column}{0.4\textwidth}
+\footnotesize
+Give each question's sharpness two parts, a fixed part for the question plus a
+small extra part that shifts with the learner's recent answers.
 \medskip
 
-Raw RMSE is not meaningful for a prediction-trained model (latent scale
-unidentified), so we report scale-aligned RMSE alongside Pearson, the same
-story: prediction fixes \emph{shape}, not absolute scale.
+The match to true sharpness improves, mostly by getting there faster and more
+reliably, and the gain grows with more answer levels, up to about $+0.20$ at
+eleven.
 \medskip
 
-The nearest competitor (DKVMN robust-2PL estimation, Tsutsumi lineage) reports
-endpoint RMSE only, with \textbf{no code or checkpoints}. We release both.
+Two controls make it real. The same change to difficulty does almost nothing
+(grey bars), and a size-matched plain model does not close the gap.
+\medskip
+
+Caveat, at two answer levels it slightly hurts, so this helps richer grading
+scales, not the simplest right or wrong case.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{Where this sits}
-\textbf{Prior art (adversarial sweep).} The learning-\emph{dynamics} of IRT-parameter
-recovery by a prediction-trained model is \textbf{open}, every neighbor (Deep-IRT,
-VIBO, CEN, the DKVMN robust-2PL thesis) reports \emph{endpoint} recovery only.
+\begin{frame}{A tempting explanation we tested and ruled out}
+\begin{columns}
+\begin{column}{0.58\textwidth}
+\includegraphics[width=\linewidth]{s3_formula_distractor.png}
+\end{column}
+\begin{column}{0.4\textwidth}
+\footnotesize
+Sharpness must be a positive number. A common trick is to learn a free number
+and pass it through an always-positive formula. We suspected one formula, the
+exponential, was the secret.
+\medskip
+
+Compared fairly, each given the same starting point and its own best settings,
+they all tie. Only the crude options lag, the one that can still slip negative
+and the one that flattens to zero and stops responding.
+\medskip
+
+A follow-up idea, that the exponential helps by changing the training step
+sizes, also failed its own test. Being positive and smooth helps, the
+exponential does not. What actually helps is the previous slide's fix, giving
+sharpness its own dedicated part of the model.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}{How far to trust the history part}
+We planted a real, known link between a question's sharpness and the learner's
+strength, then asked the history-adjusted part to find it.
 \medskip
 
 \begin{itemize}
-\item \textbf{(b) convergence dynamics} \,--\, \emph{grounded} in DL learning-dynamics
-theory. The validation result, the model behaves as theory predicts.
-\item \textbf{(a) $K$-growing, parameter-specific $\alpha$ benefit} \,--\, \emph{novel},
-and counter to static estimation theory. The hook.
-\item \textbf{(c) rank-yes / magnitude-no detection} \,--\, \emph{novel}. Neural KT
-state-conditions \emph{difficulty} (SAD-IRT, NCDM), not discrimination; the
-classical relatives are person-discrimination (D2PMM, $\theta$-independent) and
-non-uniform DIF (group-level, not within-person). Detecting ability-dependent
-discrimination in rank vs magnitude has no prior treatment.
+\item It picks up the \textbf{direction} of the link.
+\item It badly \textbf{underestimates the size} of the link.
+\item It shows a little signal even when we planted none, so a small adjustment can be noise, not a real link.
 \end{itemize}
+\medskip
+
+So we read the history part for direction, not for amount. A bigger history
+adjustment is not the same as a stronger real effect.
 \end{frame}
 
 % ---------------------------------------------------------------------------
 \begin{frame}{Takeaway}
 \begin{block}{One line}
-A prediction-trained neural IRT recovers each parameter \textbf{in proportion to its
-Fisher leverage on the prediction}.
+A model trained only to predict answers learns each question number only as well
+as the prediction leans on it.
 \end{block}
 \medskip
 \begin{itemize}
-\item Making the low-leverage discrimination \textbf{dynamic} buys a $K$-growing
-convergence-rate advantage, opposite to what static estimation predicts.
-\item It recovers genuine ability-dependent discrimination in \textbf{rank, not
-magnitude}, because prediction cannot pin what it has no leverage on.
-\item The dynamics are \textbf{grounded} in known learning-dynamics theory, an
-interpretable, not black-box, neural IRT.
+\item Sharpness is the number the prediction barely leans on, so it is learned
+slowly and only roughly.
+\item Giving sharpness a fixed part plus a history-adjusted part helps, more so
+with more answer levels. It is a gain in speed and reliability, and it recovers
+the order of sharpness, not its exact size.
+\item We ruled out the idea that a special positive formula was the key.
+Positivity and smoothness matter, the formula does not.
 \end{itemize}
 \medskip
-\footnotesize Caveats, synthetic GPCM, preliminary seeds, single backbone. Next,
-real cross-subject data ($\alpha_{\text{static}}$ invariance, within-student
-$\alpha$-tracking).
+\footnotesize Honest limits, made-up data, a few repeats, one model type. Next
+step, a check on real learner data.
 \end{frame}
 
 \end{document}
