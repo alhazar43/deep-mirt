@@ -9,11 +9,22 @@ parameters are read off shared learned representations?*
 This version is honest about what three preliminary probes pruned. They did their
 job: they removed the over-reaches and left a smaller, evidenced core.
 
-## 0. What the prelims settled (the pruning, recorded)
+## 0. What the prelims settled (three over-reaches pruned, one scope enlarged)
 
-- **Not a universal representation law.** A non-IRT static-code toy showed the
-  decoupling benefit is exactly zero (a per-item MLE oracle matches both arms); the
-  effect needs the amortized-encoder structure. Scope = neural IRT. (Pillar 1)
+- **ENLARGED — general to amortized-encoder architectures.** The static-code toy was
+  null (Pillar 1), but the right test — a NON-IRT model whose representation is
+  inferred per-instance by an encoder — reproduces the effect: decoupling helps a
+  low-leverage readout (gap +0.15, 5/5 seeds, variance collapses), it is
+  parameter-specific, and it is NOT information-limited (a per-item MLE oracle recovers
+  0.83 while the shared arm is stuck at 0.55, so the shared representation wastes
+  recoverable signal). So the phenomenon is a property of the amortized-ENCODER
+  architecture, not IRT semantics; neural IRT is the instance where the leverage is
+  closed-form. (encoder-generality probe, POSITIVE)
+- **Open — the quantitative laws are not unified.** The benefit's dependence on
+  leverage and on data-vs-training differs between the toy and IRT (the toy grows with
+  a lever-arm knob and closes with data; IRT is flat in the kappa-ratio and persists
+  with data at a fixed budget). We claim the qualitative phenomenon and its
+  generality, NOT a clean quantitative law.
 - **Not kappa, as predictor or mechanism.** K and kappa are perfectly collinear in
   the K-sweep (Spearman 1.0). Breaking that — varying kappa 45x at fixed K — the gap
   is FLAT in kappa (Spearman -0.3 to -0.5), over a kappa range wider than the whole
@@ -27,15 +38,17 @@ job: they removed the over-reaches and left a smaller, evidenced core.
 
 ## 1. The claim (the middle ground, in its evidenced form)
 
-> In amortized neural IRT, recovery of an item parameter is gated by its
-> **representational allocation**, not by the data's information about it. The
-> low-information parameter (discrimination) is geometrically under-allocated in a
-> shared item code and recovered with attenuated, seed-unstable rank. This is a
-> finite-budget property of the representational *arrangement* — the parameter is
-> recoverable at convergence (the data identify it) — and it is relieved by giving
-> discrimination its own representation (decoupling) or access to the inferred state
+> In amortized-encoder models — where a representation inferred per-instance must
+> serve both a complex inference and a low-leverage readout — recovery of the
+> low-leverage parameter is gated by **representational allocation**, not by the
+> data's information about it (a per-item oracle recovers what the shared arm wastes).
+> The low-leverage parameter is geometrically under-allocated in the shared
+> representation and recovered with attenuated, seed-unstable rank; it is relieved by
+> giving it its own representation (decoupling) or access to the inferred state
 > (dynamic). A parameter-specific, representation-steerable recovery distortion that
-> classical estimation does not have.
+> classical estimation does not have — demonstrated in a non-IRT amortized-encoder
+> model and in neural IRT, where the leverage is closed-form so we can predict which
+> parameter suffers (discrimination) and see the under-allocation geometrically.
 
 It is **not** trivial-ML ("low-curvature directions train slowly" is about a
 parameter in isolation; this is the recovery-vs-information dissociation in an
@@ -64,10 +77,13 @@ It lives at the seam: it needs both the amortized encoder and interpretable reco
   (reading the state) each relieve alpha; difficulty is indifferent. *Empirical
   (gate; RQ1 at 12 seeds: state-conditioning helps alpha for K>=4, paired Wilcoxon
   p<=0.007, CIs exclude zero, grows with K, delta_beta null).*
-- **C6. Rate-limited, grows with K.** At a fixed budget the gap does not shrink with
-  data; it grows with the number of categories (more ordinal information, exploitable
-  only by a decoupled code). *Empirical (N-sweep, K-sweep) — stated as the
-  phenomenon, not as a conditioning law.*
+- **C6. A finite-budget effect; grows with K in IRT.** It vanishes at the joint
+  infinite-data-and-training limit. The precise data-vs-training dependence is
+  model-dependent (IRT: persists with data at a fixed training budget; the encoder
+  toy: closes with data), so we claim "finite-budget" qualitatively, not a clean
+  rate-vs-data law. In IRT the gap grows with the number of categories (channel
+  capacity / ordinal information). *Empirical (N-sweep, K-sweep, encoder toy) — stated
+  as the phenomenon, not as a conditioning law.*
 
 ### The two mechanisms, kept distinct
 - **alpha:** a transient RATE / allocation effect on an invariant endpoint (P9/P4b).
@@ -127,13 +143,16 @@ It lives at the seam: it needs both the amortized encoder and interpretable reco
 - **Honest ceiling:** a careful characterization of differential recovery in amortized
   IRT plus a measurement-validity caution, with a geometric signature. Workshop /
   measurement-methods scale, not a discovery.
-- **Two ceiling-probes running** (could enlarge or further prune, expected to prune):
-  - *kappa-identification (done, negative):* with kappa varied 45x at fixed K the gap
-    is flat (Spearman -0.3 to -0.5). Conditioning does not survive; the lever is K /
-    channel capacity. Dropped.
-  - *amortized-encoder generality toy:* a non-IRT model whose shared code is inferred
-    per-instance by an encoder — decides whether the phenomenon is general to
-    amortized-encoder settings or specific to IRT.
+- **Both ceiling-probes done:**
+  - *kappa-identification (negative):* with kappa varied 45x at fixed K the gap is flat
+    (Spearman -0.3 to -0.5). Conditioning does not survive; the lever is K / channel
+    capacity. Dropped.
+  - *amortized-encoder generality (POSITIVE):* a non-IRT encoder model reproduces the
+    decoupling benefit, parameter-specific, not information-limited (oracle control).
+    The phenomenon is general to the amortized-encoder architecture; IRT is the
+    closed-form instance. This enlarged the scope (see section 0).
+- **Recommendation: land it.** Stop probing the quantitative laws (the kappa trap);
+  the contribution is the qualitative, general, evidenced phenomenon.
 
 ## 7. Experimental rigor standard (unchanged contract)
 
