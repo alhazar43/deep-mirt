@@ -1,13 +1,11 @@
 % ============================================================================
-% Paper 2 draft (full-length first cut).
-% TEMPLATE NOTE. For AAAI/EAAI, replace the preamble (down to \begin{document}) with:
-%   \documentclass[letterpaper]{article}\usepackage{aaai2026}
-%   \usepackage{times}\usepackage{helvet}\usepackage{courier}
-%   \usepackage[hyphens]{url}\usepackage{graphicx}\urlstyle{rm}\frenchspacing
-%   \setlength{\pdfpagewidth}{8.5in}\setlength{\pdfpageheight}{11in}\setcounter{secnumdepth}{0}
-% For EDM/AIED, swap the document class. The body is template-agnostic.
-% Figures are in paper2_figs/; trajectory/gradient figures will be regenerated with
-% confidence intervals when the >=10-seed rigor reruns land.
+% Paper 2 draft (full rebuild). Built to the house structure of the prior
+% submissions (intro -> themed related work -> methodology -> experiments with
+% interpretation -> boundaries -> discussion -> conclusion).
+% TEMPLATE NOTE. For AAAI/EAAI replace the preamble (to \begin{document}) with the
+% official aaai2026 class; for EDM/AIED swap the class. On Overleaf, replace the
+% thebibliography block with \bibliography{ref.bib} (keys reuse overleaf-sync/ref.bib
+% where available). Figures are in paper2_figs/.
 % ============================================================================
 \documentclass[twocolumn,10pt]{article}
 \usepackage[letterpaper,margin=0.78in]{geometry}
@@ -17,12 +15,13 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage[hyphens]{url}
+\usepackage[numbers]{natbib}
 \graphicspath{{paper2_figs/}}
 \frenchspacing
 \setlength{\parskip}{0pt}
 
-\title{\vspace{-2em}Representation sharing under-recovers low-leverage readouts\\
-in amortized encoders}
+\title{\vspace{-2em}When a Shared Representation Loses a Parameter:\\
+Recovery of Low-Leverage Readouts in Amortized Encoders}
 \author{Wenrui Yuan}
 \date{}
 
@@ -30,264 +29,295 @@ in amortized encoders}
 \maketitle
 
 \begin{abstract}
-When a model infers a representation from data and reads several quantities off it, the
-quantities are not recovered equally. We study a sharp version: an amortized encoder
-produces a per-instance state, and two parameters are read from a shared learned
-representation, one with high leverage on the prediction and one with low. The
-low-leverage parameter is recovered poorly, not because the data lack information about
-it (a per-instance oracle recovers it well), but because the shared representation is
-allocated to the high-leverage parameter during training. Giving the low-leverage
-parameter its own representation, or access to the inferred state, restores its
-recovery. The effect is parameter-specific, vanishes only at the joint
-infinite-data-and-training limit, and is a property of the amortized-encoder arrangement
-rather than of any task: we show it in a non-psychometric encoder model and in neural
-item response theory (IRT), where the leverage has a closed form and we can predict
-which parameter is lost and see its under-allocation in the representation geometry. The
-practical consequence is a validity caution for amortized parameter estimation: a
-parameter read off a shared representation can be an artifact of how the representation
-was allocated, removable by decoupling.
+Amortized encoders increasingly replace direct estimation: a network reads a data
+instance and emits both a latent state and interpretable parameters, trained on a
+prediction loss. We show that this convenience can silently corrupt the parameters.
+When two quantities are read off one learned representation and one has much weaker
+leverage on the prediction than the other, the weak one is recovered poorly, not
+because the data lack information about it (a per-instance oracle recovers it well), but
+because gradient descent allocates the shared representation to the high-leverage
+quantity during training. Giving the weak readout its own representation, or access to
+the inferred state, restores its recovery. The effect is parameter-specific, vanishes
+only at the joint infinite-data-and-training limit, and is a property of the
+amortized-encoder arrangement rather than of any task: we reproduce it in a
+non-psychometric encoder model and in neural item response theory (IRT), where the
+leverage has a closed form, so we can predict which parameter is lost and see its
+under-allocation in the representation geometry. A regularization control isolates the
+effect from a separate overfitting decay. The consequence for measurement is direct: a
+parameter read off a shared amortized representation can be an artifact of how the
+representation was allocated, removable by decoupling.
 \end{abstract}
 
 \section{Introduction}
-A growing class of models replaces direct parameter estimation with an amortized
-encoder: a network reads a data instance and emits both a latent state and a set of
-interpretable parameters, trained end to end on a prediction loss. Neural knowledge
-tracing and neural IRT are examples, as is any encoder--decoder that exposes named
-quantities as readouts. The appeal is amortization: one model serves every instance and
-every parameter at once, replacing a separate estimation problem per item with a single
-forward pass.
+Educational measurement increasingly runs through amortized encoders. Deep knowledge
+tracing reads a learner's response history with a recurrent, memory, or attention
+network and predicts the next response \citep{piech2015,zhang2017}; neural IRT attaches
+interpretable readouts so the same forward pass exposes a learner's ability and an
+item's difficulty and discrimination \citep{yeung2019,wu2020}. The appeal is
+amortization: one model serves every learner and every item online, replacing a batch
+calibration per item with a single pass, and returning psychometric parameters that
+practitioners can act on.
 
-This paper asks what that convenience costs the \emph{parameters}. We find a specific,
-avoidable failure. When two parameters are read off the same learned representation and
-one has much weaker leverage on the prediction than the other, the weak one is recovered
-poorly even when the data determine it. The shortfall is not statistical. The data carry
-enough information about the weak parameter --- a per-instance estimator that does
-\emph{not} share a representation recovers it well --- and the amortized model itself
-would recover it at convergence. The shortfall is that, at any practical training
-budget, gradient descent shapes the shared representation to serve the high-leverage
-parameter, leaving the low-leverage one whatever capacity remains.
+That promise rests on a quiet assumption: that the readouts \emph{recover} the true
+parameters, not merely that the model predicts well. The assumption is not automatic.
+Prior work in this line observed, almost in passing, that an architectural separation
+was necessary: ``without this separation, prediction quality holds but parameter
+recovery does not'' \citep{yuan2025magpcm}. That observation is the seed of this paper.
+We ask \emph{why} a shared representation costs a parameter its recovery, \emph{which}
+parameter pays, and whether the phenomenon is specific to IRT or general to amortized
+encoders.
 
-We make the claim general and then concrete. In a minimal encoder model with no
-psychometric content (Section~\ref{sec:general}), the effect appears exactly: a
-low-leverage readout sharing the encoder's representation is under-recovered, the deficit
-is specific to that parameter, it is not information-limited (a per-instance oracle
-recovers what the shared model misses), and decoupling the readout removes it. The same
-effect appears in neural IRT, where the leverage of each parameter has a closed form.
-There the weak parameter is discrimination, whose information vanishes where responses
-concentrate, and we can both predict that it is the one lost and \emph{see}, in the
-geometry of the learned item representation, that it occupies a thin slice while
+Our answer is a representation-allocation effect, not a statistical one. When two
+parameters are read off one learned representation and one has weak leverage on the
+prediction, the weak parameter is under-recovered \emph{even where the data determine
+it}. A per-instance estimator that shares no representation recovers it well, and the
+amortized model itself recovers it at convergence; the shortfall is that, at any
+practical training budget, gradient descent shapes the shared representation to serve
+the high-leverage parameter and leaves the weak one a thin slice of capacity. We show
+this in a minimal non-psychometric encoder model, where decoupling the weak readout
+removes the deficit and a per-instance oracle proves the data were never the limit, and
+in neural IRT, where the weak parameter is discrimination, its low leverage has a
+closed form, and we can see it occupying about a tenth of the shared item code while
 difficulty dominates.
 
 \paragraph{Contributions.}
 \begin{enumerate}\itemsep1pt
-\item We identify a recovery failure specific to amortized encoders: a low-leverage
-readout sharing the inferred representation is under-recovered, and the cause is
-representational allocation, not the data's information (a per-instance oracle recovers
-what the shared model misses).
-\item We show it is general to the amortized-encoder arrangement, not to any task, by
-reproducing it in a non-psychometric encoder model and in neural IRT.
-\item We characterize it: parameter-specific, removable by two representational
-interventions (a dedicated channel, or access to the inferred state), visible in the
-representation geometry, and vanishing only at the joint infinite limit.
-\item We draw the consequence for measurement: parameters read off a shared amortized
-representation can be allocation artifacts unless decoupled.
+\item \textbf{A recovery failure specific to amortized encoders.} A low-leverage readout
+sharing the inferred representation is under-recovered, and the cause is representational
+allocation, not the data's information: a per-instance maximum-likelihood oracle recovers
+what the shared model misses.
+\item \textbf{Generality.} The effect is a property of the amortized-encoder arrangement,
+not of IRT. We reproduce it in a non-psychometric sequence model and in neural IRT, and
+show a static (encoder-free) variant exhibits nothing.
+\item \textbf{Characterization.} It is parameter-specific (difficulty, the
+high-information control, is untouched), removable by two representational interventions
+(a dedicated channel, or access to the inferred state), visible in the representation
+geometry, and a finite-budget phenomenon; a regularization control separates it from a
+distinct overfitting decay.
+\item \textbf{A measurement caution.} A parameter read off a shared amortized
+representation can be an allocation artifact; its magnitude in particular should not be
+trusted unless the readout is decoupled.
 \end{enumerate}
 
-\paragraph{What this is not.} It is not the observation that low-information parameters
-have high estimation variance; that is classical and is about the data, whereas our
-deficit persists where the data are sufficient and is fixed by changing the
-representation at fixed data. It is not a claim that any reparameterization changes the
-solution; smooth positive maps are interchangeable, so the link function is not the
-lever. It is not a conditioning-number law; the decoupling gap does not track the Fisher
-conditioning number once that number is decorrelated from the task's category count. And
-it is not a challenge to estimation theory: the model is identified and the estimator is
-consistent. The new content is a property of the amortized estimator's representation,
-which classical estimation does not have because it has no learned representation to
-allocate.
+We are careful about what this is \emph{not}. It is not the classical fact that
+low-information parameters have high estimation variance; that is about the data, whereas
+our deficit persists where the data suffice and is fixed by changing the representation at
+fixed data. It is not a claim that any reparameterization matters; smooth positive link
+maps are interchangeable here. And it does not challenge estimation theory: the model is
+identified and the estimator consistent. The new content is a property of the amortized
+estimator's representation, which classical estimation does not possess.
 
-\section{Background and setup}
-\label{sec:setup}
-\paragraph{The general model.} An encoder $E_\phi$ reads an instance, a sequence of
-observations, and produces a per-instance latent state. Item-level parameters are read
-by linear heads off a learned item representation $e_j$ that also feeds the encoder. Two
-heads matter: a high-leverage one and a low-leverage one, where \emph{leverage} is the
-sensitivity of the prediction to the parameter. Training minimizes a prediction loss
-only; no parameter is ever a supervised target. Recovery is the sign-aligned rank
-correlation (Spearman $\rho$) between recovered and true parameters, because the latent
-scale is identified only up to an affine gauge. Two representational arrangements are the
-knobs we turn: \emph{shared vs.\ decoupled} (the low-leverage head reads the encoder's
-representation or its own), and \emph{static vs.\ dynamic} (the head is a function of the
-item alone, or may also read the inferred state).
+\section{Background and Related Work}
 
-\paragraph{The closed-form instance (neural IRT).} A 2PL (binary) or GPCM (ordinal)
-decoder makes leverage explicit. With logit $z=\alpha(\theta-\beta)$, prediction
-$p=\sigma(z)$, and cross-entropy loss, the residual is $r=p-y$ and
-\begin{equation}
-\partial_\theta L = r\alpha,\quad \partial_\beta L = -r\alpha,\quad
-\partial_\alpha L = r(\theta-\beta).
-\end{equation}
-Ability $\theta$ and difficulty $\beta$ enter through the multiplier $\alpha$;
-discrimination $\alpha$ enters through the separation $\theta-\beta$. The single-response
-Fisher informations are
-\begin{equation}
-I(\theta)=I(\beta)=\alpha^2 w,\qquad I(\alpha)=(\theta-\beta)^2 w,\quad w=p(1-p),
-\end{equation}
-so discrimination is the low-leverage parameter: its information is suppressed by the
-squared lever arm and vanishes where responses concentrate ($\theta\approx\beta$). This
-is why IRT is the right instrument --- it tells us, before any experiment, which head is
-the weak one.
+\paragraph{Knowledge tracing and neural IRT.} Deep knowledge tracing reframed learner
+modeling as sequence prediction \citep{piech2015}, and memory and attention encoders
+refined it \citep{zhang2017,pandey2019}. Neural IRT attaches an IRT-style readout so the
+encoded state yields ability and item parameters \citep{yeung2019}; amortized
+variational IRT estimates them jointly \citep{wu2020}, and recent neural-IRT systems
+separate student and item networks \citep{tsutsumi2024}. These works are our backbone and
+our foil: they target prediction, and where they report recovery they report it for
+ability, or hardcode discrimination, or share one representation across all parameters
+without examining the coupling. We target the coupling itself.
 
-\paragraph{Synthetic protocol.} Unless noted, data are generated from a known GPCM with
-$N=800$ respondents, $Q=60$ items, sequence length $T=60$, abilities $\theta\sim
-\mathcal{N}(0,1)$ and discriminations $\alpha\sim\mathrm{LogNormal}(0,0.3)$. The encoder
-is an LSTM (results replicate on Transformer and DKVMN encoders); the decoupled
-arrangement gives discrimination its own wider item code at matched total capacity. We
-report rank recovery with seeds and confidence intervals per result.
+\paragraph{Polytomous IRT and Fisher leverage.} The generalized partial credit model
+\citep{vanderlinden1997,embretson2000} characterizes an item by a discrimination and
+step thresholds, and supplies the closed-form leverage that makes our mechanism
+predictable: the Fisher information for discrimination is suppressed by a squared lever
+arm and vanishes where responses concentrate, so it is the structurally weak readout.
+Scale indeterminacy in IRT also grounds our use of rank, not magnitude, as the recovery
+metric \citep{embretson2000}.
 
-\section{Related work}
-\paragraph{Learning dynamics and rate from curvature.} In deep linear networks the
-recovery time of each mode is inversely proportional to its singular value
-\cite{saxe2014}: high-information modes converge fast, low-information modes last. Our
-differential rate is the per-parameter instance of this. We add what that line does not
-address: an interpretable low-leverage parameter that shares a learned representation
-with a high-leverage one, and a representational fix.
+\paragraph{Amortized inference and the amortization gap.} Amortized inference trades a
+per-instance optimization for a single network at a known cost in quality, the
+\emph{amortization gap} \citep{kingma2014,cremer2018}. Our finding is the
+parameter-recovery, non-uniform version of that gap: it falls specifically on the
+low-leverage parameter and is removable by decoupling. The closest psychometric
+neighbors are amortized item factor analysis \citep{urban2021} and amortized joint
+estimation \citep{molenaar2025}, which read all parameters off one shared representation
+and recover loadings but never analyze the per-parameter coupling our oracle and
+decoupling expose.
 
-\paragraph{Amortization.} Amortized inference trades a per-instance optimization for a
-single network, at a known cost in quality, the \emph{amortization gap}
-\cite{cremer2018}. Ours is the parameter-recovery, non-uniform version: the gap falls
-specifically on the low-leverage parameter and is removable by decoupling.
+\paragraph{Representation learning and multi-task capacity allocation.} The effect is, at
+bottom, an instance of multi-task interference on a shared trunk \citep{caruana1997,
+ruder2017}: when readouts of unequal leverage share a representation, the dominant one
+captures it. The multi-task literature offers \emph{algorithmic} remedies that rescale or
+project gradients to stop a task dominating the trunk \citep{chen2018,yu2020}, and
+predicts that incompatible co-learners hurt a shared representation
+\citep{standley2020}. Our remedy is \emph{structural}: we remove the sharing rather than
+balance the gradients, and we show the cost is geometric under-allocation rather than
+gradient conflict (the pathway gradients are orthogonal). To our knowledge this lens has
+not been applied to the recovery of interpretable measurement parameters.
 
-\paragraph{Parameterization and conditioning.} The implicit-bias line shows that
-\emph{structural} reparameterizations (depth, the Hadamard form, initialization scale)
-change the solution selected under underdetermination \cite{woodworth2020}. Our maps are
-smooth and monotone and the problem is determined, so the map is a time-reparameterization
-that leaves the solution and the rank invariant \cite{chou2023}; the lever is the
-representation, not the link function. Natural-gradient and K-FAC make conditioning the
-bottleneck a preconditioner addresses \cite{amari1998,martens2015}; we find the
-identifiable lever here is the representation arrangement, not the conditioning number.
+\paragraph{Learning dynamics.} That recovery is leverage-ordered follows the dynamics
+tradition: in deep linear networks modes are learned in singular-value order, high
+leverage first \citep{saxe2014,advani2017}, with spectral and kernel analogs
+\citep{rahaman2019,jacot2018}; the Hessian's few large eigenvalues correspond to the
+high-leverage directions \citep{sagun2017}. The free-table invariant we use places the
+effect in the transient, not the endpoint, and decoupling helps a \emph{learned} encoder
+in the feature-learning regime \citep{damian2022}.
 
-\paragraph{Closest analog and measurement.} Weight normalization decouples a gain from a
-shared direction \cite{salimans2016}; we supply the mechanism (representational
-under-allocation of a low-leverage head) and tie it to a specific, predictable parameter.
-Deep-IRT and amortized-IRT recover ability and item parameters from neural encoders
-\cite{vie2023}; we show their recovered low-leverage parameters can be allocation
-artifacts of representation sharing.
+\paragraph{Identifiability and probing.} That the weak parameter is recoverable yet not
+recovered is an identifiability-under-inductive-bias story: latent factors are not
+recovered without an inductive bias \citep{locatello2019}, and a structural constraint
+promotes separation \citep{higgins2017}; our decoupling is that bias, and our
+per-instance oracle is a linear probe on the encoder output \citep{alain2017}.
 
-\section{Theory: the differential rate, and that recovery is not information}
-We state what is proved and are explicit about reach.
+\section{Methodology}
+\paragraph{The amortized-encoder model.} An encoder $E_\phi$ reads an instance, a
+sequence of observations, and produces a per-instance latent state. Item-level
+parameters are read by linear heads off a learned item representation $e_j$ that also
+feeds the encoder. Training minimizes a prediction loss only; no parameter is a
+supervised target. Recovery is the sign-aligned rank correlation between recovered and
+true parameters, since the latent scale is identified only up to an affine gauge. Two
+representational arrangements are the levers we manipulate: \emph{shared vs.\ decoupled}
+(the weak head reads the encoder's representation or its own) and \emph{static vs.\
+dynamic} (the head is a function of the item alone, or may read the inferred state).
 
-\paragraph{Proposition 1 (the low-leverage head is the slow mode).} Near an identifiable
-optimum, each parameter's recovery proceeds at a rate set by its information (the
-standard linearization of gradient flow at a quadratic minimum). With $I(\alpha)$ the
-smallest, discrimination is the slowest and noisiest. This is the starting observation,
-not the contribution.
+\paragraph{Closed-form leverage (neural IRT).} A 2PL/GPCM decoder makes leverage
+explicit. With logit $z=\alpha(\theta-\beta)$, prediction $p=\sigma(z)$, and
+cross-entropy loss, the residual is $r=p-y$ and
+$\partial_\theta L = r\alpha$, $\partial_\beta L = -r\alpha$,
+$\partial_\alpha L = r(\theta-\beta)$. The single-response Fisher informations are
+$I(\theta)=I(\beta)=\alpha^2 w$ and $I(\alpha)=(\theta-\beta)^2 w$ with $w=p(1-p)$, so
+discrimination $\alpha$ is the low-leverage parameter: its information is suppressed by
+the squared lever arm and vanishes where responses concentrate ($\theta\approx\beta$).
+IRT thus tells us, before any experiment, which head is weak.
 
-\paragraph{Proposition 2 (recovery is gated by representation, not information).} When
-the item parameters form a free table that can reach the optimal prediction, every
-gradient pull is linear in the residual $r$ and they vanish together, so the optimum is
-unbiased and the truth is recoverable; we verify this to machine precision. The
-consequence is the linchpin of the paper: the under-recovery observed at a finite budget
-is \emph{not} an information limit, because the same data recover the parameter at the
-optimum. The binding constraint is the finite-budget path through a \emph{shared}
-representation, confirmed in Section~5 by holding the data fixed and moving recovery.
+\paragraph{A non-psychometric testbed.} To separate the arrangement from the task, we
+build a minimal model with no IRT content: a recurrent encoder infers a per-instance
+state from a sequence, and a high-leverage location and a low-leverage slope are read off
+a shared item representation that also feeds the encoder. Leverage is a controllable
+knob. A per-instance maximum-likelihood oracle with no shared representation gives the
+information ceiling.
 
-\paragraph{Proposition 3 (the positivity map is not the lever).} Any $C^1$
-strictly-monotone positive map $g$ induces a flow that is a strictly increasing
-time-reparameterization of one canonical trajectory, so the fixed point and the rank
-recovery are map-invariant; only non-smooth (dead zone) or non-monotone (sign fold) maps
-lag. Positivity is necessary, the link function is not the lever.
+\paragraph{What the theory fixes, and does not.} Three points, with honest reach. (i)
+Near an identifiable optimum each parameter recovers at a rate set by its information
+(the linearization of gradient flow), so $\alpha$ is the slow mode; this is the starting
+observation. (ii) \emph{The free-table invariant}: when item parameters form a free table
+that reaches the optimal prediction, all gradient pulls are residual-linear and vanish
+together, so the optimum is unbiased and the truth is recoverable, which we verify to
+machine precision. Hence the finite-budget shortfall is not an information limit, the
+linchpin of the paper. (iii) Any $C^1$ strictly-monotone positive link map induces a
+time-reparameterization of one canonical trajectory, so the recovered ranks are
+map-invariant; the link is not the lever. We do \emph{not} claim a conditioning-number
+law: the Fisher conditioning number is collinear with the category count $K$, and varying
+it over a $45\times$ range at fixed $K$ leaves the gap flat, so we attribute the growth
+with $K$ to shared-channel capacity, not conditioning.
 
-\paragraph{What we do not claim.} We do not claim the gap is predicted by the Fisher
-conditioning number $\kappa=I(\theta)/I(\alpha)$. In neural IRT, $\kappa$ and the
-category count $K$ are collinear; varying $\kappa$ over a $45\times$ range at fixed $K$
-leaves the gap flat. We therefore describe the growth of the gap with $K$ directly, as
-shared-channel capacity, not as a conditioning law.
+\paragraph{Synthetic protocol.} Data are generated from a known GPCM with $N=800$
+respondents, $Q=60$ items, sequence length $T=60$, $\theta\sim\mathcal{N}(0,1)$ and
+$\alpha\sim\mathrm{LogNormal}(0,0.3)$. The encoder is an LSTM (results replicate on
+Transformer and DKVMN); the decoupled arrangement gives discrimination its own wider
+item code at matched total capacity. We report rank recovery with seeds and confidence
+intervals.
 
 \section{Experiments}
-\label{sec:general}
-All experiments are synthetic with known parameters; recovery is rank correlation;
-seeds and statistics are reported per result.
 
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{s1_three_speeds.png}
-\caption{Differential rate. Ability and difficulty are recovered fast; discrimination,
-the low-information parameter, lags by hundreds of epochs.}
+\caption{The parameters learn at different rates. Ability and difficulty recover fast;
+discrimination, the low-information parameter, lags.}
 \label{fig:rate}
 \end{figure}
 
 \subsection{The effect is general, and not information-limited}
-In a non-psychometric model, a recurrent encoder infers a per-instance state from a
-sequence, and a high-leverage location and a low-leverage slope are read off a shared
-item representation that also feeds the encoder. Decoupling the low-leverage head raises
-its recovery and collapses its across-seed variance (Table~\ref{tab:general}); the
-high-leverage head gains nothing, so the effect is parameter-specific. The decisive
-control is a per-instance maximum-likelihood oracle that shares no representation: at the
-leverage sweet spot it recovers the low-leverage parameter at $0.83$ while the shared
-model is stuck at $0.55$, so the shortfall is a representation-sharing loss, not an
-information ceiling; at low leverage asymmetry both arms reach the oracle and the gap
-vanishes. A static-code variant with no encoder shows exactly zero benefit, locating the
-effect in the encoder's contention for the shared representation.
+In the non-psychometric model, decoupling the low-leverage slope raises its recovery and
+collapses its across-seed variance, while the high-leverage location gains nothing, so
+the effect is parameter-specific (Table~\ref{tab:general}). The decisive control is the
+per-instance oracle: at the leverage sweet spot it recovers the weak parameter at
+$0.83$ while the shared model is stuck at $0.55$, so the shortfall is a
+representation-sharing loss, not an information ceiling; at low leverage asymmetry both
+arms reach the oracle and the gap closes. A static, encoder-free variant shows exactly
+zero benefit, which locates the effect in the encoder's contention for the shared
+representation rather than in shared readouts per se. The interpretation matters more
+than the numbers: it is the \emph{arrangement}, not the data and not the task, that
+loses the parameter.
 
 \begin{table}[t]\centering\small
 \begin{tabular}{lcccc}
 \toprule
 leverage & shared & decoupled & gap & oracle\\
 \midrule
-high   & 0.92 & 0.93 & $+0.01$ & 0.80\\
-mid    & 0.85 & 0.89 & $+0.04$ & 0.92\\
+high & 0.92 & 0.93 & $+0.01$ & 0.80\\
+mid  & 0.85 & 0.89 & $+0.04$ & 0.92\\
 \textbf{low} & \textbf{0.55} & \textbf{0.70} & \textbf{+0.15} & \textbf{0.83}\\
 \bottomrule
 \end{tabular}
-\caption{Non-IRT encoder model (recovery of the low-leverage slope, $|\rho|$, 5 seeds).
+\caption{Non-IRT encoder model: recovery of the low-leverage readout ($|\rho|$, 5 seeds).
 Decoupling helps as leverage falls; the oracle shows the shared arm wastes recoverable
-signal (it is not information-limited).}
+signal.}
 \label{tab:general}
 \end{table}
 
 \subsection{In neural IRT: allocation, not capacity}
-Sweeping the width of a shared item code traces a frontier (Fig.~\ref{fig:frontier}):
-ability recovery falls from $0.97$ to $0.88$ as discrimination climbs from $0.66$ to
-$0.91$, and no width recovers both. A decoupled code that gives discrimination its own
-representation sits above the frontier at matched total capacity, holding ability near
-$0.97$ and discrimination at $0.90$ to $0.94$, even at several times the shared budget.
-The shortfall is how capacity is allocated, not how much there is.
+Sweeping the width of a shared item code traces an ability--discrimination frontier
+(Fig.~\ref{fig:frontier}): ability falls from $0.97$ to $0.88$ as discrimination climbs
+from $0.66$ to $0.91$, and no single width recovers both. A decoupled code that gives
+discrimination its own representation sits above the frontier at matched total capacity,
+even at several times the shared budget. The lesson is that the deficit is one of
+allocation, not amount: adding capacity to the shared code does not buy both parameters,
+but redistributing it does.
 
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{j3_tradeoff_frontier.png}
-\caption{Allocation, not capacity. The shared family traces an ability--discrimination
-frontier; the decoupled model escapes it (upper-right) at matched capacity.}
+\caption{Allocation, not capacity. The shared family traces a frontier; the decoupled
+model escapes it (upper right) at matched capacity.}
 \label{fig:frontier}
 \end{figure}
 
 \subsection{The under-allocation is geometric}
 Probing the learned shared item code, discrimination occupies about $11\%$ of its
-variance while difficulty dominates it (a linear probe recovers difficulty at
-$R^2=0.96$ versus $0.64$ for discrimination), and the item code carries no
-respondent-ability axis (Table~\ref{tab:geom}). The representation spends its capacity on
-the high-information parameters and leaves the low-information one a thin slice; this is
-the allocation made literal.
+variance while difficulty dominates it (a linear probe recovers difficulty at $R^2=0.96$
+versus $0.64$ for discrimination), and the item code carries no respondent-ability axis
+(Table~\ref{tab:geom}). This is the allocation made literal: the representation spends
+its capacity on the high-information parameters and leaves the weak one a thin slice.
 
 \begin{table}[t]\centering\small
 \begin{tabular}{lccc}
 \toprule
- & probe $R^2$ $\alpha$ & probe $R^2$ $\beta$ & $\alpha$-var frac\\
+ & probe $R^2$ $\alpha$ & probe $R^2$ $\beta$ & $\alpha$-var.\ frac.\\
 \midrule
-shared    & 0.64 & 0.96 & 0.115\\
-decoupled & --   & 0.86 & 0.013\\
+shared & 0.64 & 0.96 & 0.115\\
+decoupled & -- & 0.86 & 0.013\\
 \bottomrule
 \end{tabular}
 \caption{Geometric under-allocation of the shared code (4 seeds). Difficulty dominates;
-discrimination rides $\sim$11\% of the variance; the item code has no ability axis.}
+discrimination rides $\sim$11\% of the variance.}
 \label{tab:geom}
 \end{table}
 
-\subsection{Two representational levers; difficulty is the control}
+\subsection{Reached then left, and the mechanism}
+The both-high solution is reached early under sharing and then abandoned
+(Fig.~\ref{fig:traj}): with a wide shared code, discrimination peaks at $0.92$ around
+epoch~100 and decays to $0.85$ by epoch~500 ($10/10$ seeds decay, and the peak is a
+genuine internal maximum per seed, not a coarse-grid artifact), while the decoupled code
+rises and holds and beats sharing on $9/10$ seeds at the end. The mechanism is capture,
+not conflict: the gradient on the shared item code from the ability pathway grows by an
+order of magnitude over training (about $30\times$, 95\% CI $[20,43]$) while the
+discrimination pathway stays flat, and the two pathways are near-orthogonal
+(cosine~$\approx 0$). A regularization control closes the loop: adding LayerNorm to the
+encoder strongly suppresses a \emph{separate} ability-overfitting decay (ability decay
+shrinks from $-0.18$ to $-0.06$) but leaves the discrimination peak-then-decay essentially
+untouched ($-0.075$ to $-0.074$). The discrimination effect is therefore the genuine
+representation-allocation phenomenon, not a side effect of substrate overfitting.
+
+\begin{figure}[t]\centering
+\includegraphics[width=\columnwidth]{rigor_paper2_trajectory.png}
+\caption{Discrimination recovery over training (10 seeds, 95\% CI). Wide-shared peaks
+then decays; decoupled rises and holds. LayerNorm (right/overlay) removes the ability
+decay but not the discrimination peak-then-decay, separating the two mechanisms.}
+\label{fig:traj}
+\end{figure}
+
+\subsection{Two levers; difficulty is the control}
 Both interventions that give discrimination more representational access relieve it.
-Decoupling is Section~5.2. State-conditioning, letting discrimination read the inferred
-state, helps its rank recovery for $K\ge 4$, significant across twelve seeds
-(Table~\ref{tab:dynamic}; paired Wilcoxon $p\le 0.007$, confidence intervals excluding
-zero), growing with the number of categories; at $K=2$ it is a clean null. Difficulty,
-the high-information control, is unmoved by either lever at every $K$.
+Decoupling is above; state-conditioning, letting discrimination read the inferred state,
+helps its rank recovery for $K\ge 4$, significant across twelve seeds (paired Wilcoxon
+$p\le 0.007$, confidence intervals excluding zero) and growing with the number of
+categories, with a clean null at $K=2$ (Table~\ref{tab:dynamic}). Difficulty, the
+high-information control, is unmoved by either lever at every $K$, which rules out a
+generic ``more flexibility helps'' reading and pins the effect to the low-leverage
+parameter.
 
 \begin{table}[t]\centering\small
 \begin{tabular}{lccc}
@@ -300,103 +330,138 @@ $K$ & $\Delta_\alpha$ (95\% CI) & Wilcoxon $p$ & $\Delta_\beta$\\
 11 & $+0.186$ $[+0.12,+0.25]$ & 0.0005 & $+0.000$\\
 \bottomrule
 \end{tabular}
-\caption{Dynamic (state-conditioned) discrimination vs.\ static (12 seeds, paired).
+\caption{Dynamic (state-conditioned) vs.\ static discrimination (12 seeds, paired).
 Helps discrimination for $K\ge4$ and grows with $K$; difficulty (control) is null.}
 \label{tab:dynamic}
 \end{table}
 
-\subsection{The distortion is attenuation, not a confound}
+\subsection{Attenuation, not a confound}
 Under sharing, recovered discrimination is attenuated and seed-unstable (rank
 $0.81\pm0.058$ shared versus $0.86\pm0.013$ decoupled), but it is not contaminated: its
-error does not correlate with ability or difficulty in either arm (leakage within one
+error correlates with neither ability nor difficulty in either arm (leakage within one
 seed standard deviation of zero), consistent with the item code carrying no ability axis
-to leak from (Table~\ref{tab:geom}). Decoupling raises the rank and, as much, stabilizes
-it across seeds.
+to leak from. The failure mode is loss of resolution, not a hidden confound; decoupling
+both raises the rank and stabilizes it.
 
-\subsection{Dynamics and finite-budget character}
-The both-high solution is reached and then left under sharing
-(Fig.~\ref{fig:traj}): wide-shared discrimination peaks early and decays with continued
-training, while the decoupled code rises and holds. The gradient on the shared item code
-is captured by the high-leverage ability pathway, which grows over training while the
-discrimination pathway stays flat and the two remain near-orthogonal
-(Fig.~\ref{fig:grad}); the cost is geometric under-allocation, not a tug of war. The
-shortfall vanishes only at the joint infinite-data-and-training limit; its dependence on
-data versus training differs between the encoder toy (the gap closes as data grow) and
-neural IRT (at a fixed budget it persists as data grow, Fig.~\ref{fig:nsweep}), so we
-report it as a finite-budget phenomenon, not a single rate-versus-data law.
-
-\begin{figure}[t]\centering
-\includegraphics[width=\columnwidth]{d2_trajectory.png}
-\caption{Reached then left. Wide-shared discrimination peaks early then decays;
-decoupled rises and holds. (CIs added with the $\ge$10-seed reruns.)}
-\label{fig:traj}
-\end{figure}
-
-\begin{figure}[t]\centering
-\includegraphics[width=\columnwidth]{d3_gradient_capture.png}
-\caption{The shared code is captured by the ability pathway (grows $\sim$28$\times$)
-while the discrimination pathway stays flat; the two are near-orthogonal.}
-\label{fig:grad}
-\end{figure}
+\subsection{A finite-budget effect}
+The shortfall vanishes only at the joint infinite-data-and-training limit. At a fixed
+training budget in neural IRT, the decoupling advantage does not shrink as data grow
+(Fig.~\ref{fig:nsweep}); in the encoder testbed it closes with data. We therefore report
+it as a finite-budget phenomenon rather than a single rate-versus-data law.
 
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{d5_finite_sample_Nsweep.png}
-\caption{In neural IRT, at a fixed training budget the decoupling advantage does not
-shrink with data, a finite-budget signature.}
+\caption{At a fixed training budget the decoupling advantage does not shrink with data,
+a finite-budget signature.}
 \label{fig:nsweep}
 \end{figure}
 
+\subsection{Reading the experiments together}
+One mechanism explains all of it. A low-leverage readout sharing the per-instance encoder
+representation is starved of capacity (\S5.3) because the high-leverage pathway captures
+the shared code (\S5.4); the data were never the limit (\S5.1, the oracle); the fix is to
+give the readout its own representation or the inferred state (\S5.2); the failure is
+attenuation, not a confound (\S5.6); and it is finite-budget (\S5.7). The same pattern
+holds with no IRT semantics (\S5.1), so it is a property of the amortized-encoder
+arrangement.
+
+\section{Boundaries of the Claim}
+We are deliberate about scope. All dynamics evidence is synthetic; recovering externally
+calibrated item parameters from an error-rich real corpus is future work, and the
+available real-data result is a stability proxy reported only as ordinal corroboration.
+The contribution is a qualitative, general characterization, not a quantitative law: we
+do not claim a conditioning-number rate law (it does not survive decorrelation from the
+category count), and the data-versus-training dependence is model-dependent. The theory is
+the differential rate together with the free-table invariant, not a closed-form rate
+theorem. Several tempting stronger claims were tested and rejected: the exponential link
+is not special; there is no population-limit dynamics law; the conditioning number is not
+the lever; there is no ability-into-discrimination confound; and the effect is not a
+generic shared-readout property but an amortized-encoder one.
+
 \section{Discussion}
-We build on the dynamics tradition in which a mode's recovery rate is set by its
-information \cite{saxe2014}, of which this is the per-parameter instance, and on the
-amortization-gap observation \cite{cremer2018}, of which this is the parameter-recovery,
-non-uniform version. We affirm classical item-response estimation: the model is
-identified and the estimator is consistent; the new effect is a property of the
-amortized estimator's representation. It is not multi-task gradient conflict, since the
-ability and discrimination gradients on the shared code are orthogonal, so the cost is
-geometric under-allocation rather than interference. The closest structural precedent is
-weight normalization \cite{salimans2016}.
+The result sits at a seam. It builds on learning-dynamics theory, where a mode's rate is
+set by its information \citep{saxe2014}, and on the amortization gap \citep{cremer2018},
+of which it is the parameter-specific version; it affirms classical IRT estimation,
+adding a property of the amortized estimator's representation rather than correcting the
+theory. It is not multi-task gradient conflict, since the pathway gradients are
+orthogonal; the cost is geometric under-allocation, and where multi-task learning
+rebalances gradients \citep{chen2018,yu2020} we remove the sharing structurally. The
+closest precedent is the decoupling of a gain from a shared direction in weight
+normalization \citep{salimans2016}; we supply the mechanism and tie it to a specific,
+predictable parameter.
 
-The consequence for measurement is direct. A parameter read off a shared amortized
+The consequence for measurement is concrete. A parameter read off a shared amortized
 representation can be an artifact of how the representation was allocated: discrimination
-recovered from a shared neural IRT model is attenuated and unstable unless the head is
-decoupled, and its magnitude in particular should not be trusted from a shared
-representation. The prescription is to give low-leverage heads their own representation.
-
-\paragraph{Scope.} All dynamics evidence is synthetic; recovering externally calibrated
-item parameters from an error-rich real corpus is future work, and the available
-real-data result is a stability proxy reported only as ordinal corroboration. The
-contribution is a qualitative, general characterization, not a quantitative law: we do
-not claim a conditioning-number rate law, and the data-versus-training dependence is
-model-dependent. The theory is the differential rate together with the free-table
-invariant, not a closed-form rate theorem.
+from a shared neural IRT model is attenuated and unstable unless the readout is decoupled,
+and its magnitude should not be trusted from a shared representation. The prescription is
+to give low-leverage readouts their own representation, an architectural choice with a
+predictable target, since IRT names the weak parameter in closed form.
 
 \section{Conclusion}
-In amortized encoders, a low-leverage readout that shares the per-instance-inferred
-representation is under-recovered --- attenuated and geometrically under-allocated ---
-and decoupling or a dynamic channel restores it. The effect is general (a non-IRT
-encoder model reproduces it), parameter-specific, not information-limited, and a
-finite-budget phenomenon. Neural IRT is the instance where the leverage is closed-form,
-letting us predict which parameter is lost and see its under-allocation. The practical
-lesson is a validity caution: a parameter off a shared amortized representation may be an
-allocation artifact, removable by decoupling.
+In amortized encoders a low-leverage readout that shares the per-instance-inferred
+representation is under-recovered, attenuated and geometrically under-allocated, and
+decoupling or a dynamic channel restores it. The effect is general, parameter-specific,
+not information-limited, and a finite-budget phenomenon, and neural IRT is the instance
+where the weak parameter and its remedy are predictable in closed form. The practical
+lesson is a validity caution: a parameter read off a shared amortized representation may
+be an allocation artifact, removable by decoupling.
 
-\begin{thebibliography}{9}\small
-\bibitem{saxe2014} A.~Saxe, J.~McClelland, S.~Ganguli. Exact solutions to the nonlinear
-dynamics of learning in deep linear neural networks. \emph{ICLR}, 2014.
+\small
+\begin{thebibliography}{40}
+\bibitem{piech2015} C.~Piech et al. Deep knowledge tracing. \emph{NeurIPS}, 2015.
+\bibitem{zhang2017} J.~Zhang et al. Dynamic key-value memory networks for knowledge
+tracing. \emph{WWW}, 2017.
+\bibitem{pandey2019} S.~Pandey, G.~Karypis. A self-attentive model for knowledge tracing.
+\emph{EDM}, 2019.
+\bibitem{yeung2019} C.-K.~Yeung. Deep-IRT: making deep learning based knowledge tracing
+interpretable using item response theory. \emph{EDM}, 2019.
+\bibitem{wu2020} M.~Wu et al. Variational item response theory: fast, accurate, and
+expressive. \emph{EDM}, 2020.
+\bibitem{tsutsumi2024} E.~Tsutsumi et al. Deep item response theory as a representation
+of interpretable knowledge. \emph{IEEE Trans.\ Learning Technologies}, 2024.
+\bibitem{vanderlinden1997} W.~van der Linden, R.~Hambleton (eds.). \emph{Handbook of
+Modern Item Response Theory}; GPCM, Muraki. Springer, 1997.
+\bibitem{embretson2000} S.~Embretson, S.~Reise. \emph{Item Response Theory for
+Psychologists}. Erlbaum, 2000.
+\bibitem{kingma2014} D.~Kingma, M.~Welling. Auto-encoding variational Bayes.
+\emph{ICLR}, 2014.
 \bibitem{cremer2018} C.~Cremer, X.~Li, D.~Duvenaud. Inference suboptimality in
 variational autoencoders. \emph{ICML}, 2018.
-\bibitem{woodworth2020} B.~Woodworth et al. Kernel and rich regimes in overparametrized
-models. \emph{COLT}, 2020.
-\bibitem{chou2023} H.-H.~Chou, J.~Maly, D.~St\"oger. How to induce regularization in
-generalized linear models: a guide to reparameterization. arXiv, 2023.
-\bibitem{amari1998} S.~Amari. Natural gradient works efficiently in learning.
-\emph{Neural Computation}, 1998.
-\bibitem{martens2015} J.~Martens, R.~Grosse. Optimizing neural networks with
-Kronecker-factored approximate curvature. \emph{ICML}, 2015.
+\bibitem{urban2021} C.~Urban, D.~Bauer. A deep learning algorithm for high-dimensional
+exploratory item factor analysis. \emph{Psychometrika}, 86(1), 2021.
+\bibitem{molenaar2025} D.~Molenaar et al. An autoencoder for amortized joint maximum
+likelihood estimation in item factor analysis. \emph{Multivariate Behavioral Research},
+60(4), 2025.
+\bibitem{caruana1997} R.~Caruana. Multitask learning. \emph{Machine Learning}, 28, 1997.
+\bibitem{ruder2017} S.~Ruder. An overview of multi-task learning in deep neural networks.
+arXiv:1706.05098, 2017.
+\bibitem{chen2018} Z.~Chen et al. GradNorm: gradient normalization for adaptive loss
+balancing in deep multitask networks. \emph{ICML}, 2018.
+\bibitem{yu2020} T.~Yu et al. Gradient surgery for multi-task learning (PCGrad).
+\emph{NeurIPS}, 2020.
+\bibitem{standley2020} T.~Standley et al. Which tasks should be learned together in
+multi-task learning? \emph{ICML}, 2020.
+\bibitem{saxe2014} A.~Saxe, J.~McClelland, S.~Ganguli. Exact solutions to the nonlinear
+dynamics of learning in deep linear neural networks. \emph{ICLR}, 2014.
+\bibitem{advani2017} M.~Advani, A.~Saxe. High-dimensional dynamics of generalization
+error in neural networks. arXiv:1710.03667, 2017.
+\bibitem{rahaman2019} N.~Rahaman et al. On the spectral bias of neural networks.
+\emph{ICML}, 2019.
+\bibitem{jacot2018} A.~Jacot, F.~Gabriel, C.~Hongler. Neural tangent kernel: convergence
+and generalization in neural networks. \emph{NeurIPS}, 2018.
+\bibitem{sagun2017} L.~Sagun et al. Empirical analysis of the Hessian of over-parametrized
+neural networks. arXiv:1706.04454, 2017.
+\bibitem{damian2022} A.~Damian, J.~Lee, M.~Soltanolkotabi. Neural networks can learn
+representations with gradient descent. \emph{COLT}, 2022.
+\bibitem{locatello2019} F.~Locatello et al. Challenging common assumptions in the
+unsupervised learning of disentangled representations. \emph{ICML}, 2019.
+\bibitem{higgins2017} I.~Higgins et al. beta-VAE: learning basic visual concepts with a
+constrained variational framework. \emph{ICLR}, 2017.
+\bibitem{alain2017} G.~Alain, Y.~Bengio. Understanding intermediate layers using linear
+classifier probes. \emph{ICLR Workshop}, 2017.
 \bibitem{salimans2016} T.~Salimans, D.~Kingma. Weight normalization. \emph{NeurIPS}, 2016.
-\bibitem{vie2023} J.-J.~Vie, H.~Kashima. Deep knowledge tracing is an implicit
-item-response model. (and related deep-IRT recovery work), 2023.
+\bibitem{yuan2025magpcm} W.~Yuan. MA-GPCM: a memory-augmented model for interpretable
+ordinal knowledge tracing. Under review, 2025.
 \end{thebibliography}
 
 \end{document}
