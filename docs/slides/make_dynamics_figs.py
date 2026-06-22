@@ -1,5 +1,5 @@
 """Render presentation figures for the finite-sample representation
-learning-dynamics study. Plain-language labels only.
+learning-dynamics study. Precise psychometric/ML labels.
 
 Reads existing bench outputs read-only and writes five PNGs into
 docs/slides/figs/. Run from repo root with the research env active.
@@ -33,11 +33,11 @@ plt.rcParams.update(
     }
 )
 
-SHARED_C = "#c0392b"   # shared representation, red
-SEP_C = "#2471a3"      # separate representation, blue
+SHARED_C = "#c0392b"   # shared item embedding, red
+SEP_C = "#2471a3"      # decoupled discrimination embedding, blue
 NARROW_C = "#7f8c8d"   # shared-narrow, grey
 ABILITY_C = "#c0392b"  # ability pathway
-SHARP_C = "#2471a3"    # sharpness pathway
+SHARP_C = "#2471a3"    # discrimination pathway
 
 
 def save(fig, name):
@@ -67,22 +67,22 @@ def fig_d1():
     sep_point = (0.970, 0.904)  # DECOUPLED(W=48)
 
     widths = sorted(shared)
-    sx = [shared[w][1] for w in widths]  # sharpness match (x)
-    sy = [shared[w][0] for w in widths]  # score match (y)
+    sx = [shared[w][1] for w in widths]  # discrimination recovery (x)
+    sy = [shared[w][0] for w in widths]  # ability recovery (y)
 
     fig, ax = plt.subplots(figsize=(8.2, 6.2))
     ax.plot(sx, sy, "-o", color=SHARED_C, lw=2.5, ms=8,
-            label="shared representation (width sweep)")
+            label="shared item embedding (width sweep)")
     ax.scatter([sep_point[1]], [sep_point[0]], s=260, marker="*",
                color=SEP_C, zorder=5, edgecolor="k", linewidth=0.8,
-               label="separate representation (matched size)")
+               label="decoupled (matched size)")
 
     # annotate the trade-off direction along the shared curve
-    ax.annotate("narrow shared code\n(good score, poor sharpness)",
+    ax.annotate("narrow shared embedding\n(high ability, low discrimination)",
                 xy=(sx[0], sy[0]),
                 xytext=(sx[0] + 0.015, sy[0] - 0.028), fontsize=11.5,
                 color=SHARED_C, va="top")
-    ax.annotate("wide shared code\n(good sharpness, poor score)",
+    ax.annotate("wide shared embedding\n(high discrimination, low ability)",
                 xy=(sx[-1], sy[-1]),
                 xytext=(sx[-1] - 0.30, sy[-1] + 0.006), fontsize=11.5,
                 color=SHARED_C)
@@ -91,9 +91,9 @@ def fig_d1():
                 fontsize=13, color=SEP_C, fontweight="bold",
                 arrowprops=dict(arrowstyle="->", color=SEP_C, lw=1.8))
 
-    ax.set_xlabel("sharpness match (0 to 1)")
-    ax.set_ylabel("score match (0 to 1)")
-    ax.set_title("One shared code cannot get both\nseparate code sits above the curve",
+    ax.set_xlabel("discrimination recovery (Spearman rho)")
+    ax.set_ylabel("ability recovery (Spearman rho)")
+    ax.set_title("One shared embedding cannot get both\ndecoupling sits above the curve",
                  pad=14)
     ax.legend(loc="lower left")
     ax.set_xlim(0.58, 0.96)
@@ -114,11 +114,11 @@ def fig_d2():
 
     fig, ax = plt.subplots(figsize=(8.6, 6.2))
     ax.plot(eps, curve("SHARED-WIDE"), "-o", color=SHARED_C, lw=3, ms=9,
-            label="shared, wide code")
+            label="shared item embedding (wide)")
     ax.plot(eps, curve("DECOUPLED"), "-s", color=SEP_C, lw=3, ms=9,
-            label="separate code")
+            label="decoupled")
     ax.plot(eps, curve("SHARED-NARROW"), "-^", color=NARROW_C, lw=2.5, ms=8,
-            label="shared, narrow code")
+            label="shared item embedding (narrow)")
 
     # mark the shared-wide peak then decay
     sw = curve("SHARED-WIDE")
@@ -135,8 +135,8 @@ def fig_d2():
                 xytext=(eps[-1] - 230, curve("DECOUPLED")[-1] + 0.03),
                 fontsize=14, color=SEP_C, fontweight="bold")
 
-    ax.set_xlabel("training step (epoch)")
-    ax.set_ylabel("sharpness match (0 to 1)")
+    ax.set_xlabel("epoch")
+    ax.set_ylabel("discrimination recovery (Spearman rho)")
     ax.set_title("A good shared solution is visited, then abandoned")
     ax.legend(loc="lower right")
     ax.set_ylim(0.0, 1.0)
@@ -167,7 +167,7 @@ def fig_d3():
     ax.plot(eps, g_ability, "-o", color=ABILITY_C, lw=3, ms=10,
             label="ability pathway")
     ax.plot(eps, g_sharp, "-s", color=SHARP_C, lw=3, ms=10,
-            label="sharpness pathway")
+            label="discrimination pathway")
     ax.annotate(f"grows about {growth:.0f}x",
                 xy=(eps[-1], g_ability[-1]),
                 xytext=(eps[-1] - 230, g_ability[-1] - 0.0015),
@@ -178,9 +178,9 @@ def fig_d3():
                 xytext=(eps[-1] - 200, g_sharp[-1] + 0.0028),
                 fontsize=15, color=SHARP_C, fontweight="bold")
 
-    ax.set_xlabel("training step (epoch)")
-    ax.set_ylabel("pull on the shared representation")
-    ax.set_title("The ability pathway captures the shared code")
+    ax.set_xlabel("epoch")
+    ax.set_ylabel("gradient norm on shared item embedding")
+    ax.set_title("The ability pathway captures the shared item embedding")
     ax.legend(loc="upper left")
     return save(fig, "d3_gradient_capture.png")
 
@@ -202,23 +202,24 @@ def fig_d4():
 
     fig, ax = plt.subplots(figsize=(8.8, 6.2))
     l1 = ax.plot(Ks, delta, "-o", color=SEP_C, lw=3, ms=10,
-                 label="separate-code advantage")
-    ax.set_xlabel("answer levels")
-    ax.set_ylabel("advantage in sharpness match", color=SEP_C)
+                 label="decoupled advantage")
+    ax.set_xlabel("number of categories K")
+    ax.set_ylabel("decoupled advantage in\ndiscrimination recovery (Spearman rho)",
+                  color=SEP_C)
     ax.tick_params(axis="y", labelcolor=SEP_C)
     ax.set_ylim(0, max(delta) * 1.25)
 
     ax2 = ax.twinx()
     ax2.grid(False)
     l2 = ax2.plot(Ks, stiff, "--D", color="#b9770e", lw=2.5, ms=8,
-                  label="how lopsided the learning is")
-    ax2.set_ylabel("how lopsided the learning is\n(ability vs sharpness)",
+                  label="Fisher stiffness  I(theta)/I(alpha)")
+    ax2.set_ylabel("Fisher stiffness  I(theta)/I(alpha)",
                    color="#b9770e")
     ax2.tick_params(axis="y", labelcolor="#b9770e")
 
     lines = l1 + l2
     ax.legend(lines, [ln.get_label() for ln in lines], loc="upper left")
-    ax.set_title("The advantage grows with more answer levels,\ntracking how lopsided the learning is")
+    ax.set_title("The advantage grows with the number of categories K,\ntracking Fisher stiffness")
     ax.set_xticks(Ks)
     return save(fig, "d4_stiffness_Ksweep.png")
 
@@ -230,7 +231,7 @@ def fig_d5():
     d = json.load(open(os.path.join(BENCH, "ndata_sweep_results.json")))
     N_vals = d["N_vals"]
     delta = d["delta"]
-    # show a representative spread of answer levels for clarity
+    # show a representative spread of category counts for clarity
     show_K = [2, 4, 6, 8, 11]
     cmap = plt.get_cmap("viridis")
 
@@ -239,13 +240,13 @@ def fig_d5():
         ys = [delta[str(K)][str(N)] for N in N_vals]
         ax.plot(N_vals, ys, "-o", lw=2.5, ms=8,
                 color=cmap(i / (len(show_K) - 1)),
-                label=f"{K} answer levels")
+                label=f"K = {K} categories")
 
     ax.set_xscale("log")
     ax.set_xticks(N_vals)
     ax.set_xticklabels([str(n) for n in N_vals])
-    ax.set_xlabel("number of learners")
-    ax.set_ylabel("advantage in sharpness match")
+    ax.set_xlabel("number of respondents N")
+    ax.set_ylabel("decoupled advantage in\ndiscrimination recovery (Spearman rho)")
     ax.set_title("More data does not shrink the advantage\n(it is rate-limited, not data-limited)")
     ax.axhline(0, color="k", lw=1, alpha=0.5)
     ax.legend(loc="lower right", ncol=2)

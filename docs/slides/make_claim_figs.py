@@ -4,24 +4,24 @@ Reads the existing bench result files under ``deep_irt/bench/outputs`` and the
 fresh trajectory run, and renders four large-font slide PNGs into
 ``docs/slides/figs``.  No training, no model imports, matplotlib Agg.
 
-PLAIN LANGUAGE.  Every label uses only the lead's allowed words:
-  score (ability), difficulty (step thresholds), sharpness (discrimination),
-  answer levels (K), training step (epoch), and "match with the true value" on a
-  0 to 1 axis.  No jargon in any axis title, legend, or annotation.
+Labels use precise psychometric/ML terms: ability (theta), difficulty (step
+thresholds), discrimination (the IRT alpha), number of categories K, epoch, and
+parameter recovery (Spearman rho) on a 0 to 1 axis.
 
 Figures
 -------
-  s1_three_speeds.png      param_trajectory_K4.json (+K8 panel): three match
-                           curves vs training step; score and difficulty rise
-                           fast, sharpness rises slower.
-  s2_sharpness_help.png    alpha_beta_asymmetry.json: grouped bars per answer
-                           level -- help to sharpness from the history-adjusted
-                           part vs the same change to difficulty (control, ~0).
-  s3_formula_distractor.png alpha_map_results.json: best sharpness-match per
-                           positive formula, smooth group tied, jagged lower.
-  s4_why_hard.png          fisher_ratio.json: the prediction's relative
-                           sensitivity to sharpness, small and shrinking with
-                           answer levels.
+  s1_three_speeds.png      param_trajectory_K4.json (+K8 panel): three recovery
+                           curves vs epoch; ability and difficulty rise fast,
+                           discrimination rises slower.
+  s2_sharpness_help.png    alpha_beta_asymmetry.json: grouped bars per number of
+                           categories K -- gain in discrimination recovery from
+                           the history-adjusted part vs the same change to
+                           difficulty (control, ~0).
+  s3_formula_distractor.png alpha_map_results.json: best discrimination recovery
+                           per positive map, smooth group tied, non-smooth lower.
+  s4_why_hard.png          fisher_ratio.json: the prediction's relative Fisher
+                           leverage on discrimination, small and shrinking with
+                           the number of categories K.
 """
 
 from __future__ import annotations
@@ -40,11 +40,11 @@ SRC = _HERE.parent.parent / "deep_irt" / "bench" / "outputs"
 
 DPI = 150
 
-# Consistent plain-language colours.
-C_SCORE = "#1b7837"       # green
-C_DIFF = "#2166ac"        # blue
-C_SHARP = "#b2182b"       # red
-C_CONTROL = "#9e9e9e"     # grey
+# Consistent parameter colours.
+C_SCORE = "#1b7837"       # green (ability)
+C_DIFF = "#2166ac"        # blue (difficulty)
+C_SHARP = "#b2182b"       # red (discrimination)
+C_CONTROL = "#9e9e9e"     # grey (control)
 
 plt.rcParams.update({
     "font.size": 18,
@@ -73,9 +73,9 @@ def fig_three_speeds() -> dict:
     has_k8 = k8_path.exists()
     k8 = _load("param_trajectory_K8.json") if has_k8 else None
 
-    panels = [("4 answer levels", k4)]
+    panels = [("K = 4 categories", k4)]
     if has_k8:
-        panels.append(("8 answer levels", k8))
+        panels.append(("K = 8 categories", k8))
 
     fig, axes = plt.subplots(1, len(panels), figsize=(7.5 * len(panels), 6.2),
                              sharey=True)
@@ -86,17 +86,17 @@ def fig_three_speeds() -> dict:
     for ax, (title, blob) in zip(axes, panels):
         ep = blob["epochs"]
         for key, col, lab in (
-            ("score", C_SCORE, "score (learner)"),
+            ("score", C_SCORE, "ability (theta)"),
             ("difficulty", C_DIFF, "difficulty (item)"),
-            ("sharpness", C_SHARP, "sharpness (item)"),
+            ("sharpness", C_SHARP, "discrimination (alpha)"),
         ):
             m = blob[f"{key}_mean"]
             ax.plot(ep, m, color=col, label=lab, marker="o", markersize=4)
         ax.set_title(title)
-        ax.set_xlabel("training step")
+        ax.set_xlabel("epoch")
         ax.set_ylim(0, 1.02)
         ax.grid(True, alpha=0.3)
-        # record the K=4 panel headline: step where sharpness first reaches 0.8
+        # record the K=4 panel headline: step where discrimination first reaches 0.8
         if "4" in title:
             sm = blob["sharpness_mean"]
             sh80 = next((e for e, v in zip(ep, sm) if v >= 0.8), ep[-1])
@@ -113,9 +113,9 @@ def fig_three_speeds() -> dict:
                 "difficulty_final": round(blob["difficulty_mean"][-1], 3),
             }
 
-    axes[0].set_ylabel("match with the true value\n(0 = none, 1 = perfect)")
+    axes[0].set_ylabel("parameter recovery (Spearman rho)")
     axes[0].legend(loc="lower right", framealpha=0.95)
-    fig.suptitle("Score and difficulty are learned fast; sharpness lags",
+    fig.suptitle("Ability and difficulty are learned fast; discrimination lags",
                  fontsize=23, y=0.99)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     out = OUT_DIR / "s1_three_speeds.png"
@@ -134,22 +134,22 @@ def fig_sharpness_help() -> dict:
     blob = _load("alpha_beta_asymmetry.json")
     rows = blob["summary"]
     Ks = [r["K"] for r in rows]
-    d_sharp = [r["delta_alpha"] for r in rows]     # help to sharpness
+    d_sharp = [r["delta_alpha"] for r in rows]     # gain in discrimination recovery
     d_diff = [r["delta_beta"] for r in rows]       # same change to difficulty
 
     fig, ax = plt.subplots(figsize=(11, 6.2))
     x = range(len(Ks))
     w = 0.38
     b1 = ax.bar([i - w / 2 for i in x], d_sharp, w,
-                color=C_SHARP, label="help to sharpness")
+                color=C_SHARP, label="gain in discrimination recovery")
     b2 = ax.bar([i + w / 2 for i in x], d_diff, w,
                 color=C_CONTROL, label="same change to difficulty (control)")
     ax.axhline(0, color="black", linewidth=1.0)
     ax.set_xticks(list(x))
     ax.set_xticklabels([str(k) for k in Ks])
-    ax.set_xlabel("answer levels")
-    ax.set_ylabel("change in match with the true value")
-    ax.set_title("The history-adjusted part lifts sharpness, not difficulty")
+    ax.set_xlabel("number of categories K")
+    ax.set_ylabel("change in recovery (Spearman rho)")
+    ax.set_title("The history-adjusted part lifts discrimination, not difficulty")
     ax.legend(loc="upper left", framealpha=0.95)
     ax.grid(True, axis="y", alpha=0.3)
 
@@ -177,7 +177,7 @@ def fig_sharpness_help() -> dict:
 
 def fig_formula_distractor() -> dict:
     blob = _load("alpha_map_results.json")
-    # best sharpness-match (a_spearman_mean) per formula across learning rates.
+    # best discrimination recovery (a_spearman_mean) per map across learning rates.
     best: dict[str, tuple[float, float]] = {}
     for r in blob["agg"]:
         m = r["map"]
@@ -213,19 +213,19 @@ def fig_formula_distractor() -> dict:
            error_kw={"elinewidth": 1.5})
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, rotation=30, ha="right")
-    ax.set_ylabel("best match with true sharpness\n(0 to 1)")
+    ax.set_ylabel("discrimination recovery (Spearman rho)")
     # zoom to where the action is
     lo = min(vals) - 0.02
     ax.set_ylim(max(0, lo), 1.0)
-    ax.set_title("Smooth formulas tie; jagged ones fall behind")
+    ax.set_title("Smooth positive maps tie; non-smooth maps fall behind")
     ax.grid(True, axis="y", alpha=0.3)
 
-    # group separator + plain-language legend
+    # group separator + legend
     sep = n_smooth - 0.5
     ax.axvline(sep, color="black", linestyle="--", linewidth=1.2, alpha=0.6)
     from matplotlib.patches import Patch
-    ax.legend(handles=[Patch(color=C_SHARP, label="smooth formulas"),
-                       Patch(color=C_CONTROL, label="jagged formulas")],
+    ax.legend(handles=[Patch(color=C_SHARP, label="smooth positive maps"),
+                       Patch(color=C_CONTROL, label="non-smooth positive maps")],
               loc="lower left", framealpha=0.95)
 
     fig.tight_layout()
@@ -254,8 +254,8 @@ def fig_why_hard() -> dict:
     blob = _load("fisher_ratio.json")
     rows = blob["rows"]
     Ks = [r["K"] for r in rows]
-    # relative sensitivity of the prediction to sharpness = I_alpha / I_theta,
-    # i.e. how much the prediction depends on sharpness compared with score.
+    # relative Fisher leverage on discrimination = I_alpha / I_theta,
+    # how much the prediction depends on discrimination compared with ability.
     rel = [r["I_alpha"] / r["I_theta"] for r in rows]
 
     fig, ax = plt.subplots(figsize=(11, 6.2))
@@ -263,12 +263,12 @@ def fig_why_hard() -> dict:
     for k, v in zip(Ks, rel):
         ax.annotate(f"{v:.2f}", (k, v), textcoords="offset points",
                     xytext=(0, 12), ha="center", fontsize=15)
-    ax.set_xlabel("answer levels")
-    ax.set_ylabel("how much the prediction depends\non sharpness (relative)")
+    ax.set_xlabel("number of categories K")
+    ax.set_ylabel("Fisher leverage on discrimination\nI(alpha)/I(theta)")
     ax.set_xticks(Ks)
     ax.set_ylim(0, max(rel) * 1.25)
-    ax.set_title("The prediction barely leans on sharpness,\nand less as answer "
-                 "levels grow")
+    ax.set_title("The prediction has low Fisher leverage on discrimination,\nfalling "
+                 "as the number of categories K grows")
     ax.grid(True, alpha=0.3)
 
     fig.tight_layout()

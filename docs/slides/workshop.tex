@@ -5,11 +5,12 @@
 \setbeamertemplate{footline}[frame number]
 \setbeamertemplate{section in toc}[sections numbered]
 \usepackage{booktabs}
+\usepackage{amsmath}
 \usepackage{graphicx}
 \graphicspath{{figs/}}
 
-\title[Finite-sample dynamics of a shared measurement representation]{Finite-sample learning dynamics of a shared measurement representation}
-\subtitle{why item sharpness is recovered slowly, and how a separate code fixes it}
+\title[Finite-sample dynamics of discrimination recovery]{Finite-sample learning dynamics of discrimination recovery in amortized neural IRT}
+\subtitle{representation sharing degrades discrimination, decoupling restores it as a convergence-rate effect}
 \author{Wenrui Yuan}
 \date{}
 
@@ -20,39 +21,70 @@
 % ===========================================================================
 \section{Setup}
 
-\begin{frame}{The model and the three numbers}
-A sequence model reads a learner's answer history and predicts the next answer.
-To do that it works out three numbers through one shared internal representation.
+\begin{frame}{Amortized neural IRT}
+A sequence encoder $E_\phi$ (LSTM) maps a response history to a time-varying
+ability $\theta_t$. Item parameters, discrimination $\alpha_i$ and difficulty or
+step thresholds $\beta_i$, are read from item embeddings and combined in an IRT
+decoder. For graded responses we use the GPCM (binary 2PL at $K{=}2$),
+\[
+  P(Y_i = k \mid \theta) \;=\;
+  \frac{\exp\sum_{m=1}^{k}\alpha_i(\theta-\beta_{i,m})}
+       {\sum_{l=0}^{K-1}\exp\sum_{m=1}^{l}\alpha_i(\theta-\beta_{i,m})}.
+\]
+Training minimizes a response-prediction loss on the decoder (weighted ordinal
+cross-entropy). There is \textbf{no supervision} on $\theta,\alpha,\beta$ and no
+parameter priors.
+\medskip
+
+Recovery is the sign-aligned Spearman $\rho$ between recovered and
+data-generating parameters. The latent scale is identified only up to an affine
+gauge ($\theta\!\to\!s\theta+t,\ \alpha\!\to\!\alpha/s$), so rank is the
+well-posed target, not magnitude.
+\end{frame}
+
+\begin{frame}{The architecture: shared vs decoupled item representation}
+The item code enters in two places, the \textbf{encoder input} (which forms
+$\theta$) and the \textbf{discrimination/difficulty readouts}.
+\medskip
+
 \begin{itemize}
-\item \textbf{score}, how strong a learner is (read from the encoder state).
-\item \textbf{difficulty}, how hard a question is (read from the item code).
-\item \textbf{sharpness}, how clearly a question separates strong from weak
-learners (also read from the item code).
+\item \textbf{Shared} (\texttt{item\_key\_dim=None}, \texttt{emb\_dim=}$W$). One
+item-embedding table of width $W$ feeds both. Discrimination reads the same code
+that feeds ability.
+\item \textbf{Decoupled} (\texttt{emb\_dim=8} $+$ \texttt{item\_key\_dim=}$W{-}8$).
+A narrow item value embedding feeds the encoder, a \emph{separate} wide item key
+embedding feeds only the $\alpha,\beta$ readouts.
 \end{itemize}
 \medskip
 
-We never supply these numbers and never add a target for them. The model is
-trained only to predict answers. On simulated data the true numbers are known, so
-we measure recovery as \textbf{match in order} (rank, 0 to 1), which is the only
-scale-free thing to ask of this model. We study the \textbf{finite-sample}
-regime, realistic data and a realistic training budget, because that is where
-real models live.
+In both arms \texttt{state\_alpha=True}, so $\alpha_{i,t}=\text{head}([h_t,\,
+\text{key}_i])$ is state-conditioned and occurrence-averaged at recovery. The
+study varies \texttt{item\_key\_dim} (the representation) with
+\texttt{state\_alpha} held on. The decoupled default also uses an exponential
+positivity map, shown later not to be the lever.
 \end{frame}
 
-\begin{frame}{The phenomenon, sharpness is the hard one}
+\begin{frame}{Discrimination is the low-information parameter}
 \begin{columns}
-\begin{column}{0.58\textwidth}
+\begin{column}{0.54\textwidth}
 \includegraphics[width=\linewidth]{s1_three_speeds.png}
 \end{column}
-\begin{column}{0.4\textwidth}
+\begin{column}{0.44\textwidth}
 \footnotesize
-Score and difficulty recover fast. Sharpness is slow and unreliable, because the
-prediction barely depends on it, sharpness only matters for learners whose
-strength sits near a question's difficulty, and washes out elsewhere.
-\medskip
-
-Sharpness and difficulty are both read from the same shared item code. So the
-question is what that sharing does to the hard number while the model trains.
+2PL gradients with residual $r=p-y$,
+\[
+  \partial_\theta L = r\alpha,\quad
+  \partial_\beta L = -r\alpha,\quad
+  \partial_\alpha L = r(\theta-\beta).
+\]
+Fisher information, $w=p(1-p)$,
+\[
+  I(\theta)=I(\beta)=\alpha^2 w,\quad
+  I(\alpha)=(\theta-\beta)^2 w.
+\]
+$I(\alpha)$ is suppressed by the lever arm and vanishes at $\theta=\beta$, where
+targeted responses concentrate. So $\alpha$ recovers slowly. The stiffness
+$\kappa=I(\theta)/I(\alpha)$ grows with $K$.
 \end{column}
 \end{columns}
 \end{frame}
@@ -60,50 +92,45 @@ question is what that sharing does to the hard number while the model trains.
 % ===========================================================================
 \section{The question}
 
-\begin{frame}{Three explanations, only one is interesting}
-A shared item code must serve both difficulty and sharpness. Sharpness recovers
-poorly under sharing. Why?
-\medskip
-
+\begin{frame}{Three explanations for degraded discrimination under sharing}
 \begin{enumerate}
-\item \textbf{Capacity.} The shared code is simply too small. A wider one would
-fix it. (Trivial.)
-\item \textbf{Expressivity.} Even an arbitrarily wide shared code cannot hold the
-score-optimal and sharpness-optimal directions at once. (A property of the model,
-not of training.)
-\item \textbf{Dynamics.} A shared code with room for both is still driven by
-training toward the score solution, leaving sharpness behind. (A finite-sample
+\item \textbf{Capacity.} The shared code is too small. A wider one fixes it.
+(Trivial.)
+\item \textbf{Expressivity.} No shared code, however wide, can hold the
+$\theta$-optimal and $\alpha$-optimal directions at once. (A property of the
+global optimum, not of training.)
+\item \textbf{Dynamics.} A shared code with the rank to express both is still
+driven by gradient flow to the $\theta$ compromise. (A finite-sample
 learning-dynamics effect.)
 \end{enumerate}
 \medskip
 
-The study is a sequence of tests, each designed to kill one explanation. The
-control on each is stated on its slide.
+Each test below is designed to eliminate one explanation, with its control
+stated. Synthetic GPCM, known $\theta,\alpha,\beta$, LSTM encoder.
 \end{frame}
 
 % ===========================================================================
 \section{Test 1, capacity}
 
-\begin{frame}{Test 1, it is allocation, not budget}
+\begin{frame}{Test 1, allocation not budget (the gate)}
 \begin{columns}
-\begin{column}{0.56\textwidth}
+\begin{column}{0.55\textwidth}
 \includegraphics[width=\linewidth]{d1_capacity_tradeoff.png}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.43\textwidth}
 \footnotesize
-\textbf{Design.} Sweep the shared code from narrow to wide, recording both score
-and sharpness recovery. Place a model that gives sharpness its \textbf{own
-separate code} on the same axes, at \textbf{matched total size} (the control, so
-this is about allocation, not budget).
+\textbf{Design.} Sweep the shared width $W$; place the decoupled model at
+\textbf{matched total item-embedding parameters} ($Q\!\times\!W$) on the same
+axes. 5 seeds.
 \medskip
 
-\textbf{Result.} The shared code traces a trade-off, narrow gives good score and
-poor sharpness, wide gives the reverse, and no width gets both. The separate code,
-at the same total size, sits above the curve, score and sharpness both high.
+\textbf{Result.} The shared family traces a Pareto frontier, $\theta$ falls
+$0.97\!\to\!0.88$ as $\alpha$ climbs $0.66\!\to\!0.91$, and no width clears both.
+The decoupled point sits \textbf{above} the frontier, $\theta\!\approx\!0.97$ and
+$\alpha\,0.90\text{ to }0.94$, at fewer params.
 \medskip
 
-\textbf{Conclusion.} Capacity is eliminated. The problem is how the code is
-allocated, not how big it is.
+\textbf{Conclusion.} Capacity eliminated. The effect is allocation, not budget.
 \end{column}
 \end{columns}
 \end{frame}
@@ -111,178 +138,176 @@ allocated, not how big it is.
 % ===========================================================================
 \section{Test 2, dynamics}
 
-\begin{frame}{Test 2, the good solution is visited, then abandoned}
+\begin{frame}{Test 2, the both-high solution is reached then left}
 \begin{columns}
-\begin{column}{0.56\textwidth}
+\begin{column}{0.55\textwidth}
 \includegraphics[width=\linewidth]{d2_trajectory.png}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.43\textwidth}
 \footnotesize
-\textbf{Design.} Checkpoint training and recover sharpness at each step, for the
-wide shared code, the separate code, and the narrow shared code (3 seeds).
+\textbf{Design.} Checkpoint training, recover $\alpha$ per epoch, for wide-shared,
+decoupled, narrow-shared. 3 seeds.
 \medskip
 
-\textbf{Result.} The wide shared code reaches high sharpness early (about epoch
-50, with score also high there), then \textbf{decays} with more training, from
-0.91 at epoch 50 to 0.79 by epoch 500. The separate code rises and \textbf{holds}.
+\textbf{Result.} Wide-shared $\alpha$ peaks at $0.906$ (epoch 50, with $\theta$
+also high) then \textbf{decays} to $0.787$ by epoch 500. Decoupled rises to
+$0.912$ and holds.
 \medskip
 
-\textbf{Conclusion.} Expressivity is eliminated. The good solution is reachable
-and is actually reached, then training leaves it. That is a dynamics effect, not a
-ceiling.
+\textbf{Conclusion.} Expressivity eliminated. The both-high optimum is reachable
+and reached, then training leaves it. A dynamics effect, not a ceiling.
 \end{column}
 \end{columns}
 \end{frame}
 
-\begin{frame}{Test 2, the mechanism, the code is captured}
+\begin{frame}{Test 2, mechanism, conditioning of the shared code}
 \begin{columns}
-\begin{column}{0.56\textwidth}
+\begin{column}{0.55\textwidth}
 \includegraphics[width=\linewidth]{d3_gradient_capture.png}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.43\textwidth}
 \footnotesize
-\textbf{Design.} Split the pull on the shared code into the ability pathway and
-the sharpness pathway, and track each over training (one instrumented run).
+\textbf{Design.} Split the gradient on the shared item embedding $e_q$ into the
+$\theta$ pathway and the $\alpha$ pathway, track over training (one instrumented
+run, sum-check exact).
 \medskip
 
-\textbf{Result.} The ability pathway's pull grows about \textbf{28 times} over
-training while the sharpness pathway's stays flat. The two are roughly
-perpendicular, so it is not a tug of war. The shared code's learning is lopsided,
-the ability direction is far steeper to descend than the sharpness direction, so
-it is resolved first and the slow sharpness direction last.
+\textbf{Result.} The $\theta$-pathway gradient grows $\sim$28$\times$ while the
+$\alpha$-pathway stays flat, with $\cos(g_\theta,g_\alpha)\approx 0$.
 \medskip
 
-\textbf{Conclusion.} The fast ability direction dominates the shared code as
-training proceeds, so the early good sharpness solution is left behind. This is
-the same lopsidedness that sets the size of the effect (next).
+\textbf{Conclusion.} Not a gradient tug of war. The mechanism is
+\textbf{Hessian conditioning}, the shared-code block's eigenvalue spread
+$\sim\kappa=I(\theta)/I(\alpha)$ (Hessian estimate $\approx 2.2$ at $K{=}4$). The fast $\theta$
+mode resolves first, the low-Fisher $\alpha$ mode last.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{Test 3, finite-sample signature}
+\section{Test 3, finite-sample}
 
-\begin{frame}{Test 3, more data does not fix it}
+\begin{frame}{Test 3, the advantage is rate-limited, not data-limited}
 \begin{columns}
-\begin{column}{0.56\textwidth}
+\begin{column}{0.55\textwidth}
 \includegraphics[width=\linewidth]{d5_finite_sample_Nsweep.png}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.43\textwidth}
 \footnotesize
-\textbf{Design.} Vary the number of learners at a fixed training budget, and
-measure the separate-code advantage on sharpness, across answer-level counts.
+\textbf{Design.} Vary the number of learners $N$ at a \textbf{fixed} 150-epoch
+budget, measure the decoupled advantage $\Delta_\alpha$, across $K$. 5 seeds.
 \medskip
 
-\textbf{Result.} The advantage does \textbf{not} shrink with more data. It holds
-or widens, from about $+0.03$ to $+0.23$ at two answer levels as learners grow
-from 100 to 1600, and it sits higher for richer scales.
+\textbf{Result.} $\Delta_\alpha$ does not shrink with $N$. It is flat to widening
+($K{=}2$, $+0.03\!\to\!+0.23$ over $N{=}100\text{ to }1600$), higher for larger
+$K$.
 \medskip
 
-\textbf{Conclusion.} This is the finite-sample signature. The effect is
-\textbf{rate-limited}, not data-limited. More learners under the same budget leave
-the slow sharpness mode further behind, while the separate code keeps up.
+\textbf{Conclusion.} The finite-sample signature. The effect is rate-limited, not
+data-limited, more data at a fixed budget leaves the stiff $\alpha$ mode further
+behind, decoupled keeps up. (At convergence it vanishes, see mechanism.)
 \end{column}
 \end{columns}
 \end{frame}
 
-\begin{frame}{Test 3, and it scales with the task}
+\begin{frame}{Test 3, the advantage scales with Fisher stiffness}
 \begin{columns}
-\begin{column}{0.56\textwidth}
+\begin{column}{0.55\textwidth}
 \includegraphics[width=\linewidth]{d4_stiffness_Ksweep.png}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.43\textwidth}
 \footnotesize
-\textbf{Design.} Sweep the number of answer levels, and compare the separate-code
-advantage to how lopsided the learning speeds are between the ability and
-sharpness directions (a quantity we can compute in closed form).
+\textbf{Design.} Sweep $K{=}2\text{ to }11$ (10 seeds), compare $\Delta_\alpha$ to
+the analytic stiffness $\kappa=I(\theta)/I(\alpha)$.
 \medskip
 
-\textbf{Result.} The advantage grows with answer levels and \textbf{tracks the
-lopsidedness} closely (rank agreement 0.89 across two to eleven levels). Richer
-grading scales make the learning more lopsided, and the separate code helps more.
+\textbf{Result.} $\Delta_\alpha$ tracks $\kappa$ closely,
+$\rho(\Delta_\alpha,\kappa)=0.89$ across $K$, and decoupled de-noises $\alpha$
+(seed std $0.005$ to $0.042$). Rise then saturate, decoupled ceilings $\approx
+0.95$.
 \medskip
 
-\textbf{Conclusion.} The size of the effect is governed by how unevenly the two
-numbers are learned, which the task sets.
+\textbf{Conclusion.} The size of the effect is governed by the Fisher stiffness,
+which the task ($K$) sets.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{A side question, ruled out}
+\section{A ruled-out hypothesis}
 
-\begin{frame}{A side question we tested and ruled out}
+\begin{frame}{The positivity map is not the lever}
 \begin{columns}
 \begin{column}{0.54\textwidth}
 \includegraphics[width=\linewidth]{s3_formula_distractor.png}
 \end{column}
 \begin{column}{0.44\textwidth}
 \footnotesize
-Sharpness must stay positive, so it is read through an always-positive formula. A
-natural guess was that one formula, the exponential, is what makes sharpness
-learnable, by rescaling the training updates.
+$\alpha$ is read through a positive map $g(\cdot)$. Hypothesis, the exponential
+map is geometrically special.
 \medskip
 
-\textbf{Tested fairly} (matched starting point, per-formula tuning), all smooth
-formulas tie, only crude ones lag. A \textbf{direct test} of the
-update-rescaling idea also came up empty.
+\textbf{Design.} Matched effective-$\alpha$ initialization, per-map learning-rate
+sweep, $K{=}2,4,8$. Plus a direct-$\alpha$ control with $\theta,\beta$ frozen,
+comparing $\alpha$-space update rules.
 \medskip
 
-\textbf{Conclusion.} The formula is not the lever, this hypothesis is ruled out.
-What matters is the representation, the separate code, exactly as Tests 1 to 3
-show.
+\textbf{Result.} exp does not beat the best smooth map ($\Delta\approx 0$); only
+non-smooth or non-monotone maps (raw, ReLU, square) lag. The direct control
+refutes the $\alpha^2$-preconditioner-only account.
+\medskip
+
+\textbf{Conclusion.} Positivity is necessary, the exponential is not special. The
+lever is the representation, not the map.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{Why}
+\section{Mechanism}
 
-\begin{frame}{Why, and why it is a rate effect}
-The tests share one mechanism, set out in the supporting analysis.
-\begin{itemize}\small
-\item Sharpness is the low-information number, the prediction's sensitivity to it
-is the learner-question gap times the answer uncertainty, so it vanishes when the
-gap is zero (a learner right at the question's level) and again far away.
-\item In a shared code, the high-information ability direction is learned fast and
-captures the code, so the low-information sharpness direction resolves last. The
-lag is set by how lopsided the two are, which grows with answer levels.
-\item This sets the \textbf{rate} of recovery, not the endpoint. With unlimited
-training the shared and separate codes reach the same place, so the separate code
-is a finite-budget speed and reliability gain, on the order of sharpness, not its
-size.
+\begin{frame}{What the theory pins}
+\begin{itemize}
+\item Discrimination is the low-Fisher parameter, $I(\alpha)=(\theta-\beta)^2 w$
+vanishes where responses concentrate, and the stiffness $\kappa=I(\theta)/
+I(\alpha)$ grows with $K$.
+\item Near an identifiable optimum, each direction's recovery rate is set by its
+Fisher information, so $\kappa$ sets how late $\alpha$ resolves. \textbf{Low
+Fisher sets the rate.}
+\item \textbf{Free-table invariant.} When item parameters form a free table that
+can reach $p=p^*$, every gradient pull is linear in the residual and all vanish
+together, so the population optimum is unbiased and \emph{decoupling-invariant}.
+\textbf{Low Fisher does not set the endpoint.}
 \end{itemize}
 \medskip
 
-So the effect is real and explained, and it is a finite-sample, rate-limited,
-representation phenomenon, not a property of the final optimum.
+So decoupling is a finite-budget convergence-rate and rank advantage, with no
+endpoint bias. Derivations in the supporting analysis.
 \end{frame}
 
 % ===========================================================================
-\section{Takeaway}
+\section{Conclusion}
 
-\begin{frame}{Takeaway}
-\begin{block}{One line}
-In finite samples, a shared representation is captured by the easy-to-learn number
-during training, so the hard one is recovered slowly. Giving the hard one its own
-code holds the good solution.
+\begin{frame}{Conclusion}
+\begin{block}{}
+Decoupling the discrimination representation in amortized neural IRT buys a
+Fisher-conditioning-governed convergence-rate advantage on discrimination rank
+recovery, growing with $K$, dominant at any practical training budget, with no
+endpoint cost.
 \end{block}
 \medskip
 \begin{itemize}\small
-\item Not capacity (allocation, at matched size), not expressivity (the good
-solution is reached then left), but learning dynamics (the code is captured, 28x).
-\item The fix is a finite-sample, rate-limited gain that grows with the task and
-does not wash out with more data. It recovers the order of sharpness, not its size.
-\item A wrong side hypothesis (the positive formula) was ruled out, it is the
-representation, not the formula.
+\item Not capacity (allocation at matched params), not expressivity (the both-high
+optimum is reached then left), but learning dynamics (the $\theta$ mode
+conditions the shared code, $\sim$28$\times$).
+\item It is a measurement-validity condition, recovered discrimination is
+otherwise a representation-allocation artifact of finite-budget training.
+\item The positivity map is ruled out as the lever.
 \end{itemize}
 \medskip
-\footnotesize \textbf{Why it matters.} If the recovered numbers are artifacts of
-how the representation is allocated and trained, a stable measurement scale is not
-guaranteed at a finite budget. Separating the representation is a validity
-condition for it.
-\textbf{Scope and next.} Simulated data, three to ten repeats. Next, the full
-per-number channel grid, the nominal-response head, and real learner data.
+\footnotesize \textbf{Scope.} Synthetic GPCM, LSTM (architecture-independent on a
+swap bench), 3 to 10 seeds. \textbf{Open.} Per-parameter channel grid
+($\theta$, thresholds), NRM-slope channel, GRM head, real-data stability.
 \end{frame}
 
 \end{document}
