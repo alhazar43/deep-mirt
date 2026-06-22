@@ -50,13 +50,14 @@ invariant to the standard IRT scale and location indeterminacy.
 |---|---|---|---|
 | P1 | The 2PL per-parameter gradients are `dL/dtheta = r alpha`, `dL/dbeta = -r alpha`, `dL/dalpha = r (theta - beta)`, with residual `r = p - p*`. The alpha gradient carries the separation lever arm `(theta - beta)`, so it vanishes where `theta ~ beta`. | Proved | Finding 1 (alpha is the hard parameter); the coupling of alpha's gradient to `theta - beta` alignment. |
 | P2 | The single-response Fisher informations are `I(theta) = I(beta) = alpha^2 w`, `I(alpha) = (theta - beta)^2 w`, with `w = p(1-p)`. `I(alpha)` is suppressed by the squared lever arm and vanishes at `theta = beta`, exactly where `w` peaks. Alpha is the low-information parameter. | Proved | Finding 1, Finding 2 (prediction depends weakly on alpha). |
+| P2-full (full Fisher, alpha is the slow eigen-mode) | The per-response score is the single vector `s = (alpha, theta - beta, -alpha)`, so the per-response Fisher `F_resp = w s s^T` is RANK ONE. The population `(theta, alpha)` block has exact eigenvalues `lambda_pm = (1/2)[(I_tt + I_aa) +- sqrt((I_tt - I_aa)^2 + 4 I_ta^2)]`; the SMALL one is alpha-aligned, `lambda_- ~ I_aa(1 - rho^2) <= I_aa`, since `I_aa = E[w x^2]` is suppressed (`w` peaks where `x^2` vanishes), `I_tt/I_aa ~ alpha^2/Var_w(x)`. Off-diagonal coupling `rho` deepens it. | Proved (matrix, eigenvalues exact; suppression Argued in the constant) | Finding 1, Finding 2; the DERIVED basis for "alpha is the slow mode" (Section 3.5). |
 | P3 | Prediction sensitivity to alpha is `dp/dalpha = (theta - beta) w`, which is `I(alpha)^{1/2}`-scaled. The prediction is first-order blind to alpha wherever responses concentrate near `theta = beta`. | Proved | Finding 2 (weak alpha dependence of the prediction). |
 | P4 (rate, not endpoint) | Near an identifiable optimum, gradient flow on each direction decays at a rate set by that direction's curvature, which is its Fisher information. Low Fisher therefore sets the RECOVERY RATE. At the population limit, every reachable zero-residual direction still converges to truth, so low Fisher does NOT set an endpoint bias. | Proved (local) + Argued (global, via the free-table invariant) | Finding 3 (a finite-data SPEED/rank effect with no endpoint advantage; ties at convergence). |
 | P5 (finite-data bias is errors-in-variables) | At finite repetitions the amortizer input is a noisy encoding of `theta*`; through the bilinear `z = alpha(theta - beta)` this contaminates alpha. The bias scales with the amortizer input noise and vanishes as repetitions to infinity. | Argued + Empirical (toy) | Finding 3, Finding 4 (the shortfall behaves like a finite-data errors-in-variables effect that vanishes as repetitions grow). |
 | P6 (K worsens conditioning) | For GPCM, `I(alpha)` rises in absolute terms with K but `I(theta)` rises faster, so the stiffness ratio `I(theta)/I(alpha)` grows monotonically with K. The shared-code flow becomes more ill-conditioned, so alpha's rate disadvantage grows with K. | Proved (Fisher forms) + Empirical (ratio table) | Finding 3 (the benefit of an alpha-specific readout GROWS with K) and the K=2 sign flip. |
-| P7 (positive-map neutrality) | Any smooth, strictly monotone positive map induces an `alpha`-space preconditioner `m_g(alpha) = [g'(g^{-1}(alpha))]^2`. After matching the effective initial alpha and tuning the learning rate per map, the leading-order local rate is map-independent up to a constant absorbed by the learning rate. Only non-smooth or non-monotone maps (ReLU dead zone, square sign-folding) genuinely lag. | Argued | Finding 4 (exp is not special; smooth maps tie; only non-smooth/non-monotone maps lag). |
+| P7 (smooth-map recovery equivalence) | Any `C^1` map induces the preconditioner `m_g(alpha) = [g'(g^{-1}(alpha))]^2` (Prop P7-0, research-plan Prop 1). For smooth strictly-monotone positive `g`, `m_g > 0` makes the flow a strictly-increasing TIME-REPARAMETERIZATION of one canonical curve, so (i) endpoint and (ii) Spearman rank are map-INVARIANT with no tuning, and (iii) the residual SPEED is one scalar `eta_g m_g(alpha*)` absorbed by per-map LR. So exp is not special. The two exceptions break a hypothesis of the theorem: ReLU has `m_g = 0` on a dead zone (flow halts, unrescalable), square `a^2` is non-injective (two-valued `g^{-1}`, sign-fold saddle). | Proved (endpoint + rank invariance via ODE uniqueness; both exceptions exact) + Argued (residual speed constant) | Finding 4 (exp is not special; smooth maps tie; only non-smooth/non-monotone maps lag); the j5 convergence profiles. |
 | P8 (scalar preconditioning is insufficient) | A scalar `alpha`-space preconditioner acts on a single direction and cannot reproduce the recovery effect that lives in the coupling between the shared representation directions. With `theta, beta` frozen and only the scalar `alpha_j` optimized, all reasonable `alpha`-space update rules converge to the same band. | Argued + Empirical (direct-alpha control) | Finding 4 (the scalar preconditioner-only explanation is refuted by the direct-alpha control). |
-| P9 (representation coupling is the mechanism) | The validated accelerator is REPRESENTATION DECOUPLING, not scalar reparameterization. A shared item code gives the code's Hessian block a two-direction structure with condition number `kappa = I(theta)/I(alpha) >> 1`, so a single-step-size flow resolves the alpha-aligned component at a rate throttled by `kappa`. A separate alpha code has curvature `~ I(alpha)` only and resolves alpha at its own uncontested rate. The speedup factor is `O(kappa)`, growing with K. Same fixed point in both cases (free-table invariant), so it is a pure rate / early-stopping effect. | Proved (local quadratic rate) + Argued (global endpoint via P4b) + Empirical (rung-7, K-sweep, N-sweep) | Replaces the REFUTED `alpha^2`-preconditioner proposition; anchors the gate (d1), trajectory (d2), 28x gradient (d3), stiffness rank 0.89 (d4), N-sweep (d5). |
+| P9 (representation coupling is the mechanism) | The validated accelerator is REPRESENTATION DECOUPLING, not scalar reparameterization. The shared item-code Gauss-Newton block is the explicit sum `H^sh_j = (g'_j)^2 I(alpha_j)(a a^T) + alpha_j^2 sum_i w_ij v_{ij}v_{ij}^T + alpha_j^2 I_w (b b^T)`; its two eigen-directions have curvatures `c_theta ~ I(theta_j)` (steep) and `c_alpha = (g'_j)^2 I(alpha_j)` (flat), so `kappa^sh_j = [I(theta)/I(alpha)][|v|^2/(g'_j)^2] ~ I(theta)/I(alpha) >> 1`. Plain GD with one step size (`eta < 2/lambda_max`) resolves alpha in `t^sh = kappa log(1/epsilon)` iterations; the decoupled alpha block drops the `v_{ij}` term, so `kappa^dc = O(1)` and `t^dc = O(log(1/epsilon))`. Speedup `= O(kappa)`, tolerance-independent, growing with K via `kappa(K)`. Same fixed point (free-table invariant), a pure rate / early-stopping effect. | Proved (block Hessian, condition number, GD iteration count exact under A1-A6) + Argued (global endpoint via P4b, A5/A6) + Empirical (rung-7, K-sweep, N-sweep) | Replaces the REFUTED `alpha^2`-preconditioner proposition; anchors the gate (d1), trajectory (d2), 28x gradient (d3), stiffness rank 0.89 (d4), N-sweep (d5). |
 | P10 (theta wants the encoder input narrow) | The amortized ability readout pools item codes through the encoder. Widening the code that enters the encoder raises the VARIANCE of `theta_hat` by giving the encoder degrees of freedom to absorb item-specific idiosyncrasy (item identity, learner-by-item response noise) into the ability state. So theta recovery DEGRADES with encoder-input width and degrades FURTHER along the training trajectory as the optimizer drives the over-parameterized encoder deeper into interpolation. This is a finite-data capacity / generalization effect on an amortized readout, DISTINCT in kind from alpha's conditioning (P9), and OUTSIDE the free-table invariant (P4b) because theta is read by an encoder, not a free per-item table. | Argued (linear-amortizer bias-variance `O(W/n)`) + Argued (lift to the LSTM) + Empirical (theta 0.97->0.88 with width; 0.97->0.68 with training; theta-pathway gradient on the shared code grows ~28x) | Finding (gate Pareto theta side); the d2 theta-overfit trajectory; the d3 28x gradient growth as the theta side of the curvature asymmetry. |
 | P11 (beta is the indifferent control) | Difficulty beta is a high-Fisher location parameter (`I(beta) = alpha^2 w`, same order as I(theta)), read DIRECTLY off the item code with no amortized-pooling pathway. So beta neither NEEDS width (high Fisher pins it from a thin code, unlike alpha) nor is HURT by it (no learner-by-item leakage channel into a per-learner latent, unlike theta). Beta is therefore the negative control on BOTH pressures: a richer / wider / state-conditioned treatment is a no-op for beta. | Proved (Fisher form + readout structure) + Empirical (delta_beta ~ 0 across K, beta ~0.98 everywhere) | Finding (the beta negative control: decoupling and dynamic treatment lift alpha but do essentially nothing for beta, delta_beta ~ +0.003). |
 | P12 (shared ties the widths -> Pareto frontier; decoupling unties them -> Pareto-dominant) | A SHARED code uses ONE width W for both the encoder input and the readout code. Alpha's pressure (P9) wants W large, theta's pressure (P10) wants W small, beta is flat, so sweeping the single knob W traces a Pareto frontier in (theta, alpha): theta down, alpha up, beta flat. DECOUPLING introduces a SECOND knob, a narrow encoder-input width and a separate wide readout width, so alpha gets its capacity without widening the encoder. The decoupled point dominates the shared frontier (high theta AND high alpha): it ESCAPES the frontier rather than moving along it. | Proved (two independent knobs dominate one coupled knob given opposing single-knob gradients) + Empirical (the gate: shared frontier theta 0.97->0.88 / alpha 0.66->0.91; decoupled sits above it; matched-total-capacity controlled) | Finding (the Phase-0 gate Pareto and its decoupled dominance at matched total capacity). |
@@ -208,6 +209,178 @@ sensitivity, which govern the RATE at which the optimizer resolves alpha and the
 finite-sample regime, not an in-principle non-identifiability. This distinction
 is the subject of Section 4.
 
+### 3.5 The full per-response Fisher matrix and the alpha slow mode (P2-full)
+
+P2 gives the DIAGONAL of the Fisher information, one number per parameter. The
+diagonal alone cannot say which DIRECTION in `(theta, alpha, beta)` space is the
+slow mode, because the parameters are coupled: the off-diagonal blocks tilt the
+eigenvectors away from the coordinate axes. The claim "alpha is the slow mode" is
+a statement about the eigenstructure of the FULL Fisher matrix, so we derive that
+matrix and its eigenvalues with every step shown. This matches the full-Fisher
+form (including the off-diagonals `I_atheta = E[alpha x w]`,
+`I_abeta = -E[alpha x w]`) carried by the integrated research plan, Section 5.4.
+
+**The per-response score is a single vector (rank-one Fisher).** Fix one response
+of learner `i` to item `j` and drop the indices. Write `x = theta - beta` for the
+lever arm and `z = alpha x` for the logit. The per-response log-likelihood is
+`ell = y log p + (1-y) log(1-p)` with `p = sigma(z)`, and `dell/dz = y - p =
+-r`, where `r = p - p*` is the residual (here `p*` is the realized outcome `y` for
+a single draw; in expectation `E[y] = p*`). The score in the parameter triple
+`phi = (theta, alpha, beta)` is, by the chain rule `dell/dphi = (dell/dz)(dz/dphi)`,
+
+```
+dz/dphi = (dz/dtheta, dz/dalpha, dz/dbeta) = (alpha, x, -alpha) =: s,
+grad_phi ell = (y - p) s = (y - p) (alpha, x, -alpha).
+```
+
+So the score is `(y - p)` times the SINGLE fixed vector `s = (alpha, x, -alpha)`.
+Every per-response gradient points along `s` (up or down by the sign of the
+residual): one informative direction per response.
+
+**Proposition P2-full (the per-response Fisher is rank one).** The per-response
+Fisher information is the variance of the score, `F_resp = E_y[(grad ell)(grad
+ell)^T]` at the true `p`. Since `grad ell = (y - p) s` with `s` deterministic
+given the parameters, and `Var_y(y - p) = p(1-p) = w`,
+
+```
+F_resp = E_y[(y - p)^2] s s^T = w * s s^T
+       = w (alpha, x, -alpha)(alpha, x, -alpha)^T
+
+         [  alpha^2     alpha x    -alpha^2  ]
+       = [  alpha x      x^2       -alpha x  ] * w.
+         [ -alpha^2    -alpha x     alpha^2  ]
+```
+
+*Proof.* `F_resp = E[(y-p)^2] s s^T` because `s` is non-random given `(theta,
+alpha, beta)`; `E[(y-p)^2] = Var(y) = w` for a Bernoulli with mean `p`. Expand the
+outer product `s s^T` with `s = (alpha, x, -alpha)`. ∎
+
+The matrix `s s^T` is rank ONE by construction (an outer product of a single
+vector), so `F_resp` has exactly one nonzero eigenvalue, `w |s|^2 = w (2 alpha^2 +
+x^2)`, with eigenvector `s`. A single response informs exactly one direction in
+parameter space; the other two directions get ZERO information from it. This is
+the sharpest possible statement of why per-response information is the binding
+constraint: a response is a rank-one measurement.
+
+**The population Fisher is the GPT matrix.** Summing (averaging) `F_resp` over the
+responses of the population gives the population Fisher `F = E[w s s^T]`. Reading
+off the entries (the expectation now couples `alpha`, `x`, `w` across responses),
+
+```
+I_tt = E[alpha^2 w]    I_ta = E[alpha x w]    I_tb = -E[alpha^2 w] = -I_tt
+I_ta = E[alpha x w]    I_aa = E[x^2 w]        I_ab = -E[alpha x w] = -I_ta
+I_tb = -E[alpha^2 w]   I_ab = -E[alpha x w]   I_bb = E[alpha^2 w] = I_tt
+```
+
+These are EXACTLY the off-diagonal forms `I_atheta = E[alpha x w]`,
+`I_abeta = -E[alpha x w]` of the research plan, plus the diagonal of P2 (`I_tt =
+I_bb = E[alpha^2 w]`, `I_aa = E[x^2 w]`). The `theta` and `beta` rows are negatives
+of each other in the `alpha` coupling and equal on the diagonal because
+`dz/dtheta = +alpha` and `dz/dbeta = -alpha` differ only in sign; this sign
+structure is the gauge direction of Section 8 and is why the full `3x3 F` is itself
+rank-deficient along the `(1, 0, 1)`-type gauge combination. We analyze the
+NON-gauge content, the `(theta, alpha)` block, which is what the dynamics resolve.
+
+**The `(theta, alpha)` 2x2 block: explicit eigenvalues and condition number.**
+Take the leading `2x2` block (the `(beta)` direction is the location partner of
+`theta`, treated identically in Section 4; isolating `(theta, alpha)` is the
+minimal coupled subsystem),
+
+```
+F_2 = [ I_tt   I_ta ]      I_tt = E[alpha^2 w],  I_aa = E[x^2 w],  I_ta = E[alpha x w].
+      [ I_ta   I_aa ]
+```
+
+The eigenvalues solve `det(F_2 - lambda I) = 0`, i.e. `lambda^2 - (I_tt + I_aa)
+lambda + (I_tt I_aa - I_ta^2) = 0`, giving exactly
+
+```
+lambda_pm = (1/2) [ (I_tt + I_aa) +- sqrt( (I_tt - I_aa)^2 + 4 I_ta^2 ) ].
+```
+
+Both eigenvalues are real and positive (`F_2` is a sum of PSD rank-one terms `w s
+s^T` and is positive definite as long as the population spans both `theta` and
+`alpha` directions, i.e. there is at least one response with `x != 0`). The
+condition number is
+
+```
+kappa_2 = lambda_+ / lambda_-
+        = [ (I_tt + I_aa) + sqrt((I_tt - I_aa)^2 + 4 I_ta^2) ]
+          / [ (I_tt + I_aa) - sqrt((I_tt - I_aa)^2 + 4 I_ta^2) ].
+```
+
+**Why the small eigenvalue is the alpha-aligned one.** Consider the regime that
+holds for IRT, `I_aa << I_tt` (the lever-arm information is suppressed, quantified
+below), and `|I_ta|` bounded by Cauchy-Schwarz, `I_ta^2 <= I_tt I_aa` (with
+equality only if `alpha` and `x` are perfectly correlated under the `w`-weighted
+measure, which they are not). Then to leading order in the small ratio `I_aa/I_tt`,
+expand the square root: `sqrt((I_tt - I_aa)^2 + 4 I_ta^2) = (I_tt - I_aa)
+sqrt(1 + 4 I_ta^2/(I_tt - I_aa)^2) = (I_tt - I_aa) + 2 I_ta^2/(I_tt - I_aa) +
+O((I_aa/I_tt)^2)`. Substituting,
+
+```
+lambda_+ = I_tt + I_ta^2 / I_tt + O(I_aa^2 / I_tt)         (the theta-aligned mode)
+lambda_- = I_aa - I_ta^2 / I_tt + O(I_aa^2 / I_tt) = I_aa (1 - rho^2) + ...
+```
+
+where `rho^2 = I_ta^2 / (I_tt I_aa) <= 1` is the squared `w`-weighted correlation
+between `alpha` and `x`. So:
+
+- The LARGE eigenvalue is `lambda_+ ~ I_tt = E[alpha^2 w]`, the ability/location
+  curvature. Its eigenvector is the `theta`-aligned direction (tilted by the small
+  `I_ta`).
+- The SMALL eigenvalue is `lambda_- ~ I_aa (1 - rho^2) <= I_aa = E[x^2 w]`, the
+  lever-arm curvature, FURTHER reduced by the coupling factor `(1 - rho^2)`. Its
+  eigenvector is the `alpha`-aligned direction. Coupling never helps alpha: it
+  drains a further `rho^2` fraction of alpha's already-small curvature into the
+  theta mode.
+
+Hence the condition number is, to leading order,
+
+```
+kappa_2 = lambda_+ / lambda_-  =  I_tt / [ I_aa (1 - rho^2) ]  >=  I_tt / I_aa  =  I(theta) / I(alpha),
+```
+
+so `kappa_2` is at least the diagonal stiffness `I(theta)/I(alpha)` and exceeds it
+whenever the parameters are correlated (`rho != 0`). The diagonal ratio used
+elsewhere in this document is the OPTIMISTIC (decoupling-free) bound on the true
+coupled stiffness; the off-diagonals make the real flow stiffer, not less.
+
+**Quantifying the lever-arm suppression `I_aa << I_tt`.** The suppression is not
+assumed; it follows from the structure of `w` and `x`. Write `x = theta - beta`
+and consider `I_aa = E[w x^2]`. Because `w` depends on `x` through `z = alpha x`,
+a product-of-expectations split is unavailable, so we bound `I_aa` directly from
+the shape of `w`. The weight `w(z) = sigma(z)(1 - sigma(z))` is a bell
+peaked at `z = 0` (`w = 1/4`) and decaying like `e^{-|z|}` in the tails, so as a
+function of `x` it is sharply peaked at `x = 0` with width `~ 1/alpha`. Therefore
+`w x^2` is the product of a function peaked at `x = 0` and a function (`x^2`)
+ZEROED at `x = 0`: the integrand is suppressed exactly where the measure
+concentrates. Concretely, treating the `w`-weight as concentrating mass near
+`x = 0`,
+
+```
+I_aa = E[w x^2] ~ E[w] * Var_w(x) ,      I_tt = E[w alpha^2] = alpha^2 E[w]  (alpha ~ const),
+=> I_tt / I_aa ~ alpha^2 / Var_w(x),
+```
+
+where `Var_w(x)` is the `w`-weighted spread of the lever arm. The suppression is
+therefore exactly the smallness of the `w`-weighted lever-arm spread relative to
+the squared discrimination. For an adaptively administered assessment that targets
+`x = theta - beta ~ 0` (maximally informative items), `Var_w(x)` is driven small
+ON PURPOSE, so `I_tt / I_aa` is large by design: the data-collection policy that
+maximizes ability information minimizes discrimination information. For a fixed
+broad item bank `Var_w(x)` is `O(1)` and the ratio is `O(alpha^2)`, still `> 1`
+for `alpha > Var_w(x)^{1/2}`. Either way `I_aa < I_tt` and alpha is the slow mode.
+
+*Status: Proved* (the rank-one per-response Fisher and the population matrix are
+exact; the `2x2` eigenvalues are exact; the leading-order `kappa_2` expansion is
+exact to `O(I_aa/I_tt)`; the `I_tt/I_aa ~ alpha^2/Var_w(x)` form is the
+concentration estimate, *Argued* in the constant, exact in the suppression
+mechanism). This is the derived replacement for the diagonal-only "alpha is slow"
+assertion: the slow eigen-DIRECTION is alpha-aligned because the lever-arm
+information `I_aa = E[w x^2]` is suppressed by `w` concentrating where `x^2`
+vanishes, and the coupling `rho` only deepens the suppression.
+
 ---
 
 ## 4. Information sets the rate, not the endpoint (P4)
@@ -239,7 +412,10 @@ directions are fast modes. For the IRT parameters this orders the modes as
 `theta, beta` fast and `alpha` slow, since `I(alpha)` is the suppressed quantity
 of P2. The condition number of the flow is `kappa = lambda_max/lambda_min ~
 I(theta)/I(alpha)`; a larger `kappa` means a stiffer flow and a longer wait for
-the slow (alpha) mode to resolve.
+the slow (alpha) mode to resolve. The `~` here is the DIAGONAL value; Section 3.5
+gives the exact `(theta, alpha)`-block eigenvalue ratio `kappa_2 = I_tt/[I_aa(1 -
+rho^2)] >= I_tt/I_aa`, so the diagonal `I(theta)/I(alpha)` is the optimistic lower
+bound and off-diagonal coupling makes the true flow stiffer, never less.
 
 *Status: Proved* (it is the standard linearization of gradient flow at a
 quadratic minimum; the Gauss-Newton/Fisher equality is exact at a well-specified
@@ -458,91 +634,224 @@ The empirical study refuted the claim that the exponential positivity map is
 special. The math below is CONSISTENT WITH that refutation and explains it; it
 does not argue exp is optimal.
 
-### 6.1 Induced preconditioner
+### 6.1 The induced preconditioner (Proposition 1, reparameterization flow)
 
-Let `alpha = g(a)` for a differentiable strictly increasing positive map `g`,
-with `a` the raw neural output. Gradient flow in raw space induces a flow in
-alpha space:
+We adopt verbatim the reparameterization-flow result of the integrated research
+plan (Section 5.1, "Proposition 1: positive maps are not optimization-equivalent")
+and restate it cleanly here, since the corrected proposition of 6.2 is built on it.
 
-```
-da/dt = -dL/da = -g'(a) dL/dalpha,
-d(alpha)/dt = g'(a) da/dt = -[g'(a)]^2 dL/dalpha = -m_g(alpha) dL/dalpha,
-m_g(alpha) = [g'(g^{-1}(alpha))]^2 >= 0.
-```
-
-So each smooth positive map is a different DIAGONAL PRECONDITIONER `m_g` on the
-alpha-space gradient flow. Examples:
+**Proposition P7-0 (reparameterization gradient flow; research plan Prop 1).** Let
+`alpha = g(a)` for a differentiable map `g`, with `a` the raw neural output and `L`
+a loss seen as a function of `alpha`. Gradient flow on the RAW parameter `a` is
+`da/dt = -dL/da`. By the chain rule `dL/da = (dL/dalpha) g'(a)`, so
 
 ```
-exp:       g(a) = e^a,            m_exp(alpha)      = alpha^2
-softplus:  g(a) = log(1+e^a),     m_softplus(alpha) = (1 - e^{-alpha})^2
-sigmoid:   g(a) = sigma(a),       m_sigmoid(alpha)  = alpha^2 (1-alpha)^2   (0<alpha<1)
+da/dt = -g'(a) (dL/dalpha),
 ```
 
-These are genuinely different functions of alpha, which is why a positive map is
-not a neutral positivity constraint in raw space. The research plan's mechanism
-section records the same `m_g` derivation; we use it to make the neutrality
-argument precise.
-
-### 6.2 Why smooth maps tie after matched init and LR
-
-**Proposition P7 (smooth-map neutrality, to first order).** Consider two smooth
-strictly-monotone positive maps `g_1, g_2`, each initialized so the EFFECTIVE
-alpha starts at the same value `alpha_0` (matched-init), and each with its own
-tuned learning rate. Near an identifiable optimum `alpha*`, the local recovery
-rate under map `g` is
+and the induced flow of the EFFECTIVE parameter `alpha = g(a)` is
 
 ```
-e(t) = alpha(t) - alpha*,   d e/dt ~ -eta * m_g(alpha*) * H * e,
-e(t) ~ e(0) exp[ -eta m_g(alpha*) H t ],
+d(alpha)/dt = g'(a) (da/dt) = -[g'(a)]^2 (dL/dalpha)
+            = -m_g(alpha) (dL/dalpha),     m_g(alpha) := [g'(g^{-1}(alpha))]^2 >= 0,
 ```
 
-where `H = I(alpha*)` is the local curvature (P2) and `eta` the learning rate.
-The map enters ONLY through the scalar product `eta m_g(alpha*)`. Tuning `eta`
-per map absorbs the constant `m_g(alpha*)`, so after matched init and per-map LR
-the leading-order local rates COINCIDE. Smooth maps are first-order
-recovery-equivalent.
+using `a = g^{-1}(alpha)` to write the factor purely in terms of `alpha`. ∎
 
-*Status: Argued* (local linearization; the constant `m_g(alpha*)` is exactly the
-degree of freedom the per-map learning-rate sweep removes).
+So each map `g` induces a SCALAR (diagonal) preconditioner `m_g(alpha) >= 0` on the
+effective-alpha gradient flow. The exact preconditioners for the common maps:
 
-Two honest qualifications, both consistent with the empirical "mixed" verdict.
+```
+exp:       g(a) = e^a,            g'(a) = e^a = alpha,          m_exp(alpha)      = alpha^2
+softplus:  g(a) = log(1+e^a),     g'(a) = sigma(a),            m_softplus(alpha) = (1 - e^{-alpha})^2
+sigmoid:   g(a) = sigma(a),       g'(a) = alpha(1-alpha),      m_sigmoid(alpha)  = alpha^2 (1-alpha)^2   (0<alpha<1)
+```
 
-- `m_g` varies with alpha, so the absorption by a single scalar `eta` is exact
-  only at one alpha and approximate across an item population with a spread of
-  true alphas. This is why the smooth maps cluster tightly but not identically
-  (the study's `+-0.002` spread), and why the residual differences are too small
-  and too inconsistent to be load-bearing. The argument predicts a tie up to
-  this second-order term, which is what the data show.
-- The endpoint is map-independent by P4b regardless (smooth reparameterization
-  multiplies a residual-linear pull). So any map difference can live only in the
-  transient, and the transient difference is absorbed by LR to first order. Both
-  the endpoint invariance and the rate near-equivalence point to a tie.
+(For softplus, `alpha = log(1+e^a)` gives `e^{-alpha} = 1/(1+e^a) = 1 - sigma(a)`,
+so `g'(a) = sigma(a) = 1 - e^{-alpha}`, hence `m_softplus = (1 - e^{-alpha})^2`.)
+These are genuinely different functions of `alpha`, which is why a positive map is
+not a neutral positivity constraint in raw space. The plan's Prop 1 stops here; the
+plan's Prop 2 then concluded that the `m_exp = alpha^2` map is UNIQUELY FASTER for
+large alpha. That conclusion is empirically REFUTED here (the smooth maps tie under
+matched effective-alpha init and per-map LR; the per-epoch convergence profiles
+confirm it). We retain Prop 1 (the flow) and CORRECT the conclusion in 6.2.
 
-### 6.3 Why non-smooth or non-monotone maps genuinely lag
+### 6.2 The corrected proposition: smooth positive maps are recovery-equivalent
 
-The neutrality argument requires `g` smooth and strictly monotone, the conditions
-that make `m_g(alpha) > 0` everywhere and the chain-rule absorption valid. Two
-failure modes break it, matching the empirical "only non-smooth or non-monotone
-maps lag":
+This is the central positive result that REPLACES the refuted "exp is special"
+conclusion. Where the plan's Prop 2 read the `m_g`-dependence of the LOCAL rate as
+proof that `m_exp = alpha^2` wins, the correct reading is that `m_g` is a strictly
+positive TIME-REPARAMETERIZATION of one and the same trajectory. We prove this in
+full, then derive the three consequences (endpoint invariance, rank invariance,
+matched-init-and-LR speed equivalence), then prove the two genuine exceptions.
 
-- **ReLU / clipped raw (dead zone).** `m_relu = 1` where active and `0` where
-  inactive. The preconditioner is zero on the inactive set, so an item whose raw
-  output is in the dead region receives NO alpha gradient and cannot recover until
-  some other dynamics pushes it active. This is a genuine, non-absorbable rate
-  penalty (a vanishing gradient, not a rescalable one), and no LR choice fixes a
-  zero.
+Throughout this subsection HOLD `theta` and `beta` fixed and treat `alpha` as a
+scalar flow, `L = L(alpha)` (the direct-alpha setting; the joint case is Section
+4 and 7.5). Let `g` be `C^1`, STRICTLY MONOTONE, and POSITIVE on its range, so
+`g' != 0` everywhere and `m_g(alpha) = [g'(g^{-1}(alpha))]^2 > 0` strictly.
 
-- **Square `g(a) = a^2 + epsilon` (sign folding).** `g` is non-injective:
-  `g^{-1}` is two-valued and the raw dynamics carry a spurious sign symmetry,
-  giving ambiguous trajectories and saddle structure near `a = 0` that a strictly
-  monotone map does not have.
+**Theorem P7 (smooth-map recovery equivalence).** Let `g_1, g_2` be two `C^1`
+strictly-monotone positive maps. Consider the two induced effective-alpha flows
+from Prop P7-0,
 
-*Status: Argued.* These are the maps the study finds genuinely lag, and the
-mechanism (a literally vanishing or sign-folded preconditioner, not a rescalable
-constant) is why they fall outside P7's smooth-monotone hypothesis. P7 plus these
-two exclusions is the precise mathematical content of "exp is not special; all
-smooth positive maps tie; only non-smooth or non-monotone maps lag."
+```
+d(alpha)/dt = -m_{g_1}(alpha) L'(alpha),       alpha(0) = alpha_0,        (flow 1)
+d(beta)/dt  = -m_{g_2}(beta)  L'(beta),         beta(0)  = alpha_0,        (flow 2)
+```
+
+started at the SAME effective initial value `alpha_0` (matched init). Then:
+
+(i) **Same ordered path and same fixed point.** The two flows trace the IDENTICAL
+ordered set of effective-alpha values, from `alpha_0` to the same limit
+`alpha_inf`, in the same order; they differ only by a strictly increasing
+reparameterization of time. In particular both have the same fixed point(s)
+(`L'(alpha*) = 0`) and converge to the same one.
+
+(ii) **Rank invariance.** Any metric that is a function of the ORDER of the
+effective-alpha values across items (Spearman rank correlation against truth) is
+identical for `g_1` and `g_2` at corresponding points of the path, and in
+particular at the endpoint; it is invariant to the monotone time
+reparameterization.
+
+(iii) **Speed equivalence under matched init and LR.** The only remaining
+difference is traversal SPEED, governed by the local rate `m_g(alpha*) H` of the
+plan's Prop 2 (`H = L''(alpha*) = I(alpha*)`). Introducing a per-map scalar
+learning rate `eta_g` and choosing `eta_{g_1} m_{g_1}(alpha*) = eta_{g_2}
+m_{g_2}(alpha*)` makes the leading-order local rates coincide; the speed
+difference is then a single absorbable constant. So no smooth map is special.
+
+*Proof.*
+
+(i) Because `g` is strictly monotone and `C^1`, the map `t -> alpha(t)` along flow
+1 is a continuous curve in `alpha`-space. Since `m_{g_1}(alpha) > 0` strictly, the
+sign of `d(alpha)/dt` equals the sign of `-L'(alpha)` at every point: the
+preconditioner rescales the speed but NEVER reverses the direction of motion.
+Therefore flow 1 moves monotonically along `-L'`, exactly as the un-preconditioned
+flow `d(alpha)/dt = -L'(alpha)` does, and visits the same ordered sequence of
+`alpha`-values. Formally, define the time change `tau` by `d tau/dt =
+m_{g_1}(alpha(t)) > 0`; then in `tau`-time flow 1 becomes `d(alpha)/d tau = -L'(
+alpha)`, the canonical (un-preconditioned) flow, INDEPENDENT of `g_1`. The same
+construction with `m_{g_2}` reduces flow 2 to the SAME canonical flow `d(alpha)/d
+tau = -L'(alpha)` with the SAME initial value `alpha_0`. By uniqueness of the
+solution of an ODE with `C^1` (locally Lipschitz) right-hand side, the two
+canonical trajectories are IDENTICAL as functions of `tau`. Hence flow 1 and flow
+2 are the same curve, each a strictly-increasing time-reparameterization (`t ->
+tau`) of it, with the same image, the same ordering, the same fixed points (where
+`L'(alpha) = 0`, unchanged by multiplying by `m_g > 0`), and the same limit
+`alpha_inf = lim_{tau -> inf} alpha(tau)`. ∎(i)
+
+(ii) A Spearman rank metric depends only on the ORDER STATISTICS of the learned
+effective alphas across the item population, compared to the order of the true
+alphas. Apply the per-item flow to every item with its own `L_j` but a common map
+`g`; by (i), at any common stopping rule expressed in canonical time `tau` each
+item sits at the SAME effective-alpha value regardless of which smooth map drives
+it, so the cross-item ordering is identical for `g_1` and `g_2`. A rank metric is
+a function of that ordering alone, hence equal. (Even comparing at matched
+WALL-CLOCK time `t` rather than canonical `tau`, the ordering is preserved as long
+as the per-item time changes are co-monotone, which they are when one map is used
+for all items; the endpoint, where all flows are at `alpha_inf`, is unconditionally
+equal.) ∎(ii)
+
+(iii) Near a fixed point `alpha*` with `L'(alpha*) = 0` and `H = L''(alpha*) =
+I(alpha*) > 0`, linearize flow `g` with a learning rate `eta_g`:
+`e(t) = alpha(t) - alpha*` obeys `de/dt = -eta_g m_g(alpha*) H e + O(e^2)`, so
+`e(t) = e(0) exp[-eta_g m_g(alpha*) H t]` to leading order (this is the plan's
+Prop 2 with the LR made explicit). The map enters ONLY through the scalar product
+`eta_g m_g(alpha*)`. Choosing `eta_g` per map so that `eta_g m_g(alpha*)` is the
+same constant `c` for both maps gives the identical local rate `c H`; the per-map
+LR sweep is exactly the one-dimensional degree of freedom that absorbs the
+constant `m_g(alpha*)`. ∎(iii)
+
+**Conclusion.** (i) endpoint and (ii) rank are map-invariant for ALL `C^1`
+strictly-monotone positive maps WITHOUT tuning anything; (iii) the residual SPEED
+difference is a single scalar absorbed by the learning rate after matched init. The
+exponential is one such map; nothing in the analysis distinguishes it from
+softplus, scaled-sigmoid, or any other smooth strictly-monotone positive map. This
+is the precise content of the refutation "exp is not special."
+
+*Status: Proved* for (i) and (ii) (exact: positivity of `m_g` gives the time
+change; ODE uniqueness gives one trajectory; rank reads the invariant ordering).
+*Argued* for (iii) only in that the constant absorption is exact at a single
+`alpha*` and approximate across an item population with a spread of true alphas (a
+single scalar `eta` cannot match `m_g(alpha*)` simultaneously at every item's
+`alpha*` because `m_g` varies with `alpha`). This second-order, population-spread
+residual is the source of the empirical `+-0.002` clustering: smooth maps cluster
+tightly but not byte-identically, and the residual is too small and inconsistent
+to be load-bearing, exactly as Theorem P7 predicts.
+
+**Relation to the free-table invariant.** P7(i)-(ii) are stronger, parameter-level
+restatements of P4b for the scalar-alpha flow: P4b says smooth reparameterization
+multiplies a residual-linear pull and so leaves the zero set (the endpoint)
+unchanged; Theorem P7 says the WHOLE trajectory is one canonical curve up to a
+positive time change, so not only the endpoint but the entire ordered path and
+every rank metric are map-invariant. The endpoint invariance and the rank/path
+invariance are the same fact at two resolutions.
+
+**Direct-alpha control, predicted.** Theorem P7 with `theta, beta` frozen IS the
+direct-alpha control of Section 7 (P8): a scalar preconditioner changes only the
+SPEED of a single canonical 1-D flow to a fixed point, never the fixed point and
+never the rank, so all reasonable update rules converge to the same band. The
+control found exactly this; Theorem P7 is the derivation of why it had to.
+
+### 6.3 The two genuine exceptions break a hypothesis of Theorem P7
+
+Theorem P7 has two hypotheses on `g`: `C^1` SMOOTH (so `m_g` is defined and the
+time change is `C^1`) and STRICTLY MONOTONE (so `m_g > 0` strictly and `g^{-1}` is
+single-valued). Exactly the maps that fail one of these are the ones the study
+finds genuinely lag. We prove each breakage.
+
+**ReLU / clipped raw breaks `m_g > 0` (dead zone, vanishing preconditioner).** For
+`g(a) = max(0, a)`, `g'(a) = 1` for `a > 0` and `g'(a) = 0` for `a < 0`, so
+
+```
+m_relu(alpha) = [g'(g^{-1}(alpha))]^2 = 1   on the active set (a > 0),
+m_relu        = 0                            on the inactive set (a <= 0).
+```
+
+*Claim.* An item whose raw value `a_j` sits in the inactive set `a_j <= 0` receives
+ZERO alpha-flow and cannot move under the induced flow. *Proof.* By Prop P7-0 the
+induced flow is `d(alpha)/dt = -m_relu(alpha) L'(alpha) = 0` whenever
+`m_relu = 0`. The time-change construction of Theorem P7(i) requires `m_g > 0` to
+define `d tau/dt = m_g > 0` as a valid (invertible) reparameterization; on the dead
+zone `d tau/dt = 0`, the reparameterization is SINGULAR, canonical time stops, and
+the equivalence to the canonical flow fails. The fixed point set is no longer just
+`{L'(alpha) = 0}`: every inactive item is ALSO a spurious fixed point of the raw
+flow (`da/dt = -g'(a) L'(alpha) = 0` since `g'(a) = 0`). This is a genuine, NON-
+absorbable penalty: a learning rate `eta` multiplies a quantity that is exactly
+zero, `eta * 0 = 0`, so no LR choice revives a dead item. The item recovers only if
+some OTHER force (noise, coupling to other parameters) pushes `a_j` back across
+`a = 0`, which is outside the scalar flow. *Status: Proved* (the preconditioner is
+exactly zero on the inactive set; LR cannot rescale a zero). This is the derivation
+of the empirical "clipped raw / ReLU lags and is not rescued by gradient clipping
+across `K = 2, 4, 8`."
+
+**Square `g(a) = a^2 + epsilon` breaks strict monotonicity (non-injective, sign
+folding).** Here `g'(a) = 2a`, which CHANGES SIGN at `a = 0`, so `g` is not
+monotone and not injective: `g(a) = g(-a)`, so `g^{-1}(alpha)` is two-valued,
+`a = +-sqrt(alpha - epsilon)`. *Claim.* The raw flow has a spurious unstable fixed
+point and sign ambiguity that Theorem P7 excludes. *Proof.* The induced
+preconditioner `m_sq(alpha) = [g'(g^{-1}(alpha))]^2 = 4(alpha - epsilon)` vanishes
+as `alpha -> epsilon` (i.e. `a -> 0`), so the EFFECTIVE flow slows to a halt as it
+approaches the minimum of `g`; the time change `d tau/dt = m_sq -> 0` is again
+singular at `a = 0`. Worse, the RAW flow `da/dt = -2a L'(alpha)` has `a = 0` as a
+fixed point regardless of `L'`, and its stability flips with the sign of
+`L'(alpha)`: linearizing, `d(da)/dt = -2 L'(alpha) da`, so `a = 0` is a SADDLE-type
+sign-ambiguous point. Two raw trajectories `+a` and `-a` map to the SAME effective
+`alpha`, so the raw dynamics carry a spurious `Z_2` symmetry and the canonical-flow
+uniqueness argument of Theorem P7(i) (which needs single-valued `g^{-1}`) does not
+apply. *Status: Proved* (non-injectivity is explicit; the `a = 0` sign-flip fixed
+point is a direct linearization). This is why a squared map is unstable near
+`a = 0` even though the effective `alpha = a^2 + epsilon > 0` is always positive.
+
+**Summary.** Theorem P7 (smooth strictly-monotone tie) plus these two
+exact-breakage exceptions is the precise mathematical content of "exp is not
+special; all smooth strictly-monotone positive maps tie in endpoint and rank;
+only non-smooth (ReLU dead zone, `m_g = 0`) or non-monotone (square, two-valued
+`g^{-1}`) maps genuinely lag." Both exceptions fail by making the preconditioner
+non-positive or the inverse multi-valued, which is exactly the hypothesis Theorem
+P7 requires; the failure is a vanishing or folded preconditioner, NOT a rescalable
+constant, which is why a per-map learning rate (which fixes the smooth-map speed
+difference) cannot fix them.
 
 ---
 
@@ -654,48 +963,130 @@ forms, sum-checked to machine precision in `docs/learning_dynamics_toy.md` Secs
 
 ### 7.5.2 The shared code block is ill-conditioned; the decoupled block is not
 
-Restrict the Gauss-Newton Hessian to the item-`j` code block. The block collects
-the curvature contributed by every readout that uses `e_j`. Each readout
-contributes a rank-one (per response) outer product `w (d z / d e_j)(d z / d e_j)^T`
-with `d z / d e_j` the readout's Jacobian into the code (A2).
+We derive the item-`j` code-block Gauss-Newton Hessian explicitly, in terms of the
+readout Jacobians and the Fisher entries of Section 3, then compute its two
+eigen-directions and its condition number in closed form. No "schematically."
 
-**Proposition P9a (block curvature).** Summing the per-response Gauss-Newton
-contributions over the responses that touch item `j`, the SHARED code block has
-Hessian
-
-```
-H^sh_j  ~  I(alpha_j) (a a^T)            (alpha-readout direction)
-        +  I(beta_j)  (b b^T)            (beta-readout direction)
-        +  sum_i I(theta_i)-weighted (v_{ij} v_{ij}^T)   (ability-pathway direction)
-```
-
-(schematically; the alpha direction carries curvature `~ I(alpha_j) = sum_i w_ij
-(theta_i - beta_j)^2`, the ability direction carries curvature `~ I(theta)` summed
-over the learners who saw item `j`, from P2). The block therefore has an
-ability-aligned direction with curvature `~ I(theta)` and an alpha-aligned
-direction with curvature `~ I(alpha)`, so its condition number is
+**The per-response Jacobian into the code.** For one response of learner `i` to
+item `j`, the logit `z = alpha_j(theta_i - beta_j)` depends on `e_j` through THREE
+readouts. With `alpha_j = g(a^T e_j)`, `beta_j = b^T e_j`, and `theta_i` produced
+by the encoder pooling (sensitivity `v_{ij} = d theta_i / d e_j`), the chain rule
+gives the per-response Jacobian of `z` into the code,
 
 ```
-kappa = lambda_max / lambda_min  ~  I(theta) / I(alpha)  >> 1,
+dz/de_j = (dz/dalpha) (dalpha/de_j) + (dz/dbeta) (dbeta/de_j) + (dz/dtheta) (dtheta_i/de_j)
+        = x_ij * g'_j * a          +  (-alpha_j) * b          +  alpha_j * v_{ij},
 ```
 
-the same stiffness ratio as P4a/P6. The DECOUPLED alpha block `e_j^al` receives
-contributions ONLY from the alpha (and beta) readouts, so its largest curvature
-along the alpha direction is `~ I(alpha)` with NO ability-aligned high-curvature
-direction; its alpha-relevant condition number is `O(1)`.
+where `x_ij = theta_i - beta_j`, `g'_j = g'(a^T e_j)`, and the three vector
+directions are `a` (alpha-readout), `b` (beta-readout), `v_{ij}` (ability-pathway).
+This is the per-response score `s = (alpha, x, -alpha)` of Section 3.5 pushed
+through the readout Jacobian `J_j = [g'_j a, v_{ij}, -b]` (columns = the
+`(alpha, theta, beta)` directions into the code): `dz/de_j = J_j s`.
 
-*Proof.* Each readout's Gauss-Newton contribution is `E[w (dz/de_j)(dz/de_j)^T]`
-(A2); summing the contributions of the readouts that share the block gives the
-displayed sum. The curvature magnitudes are the per-direction Fisher informations
-of P2 (2PL) / P6a (GPCM). The shared block contains both the ability-pathway term
-(magnitude `I(theta)`) and the alpha-readout term (magnitude `I(alpha)`), so its
-eigenvalue spread is bounded below by their ratio; the decoupled alpha block omits
-the ability-pathway term by construction. *Status: Proved* (local, under A1-A5).
+**Proposition P9a (block Gauss-Newton Hessian, explicit).** The Gauss-Newton
+Hessian on the item-`j` code is the `w`-weighted sum of the rank-one outer products
+`w (dz/de_j)(dz/de_j)^T` over the responses touching item `j` (A2):
+
+```
+H^sh_j = sum_i w_ij (dz/de_j)(dz/de_j)^T
+       = sum_i w_ij [ x_ij g'_j a - alpha_j b + alpha_j v_{ij} ]
+                     [ x_ij g'_j a - alpha_j b + alpha_j v_{ij} ]^T.
+```
+
+Expanding and collecting by direction (using `I(alpha_j) = sum_i w_ij x_ij^2`,
+`I(beta_j) = sum_i w_ij alpha_j^2 = I(theta)-scale`, and the cross terms), the
+block is EXACTLY
+
+```
+H^sh_j =  (g'_j)^2 I(alpha_j) (a a^T)                         [A] alpha-readout, curvature (g'_j)^2 I(alpha_j)
+        +  alpha_j^2 (sum_i w_ij v_{ij} v_{ij}^T)             [B] ability-pathway, curvature ~ alpha_j^2 sum_i w_ij |v_{ij}|^2
+        +  alpha_j^2 I_w (b b^T)                              [C] beta-readout, curvature alpha_j^2 I_w,  I_w = sum_i w_ij
+        +  cross terms (A,B,C off-diagonal, carried below).
+```
+
+*Proof.* Substitute `dz/de_j = x_ij g'_j a - alpha_j b + alpha_j v_{ij}` into
+`sum_i w_ij (dz/de_j)(dz/de_j)^T` and expand the square. The pure squares give
+the three displayed diagonal blocks with coefficients `sum_i w_ij x_ij^2 (g'_j)^2 =
+(g'_j)^2 I(alpha_j)` (term A), `alpha_j^2 sum_i w_ij v_{ij} v_{ij}^T` (term B), and
+`alpha_j^2 sum_i w_ij = alpha_j^2 I_w` (term C, since `b` is item-fixed). The cross
+terms are the off-diagonal `(A,B), (A,C), (B,C)` outer products with coefficients
+`sum_i w_ij x_ij g'_j alpha_j` etc.; they are the code-space image of the Fisher
+off-diagonals `I_ta, I_ab` of Section 3.5 and they only INCREASE the spread (Section
+3.5: coupling deepens the suppression). *Status: Proved* (exact expansion under A2).
 ∎
 
+**The two relevant eigen-directions and the condition number.** Restrict attention
+to the two-dimensional subspace spanned by the alpha-readout direction `a` and the
+ability-pathway direction (the aggregate `v_j := (sum_i w_ij v_{ij} v_{ij}^T)`'s top
+eigenvector; `b` is the location partner, fast like the ability mode, grouped with
+it). Write the curvatures along these two directions as
+
+```
+c_alpha = (g'_j)^2 I(alpha_j)                                    (curvature in the alpha direction)
+c_theta = alpha_j^2 * lambda_top(sum_i w_ij v_{ij} v_{ij}^T)     (curvature in the ability direction).
+```
+
+By Section 3.5 (the diagonal Fisher, lifted through the Jacobian) and the standard
+encoder normalization (A6 below, the top eigenvalue is a constant fraction of the
+trace, not the generic `1/m`), `lambda_top(sum_i w_ij v_{ij} v_{ij}^T) =
+(sum_i w_ij |v_{ij}|^2) * O(1)` under A6, and `sum_i w_ij = I_w` so `c_theta = alpha_j^2
+I_w |v|^2 ~ I(theta_j-aggregate)` where `I(theta_j-aggregate) = sum_i w_ij
+alpha_j^2 = alpha_j^2 I_w` is the item's accumulated ability curvature. Then for the
+shared block the two eigenvalues are `lambda_max = max(c_theta, c_alpha)` and
+`lambda_min = min(c_theta, c_alpha)` (up to the cross-term tilt of 3.5, which only
+spreads them further), and the condition number is
+
+```
+kappa^sh_j = lambda_max / lambda_min
+           = c_theta / c_alpha                                  (since c_theta >> c_alpha)
+           = [ alpha_j^2 I_w |v|^2 ] / [ (g'_j)^2 I(alpha_j) ]
+           = [ I(theta_j) / I(alpha_j) ] * [ |v|^2 / (g'_j)^2 ]   (Jacobian-norm correction)
+           = I(theta_j) / I(alpha_j) * (1 + O(coupling))   under A6 (matched Jacobian norms),
+```
+
+so to leading order `kappa^sh_j = I(theta_j)/I(alpha_j) = kappa` of P4a/P6, with an
+EXPLICIT Jacobian-norm prefactor `|v|^2/(g'_j)^2` that A6 normalizes to `O(1)`. The
+condition number is the Fisher stiffness times the ratio of the squared Jacobian
+norms of the two pathways into the code.
+
+**The decoupled block.** The decoupled alpha code `e_j^al` is read ONLY by the
+alpha (and beta) heads, NOT by the encoder, so its per-response Jacobian is
+`dz/de_j^al = x_ij g'_j a - alpha_j b` with NO `v_{ij}` term (the encoder reads a
+separate `e_j^th`). Its Gauss-Newton block is
+
+```
+H^dc_j = (g'_j)^2 I(alpha_j) (a a^T) + alpha_j^2 I_w (b b^T),
+```
+
+whose two curvatures are `c_alpha = (g'_j)^2 I(alpha_j)` (alpha) and
+`alpha_j^2 I_w` (beta). Beta is high-Fisher (P11) but it is a SEPARATE location
+readout; the ALPHA-relevant conditioning, the eigenvalue spread the alpha component
+must traverse, has NO ability-pathway high-curvature direction, so
+
+```
+kappa^dc_j (alpha-relevant) = O(1),    independent of I(theta).
+```
+
+*Status: Proved* (the block Hessians are exact under A2; the condition numbers
+follow from the curvature magnitudes and A6).
+
+**(A6) Matched Jacobian regularity (the stated assumption).** The clean reduction
+`kappa^sh_j = I(theta_j)/I(alpha_j)` requires the squared Jacobian-norm prefactor
+`|v|^2/(g'_j)^2 = O(1)`, i.e. the alpha-readout vector `a`, the beta-readout vector
+`b`, and the pooled ability-sensitivity `v_{ij}` have comparable norms and are not
+degenerate (the encoder does not amplify or annihilate the code direction it pools).
+This is the regularity condition that lets the Fisher stiffness, not an architectural
+norm artifact, govern the conditioning. *Status: Argued* (a normalization /
+well-conditioned-readout condition; it holds in the toy where the readouts are
+unit-initialized and the empirical `kappa` tracks `I(theta)/I(alpha)` at Spearman
+0.891, d4). If A6 fails the prefactor reweights `kappa` but does not change its
+SIGN or its monotone-in-K trend (which come from `I(theta)/I(alpha)`, P6).
+
 The directions need not be orthogonal for this to hold; `kappa` is an eigenvalue
-ratio, not an angle. We return to the orthogonality point in 7.5.4 because it is
-exactly the Phase-2 subtlety the user flagged.
+ratio of a symmetric PSD matrix, not an angle between gradients. We return to the
+orthogonality point in 7.5.4 because it is exactly the Phase-2 subtlety the user
+flagged.
 
 ### 7.5.3 The shared block throttles the alpha component; the decoupled block does not
 
@@ -708,53 +1099,114 @@ d(delta_j)/dt = -H_j delta_j,
 and in the eigenbasis of `H_j` each mode `c` decays as `e^{-lambda_c t}` (this is
 P4a applied to the block). Decompose `delta_j` along the alpha-aligned eigenvector.
 
-**Proposition P9b (rate throttling and the speedup factor).** Under a single
-shared step size (A3):
+**Proposition P9b (rate throttling and the speedup factor, explicit GD).** We
+derive the iteration count to a fixed tolerance `epsilon` for plain gradient
+descent on the code block, every step shown. Diagonalize the symmetric PSD block
+`H_j = sum_c lambda_c u_c u_c^T` in its eigenbasis; the eigenvalues are
+`lambda_max = c_theta` (ability-aligned) and `lambda_min = c_alpha = (g'_j)^2
+I(alpha_j)` (alpha-aligned) from P9a. Project the error `delta_j = e_j - e_j^*`
+onto each eigenvector, `delta_c = u_c^T delta_j`.
 
-- SHARED block. The alpha-aligned component decays at rate `lambda_alpha ~
-  I(alpha)`, while the fast ability-aligned component decays at `lambda_theta ~
-  I(theta)`. A single step size `eta` is bounded by stability on the FAST mode,
-  `eta < 2 / lambda_max ~ 2 / I(theta)`. The slow alpha mode then contracts per
-  unit time by at most `eta lambda_alpha ~ I(alpha) / I(theta) = 1 / kappa`. So the
-  time to resolve the alpha-aligned component to a fixed tolerance scales as
-
-  ```
-  tau_alpha^sh  ~  1 / (eta lambda_alpha)  ~  kappa / lambda_theta-scale  =  O(kappa).
-  ```
-
-  Alpha's ordering is the LAST thing the shared block resolves: the code is shaped
-  first along the high-curvature ability/location directions, and the alpha
-  direction is dragged along the slow mode at a rate divided by `kappa`.
-
-- DECOUPLED block. The alpha block has no high-curvature ability direction (P9a),
-  so its step size is bounded by `lambda_alpha` itself and the alpha component
-  contracts at `O(1)` per unit time:
-
-  ```
-  tau_alpha^dc  ~  1 / lambda_alpha,    independent of I(theta).
-  ```
-
-The speedup factor is the ratio of resolution times,
+*Gradient-descent recursion.* On the local quadratic `L = (1/2) delta^T H_j delta`,
+one GD step with rate `eta` is `delta <- delta - eta H_j delta = (I - eta H_j)
+delta`, which in the eigenbasis decouples to
 
 ```
-speedup  =  tau_alpha^sh / tau_alpha^dc  ~  kappa  =  I(theta) / I(alpha).
+delta_c(t+1) = (1 - eta lambda_c) delta_c(t),    so    delta_c(t) = (1 - eta lambda_c)^t delta_c(0).
 ```
 
-*Proof.* Standard stiff-flow argument. Under one step size the stability ceiling
-is set by `lambda_max` (else the fast mode diverges), so the slow mode's per-step
-contraction is `eta lambda_min <= 2 lambda_min / lambda_max = 2/kappa`; the number
-of steps to a fixed tolerance is `O(kappa)`. Removing the high-curvature direction
-(decoupling) removes the ceiling on `eta` that the slow mode pays, giving an
-`O(1)` resolution time. *Status: Proved* (local quadratic, single step size,
-A1-A5). ∎
+*Stability bound (sets the usable step size).* The mode `c` decays iff
+`|1 - eta lambda_c| < 1`, i.e. `0 < eta < 2/lambda_c`. For ALL modes to be stable
+simultaneously under a SINGLE shared `eta` (A3) the binding constraint is the
+LARGEST eigenvalue:
 
-**K-scaling (Proved + Empirical).** By P6, `kappa(K) = I(theta)/I(alpha)` climbs
-monotonically with K (the toy table `1.03 -> 2.29` for `K = 2..6`, extended
-`0.96 -> 5.22` for `K = 2..11`). Therefore the speedup factor grows with K:
-decoupling buys more as the number of answer levels rises. This is the derived
-form of Finding 3's K-growth and of the K=2 near-tie (at `kappa ~ 1` the two
-blocks have the same conditioning, so the only difference is the decoupled block's
-extra estimation variance, which is why K=2 is net-neutral or slightly negative).
+```
+eta < 2 / lambda_max = 2 / c_theta.
+```
+
+The fastest stable choice (minimizing the slow mode's contraction factor subject to
+the fast mode staying stable) is `eta = 1/lambda_max` (a standard GD optimum; at
+`eta = 1/lambda_max` the fast mode contracts by `0` per step and the slow mode by
+`1 - lambda_min/lambda_max = 1 - 1/kappa`).
+
+*Slow-mode contraction and iteration count.* With `eta = 1/lambda_max`, the
+alpha-aligned (slow) component contracts as
+
+```
+delta_alpha(t) = (1 - eta lambda_min)^t delta_alpha(0) = (1 - 1/kappa)^t delta_alpha(0).
+```
+
+To reach tolerance `|delta_alpha(t)| <= epsilon |delta_alpha(0)|` requires
+`(1 - 1/kappa)^t <= epsilon`, i.e.
+
+```
+t  >=  log(1/epsilon) / ( -log(1 - 1/kappa) ).
+```
+
+Since `-log(1 - x) = x + x^2/2 + ... ~ x` for small `x`, and `1/kappa` is small
+(stiff block, `kappa >> 1`), `-log(1 - 1/kappa) = 1/kappa + O(1/kappa^2)`, so
+
+```
+t^sh_alpha  =  log(1/epsilon) / ( 1/kappa + O(1/kappa^2) )  =  kappa * log(1/epsilon) * (1 + O(1/kappa))
+           =  O( kappa log(1/epsilon) ).
+```
+
+This is the EXACT step count, not a scaling claim: the iterations to resolve the
+alpha rank to tolerance `epsilon` in the shared block are `kappa log(1/epsilon)` to
+leading order, with `kappa = I(theta)/I(alpha)` from P9a.
+
+*Decoupled block.* The decoupled alpha block (P9a) has NO ability-aligned
+high-curvature direction; its largest alpha-relevant eigenvalue IS `lambda_alpha =
+c_alpha` itself (the beta direction is a separate readout, not a constraint on
+alpha's step). The stability bound becomes `eta < 2/lambda_alpha`, and the optimal
+`eta = 1/lambda_alpha` gives the alpha component a contraction `(1 - eta
+lambda_alpha)^t = 0` in one step in the ideal isotropic case, or more honestly an
+`O(1)` per-step contraction `(1 - 1/kappa^dc)^t` with `kappa^dc = O(1)`:
+
+```
+t^dc_alpha  =  log(1/epsilon) / ( -log(1 - 1/kappa^dc) )  =  O( log(1/epsilon) ),    kappa^dc = O(1).
+```
+
+*The speedup factor.* The ratio of iteration counts to the same tolerance is
+
+```
+speedup  =  t^sh_alpha / t^dc_alpha  =  [ kappa log(1/epsilon) ] / [ O(1) log(1/epsilon) ]
+         =  O(kappa)  =  O( I(theta) / I(alpha) ).
+```
+
+The `log(1/epsilon)` cancels: the speedup is the condition-number factor `kappa`,
+INDEPENDENT of the tolerance. The shared block pays `kappa` extra iterations on the
+alpha mode purely because one shared step size must stay stable on the
+high-curvature ability direction, throttling the alpha mode to a contraction of
+`1/kappa` per step; decoupling removes that high-curvature direction from alpha's
+block, lifting the step-size ceiling the alpha mode was paying.
+
+*Status: Proved* (local quadratic, single step size, A1-A6; the recursion, the
+stability bound `eta < 2/lambda_max`, the contraction `(1-1/kappa)^t`, and the
+iteration count `kappa log(1/epsilon)` are exact for the linearized flow). ∎
+
+**K-scaling (Proved + Empirical).** The speedup `O(kappa)` inherits the K-growth of
+`kappa` directly through the GPCM Fisher forms of P6a. There `I(theta) = alpha^2
+Var_p(k)` and `I(alpha) = Var_p(k theta - B_k)`, so
+
+```
+kappa(K) = I(theta)/I(alpha) = alpha^2 Var_p(k) / Var_p(k theta - B_k),
+```
+
+and P6 shows `Var_p(k)` (the spread of the category index, which `theta` reads)
+grows FASTER in K than `Var_p(k theta - B_k)` (the spread of the natural statistic,
+which `alpha` reads), because the category index `k` ranges over `{0..K-1}` and its
+variance climbs while the natural-statistic variance saturates. Hence `kappa(K)` is
+monotone increasing (toy table `0.96 -> 5.22` for `K = 2..11`), and the EXPLICIT
+iteration count `t^sh_alpha = kappa(K) log(1/epsilon)` grows with K while
+`t^dc_alpha` stays `O(log(1/epsilon))`. So the derived speedup `O(kappa(K))` grows
+with K: decoupling buys more iterations saved as the number of answer levels rises.
+This is the derived form of Finding 3's K-growth and of the `K = 2` near-tie (at
+`kappa ~ 1` the two blocks have the same conditioning, the GD counts `t^sh ~ t^dc`,
+so the only difference is the decoupled block's extra estimation variance, which is
+why `K = 2` is net-neutral or slightly negative). The empirical `kappa(K)`-vs-
+`delta_K` tracking (Spearman 0.891 over `K = 2..11`, d4) is the direct test of this
+derived `speedup = O(kappa(K))` law.
 
 ### 7.5.4 Orthogonal gradients are consistent with the rate penalty
 
@@ -1171,6 +1623,125 @@ in.
 
 ---
 
+## 7.7 Results and insights (the derived picture, crisply)
+
+This section states the corrected, fully-derived results in one place, separating
+the alpha RATE effect from the theta ENDPOINT effect, and listing the explicit
+quantitative laws. It is the synthesis of Sections 3.5, 6.2, 6.3, 7.5; nothing here
+is new, it is the consolidated answer to "what is right" that replaces the refuted
+"exp is special / scalar preconditioner accelerates alpha."
+
+### 7.7.1 The four mechanisms
+
+**(a) The positivity map is a preconditioner; smooth maps are recovery-equivalent.**
+Any `C^1` map induces the scalar preconditioner `m_g(alpha) = [g'(g^{-1}(alpha))]^2`
+on the effective-alpha flow (Prop P7-0, the research plan's Prop 1). For SMOOTH
+STRICTLY-MONOTONE POSITIVE maps `m_g > 0`, so the flow is a strictly-increasing
+TIME-REPARAMETERIZATION of one canonical curve `d alpha/d tau = -L'(alpha)` (Theorem
+P7). Consequences, all derived: (i) the fixed point and endpoint are map-invariant;
+(ii) any rank metric (Spearman) is invariant to the monotone time change, so rank
+recovery is map-invariant WITHOUT tuning; (iii) the only residual difference is
+traversal SPEED, a single scalar `eta_g m_g(alpha*)` absorbed by a per-map learning
+rate after matched effective-alpha init. So no smooth map is special; exp is not.
+The two genuine exceptions break a HYPOTHESIS of Theorem P7, proved exactly: ReLU
+has `m_g = 0` on a dead zone (the flow halts; `eta * 0 = 0` is unrescalable), and
+square `g = a^2` is non-injective (two-valued `g^{-1}`, a sign-folding `a = 0`
+saddle). It is positivity-plus-smoothness-plus-strict-monotonicity that matters, not
+the exponential. This derives the j5 convergence-profile result (smooth maps tie,
+non-smooth/non-monotone lag) and the direct-alpha control (a scalar preconditioner
+with `theta, beta` frozen changes only speed, never the fixed point or the rank).
+
+**(b) Alpha is the slow mode because the per-response Fisher is rank one with a
+suppressed lever arm.** The per-response score is the single vector `s = (alpha, x,
+-alpha)` (`x = theta - beta`), so the per-response Fisher `F_resp = w s s^T` is
+RANK ONE: one informative direction per response (Prop P2-full). The population
+Fisher `F = E[w s s^T]` has the off-diagonal entries `I_ta = E[alpha x w]`,
+`I_ab = -E[alpha x w]` of the research plan. The `(theta, alpha)` block eigenvalues
+are exactly `lambda_pm = (1/2)[(I_tt + I_aa) +- sqrt((I_tt - I_aa)^2 + 4 I_ta^2)]`;
+the SMALL eigenvalue is alpha-aligned, `lambda_- ~ I_aa(1 - rho^2) <= I_aa`, because
+`I_aa = E[w x^2]` is suppressed: `w = p(1-p)` peaks where `x = 0`, exactly where the
+lever arm `x^2` vanishes, giving `I_tt/I_aa ~ alpha^2 / Var_w(x)`. Coupling
+(`rho != 0`) only deepens the suppression. This is WHY alpha is slow, derived from
+the full Fisher, not assumed from the diagonal.
+
+**(c) Sharing a code creates one ill-conditioned Hessian block; one learning rate
+costs `O(kappa)`; decoupling removes it.** The item-code Gauss-Newton block is the
+explicit sum `H^sh_j = (g'_j)^2 I(alpha_j)(a a^T) + alpha_j^2 sum_i w_ij v_{ij}
+v_{ij}^T + alpha_j^2 I_w (b b^T)` (Prop P9a), with two eigen-directions: a steep
+ability-aligned one (curvature `c_theta ~ I(theta_j)`) and a flat alpha-aligned one
+(curvature `c_alpha = (g'_j)^2 I(alpha_j)`). Its condition number is `kappa^sh_j =
+c_theta/c_alpha = [I(theta_j)/I(alpha_j)] [|v|^2/(g'_j)^2]`, the Fisher stiffness
+times a Jacobian-norm prefactor that A6 normalizes to `O(1)`. The DECOUPLED alpha
+block omits the `v_{ij}` (ability) term entirely, so its alpha-relevant condition
+number is `O(1)`. Plain GD with one step size must satisfy `eta < 2/lambda_max`, so
+the alpha mode contracts as `(1 - 1/kappa)^t` and reaches tolerance `epsilon` in
+`t^sh_alpha = kappa log(1/epsilon)` iterations; the decoupled block reaches it in
+`O(log(1/epsilon))`. The `log(1/epsilon)` cancels, leaving `speedup = O(kappa)`.
+
+**(d) The theta side is a DISTINCT endpoint effect, not the same as alpha's rate.**
+This must not be collapsed. Alpha's effect (c) is a TRANSIENT RATE effect on an
+INVARIANT endpoint (P9c, P4b): both architectures share the same fixed point, the
+rank gap CLOSES at convergence (rung 7: `+0.07..+0.21` through the transient,
+`+0.001` by step 8000), so decoupling buys SPEED and early-stopped rank, not a
+better endpoint, on alpha. Theta's effect (P10) is a FINITE-DATA ENDPOINT /
+generalization effect on an amortized readout, OUTSIDE the free-table invariant
+(theta is read by an encoder, not a free per-item table): a wide encoder input
+inflates `Var(theta_hat) ~ sigma_r^2 W/n` and the over-parameterized encoder drives
+it higher along the trajectory (theta `0.97 -> 0.68` with training). These are
+different axes (steps vs data) vanishing at different limits (`steps -> inf` vs
+`reps -> inf`). The joint Pareto escape (P12) works because the two pressures act on
+two different consumers of the code; decoupling gives each its own width.
+
+### 7.7.2 The explicit quantitative laws (the numbers the theory now delivers)
+
+- **Condition-number formula (Proved).** `kappa^sh_j = [I(theta_j)/I(alpha_j)] *
+  [|v|^2/(g'_j)^2]`, reducing to `kappa = I(theta)/I(alpha)` under matched Jacobian
+  norms (A6). The full-Fisher version is strictly larger: `kappa_2 = I_tt /
+  [I_aa(1 - rho^2)] >= I_tt/I_aa`, so the diagonal ratio used elsewhere is the
+  optimistic bound; off-diagonal coupling makes the real flow stiffer.
+
+- **Iteration count to tolerance (Proved).** `t^sh_alpha = log(1/epsilon) /
+  (-log(1 - 1/kappa)) = kappa log(1/epsilon) (1 + O(1/kappa))` for the shared block
+  at `eta = 1/lambda_max`; `t^dc_alpha = O(log(1/epsilon))` for the decoupled block.
+  Speedup `= t^sh/t^dc = O(kappa)`, tolerance-independent.
+
+- **K-growth law (Proved, Fisher forms; Empirical, magnitudes).** `kappa(K) =
+  alpha^2 Var_p(k) / Var_p(k theta - B_k)` is monotone increasing in K (toy `0.96
+  -> 5.22` for `K = 2..11`), so `t^sh_alpha = kappa(K) log(1/epsilon)` and the
+  speedup `O(kappa(K))` grow with K. Empirically `kappa(K)` tracks the decoupling
+  advantage `delta_K` at Spearman 0.891 over `K = 2..11` (d4), the direct test of
+  the derived `speedup = O(kappa(K))` law. At `K = 2`, `kappa ~ 1`, `t^sh ~ t^dc`,
+  net-neutral; the advantage switches on as `kappa(K)` climbs.
+
+- **Map equivalence (Proved for endpoint and rank; Argued for the residual speed
+  constant).** Endpoint and rank are map-invariant for all smooth strictly-monotone
+  positive maps; the residual speed difference is the single absorbable constant
+  `m_g(alpha*)`, exact at one alpha, approximate across an item population (the
+  empirical `+-0.002` clustering).
+
+### 7.7.3 The one-paragraph corrected statement
+
+Under a prediction objective the per-response Fisher is rank one along `s = (alpha,
+theta - beta, -alpha)`, so a response informs one direction; alpha's direction is
+the slow eigen-mode because its information `I(alpha) = E[w(theta - beta)^2]` is
+suppressed where `w` concentrates (`theta ~ beta`), and the off-diagonal coupling
+deepens the suppression. A positivity map is a positive scalar preconditioner on
+alpha's flow, a time-reparameterization that leaves the endpoint and the rank
+invariant for every smooth strictly-monotone positive map (so exp is not special;
+only the ReLU dead zone and the square sign-fold genuinely lag, by breaking the
+positivity or injectivity hypothesis). The accelerator that works is REPRESENTATION
+decoupling: sharing one item code forces alpha's flat (`I(alpha)`) direction to
+share a Hessian block with the steep ability (`I(theta)`) direction, so a single
+learning rate, stable on the steep direction, resolves alpha in `kappa log(1/
+epsilon)` iterations; giving alpha its own code removes the steep direction and
+resolves it in `O(log(1/epsilon))`, an `O(kappa)` speedup that grows with K via the
+GPCM Fisher, with the SAME fixed point in both cases (a pure rate / early-stopping
+effect on alpha rank). This is distinct from theta's finite-data endpoint overfit,
+which lives outside the free-table invariant and is the OTHER half of the Pareto
+escape, not the same mechanism.
+
+---
+
 ## 8. The gauge, and why claims are on rank
 
 The 2PL and GPCM losses are invariant under the joint reparameterization
@@ -1206,20 +1777,37 @@ What this document establishes, and as importantly what it does not.
   separation lever arm and vanishes where targeted responses concentrate
   (`theta ~ beta`); the prediction sensitivity `dp/dalpha = I(alpha)^{1/2}`
   vanishes there too (P2, P3).
+- The full per-response Fisher is RANK ONE, `F_resp = w s s^T` with score `s =
+  (alpha, theta - beta, -alpha)`; the population `(theta, alpha)` block eigenvalues
+  are exact, and the SMALL (alpha-aligned) one `lambda_- ~ I_aa(1 - rho^2) <= I_aa`
+  is the derived reason alpha is the slow eigen-DIRECTION, with the off-diagonals
+  `I_ta = E[alpha x w]`, `I_ab = -E[alpha x w]` deepening the suppression
+  (P2-full, Section 3.5).
 - The local linear rate law: a direction's recovery time scale is the inverse of
   its Fisher information, ordering alpha as the slow mode with flow condition
   number `kappa ~ I(theta)/I(alpha)` (P4a).
+- Smooth-map recovery EQUIVALENCE at the endpoint AND on rank: a positive smooth
+  strictly-monotone map gives `m_g > 0`, so the effective-alpha flow is one
+  canonical curve up to a strictly-increasing time change; endpoint and Spearman
+  rank are map-invariant with no tuning, only the speed constant `m_g(alpha*)`
+  differs and is absorbed by per-map LR (Theorem P7). The two exceptions are exact:
+  ReLU `m_g = 0` dead zone, square non-injective sign-fold (Section 6.2-6.3).
 - The free-table invariant: a reachable zero-residual optimum is stationary,
   globally minimal, and invariant to representation sharing and to smooth
   reparameterization, so the endpoint carries no representation-choice or
   positive-map advantage (P4b).
 - The GPCM stiffness `kappa(K) = I(theta)/I(alpha)` grows monotonically with K
   (P6a, P6).
-- The shared item code block's condition number is `kappa = I(theta)/I(alpha)`
-  while the decoupled alpha block's is `O(1)`; under a single step size this gives
-  an `O(kappa)` rate penalty on alpha in the shared case and a `~ kappa` decoupling
-  speedup that grows with K, with the SAME fixed point in both cases (P9, the
-  validated mechanism, replacing the refuted scalar-preconditioner claim).
+- The shared item-code Gauss-Newton block is the explicit sum `H^sh_j = (g'_j)^2
+  I(alpha_j)(a a^T) + alpha_j^2 sum_i w_ij v_{ij}v_{ij}^T + alpha_j^2 I_w (b b^T)`,
+  with condition number `kappa^sh_j = [I(theta)/I(alpha)][|v|^2/(g'_j)^2] ~
+  I(theta)/I(alpha)` under matched Jacobian norms (A6); the decoupled alpha block's
+  is `O(1)`. The EXPLICIT gradient-descent count under one step size (`eta <
+  2/lambda_max`) is `t^sh_alpha = kappa log(1/epsilon)` versus `t^dc_alpha =
+  O(log(1/epsilon))`, so the speedup is `O(kappa)`, tolerance-independent and
+  growing with K via `kappa(K) = alpha^2 Var_p(k)/Var_p(k theta - B_k)`, with the
+  SAME fixed point in both cases (P9, the validated mechanism, replacing the refuted
+  scalar-preconditioner claim).
 - Beta is the indifferent control: high Fisher (`I(beta) = alpha^2 w`) so it
   recovers from a thin code and does not need width, and a direct (non-pooled)
   readout protected by the free-table invariant so width does not hurt it (P11).
@@ -1236,12 +1824,20 @@ What this document establishes, and as importantly what it does not.
   not available (and the study's own verdict is that no clean population-limit
   dynamics law exists in tractable form).
 - The finite-data errors-in-variables mechanism for the residual alpha bias (P5).
-- Smooth-map recovery neutrality after matched init and LR, with the non-smooth /
-  non-monotone exclusions (P7).
-- Scalar alpha-space preconditioning insufficiency (P8).
+- The RESIDUAL SPEED constant in smooth-map equivalence: Theorem P7 PROVES the
+  endpoint and rank are map-invariant and that the speed difference is the single
+  scalar `eta_g m_g(alpha*)`; the Argued part is only that one scalar `eta`
+  absorbs it across an item population with a spread of true alphas (exact at one
+  alpha, approximate across the population, the source of the `+-0.002` clustering).
+  The two exceptions (ReLU, square) are Proved, not Argued.
+- Scalar alpha-space preconditioning insufficiency (P8); it is the direct-alpha
+  case of Theorem P7 (a scalar preconditioner changes only the canonical-flow
+  speed, never the fixed point or rank).
 - That the validated accelerator is REPRESENTATION decoupling, a coupled-two-block
-  conditioning effect, not a scalar reparameterization (P9); the block-diagonal
-  reduction (A5) and the orthogonality-consistency reading are the Argued parts.
+  conditioning effect, not a scalar reparameterization (P9). The block Hessian, its
+  condition number, and the GD iteration count `t^sh = kappa log(1/epsilon)` are
+  PROVED under A1-A6; the Argued parts are the block-diagonal reduction (A5), the
+  matched-Jacobian-norm regularity (A6), and the orthogonality-consistency reading.
 - That theta wants the encoder input NARROW because encoder-input width inflates
   the variance of the amortized `theta_hat` (item-identity leakage), DISTINCT from
   alpha's conditioning and OUTSIDE the free-table invariant (P10). The clean part
@@ -1334,4 +1930,3 @@ ESCAPES the frontier rather than trading along it and is Pareto-dominant (P12b).
 The alpha gain is a finite-budget rate effect and the theta gain is a finite-data
 variance effect; both vanish only at the joint infinite limit, so the real model,
 finite in both, gets both.
-```
