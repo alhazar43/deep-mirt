@@ -8,8 +8,8 @@
 \usepackage{graphicx}
 \graphicspath{{figs/}}
 
-\title[Finite-sample dynamics of discrimination recovery]{Finite-sample learning dynamics of discrimination recovery in amortized neural IRT}
-\subtitle{representation sharing throttles discrimination; decoupling is a convergence-rate fix}
+\title[A shared item code forces a three-way trade-off]{A shared item representation forces a three-way trade-off in neural IRT}
+\subtitle{ability overfits wide, discrimination needs wide, difficulty is content-narrow}
 \author{Wenrui Yuan}
 \date{}
 
@@ -20,8 +20,8 @@
 % ===========================================================================
 \begin{frame}{Setup: amortized neural IRT}
 \begin{itemize}
-\item Encoder (LSTM): response history $\to$ time-varying ability $\theta_t$
-\item Item embeddings $\to$ discrimination $\alpha_i>0$, difficulty $\beta_i$; GPCM decoder
+\item Encoder (LSTM): response history $\to$ ability $\theta_t$
+\item Item embedding $\to$ discrimination $\alpha_i$, difficulty (step thresholds) $\beta_i$; GPCM decoder
 \end{itemize}
 \[
   P(Y_i=k\mid\theta)=\frac{\exp\sum_{m=1}^{k}\alpha_i(\theta-\beta_{i,m})}
@@ -29,80 +29,96 @@
   \qquad(\text{2PL at }K{=}2)
 \]
 \begin{itemize}
-\item Trained on response prediction only. \textbf{No supervision} on $\theta,\alpha,\beta$, no priors.
-\item Scale is gauge-free ($\theta\!\to\!s\theta{+}t,\ \alpha\!\to\!\alpha/s$) $\Rightarrow$ recovery $=$ rank (Spearman $\rho$).
+\item Trained on response prediction only. No supervision on $\theta,\alpha,\beta$.
+\item Scale is gauge-free $\Rightarrow$ recovery $=$ rank (Spearman $\rho$).
 \end{itemize}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Architecture: shared vs decoupled item code}
-The item code enters twice: the encoder ($\to\theta$) and the $\alpha,\beta$ readouts.
+\begin{frame}{The item code has two consumers}
+\begin{itemize}
+\item a \textbf{value} embedding $v_q$ (narrow) $\to$ encoder input $\to$ \textbf{ability} $\theta$
+\item a \textbf{key} embedding $k_q$ (wide) $\to$ \textbf{discrimination} $\alpha$, \textbf{difficulty} $\beta$ readouts
+\end{itemize}
 \medskip
 \begin{itemize}
-\item \textbf{Shared}: one table, width $W$ \quad(\texttt{item\_key\_dim=None})
-\item \textbf{Decoupled}: \texttt{emb\_dim=8} $+$ separate \texttt{item\_key\_dim=}$W{-}8$ feeding only $\alpha,\beta$
-\item \texttt{state\_alpha=True} in both $\Rightarrow$ the study varies the \emph{representation}, not the readout
+\item \textbf{Shared}: one embedding, width $W$, feeds both consumers
+\item \textbf{Decoupled}: a narrow value embedding $+$ a separate wide key embedding
 \end{itemize}
 \medskip
 \centering
-\footnotesize
-shared: $\theta \leftarrow e_q \rightarrow (\alpha,\beta)$ \qquad
-decoupled: $\theta\leftarrow e_q^{\text{val}}$, \ \ $e_q^{\text{key}}\rightarrow(\alpha,\beta)$
+$\Rightarrow$ \emph{shared ties the encoder-input width to the readout width.} That tie is the problem.
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Discrimination is the low-information parameter}
-\begin{columns}
-\begin{column}{0.5\textwidth}
-\includegraphics[width=\linewidth]{s1_three_speeds.png}
-\end{column}
-\begin{column}{0.48\textwidth}
-Gradients ($r=p-y$):
-\[ \partial_\theta L=r\alpha,\ \ \partial_\beta L=-r\alpha,\ \ \partial_\alpha L=r(\theta{-}\beta) \]
-Fisher ($w=p(1{-}p)$):
-\[ I(\theta)=I(\beta)=\alpha^2 w,\quad I(\alpha)=(\theta{-}\beta)^2 w \]
+\begin{frame}{Three parameters, three opposite preferences}
+Fisher information ($w=p(1{-}p)$):
+\[ I(\theta)=I(\beta)=\alpha^2 w,\qquad I(\alpha)=(\theta-\beta)^2 w \]
+\medskip
 \begin{itemize}
-\item $I(\alpha)\to 0$ at $\theta{=}\beta$ (where responses concentrate)
-\item stiffness $\kappa=I(\theta)/I(\alpha)$ grows with $K$
+\item \textbf{$\alpha$ wants the readout WIDE}, low Fisher ($\to0$ at $\theta{=}\beta$), needs capacity to be read off
+\item \textbf{$\theta$ wants the encoder input NARROW}, a wide input lets the encoder absorb item idiosyncrasy and overfit ability
+\item \textbf{$\beta$ is content NARROW}, high Fisher, read directly, no pooling; needs no width and is not hurt by it
 \end{itemize}
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{The phenomenon: a three-way trade-off}
+\begin{columns}
+\begin{column}{0.58\textwidth}
+\includegraphics[width=\linewidth]{j1_three_param_vs_width.png}
+\end{column}
+\begin{column}{0.4\textwidth}
+Widen the shared code $W$:
+\begin{itemize}
+\item $\alpha$ rises $0.61\to0.92$ (gets capacity)
+\item $\theta$ falls (overfits the wide input)
+\item $\beta$ flat-high $0.96\to0.99$
+\end{itemize}
+\medskip
+One knob, opposed pressures. $\beta$ does not pay.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Why is discrimination degraded under sharing?}
-Three explanations, one test each.
+\begin{frame}{Two trade-offs of different KIND (the key point)}
+\begin{itemize}
+\item \textbf{$\alpha$: a RATE effect, endpoint invariant.} $\alpha$ is a free per-item
+table, so the optimum is unbiased (free-table invariant). Sharing only slows it
+(conditioning $\kappa$); decoupling speeds it. Transient: vanishes as training $\to\infty$, not at a fixed budget. \hfill(P9)
+\item \textbf{$\theta$: an ENDPOINT effect, not invariant.} $\theta$ is read by the
+amortized encoder, NOT a free table. A wide input overfits it,
+$\ \mathrm{Var}(\hat\theta)\sim \sigma^2\, W/n$. A finite-data generalization loss
+that does NOT vanish at convergence. \hfill(P10)
+\item \textbf{$\beta$: indifferent control.} High Fisher, non-pooled $\Rightarrow$
+neither needs width nor is hurt ($\Delta_\beta\approx0$). \hfill(P11)
+\end{itemize}
 \medskip
-\begin{enumerate}
-\item \textbf{Capacity} \,$\to$\, a wider shared code would fix it
-\item \textbf{Expressivity} \,$\to$\, no shared code holds both directions at the optimum
-\item \textbf{Dynamics} \,$\to$\, gradient flow drives the shared code to the $\theta$ compromise
-\end{enumerate}
-\medskip
-Synthetic GPCM, known $\theta,\alpha,\beta$, LSTM. Each finding eliminates one.
+\centering
+Not one phenomenon. A slow mode (rate) \emph{and} an overfit (endpoint), tied by one width.
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Test 1, not capacity: allocation}
+\begin{frame}{Not capacity: allocation (the gate)}
 \begin{columns}
 \begin{column}{0.56\textwidth}
-\includegraphics[width=\linewidth]{d1_capacity_tradeoff.png}
+\includegraphics[width=\linewidth]{j3_tradeoff_frontier.png}
 \end{column}
 \begin{column}{0.42\textwidth}
 \textbf{Control}: matched total item-embedding params.
-\medskip
 \begin{itemize}
-\item shared width sweep $\to$ Pareto frontier, no $W$ gets both
-\item decoupled sits \textbf{above}: $\theta\!\approx\!0.97$, $\alpha\,0.90$–$0.94$, fewer params
+\item shared sweep traces a Pareto frontier
+\item decoupled sits \textbf{above} it, even at $6\times$ the shared budget
 \end{itemize}
 \medskip
-$\Rightarrow$ allocation, not budget.
+$\Rightarrow$ allocation, not budget. Decoupling \emph{escapes} the frontier (P12).
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Test 2, not expressivity: reached then left}
+\begin{frame}{$\alpha$ side, dynamics: reached then left}
 \begin{columns}
 \begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d2_trajectory.png}
@@ -110,16 +126,16 @@ $\Rightarrow$ allocation, not budget.
 \begin{column}{0.42\textwidth}
 \begin{itemize}
 \item wide-shared $\alpha$: peaks $0.91$ (ep 50), decays to $0.79$ (ep 500)
-\item decoupled: rises $0.91$, \textbf{holds}
+\item decoupled: rises $0.91$, holds
 \end{itemize}
 \medskip
-$\Rightarrow$ the both-high optimum is reachable, reached, then abandoned $=$ dynamics.
+$\Rightarrow$ the good $\alpha$ solution is reachable, reached, then abandoned $=$ dynamics, not a ceiling.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Test 2, mechanism: the shared code is conditioned}
+\begin{frame}{$\alpha$ side, mechanism: the shared code is conditioned}
 \begin{columns}
 \begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d3_gradient_capture.png}
@@ -127,68 +143,76 @@ $\Rightarrow$ the both-high optimum is reachable, reached, then abandoned $=$ dy
 \begin{column}{0.42\textwidth}
 \begin{itemize}
 \item $\theta$-pathway pull grows $\sim$28$\times$; $\alpha$-pathway flat
-\item $\cos(g_\theta,g_\alpha)\approx 0$ (not a tug-of-war)
-\item the lag is eigenvalue spread, $\kappa\approx2.2$ at $K{=}4$
+\item $\cos(g_\theta,g_\alpha)\approx0$ (not a tug-of-war)
+\item the lag is eigenvalue spread, stiffness $\kappa\approx1.9$ at $K{=}4$
 \end{itemize}
-\medskip
-fast $\theta$ mode first, slow $\alpha$ mode last.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{The dynamics as a gradient-flow ODE}
-Item-code block near the optimum, $\delta=e_q-e_q^*$:
-\[
-  \dot\delta = -H\,\delta,\qquad \delta_c(t)=\delta_c(0)\,e^{-\lambda_c t}.
-\]
+\begin{frame}{$\alpha$ side, the gradient-flow ODE}
+One item's embedding $e_q$. Near its optimum, $\delta=e_q-e_q^*$, $H_q$ the Hessian in $e_q$'s directions:
+\[ \dot\delta=-H_q\delta,\qquad \delta_c(t)=\delta_c(0)e^{-\lambda_c t}. \]
 \begin{itemize}
-\item Shared block, two curvatures: $\ \kappa=\dfrac{\lambda_\theta}{\lambda_\alpha}=\dfrac{I(\theta)}{I(\alpha)}\gg1$
-\item One step size $\eta<2/\lambda_{\max}$: slow mode contracts at $\eta\lambda_\alpha\sim 1/\kappa\ \Rightarrow\ \tau_\alpha^{\text{sh}}\sim O(\kappa)$
-\item Decoupled block: $O(1)$-conditioned $\ \Rightarrow\ \tau_\alpha^{\text{dec}}\sim O(1)$
+\item Shared: $e_q$ feeds encoder $(\theta)$ and $\alpha,\beta$ readouts $\Rightarrow$ steep $\theta$ direction $(\sim I(\theta))$, flat $\alpha$ direction $(\sim I(\alpha))$: $\ \kappa=I(\theta)/I(\alpha)\gg1$
+\item one step $\eta<2/\lambda_{\max}$: slow mode $\sim1/\kappa\Rightarrow\tau_\alpha^{\text{sh}}\sim O(\kappa)$; decoupled $O(1)$
 \end{itemize}
-\[
-  \boxed{\ \text{speedup}\ \sim\ \kappa = I(\theta)/I(\alpha)\ \ (\text{grows with }K)\ }
-\]
-Same fixed point (free-table invariant) $\Rightarrow$ \textbf{rate, not endpoint}. Largest under
-plain GD; Adam's preconditioner compresses $\kappa$.
+\[ \boxed{\ \text{speedup}\sim\kappa=I(\theta)/I(\alpha)\ (\text{grows with }K)\ } \]
+Same fixed point $\Rightarrow$ rate, not endpoint. Largest under GD; Adam compresses $\kappa$.
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Test 3, finite-sample: rate-limited not data-limited}
+\begin{frame}{$\theta$ side, overfitting: an endpoint effect}
 \begin{columns}
 \begin{column}{0.56\textwidth}
+\includegraphics[width=\linewidth]{j2_theta_overfit_vs_epoch.png}
+\end{column}
+\begin{column}{0.42\textwidth}
+\begin{itemize}
+\item wide-shared $\theta$ overfits worst: $0.96\to0.75$
+\item decoupling keeps the encoder narrow $\Rightarrow$ protects $\theta$ at the operating point
+\end{itemize}
+\medskip
+Bias and variance: $\ \mathrm{Var}(\hat\theta)\sim\sigma^2\,W/n$. An \textbf{endpoint} loss
+(not a rate), outside the free-table invariant.
+\medskip
+\footnotesize (The decay with long training, even narrow, is a separate
+regularization issue, not the width effect.)
+\end{column}
+\end{columns}
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{The resolution: untie the two widths}
+\begin{itemize}
+\item \textbf{Shared}: one width, opposed knobs ($d\alpha/dW>0$, $d\theta/dW<0$, $d\beta/dW\approx0$) $\Rightarrow$ a Pareto frontier, no $W$ wins both
+\item \textbf{Decoupled}: two independent widths $\Rightarrow$ narrow encoder (good $\theta,\beta$) $+$ wide readout (good $\alpha$); each optimized by its own knob
+\end{itemize}
+\medskip
+\centering
+$\Rightarrow$ decoupling is Pareto-\textbf{dominant}: it escapes the frontier, not moves along it. (P12)
+\medskip
+
+It cures both pressures at once: $\theta$ keeps its bottleneck, $\alpha$ gets its capacity.
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{The $\alpha$ rate effect: finite-sample and $K$-scaled}
+\begin{columns}
+\begin{column}{0.5\textwidth}
 \includegraphics[width=\linewidth]{d5_finite_sample_Nsweep.png}
 \end{column}
-\begin{column}{0.42\textwidth}
-\textbf{Fixed budget}, vary $N$.
-\medskip
-\begin{itemize}
-\item advantage does not shrink with data ($K{=}2$: $+0.03\!\to\!+0.23$)
-\item more learners, same steps $\to$ slow $\alpha$ mode further behind
-\end{itemize}
-\medskip
-$\Rightarrow$ the finite-sample signature of a rate effect.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ===========================================================================
-\begin{frame}{Test 3, the advantage tracks $\kappa$}
-\begin{columns}
-\begin{column}{0.56\textwidth}
+\begin{column}{0.48\textwidth}
 \includegraphics[width=\linewidth]{d4_stiffness_Ksweep.png}
 \end{column}
-\begin{column}{0.42\textwidth}
-\begin{itemize}
-\item $K{=}2$ to $11$: $\Delta_\alpha$ vs stiffness $\kappa$, $\ \rho=0.89$
-\item decoupled de-noises $\alpha$ ($\sigma$ $0.005$–$0.042$)
-\item rise then saturate (decoupled ceilings $\approx0.95$)
-\end{itemize}
-\medskip
-$\Rightarrow$ size of the effect $=$ the Fisher stiffness, set by $K$.
-\end{column}
 \end{columns}
+\medskip
+\footnotesize
+\begin{itemize}
+\item Fixed budget, vary $N$: the decoupling advantage does NOT shrink with data (rate-limited).
+\item Across $K{=}2$ to $11$: it tracks the Fisher stiffness $\kappa$, $\rho=0.89$.
+\end{itemize}
 \end{frame}
 
 % ===========================================================================
@@ -199,7 +223,6 @@ $\Rightarrow$ size of the effect $=$ the Fisher stiffness, set by $K$.
 \end{column}
 \begin{column}{0.44\textwidth}
 $\alpha=g(\cdot)$, $g$ positive. Is $g=\exp$ special?
-\medskip
 \begin{itemize}
 \item matched init $+$ per-map LR: exp ties all smooth maps ($\Delta\approx0$)
 \item direct-$\alpha$ control ($\theta,\beta$ frozen): scalar preconditioner does nothing ($\kappa{=}1$)
@@ -213,18 +236,19 @@ $\Rightarrow$ positivity needed, exp not special. The lever is the representatio
 % ===========================================================================
 \begin{frame}{Conclusion}
 \begin{block}{}
-Decoupling the discrimination code buys an $O(\kappa)$ convergence-rate advantage
-on discrimination rank, $\kappa=I(\theta)/I(\alpha)$, growing with $K$, no endpoint cost.
+A shared item code ties the encoder-input width to the readout width, forcing a
+three-way trade-off: $\theta$ overfits wide, $\alpha$ needs wide, $\beta$ is
+content-narrow. Decoupling unties the widths and dominates.
 \end{block}
 \medskip
-\begin{itemize}
-\item not capacity (matched params), not expressivity (reached then left), but \textbf{dynamics}
-\item a measurement-validity condition: recovered $\alpha$ is otherwise a finite-budget allocation artifact
-\item positivity map ruled out as the lever
+\begin{itemize}\small
+\item Two mechanisms of different kind: $\alpha$ a convergence-RATE effect (endpoint invariant, $O(\kappa)$, grows with $K$); $\theta$ an ENDPOINT overfit ($\mathrm{Var}\sim W/n$). $\beta$ indifferent.
+\item A measurement-validity condition: recovered parameters are otherwise representation-allocation artifacts.
+\item Positivity map ruled out as the lever.
 \end{itemize}
 \medskip
-\footnotesize Scope: synthetic GPCM, LSTM (architecture-independent on swap), 3--10 seeds.
-Open: $\theta$/threshold channels, NRM slopes, GRM, real-data stability.
+\footnotesize Scope: synthetic GPCM, LSTM (architecture-independent on swap), 3 to 10 seeds.
+$\theta$-overfit formalized for a linear amortizer (LSTM lift argued). Open: NRM slopes, GRM, real data.
 \end{frame}
 
 \end{document}
