@@ -51,15 +51,19 @@ $\Rightarrow$ \emph{shared ties the encoder-input width to the readout width.} T
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{First the math: the gradient flow of all three}
-Per-parameter gradients, residual $r=p-y$:
-\[ \partial_\theta L=r\alpha,\qquad \partial_\beta L=-r\alpha,\qquad \partial_\alpha L=r(\theta-\beta). \]
-Near the optimum each parameter's mode decays at its Fisher rate ($w=p(1{-}p)$):
-\[ \underbrace{I(\theta)=I(\beta)=\alpha^2 w}_{\text{fast}},\qquad
-   \underbrace{I(\alpha)=(\theta-\beta)^2 w}_{\text{slow},\ \to0\ \text{at}\ \theta=\beta}. \]
-\centering
-Discrimination is the one low-rate mode: its lever arm $(\theta-\beta)$ vanishes exactly where
-responses concentrate. \textbf{The math singles out $\alpha$ before any experiment.}
+\begin{frame}{First the math: $\alpha$ is the slow eigen-mode (derived)}
+Gradients ($r=p-y$): \ $\partial_\theta L=r\alpha,\quad \partial_\beta L=-r\alpha,\quad \partial_\alpha L=r(\theta-\beta)$.
+\medskip
+
+The per-response score is one vector $s=(\alpha,\ \theta-\beta,\ -\alpha)$, so the Fisher
+$F=w\,ss^\top$ ($w=p(1{-}p)$) is \textbf{rank one}. The $(\theta,\alpha)$ block has exact eigenvalues
+\[ \lambda_\pm=\tfrac12\big[(I_\theta{+}I_\alpha)\pm\sqrt{(I_\theta{-}I_\alpha)^2+4I_{\theta\alpha}^2}\big],
+   \qquad \lambda_-\approx I_\alpha(1-\rho^2). \]
+\begin{itemize}
+\item the slow mode is $\alpha$: $I_\alpha=\mathbb{E}[w(\theta-\beta)^2]$ is suppressed ($w$ peaks where $\theta{=}\beta$)
+\item coupling $\rho^2=I_{\theta\alpha}^2/(I_\theta I_\alpha)$ worsens it: $\kappa_2=I_\theta/[I_\alpha(1-\rho^2)]\ge I_\theta/I_\alpha$
+\end{itemize}
+\centering The math singles out $\alpha$ before any experiment.
 \end{frame}
 
 % ===========================================================================
@@ -188,9 +192,9 @@ One item's embedding $e_q$. Near its optimum, $\delta=e_q-e_q^*$, $H_q$ the Hess
 \[ \dot\delta=-H_q\delta,\qquad \delta_c(t)=\delta_c(0)e^{-\lambda_c t}. \]
 \begin{itemize}
 \item Shared: $e_q$ feeds encoder $(\theta)$ and $\alpha,\beta$ readouts $\Rightarrow$ steep $\theta$ direction $(\sim I(\theta))$, flat $\alpha$ direction $(\sim I(\alpha))$: $\ \kappa=I(\theta)/I(\alpha)\gg1$
-\item one step $\eta<2/\lambda_{\max}$: slow mode $\sim1/\kappa\Rightarrow\tau_\alpha^{\text{sh}}\sim O(\kappa)$; decoupled $O(1)$
+\item GD, $\delta_c(t)=(1-\eta\lambda_c)^t\delta_c(0)$, stable $\eta=1/\lambda_{\max}$: slow mode $(1-1/\kappa)^t\Rightarrow t_\alpha^{\text{sh}}=\kappa\log(1/\epsilon)$; decoupled $O(\log\tfrac1\epsilon)$
 \end{itemize}
-\[ \boxed{\ \text{speedup}\sim\kappa=I(\theta)/I(\alpha)\ (\text{grows with }K)\ } \]
+\[ \boxed{\ \text{speedup}=O(\kappa),\quad \kappa=I(\theta)/I(\alpha)\ (\text{grows with }K)\ } \]
 Same fixed point $\Rightarrow$ rate, not endpoint. Largest under GD; Adam compresses $\kappa$.
 \end{frame}
 
@@ -232,13 +236,14 @@ It cures both pressures at once: $\theta$ keeps its bottleneck, $\alpha$ gets it
 % ===========================================================================
 \begin{frame}{Prediction 4: positivity needed, map shape is not}
 \centering
-\includegraphics[width=0.8\linewidth]{j5_map_convergence.png}
+\footnotesize\textbf{Derived (Thm P7)}: for smooth monotone $g$, $m_g(\alpha){=}[g'(g^{-1}(\alpha))]^2>0$ is a positive time-change of one canonical flow $\Rightarrow$ same fixed point and rank. exp is not special.
+
+\includegraphics[width=0.74\linewidth]{j5_map_convergence.png}
 
 \raggedright\footnotesize
 \begin{itemize}
-\item smooth maps (exp, softplus, sigmoid) share one convergence profile; non-smooth (relu, square) lag mid-training
-\item endpoints nearly tie, so the \emph{profile} separates them, exp is not special
-\item direct-$\alpha$ control ($\theta,\beta$ frozen): a scalar reparameterization does nothing ($\kappa{=}1$) $\Rightarrow$ the lever is the representation, not the map
+\item confirmed: smooth maps share one profile; non-smooth lag (relu dead zone $m_g{=}0$; square non-injective)
+\item direct-$\alpha$ control ($\theta,\beta$ frozen): a scalar reparameterization changes only speed, not the fixed point ($\kappa{=}1$)
 \end{itemize}
 \end{frame}
 
@@ -257,6 +262,17 @@ It cures both pressures at once: $\theta$ keeps its bottleneck, $\alpha$ gets it
 \begin{itemize}
 \item Fixed budget, vary $N$: the decoupling advantage does NOT shrink with data (rate-limited).
 \item Across $K{=}2$ to $11$: it tracks the Fisher stiffness $\kappa$, $\rho=0.89$.
+\end{itemize}
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{What we proved (results and insights)}
+\footnotesize
+\begin{itemize}
+\item \textbf{The map is a preconditioner, not a lever.} Smooth monotone positive maps share one canonical flow, so the fixed point and rank are map-invariant (Thm P7). Positivity and smoothness matter; exp does not.
+\item \textbf{$\alpha$ is the rank-one Fisher's slow direction.} $I_\alpha=\mathbb{E}[w(\theta-\beta)^2]$ is suppressed where responses concentrate; coupling makes $\kappa_2=I_\theta/[I_\alpha(1-\rho^2)]\ge I_\theta/I_\alpha$.
+\item \textbf{Sharing is one ill-conditioned code block.} A single step size resolves $\alpha$ in $t_\alpha=\kappa\log(1/\epsilon)$ iterations; decoupling gives $O(\log\tfrac1\epsilon)$. Speedup $O(\kappa)$, growing with $K$.
+\item \textbf{Two effects of different kind.} $\alpha$ a convergence-RATE effect (endpoint-invariant); $\theta$ an ENDPOINT overfit ($\mathrm{Var}\sim W/n$); $\beta$ indifferent.
 \end{itemize}
 \end{frame}
 
