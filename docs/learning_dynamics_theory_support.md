@@ -104,7 +104,12 @@ r_ij = p_ij - p*_ij = dL/dz_ij    (up to the averaging constant),
 ```
 
 the central object: every per-parameter gradient and every shared-representation
-pull below is linear in `r`.
+pull below is linear in `r`. The form `r = p - p*` (per sample `r = p - y`) is the
+canonical-link identity, sigmoid/softmax paired with cross-entropy gives
+`dL/dz = p - y`; a non-matched loss (squared error, or a reweighted ordinal loss)
+replaces `r` by a reweighted residual `s(z)(p - y)`, which rescales the constants
+below but leaves the residual-linear structure intact. The clean `r = p - y` form,
+and hence the tidy Fisher identities, are specific to the cross-entropy objective.
 
 ---
 

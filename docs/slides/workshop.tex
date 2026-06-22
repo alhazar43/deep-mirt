@@ -51,11 +51,22 @@ $\Rightarrow$ \emph{shared ties the encoder-input width to the readout width.} T
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{First the math: $\alpha$ is the slow eigen-mode (derived)}
-Gradients ($r=p-y$): \ $\partial_\theta L=r\alpha,\quad \partial_\beta L=-r\alpha,\quad \partial_\alpha L=r(\theta-\beta)$.
+\begin{frame}{From loss to gradient: defining $z,p,y,r$}
+One response: logit $z=\alpha(\theta-\beta)$, predicted probability $p=\sigma(z)$, observed response $y\in\{0,1\}$.
 \medskip
 
-The per-response score is one vector $s=(\alpha,\ \theta-\beta,\ -\alpha)$, so the Fisher
+Training loss $=$ cross-entropy (negative log-likelihood): \ $L=-y\log p-(1-y)\log(1-p)$.
+
+The sigmoid-with-cross-entropy (canonical-link) identity gives the \textbf{residual}
+\[ r:=\partial L/\partial z=p-y. \]
+Chain rule through $z$, with $\partial_\theta z=\alpha,\ \partial_\beta z=-\alpha,\ \partial_\alpha z=\theta-\beta$:
+\[ \partial_\theta L=r\alpha,\qquad \partial_\beta L=-r\alpha,\qquad \partial_\alpha L=r(\theta-\beta). \]
+\footnotesize\textbf{Does the loss matter?} Yes. The clean $r=p-y$ is the cross-entropy/canonical-link pairing; squared error or a reweighted ordinal loss changes $r$. GPCM is the same form with $r_k=p_k-y_k$.
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{The math: $\alpha$ is the slow eigen-mode (derived)}
+From these gradients, the per-response score is one vector $s=(\alpha,\ \theta-\beta,\ -\alpha)$, so the Fisher
 $F=w\,ss^\top$ ($w=p(1{-}p)$) is \textbf{rank one}. The $(\theta,\alpha)$ block has exact eigenvalues
 \[ \lambda_\pm=\tfrac12\big[(I_\theta{+}I_\alpha)\pm\sqrt{(I_\theta{-}I_\alpha)^2+4I_{\theta\alpha}^2}\big],
    \qquad \lambda_-\approx I_\alpha(1-\rho^2). \]
