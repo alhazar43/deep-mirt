@@ -41,9 +41,10 @@ invariant to the standard IRT scale and location indeterminacy.
 | P6 (K worsens conditioning) | For GPCM, `I(alpha)` rises in absolute terms with K but `I(theta)` rises faster, so the stiffness ratio `I(theta)/I(alpha)` grows monotonically with K. The shared-code flow becomes more ill-conditioned, so alpha's rate disadvantage grows with K. | Proved (Fisher forms) + Empirical (ratio table) | Finding 3 (the benefit of an alpha-specific readout GROWS with K) and the K=2 sign flip. |
 | P7 (positive-map neutrality) | Any smooth, strictly monotone positive map induces an `alpha`-space preconditioner `m_g(alpha) = [g'(g^{-1}(alpha))]^2`. After matching the effective initial alpha and tuning the learning rate per map, the leading-order local rate is map-independent up to a constant absorbed by the learning rate. Only non-smooth or non-monotone maps (ReLU dead zone, square sign-folding) genuinely lag. | Argued | Finding 4 (exp is not special; smooth maps tie; only non-smooth/non-monotone maps lag). |
 | P8 (scalar preconditioning is insufficient) | A scalar `alpha`-space preconditioner acts on a single direction and cannot reproduce the recovery effect that lives in the coupling between the shared representation directions. With `theta, beta` frozen and only the scalar `alpha_j` optimized, all reasonable `alpha`-space update rules converge to the same band. | Argued + Empirical (direct-alpha control) | Finding 4 (the scalar preconditioner-only explanation is refuted by the direct-alpha control). |
+| P9 (representation coupling is the mechanism) | The validated accelerator is REPRESENTATION DECOUPLING, not scalar reparameterization. A shared item code gives the code's Hessian block a two-direction structure with condition number `kappa = I(theta)/I(alpha) >> 1`, so a single-step-size flow resolves the alpha-aligned component at a rate throttled by `kappa`. A separate alpha code has curvature `~ I(alpha)` only and resolves alpha at its own uncontested rate. The speedup factor is `O(kappa)`, growing with K. Same fixed point in both cases (free-table invariant), so it is a pure rate / early-stopping effect. | Proved (local quadratic rate) + Argued (global endpoint via P4b) + Empirical (rung-7, K-sweep, N-sweep) | Replaces the REFUTED `alpha^2`-preconditioner proposition; anchors the gate (d1), trajectory (d2), 28x gradient (d3), stiffness rank 0.89 (d4), N-sweep (d5). |
 
 The free-table invariant (Section 4.3) is the single load-bearing structural
-fact behind P4 through P8: as long as the per-item parameters form a free table
+fact behind P4 through P9: as long as the per-item parameters form a free table
 that can reach the zero-residual fit `p = p*`, every gradient pull is linear in
 the residual and all pulls vanish together at the reachable optimum, so the
 endpoint is invariant to representation choice and to smooth reparameterization.
@@ -574,6 +575,318 @@ preconditions parameters, not the shared representation directions).
 
 ---
 
+## 7.5 The positive result: representation coupling, not scalar reparameterization, sets the rate (P9)
+
+This section replaces a proposition from an earlier plan that is now REFUTED. The
+earlier claim was that the exponential positivity map induces an
+`alpha^2`-preconditioned gradient flow that ACCELERATES discrimination recovery,
+i.e. that a scalar reparameterization is the mechanism. Two empirical controls
+kill it: (i) after matched effective-alpha init and per-map learning-rate tuning,
+the exponential ties all smooth strictly-monotone positive maps (the content of
+P7, Section 6); (ii) a direct-alpha control with true `theta, beta` frozen finds
+all `alpha`-space update rules and scalar preconditioners converging to the same
+recovery band (the content of P8, Section 7). A scalar reparameterization is
+therefore NOT the mechanism. P9 states the mechanism that survives both controls:
+the acceleration is a property of the COUPLED two-block representation, the
+shared item code, and is relieved by giving discrimination its own code block
+(decoupling). P9 builds directly on the rate law P4a, the K-conditioning P6, and
+the insufficiency argument P8, and inherits the endpoint invariance of P4b; it
+does not restate them.
+
+### 7.5.1 Setup: the item-code block in the local quadratic model
+
+Write the amortized model so the item-code block is explicit. Each item `j`
+carries a code `e_j in R^m`. The discrimination and location readouts are linear
+in the code, `alpha_j = g(a^T e_j)`, `beta_j = b^T e_j` (2PL; the GPCM threshold
+readouts `B_c^T e_j` add `K-1` location directions, treated below). The same code
+also feeds the ability pathway: the encoder pools item codes across a learner's
+history to form `theta_i`, so a perturbation of `e_j` moves `theta_i` for every
+learner who saw item `j`, with a person-dependent sensitivity vector `v_{ij} =
+d theta_i / d e_j` (for a fixed linear pool `v_{ij} = (1/J) s_{ij} u`; for a
+learned encoder `v_{ij} = (1/J) s_{ij} W^T diag(g'(.)) u`, the rung-5 and rung-6
+forms, sum-checked to machine precision in `docs/learning_dynamics_toy.md` Secs
+9, 10). The two architectures differ only in which readouts share a code block:
+
+- SHARED: one code block `e_j` feeds the ability pathway AND the alpha/beta
+  readouts.
+- DECOUPLED: a separate block `e_j^al` feeds ONLY the alpha (and beta) readouts;
+  the ability pathway reads its own block `e_j^th`.
+
+**Assumptions (stated up front, used throughout 7.5).**
+
+- (A1) Local regime. We work in a neighborhood of a gauge-fixed identifiable
+  optimum `phi*` (gauge per Section 8); claims are local-quadratic and concern
+  the transient, not the basin globally.
+- (A2) Gauss-Newton / Fisher-Hessian. Near `phi*` we use the Gauss-Newton
+  Hessian `H ~ E[J^T diag(w) J]`, which equals the Fisher information `F` exactly
+  at a zero-residual well-specified optimum and approximately otherwise (the same
+  identity used in P4a). The residual-curvature term is dropped; it is `O(r)` and
+  vanishes at the reachable zero-residual optimum (P4b).
+- (A3) Single shared step size. Plain gradient flow / gradient descent with ONE
+  scalar learning rate across the code block (no per-coordinate preconditioning).
+  This is the regime where conditioning bites; Adam relaxes it (Section 7.5.5).
+- (A4) Free-table expressivity. The code has rank `>= 2` for 2PL, `>= K` for
+  GPCM, so the zero-residual fit is reachable and P4b applies (this is the
+  expressivity wall of Section 5; below it the effect is a wall, not a rate).
+- (A5) Block-diagonal reduction. Cross-item and cross-person off-diagonal Hessian
+  couplings are subdominant to the within-code-block curvature we analyze; the
+  per-item code block is the relevant slow subsystem. *Status: Argued* (it is the
+  block the gradient-flow lag is measured on in the toy; a full off-diagonal
+  treatment is not attempted).
+
+### 7.5.2 The shared code block is ill-conditioned; the decoupled block is not
+
+Restrict the Gauss-Newton Hessian to the item-`j` code block. The block collects
+the curvature contributed by every readout that uses `e_j`. Each readout
+contributes a rank-one (per response) outer product `w (d z / d e_j)(d z / d e_j)^T`
+with `d z / d e_j` the readout's Jacobian into the code (A2).
+
+**Proposition P9a (block curvature).** Summing the per-response Gauss-Newton
+contributions over the responses that touch item `j`, the SHARED code block has
+Hessian
+
+```
+H^sh_j  ~  I(alpha_j) (a a^T)            (alpha-readout direction)
+        +  I(beta_j)  (b b^T)            (beta-readout direction)
+        +  sum_i I(theta_i)-weighted (v_{ij} v_{ij}^T)   (ability-pathway direction)
+```
+
+(schematically; the alpha direction carries curvature `~ I(alpha_j) = sum_i w_ij
+(theta_i - beta_j)^2`, the ability direction carries curvature `~ I(theta)` summed
+over the learners who saw item `j`, from P2). The block therefore has an
+ability-aligned direction with curvature `~ I(theta)` and an alpha-aligned
+direction with curvature `~ I(alpha)`, so its condition number is
+
+```
+kappa = lambda_max / lambda_min  ~  I(theta) / I(alpha)  >> 1,
+```
+
+the same stiffness ratio as P4a/P6. The DECOUPLED alpha block `e_j^al` receives
+contributions ONLY from the alpha (and beta) readouts, so its largest curvature
+along the alpha direction is `~ I(alpha)` with NO ability-aligned high-curvature
+direction; its alpha-relevant condition number is `O(1)`.
+
+*Proof.* Each readout's Gauss-Newton contribution is `E[w (dz/de_j)(dz/de_j)^T]`
+(A2); summing the contributions of the readouts that share the block gives the
+displayed sum. The curvature magnitudes are the per-direction Fisher informations
+of P2 (2PL) / P6a (GPCM). The shared block contains both the ability-pathway term
+(magnitude `I(theta)`) and the alpha-readout term (magnitude `I(alpha)`), so its
+eigenvalue spread is bounded below by their ratio; the decoupled alpha block omits
+the ability-pathway term by construction. *Status: Proved* (local, under A1-A5).
+∎
+
+The directions need not be orthogonal for this to hold; `kappa` is an eigenvalue
+ratio, not an angle. We return to the orthogonality point in 7.5.4 because it is
+exactly the Phase-2 subtlety the user flagged.
+
+### 7.5.3 The shared block throttles the alpha component; the decoupled block does not
+
+Linearize gradient flow on the code block (A1-A3). With `delta_j = e_j - e_j*`,
+
+```
+d(delta_j)/dt = -H_j delta_j,
+```
+
+and in the eigenbasis of `H_j` each mode `c` decays as `e^{-lambda_c t}` (this is
+P4a applied to the block). Decompose `delta_j` along the alpha-aligned eigenvector.
+
+**Proposition P9b (rate throttling and the speedup factor).** Under a single
+shared step size (A3):
+
+- SHARED block. The alpha-aligned component decays at rate `lambda_alpha ~
+  I(alpha)`, while the fast ability-aligned component decays at `lambda_theta ~
+  I(theta)`. A single step size `eta` is bounded by stability on the FAST mode,
+  `eta < 2 / lambda_max ~ 2 / I(theta)`. The slow alpha mode then contracts per
+  unit time by at most `eta lambda_alpha ~ I(alpha) / I(theta) = 1 / kappa`. So the
+  time to resolve the alpha-aligned component to a fixed tolerance scales as
+
+  ```
+  tau_alpha^sh  ~  1 / (eta lambda_alpha)  ~  kappa / lambda_theta-scale  =  O(kappa).
+  ```
+
+  Alpha's ordering is the LAST thing the shared block resolves: the code is shaped
+  first along the high-curvature ability/location directions, and the alpha
+  direction is dragged along the slow mode at a rate divided by `kappa`.
+
+- DECOUPLED block. The alpha block has no high-curvature ability direction (P9a),
+  so its step size is bounded by `lambda_alpha` itself and the alpha component
+  contracts at `O(1)` per unit time:
+
+  ```
+  tau_alpha^dc  ~  1 / lambda_alpha,    independent of I(theta).
+  ```
+
+The speedup factor is the ratio of resolution times,
+
+```
+speedup  =  tau_alpha^sh / tau_alpha^dc  ~  kappa  =  I(theta) / I(alpha).
+```
+
+*Proof.* Standard stiff-flow argument. Under one step size the stability ceiling
+is set by `lambda_max` (else the fast mode diverges), so the slow mode's per-step
+contraction is `eta lambda_min <= 2 lambda_min / lambda_max = 2/kappa`; the number
+of steps to a fixed tolerance is `O(kappa)`. Removing the high-curvature direction
+(decoupling) removes the ceiling on `eta` that the slow mode pays, giving an
+`O(1)` resolution time. *Status: Proved* (local quadratic, single step size,
+A1-A5). ∎
+
+**K-scaling (Proved + Empirical).** By P6, `kappa(K) = I(theta)/I(alpha)` climbs
+monotonically with K (the toy table `1.03 -> 2.29` for `K = 2..6`, extended
+`0.96 -> 5.22` for `K = 2..11`). Therefore the speedup factor grows with K:
+decoupling buys more as the number of answer levels rises. This is the derived
+form of Finding 3's K-growth and of the K=2 near-tie (at `kappa ~ 1` the two
+blocks have the same conditioning, so the only difference is the decoupled block's
+extra estimation variance, which is why K=2 is net-neutral or slightly negative).
+
+### 7.5.4 Orthogonal gradients are consistent with the rate penalty
+
+The Phase-2 instrumentation found the shared-code alpha-pathway and theta-pathway
+gradients NEAR-ORTHOGONAL (`cos ~ 0`, measured `0.05..0.20` in the toy), which
+refutes a gradient-CONFLICT (tug-of-war) story. P9 does not need a conflict.
+
+**Why orthogonality does not rescue the rate.** The penalty in P9b is the
+EIGENVALUE SPREAD of `H_j`, not the inner product of the two pathway gradients.
+Two facts make this precise.
+
+- The condition number `kappa = lambda_max / lambda_min` is a property of the
+  Hessian's SPECTRUM. Orthogonal eigenvectors are the GENERIC case for a symmetric
+  PSD Hessian (its eigenvectors are exactly orthogonal); orthogonality of the
+  alpha and theta directions is therefore what you EXPECT, and it leaves `kappa`
+  untouched. A stiff symmetric system with orthogonal eigenvectors is still stiff.
+- Gradient conflict would require `cos < 0` (pulls partially cancel). `cos ~ 0`
+  means the pulls do not cancel, the alpha direction is simply a low-curvature
+  direction of the SAME block that a single step size cannot service quickly while
+  staying stable on the high-curvature direction. The alpha signal is not
+  overwritten; it is under-resolved.
+
+*Status: Argued* (it is the standard reading of a stiff linear flow; the empirical
+`cos ~ 0` and the empirical rate gap co-occur in rung 7, which is the consistency
+check). This is the resolution of the "honest open subtlety" recorded in study
+Section 2.3: the mechanism is magnitude/curvature dominance in an orthogonal
+subspace, formalized as eigenvalue spread, not a directional fight.
+
+### 7.5.5 Same fixed point: a pure rate / early-stopping effect
+
+**Proposition P9c (endpoint invariance).** The shared and decoupled architectures
+share the SAME fixed point, so P9 is a transient-only effect with no endpoint or
+bias difference.
+
+*Proof.* By P4b (the free-table invariant), under A4 every readout gradient
+factors through `dL/dz = r` and a Jacobian, so every pull is linear and
+homogeneous in the residual `r` and all pulls vanish simultaneously at the
+reachable zero-residual optimum `r = 0`. Which readouts share a code block changes
+the off-optimum Jacobian geometry (hence `H_j` and `kappa`, hence the RATE) but
+not the zero set of the gradient (hence not the optimum). So both architectures
+have the same stationary, globally-minimal, zero-residual fixed point. *Status:
+Proved* (inherits P4b). ∎
+
+Consequences, each matching an empirical control.
+
+- The rank advantage CLOSES at convergence (rung 7: per-step rank gap `+0.07..
+  +0.21` through the transient, `+0.001` by step 8000, both reach rank `1.0`). A
+  transient advantage that vanishes at convergence is the signature of a pure rate
+  effect, exactly as P9c requires.
+- The advantage is on RANK, not bias (rung 7: steps to `|logbias| < 0.10`
+  identical, `2252` vs `2301`). The endpoint magnitude is gauge-fixed identical
+  (P4b); the only thing decoupling moves is the SPEED of the rank ordering, the
+  metric the tracking model is judged on.
+- Adam compresses but does not erase the gap (rung 7: GD `2.2x` -> Adam `1.6x`). A
+  per-parameter preconditioner partially cancels `kappa` by rescaling the slow
+  coordinate, so it PARTIALLY substitutes for decoupling; it cannot fully, because
+  it preconditions parameters, not the shared code DIRECTIONS along which alpha and
+  theta mix. This is the same `kappa` that P8's Adam remark referenced; here it is
+  the explicit reason Adam helps and decoupling helps more.
+
+### 7.5.6 Why the scalar direct-alpha control found nothing (the distinguishing check)
+
+This is the consistency check that separates P9 (correct) from the refuted scalar
+claim. The direct-alpha control freezes true `theta, beta` and optimizes only the
+scalar `alpha_j`.
+
+**Proposition P9d (the scalar control removes the mechanism by construction).**
+With `theta, beta` frozen, there is no code block coupling two pathways: the
+problem is `J` independent scalar optimizations, one per item, each a 1-D
+strictly-convex problem in `alpha_j` with curvature `I(alpha_j) > 0` (P8.1). A
+single direction has condition number exactly `1`; there is NO eigenvalue spread
+for a preconditioner to fix. Hence every scalar `alpha`-space update rule and every
+scalar preconditioner converges to the same band (P8.2). The acceleration P9
+describes is intrinsically a property of the COUPLED two-block structure
+(`kappa = I(theta)/I(alpha)` of the JOINT flow), which freezing `theta, beta`
+deletes.
+
+*Proof.* Freezing `theta, beta` removes the ability-pathway and beta-readout
+contributions to the code-block Hessian of P9a, leaving a single alpha direction
+with curvature `I(alpha_j)`. A 1-D PSD Hessian has `kappa = 1`, so P9b's speedup
+`~ kappa = 1`: no rate gap exists to relieve. By P7's 1-D version any smooth
+positive preconditioner is absorbed by the learning rate. *Status: Argued +
+Empirical* (the 1-D convexity is exact under A1-A2; the direct-alpha control E7
+confirms the tie). ∎
+
+The contrast is the whole point. The REFUTED claim predicted that a scalar
+`alpha`-space preconditioner (induced by the `exp` map, `m_exp = alpha^2`) would
+accelerate alpha; the direct-alpha control isolates exactly a scalar
+`alpha`-space problem and finds NO acceleration, because a scalar problem has no
+conditioning to fix. P9 predicts that acceleration requires the coupled two-block
+structure and appears precisely when the alpha direction must share a code with
+the high-curvature ability pathway; the rung-7, K-sweep, and N-sweep experiments,
+which DO have the coupled structure, find exactly that acceleration. The two
+results are not in tension: they are the negative and positive halves of the same
+mechanism. The scalar control is the load-bearing falsifier that says "the
+mechanism is the coupling, not the reparameterization."
+
+### 7.5.7 Scope and limits of P9
+
+- (Proved) The block-curvature condition number `kappa = I(theta)/I(alpha)` for
+  the shared block and its `O(1)` value for the decoupled alpha block (P9a); the
+  `O(kappa)` resolution-time penalty and the `~ kappa` speedup factor under a
+  single step size (P9b); the K-growth via P6; the endpoint invariance via P4b
+  (P9c); the `kappa = 1` collapse of the scalar control (P9d). All are LOCAL
+  quadratic statements under A1-A5.
+- (Argued) The block-diagonal reduction A5 (the per-item code block is the
+  relevant slow subsystem; a full off-diagonal Hessian treatment is not done);
+  the orthogonality-consistency reading (7.5.4); the partial-substitution reading
+  of Adam (7.5.5).
+- (Empirical, supported not derived) The QUANTITATIVE speedup (rung 7: `2.2x`
+  fewer steps to rank `0.95`, `8x` lower seed variance; the K-sweep `delta_K`
+  magnitudes) and its exact K-profile (the magnitudes are empirical; the theory
+  gives the SIGN, the parameter-specificity, and the monotone-in-K trend). The
+  architecture-independence (LSTM / Transformer / DKVMN) of the empirical fix and
+  the across-seed variance collapse (a stiffer shared flow is more seed-sensitive
+  in its slow mode, consistent but not proved).
+- (Explicitly NOT claimed) No claim that a scalar reparameterization or scalar
+  preconditioner accelerates alpha (P9d and P7/P8 say the opposite; this is the
+  refuted proposition). No endpoint or bias advantage for decoupling (P9c: same
+  fixed point). No claim of a closed-form global trajectory; P9 is a local-rate
+  plus global-endpoint composition, like P4, not a population-limit dynamics law.
+  No variational content.
+
+### 7.5.8 One-line mapping to each empirical anchor
+
+- d1 (gate). Decoupling adding a separate alpha code is a structural change to
+  WHICH readouts share a block (P9a), not a capacity change; the capacity gate is
+  controlled and the effect persists, consistent with P9 locating the effect in
+  the block STRUCTURE, not parameter count.
+- d2 (trajectory). Alpha is reachable then resolved last because it is the slow
+  (`lambda_alpha ~ I(alpha)`) eigendirection of the shared block (P9b); the code
+  is shaped first along the high-curvature ability/location directions.
+- d3 (gradient, 28x). The theta-pathway gradient on the shared code growing ~28x
+  while the alpha pathway stays flat is the curvature asymmetry of P9a made
+  visible: the ability direction accumulates the high `I(theta)` curvature and
+  dominates the block's variation, so the linear alpha readout sees the alpha
+  direction at shrinking SNR (study Sec 2.3), the magnitude-dominance reading of
+  P9b/P9d.
+- d4 (stiffness, rank 0.89). The decoupling advantage tracking `kappa =
+  I(theta)/I(alpha)` at Spearman `0.891` over `K = 2..11` is the direct empirical
+  signature of P9b's speedup `~ kappa` and P6's `kappa(K)` growth.
+- d5 (N-sweep). The advantage NOT shrinking with N at a fixed budget (flat-to-
+  widening) is P9c read on the data axis: at a fixed step budget the stiff shared
+  flow is rate-limited (P9b), so more data leaves it more under-resolved on the
+  slow alpha mode while the decoupled block exploits the data at its own rate; the
+  "gap narrows with data" holds only AT convergence, which the fixed-budget model
+  does not reach.
+
+---
+
 ## 8. The gauge, and why claims are on rank
 
 The 2PL and GPCM losses are invariant under the joint reparameterization
@@ -618,6 +931,11 @@ What this document establishes, and as importantly what it does not.
   positive-map advantage (P4b).
 - The GPCM stiffness `kappa(K) = I(theta)/I(alpha)` grows monotonically with K
   (P6a, P6).
+- The shared item code block's condition number is `kappa = I(theta)/I(alpha)`
+  while the decoupled alpha block's is `O(1)`; under a single step size this gives
+  an `O(kappa)` rate penalty on alpha in the shared case and a `~ kappa` decoupling
+  speedup that grows with K, with the SAME fixed point in both cases (P9, the
+  validated mechanism, replacing the refuted scalar-preconditioner claim).
 
 **Argued (heuristic, locally rigorous but not a global theorem).**
 
@@ -630,6 +948,9 @@ What this document establishes, and as importantly what it does not.
 - Smooth-map recovery neutrality after matched init and LR, with the non-smooth /
   non-monotone exclusions (P7).
 - Scalar alpha-space preconditioning insufficiency (P8).
+- That the validated accelerator is REPRESENTATION decoupling, a coupled-two-block
+  conditioning effect, not a scalar reparameterization (P9); the block-diagonal
+  reduction (A5) and the orthogonality-consistency reading are the Argued parts.
 
 **Empirical only (this document supports but does not derive).**
 
@@ -657,6 +978,12 @@ What this document establishes, and as importantly what it does not.
   (smooth maps tie).
 - No claim that a scalar alpha-space preconditioner explains the neural effect.
   P8 argues the opposite.
+- No claim that a scalar reparameterization (the exponential's `alpha^2` map, or
+  any positive-map preconditioner) accelerates discrimination recovery. This was
+  the earlier-plan proposition; it is REFUTED (P7 smooth-map tie, P8 direct-alpha
+  control), and P9 relocates the accelerator to the coupled two-block
+  representation structure (decoupling), which the scalar control deletes by
+  construction.
 - No claim of a clean population-limit learning-DYNAMICS LAW. P4b shows the
   endpoint is invariant, so the entire effect is a finite-data plus
   finite-training RATE phenomenon, not an endpoint law.
@@ -674,5 +1001,10 @@ vanishes where targeted responses concentrate, so alpha is the low-information,
 slow mode. Low information sets the RATE of alpha's recovery, not its endpoint;
 the endpoint is invariant to representation choice and to smooth positivity maps
 (the free-table invariant), and the conditioning that drives the rate worsens
-with the number of answer levels K.
+with the number of answer levels K. The accelerator that works is not a scalar
+reparameterization but REPRESENTATION decoupling: giving discrimination its own
+item-code block removes the high-curvature ability direction from alpha's block,
+cutting the shared block's `kappa = I(theta)/I(alpha)` rate penalty to `O(1)` and
+speeding alpha's rank recovery by a factor `~ kappa` that grows with K, with no
+change to the fixed point.
 ```
