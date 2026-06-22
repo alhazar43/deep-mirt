@@ -3,14 +3,13 @@
 \usecolortheme{seahorse}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
-\setbeamertemplate{section in toc}[sections numbered]
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{graphicx}
 \graphicspath{{figs/}}
 
 \title[Finite-sample dynamics of discrimination recovery]{Finite-sample learning dynamics of discrimination recovery in amortized neural IRT}
-\subtitle{representation sharing degrades discrimination, decoupling restores it as a convergence-rate effect}
+\subtitle{representation sharing throttles discrimination; decoupling is a convergence-rate fix}
 \author{Wenrui Yuan}
 \date{}
 
@@ -19,295 +18,213 @@
 \begin{frame}\titlepage\end{frame}
 
 % ===========================================================================
-\section{Setup}
-
-\begin{frame}{Amortized neural IRT}
-A sequence encoder $E_\phi$ (LSTM) maps a response history to a time-varying
-ability $\theta_t$. Item parameters, discrimination $\alpha_i$ and difficulty or
-step thresholds $\beta_i$, are read from item embeddings and combined in an IRT
-decoder. For graded responses we use the GPCM (binary 2PL at $K{=}2$),
+\begin{frame}{Setup: amortized neural IRT}
+\begin{itemize}
+\item Encoder (LSTM): response history $\to$ time-varying ability $\theta_t$
+\item Item embeddings $\to$ discrimination $\alpha_i>0$, difficulty $\beta_i$; GPCM decoder
+\end{itemize}
 \[
-  P(Y_i = k \mid \theta) \;=\;
-  \frac{\exp\sum_{m=1}^{k}\alpha_i(\theta-\beta_{i,m})}
-       {\sum_{l=0}^{K-1}\exp\sum_{m=1}^{l}\alpha_i(\theta-\beta_{i,m})}.
+  P(Y_i=k\mid\theta)=\frac{\exp\sum_{m=1}^{k}\alpha_i(\theta-\beta_{i,m})}
+       {\sum_{l=0}^{K-1}\exp\sum_{m=1}^{l}\alpha_i(\theta-\beta_{i,m})}
+  \qquad(\text{2PL at }K{=}2)
 \]
-Training minimizes a response-prediction loss on the decoder (weighted ordinal
-cross-entropy). There is \textbf{no supervision} on $\theta,\alpha,\beta$ and no
-parameter priors.
-\medskip
-
-Recovery is the sign-aligned Spearman $\rho$ between recovered and
-data-generating parameters. The latent scale is identified only up to an affine
-gauge ($\theta\!\to\!s\theta+t,\ \alpha\!\to\!\alpha/s$), so rank is the
-well-posed target, not magnitude.
+\begin{itemize}
+\item Trained on response prediction only. \textbf{No supervision} on $\theta,\alpha,\beta$, no priors.
+\item Scale is gauge-free ($\theta\!\to\!s\theta{+}t,\ \alpha\!\to\!\alpha/s$) $\Rightarrow$ recovery $=$ rank (Spearman $\rho$).
+\end{itemize}
 \end{frame}
 
-\begin{frame}{The architecture: shared vs decoupled item representation}
-The item code enters in two places, the \textbf{encoder input} (which forms
-$\theta$) and the \textbf{discrimination/difficulty readouts}.
+% ===========================================================================
+\begin{frame}{Architecture: shared vs decoupled item code}
+The item code enters twice: the encoder ($\to\theta$) and the $\alpha,\beta$ readouts.
 \medskip
-
 \begin{itemize}
-\item \textbf{Shared} (\texttt{item\_key\_dim=None}, \texttt{emb\_dim=}$W$). One
-item-embedding table of width $W$ feeds both. Discrimination reads the same code
-that feeds ability.
-\item \textbf{Decoupled} (\texttt{emb\_dim=8} $+$ \texttt{item\_key\_dim=}$W{-}8$).
-A narrow item value embedding feeds the encoder, a \emph{separate} wide item key
-embedding feeds only the $\alpha,\beta$ readouts.
+\item \textbf{Shared}: one table, width $W$ \quad(\texttt{item\_key\_dim=None})
+\item \textbf{Decoupled}: \texttt{emb\_dim=8} $+$ separate \texttt{item\_key\_dim=}$W{-}8$ feeding only $\alpha,\beta$
+\item \texttt{state\_alpha=True} in both $\Rightarrow$ the study varies the \emph{representation}, not the readout
 \end{itemize}
 \medskip
-
-In both arms \texttt{state\_alpha=True}, so $\alpha_{i,t}=\text{head}([h_t,\,
-\text{key}_i])$ is state-conditioned and occurrence-averaged at recovery. The
-study varies \texttt{item\_key\_dim} (the representation) with
-\texttt{state\_alpha} held on. The decoupled default also uses an exponential
-positivity map, shown later not to be the lever.
+\centering
+\footnotesize
+shared: $\theta \leftarrow e_q \rightarrow (\alpha,\beta)$ \qquad
+decoupled: $\theta\leftarrow e_q^{\text{val}}$, \ \ $e_q^{\text{key}}\rightarrow(\alpha,\beta)$
 \end{frame}
 
+% ===========================================================================
 \begin{frame}{Discrimination is the low-information parameter}
 \begin{columns}
-\begin{column}{0.54\textwidth}
+\begin{column}{0.5\textwidth}
 \includegraphics[width=\linewidth]{s1_three_speeds.png}
 \end{column}
-\begin{column}{0.44\textwidth}
-\footnotesize
-2PL gradients with residual $r=p-y$,
-\[
-  \partial_\theta L = r\alpha,\quad
-  \partial_\beta L = -r\alpha,\quad
-  \partial_\alpha L = r(\theta-\beta).
-\]
-Fisher information, $w=p(1-p)$,
-\[
-  I(\theta)=I(\beta)=\alpha^2 w,\quad
-  I(\alpha)=(\theta-\beta)^2 w.
-\]
-$I(\alpha)$ is suppressed by the lever arm and vanishes at $\theta=\beta$, where
-targeted responses concentrate. So $\alpha$ recovers slowly. The stiffness
-$\kappa=I(\theta)/I(\alpha)$ grows with $K$.
+\begin{column}{0.48\textwidth}
+Gradients ($r=p-y$):
+\[ \partial_\theta L=r\alpha,\ \ \partial_\beta L=-r\alpha,\ \ \partial_\alpha L=r(\theta{-}\beta) \]
+Fisher ($w=p(1{-}p)$):
+\[ I(\theta)=I(\beta)=\alpha^2 w,\quad I(\alpha)=(\theta{-}\beta)^2 w \]
+\begin{itemize}
+\item $I(\alpha)\to 0$ at $\theta{=}\beta$ (where responses concentrate)
+\item stiffness $\kappa=I(\theta)/I(\alpha)$ grows with $K$
+\end{itemize}
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{The question}
-
-\begin{frame}{Three explanations for degraded discrimination under sharing}
+\begin{frame}{Why is discrimination degraded under sharing?}
+Three explanations, one test each.
+\medskip
 \begin{enumerate}
-\item \textbf{Capacity.} The shared code is too small. A wider one fixes it.
-(Trivial.)
-\item \textbf{Expressivity.} No shared code, however wide, can hold the
-$\theta$-optimal and $\alpha$-optimal directions at once. (A property of the
-global optimum, not of training.)
-\item \textbf{Dynamics.} A shared code with the rank to express both is still
-driven by gradient flow to the $\theta$ compromise. (A finite-sample
-learning-dynamics effect.)
+\item \textbf{Capacity} \,$\to$\, a wider shared code would fix it
+\item \textbf{Expressivity} \,$\to$\, no shared code holds both directions at the optimum
+\item \textbf{Dynamics} \,$\to$\, gradient flow drives the shared code to the $\theta$ compromise
 \end{enumerate}
 \medskip
-
-Each test below is designed to eliminate one explanation, with its control
-stated. Synthetic GPCM, known $\theta,\alpha,\beta$, LSTM encoder.
+Synthetic GPCM, known $\theta,\alpha,\beta$, LSTM. Each finding eliminates one.
 \end{frame}
 
 % ===========================================================================
-\section{Test 1, capacity}
-
-\begin{frame}{Test 1, allocation not budget (the gate)}
+\begin{frame}{Test 1, not capacity: allocation}
 \begin{columns}
-\begin{column}{0.55\textwidth}
+\begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d1_capacity_tradeoff.png}
 \end{column}
-\begin{column}{0.43\textwidth}
-\footnotesize
-\textbf{Design.} Sweep the shared width $W$; place the decoupled model at
-\textbf{matched total item-embedding parameters} ($Q\!\times\!W$) on the same
-axes. 5 seeds.
+\begin{column}{0.42\textwidth}
+\textbf{Control}: matched total item-embedding params.
 \medskip
-
-\textbf{Result.} The shared family traces a Pareto frontier, $\theta$ falls
-$0.97\!\to\!0.88$ as $\alpha$ climbs $0.66\!\to\!0.91$, and no width clears both.
-The decoupled point sits \textbf{above} the frontier, $\theta\!\approx\!0.97$ and
-$\alpha\,0.90\text{ to }0.94$, at fewer params.
+\begin{itemize}
+\item shared width sweep $\to$ Pareto frontier, no $W$ gets both
+\item decoupled sits \textbf{above}: $\theta\!\approx\!0.97$, $\alpha\,0.90$–$0.94$, fewer params
+\end{itemize}
 \medskip
-
-\textbf{Conclusion.} Capacity eliminated. The effect is allocation, not budget.
+$\Rightarrow$ allocation, not budget.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{Test 2, dynamics}
-
-\begin{frame}{Test 2, the both-high solution is reached then left}
+\begin{frame}{Test 2, not expressivity: reached then left}
 \begin{columns}
-\begin{column}{0.55\textwidth}
+\begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d2_trajectory.png}
 \end{column}
-\begin{column}{0.43\textwidth}
-\footnotesize
-\textbf{Design.} Checkpoint training, recover $\alpha$ per epoch, for wide-shared,
-decoupled, narrow-shared. 3 seeds.
+\begin{column}{0.42\textwidth}
+\begin{itemize}
+\item wide-shared $\alpha$: peaks $0.91$ (ep 50), decays to $0.79$ (ep 500)
+\item decoupled: rises $0.91$, \textbf{holds}
+\end{itemize}
 \medskip
-
-\textbf{Result.} Wide-shared $\alpha$ peaks at $0.906$ (epoch 50, with $\theta$
-also high) then \textbf{decays} to $0.787$ by epoch 500. Decoupled rises to
-$0.912$ and holds.
-\medskip
-
-\textbf{Conclusion.} Expressivity eliminated. The both-high optimum is reachable
-and reached, then training leaves it. A dynamics effect, not a ceiling.
+$\Rightarrow$ the both-high optimum is reachable, reached, then abandoned $=$ dynamics.
 \end{column}
 \end{columns}
 \end{frame}
 
-\begin{frame}{Test 2, mechanism, conditioning of the shared code}
+% ===========================================================================
+\begin{frame}{Test 2, mechanism: the shared code is conditioned}
 \begin{columns}
-\begin{column}{0.55\textwidth}
+\begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d3_gradient_capture.png}
 \end{column}
-\begin{column}{0.43\textwidth}
-\footnotesize
-\textbf{Design.} Split the gradient on the shared item embedding $e_q$ into the
-$\theta$ pathway and the $\alpha$ pathway, track over training (one instrumented
-run, sum-check exact).
+\begin{column}{0.42\textwidth}
+\begin{itemize}
+\item $\theta$-pathway pull grows $\sim$28$\times$; $\alpha$-pathway flat
+\item $\cos(g_\theta,g_\alpha)\approx 0$ (not a tug-of-war)
+\item the lag is eigenvalue spread, $\kappa\approx2.2$ at $K{=}4$
+\end{itemize}
 \medskip
-
-\textbf{Result.} The $\theta$-pathway gradient grows $\sim$28$\times$ while the
-$\alpha$-pathway stays flat, with $\cos(g_\theta,g_\alpha)\approx 0$.
-\medskip
-
-\textbf{Conclusion.} Not a gradient tug of war. The mechanism is
-\textbf{Hessian conditioning}, the shared-code block's eigenvalue spread
-$\sim\kappa=I(\theta)/I(\alpha)$ (Hessian estimate $\approx 2.2$ at $K{=}4$). The fast $\theta$
-mode resolves first, the low-Fisher $\alpha$ mode last.
+fast $\theta$ mode first, slow $\alpha$ mode last.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{Test 3, finite-sample}
+\begin{frame}{The dynamics as a gradient-flow ODE}
+Item-code block near the optimum, $\delta=e_q-e_q^*$:
+\[
+  \dot\delta = -H\,\delta,\qquad \delta_c(t)=\delta_c(0)\,e^{-\lambda_c t}.
+\]
+\begin{itemize}
+\item Shared block, two curvatures: $\ \kappa=\dfrac{\lambda_\theta}{\lambda_\alpha}=\dfrac{I(\theta)}{I(\alpha)}\gg1$
+\item One step size $\eta<2/\lambda_{\max}$: slow mode contracts at $\eta\lambda_\alpha\sim 1/\kappa\ \Rightarrow\ \tau_\alpha^{\text{sh}}\sim O(\kappa)$
+\item Decoupled block: $O(1)$-conditioned $\ \Rightarrow\ \tau_\alpha^{\text{dec}}\sim O(1)$
+\end{itemize}
+\[
+  \boxed{\ \text{speedup}\ \sim\ \kappa = I(\theta)/I(\alpha)\ \ (\text{grows with }K)\ }
+\]
+Same fixed point (free-table invariant) $\Rightarrow$ \textbf{rate, not endpoint}. Largest under
+plain GD; Adam's preconditioner compresses $\kappa$.
+\end{frame}
 
-\begin{frame}{Test 3, the advantage is rate-limited, not data-limited}
+% ===========================================================================
+\begin{frame}{Test 3, finite-sample: rate-limited not data-limited}
 \begin{columns}
-\begin{column}{0.55\textwidth}
+\begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d5_finite_sample_Nsweep.png}
 \end{column}
-\begin{column}{0.43\textwidth}
-\footnotesize
-\textbf{Design.} Vary the number of learners $N$ at a \textbf{fixed} 150-epoch
-budget, measure the decoupled advantage $\Delta_\alpha$, across $K$. 5 seeds.
+\begin{column}{0.42\textwidth}
+\textbf{Fixed budget}, vary $N$.
 \medskip
-
-\textbf{Result.} $\Delta_\alpha$ does not shrink with $N$. It is flat to widening
-($K{=}2$, $+0.03\!\to\!+0.23$ over $N{=}100\text{ to }1600$), higher for larger
-$K$.
+\begin{itemize}
+\item advantage does not shrink with data ($K{=}2$: $+0.03\!\to\!+0.23$)
+\item more learners, same steps $\to$ slow $\alpha$ mode further behind
+\end{itemize}
 \medskip
-
-\textbf{Conclusion.} The finite-sample signature. The effect is rate-limited, not
-data-limited, more data at a fixed budget leaves the stiff $\alpha$ mode further
-behind, decoupled keeps up. (At convergence it vanishes, see mechanism.)
-\end{column}
-\end{columns}
-\end{frame}
-
-\begin{frame}{Test 3, the advantage scales with Fisher stiffness}
-\begin{columns}
-\begin{column}{0.55\textwidth}
-\includegraphics[width=\linewidth]{d4_stiffness_Ksweep.png}
-\end{column}
-\begin{column}{0.43\textwidth}
-\footnotesize
-\textbf{Design.} Sweep $K{=}2\text{ to }11$ (10 seeds), compare $\Delta_\alpha$ to
-the analytic stiffness $\kappa=I(\theta)/I(\alpha)$.
-\medskip
-
-\textbf{Result.} $\Delta_\alpha$ tracks $\kappa$ closely,
-$\rho(\Delta_\alpha,\kappa)=0.89$ across $K$, and decoupled de-noises $\alpha$
-(seed std $0.005$ to $0.042$). Rise then saturate, decoupled ceilings $\approx
-0.95$.
-\medskip
-
-\textbf{Conclusion.} The size of the effect is governed by the Fisher stiffness,
-which the task ($K$) sets.
+$\Rightarrow$ the finite-sample signature of a rate effect.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{A ruled-out hypothesis}
+\begin{frame}{Test 3, the advantage tracks $\kappa$}
+\begin{columns}
+\begin{column}{0.56\textwidth}
+\includegraphics[width=\linewidth]{d4_stiffness_Ksweep.png}
+\end{column}
+\begin{column}{0.42\textwidth}
+\begin{itemize}
+\item $K{=}2$ to $11$: $\Delta_\alpha$ vs stiffness $\kappa$, $\ \rho=0.89$
+\item decoupled de-noises $\alpha$ ($\sigma$ $0.005$–$0.042$)
+\item rise then saturate (decoupled ceilings $\approx0.95$)
+\end{itemize}
+\medskip
+$\Rightarrow$ size of the effect $=$ the Fisher stiffness, set by $K$.
+\end{column}
+\end{columns}
+\end{frame}
 
-\begin{frame}{The positivity map is not the lever}
+% ===========================================================================
+\begin{frame}{Ruled out: the positivity map}
 \begin{columns}
 \begin{column}{0.54\textwidth}
 \includegraphics[width=\linewidth]{s3_formula_distractor.png}
 \end{column}
 \begin{column}{0.44\textwidth}
-\footnotesize
-$\alpha$ is read through a positive map $g(\cdot)$. Hypothesis, the exponential
-map is geometrically special.
+$\alpha=g(\cdot)$, $g$ positive. Is $g=\exp$ special?
 \medskip
-
-\textbf{Design.} Matched effective-$\alpha$ initialization, per-map learning-rate
-sweep, $K{=}2,4,8$. Plus a direct-$\alpha$ control with $\theta,\beta$ frozen,
-comparing $\alpha$-space update rules.
+\begin{itemize}
+\item matched init $+$ per-map LR: exp ties all smooth maps ($\Delta\approx0$)
+\item direct-$\alpha$ control ($\theta,\beta$ frozen): scalar preconditioner does nothing ($\kappa{=}1$)
+\end{itemize}
 \medskip
-
-\textbf{Result.} exp does not beat the best smooth map ($\Delta\approx 0$); only
-non-smooth or non-monotone maps (raw, ReLU, square) lag. The direct control
-refutes the $\alpha^2$-preconditioner-only account.
-\medskip
-
-\textbf{Conclusion.} Positivity is necessary, the exponential is not special. The
-lever is the representation, not the map.
+$\Rightarrow$ positivity needed, exp not special. The lever is the representation.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\section{Mechanism}
-
-\begin{frame}{What the theory pins}
-\begin{itemize}
-\item Discrimination is the low-Fisher parameter, $I(\alpha)=(\theta-\beta)^2 w$
-vanishes where responses concentrate, and the stiffness $\kappa=I(\theta)/
-I(\alpha)$ grows with $K$.
-\item Near an identifiable optimum, each direction's recovery rate is set by its
-Fisher information, so $\kappa$ sets how late $\alpha$ resolves. \textbf{Low
-Fisher sets the rate.}
-\item \textbf{Free-table invariant.} When item parameters form a free table that
-can reach $p=p^*$, every gradient pull is linear in the residual and all vanish
-together, so the population optimum is unbiased and \emph{decoupling-invariant}.
-\textbf{Low Fisher does not set the endpoint.}
-\end{itemize}
-\medskip
-
-So decoupling is a finite-budget convergence-rate and rank advantage, with no
-endpoint bias. Derivations in the supporting analysis.
-\end{frame}
-
-% ===========================================================================
-\section{Conclusion}
-
 \begin{frame}{Conclusion}
 \begin{block}{}
-Decoupling the discrimination representation in amortized neural IRT buys a
-Fisher-conditioning-governed convergence-rate advantage on discrimination rank
-recovery, growing with $K$, dominant at any practical training budget, with no
-endpoint cost.
+Decoupling the discrimination code buys an $O(\kappa)$ convergence-rate advantage
+on discrimination rank, $\kappa=I(\theta)/I(\alpha)$, growing with $K$, no endpoint cost.
 \end{block}
 \medskip
-\begin{itemize}\small
-\item Not capacity (allocation at matched params), not expressivity (the both-high
-optimum is reached then left), but learning dynamics (the $\theta$ mode
-conditions the shared code, $\sim$28$\times$).
-\item It is a measurement-validity condition, recovered discrimination is
-otherwise a representation-allocation artifact of finite-budget training.
-\item The positivity map is ruled out as the lever.
+\begin{itemize}
+\item not capacity (matched params), not expressivity (reached then left), but \textbf{dynamics}
+\item a measurement-validity condition: recovered $\alpha$ is otherwise a finite-budget allocation artifact
+\item positivity map ruled out as the lever
 \end{itemize}
 \medskip
-\footnotesize \textbf{Scope.} Synthetic GPCM, LSTM (architecture-independent on a
-swap bench), 3 to 10 seeds. \textbf{Open.} Per-parameter channel grid
-($\theta$, thresholds), NRM-slope channel, GRM head, real-data stability.
+\footnotesize Scope: synthetic GPCM, LSTM (architecture-independent on swap), 3--10 seeds.
+Open: $\theta$/threshold channels, NRM slopes, GRM, real-data stability.
 \end{frame}
 
 \end{document}
