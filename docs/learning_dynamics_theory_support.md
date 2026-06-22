@@ -1,13 +1,28 @@
-# Theory support for the discrimination-recovery dynamics
+# Theory support for the joint parameter-recovery dynamics (theta, beta, alpha)
 
 A self-contained mathematical support layer for the empirical learning-dynamics
 results in `docs/LEARNING_DYNAMICS_STUDY.md`. The role of this document is
 modest and local: it derives the information-geometric structure that EXPLAINS
-why the discrimination parameter (sharpness, alpha) recovers slowly and less
-reliably under prediction training, and it states precisely what that structure
-does and does not imply. It is a support layer for a deep-learning paper, not a
-standalone theorem. Every claim below is marked Proved, Argued (heuristic), or
-Empirical.
+why prediction training recovers the three psychometric parameters at different
+rates and qualities under a SHARED item representation, and it states precisely
+what that structure does and does not imply. It is a support layer for a
+deep-learning paper, not a standalone theorem. Every claim below is marked
+Proved, Argued (heuristic), or Empirical.
+
+Sections 2 through 7.5 (P1 to P9) analyze the discrimination parameter alpha:
+why it is the low-information slow mode and why giving it its own readout code
+buys a convergence-rate advantage. Section 7.6 (P10, P11, P12) completes the
+picture into the JOINT three-parameter trade-off the architecture actually
+poses. The single item code feeds two consumers, the ability ENCODER and the
+alpha/beta READOUTS, and the three parameters want that code's width pulled in
+opposite directions: alpha wants it WIDE (P9), ability theta wants it NARROW
+(P10), difficulty beta is the indifferent control (P11). A shared code ties the
+encoder-input width to the readout width, so the two pressures collide along a
+Pareto frontier; decoupling unties them and is Pareto-dominant (P12). The alpha
+side (P9) and the theta side (P10) are DISTINCT mechanisms, a transient rate /
+conditioning effect on a free item table versus a finite-data
+capacity / generalization effect on an amortized readout, and the document keeps
+them separate.
 
 This document does not edit or supersede the theory appendix
 (`docs/learning_dynamics_toy.md`). The appendix builds an analytically tractable
@@ -42,6 +57,9 @@ invariant to the standard IRT scale and location indeterminacy.
 | P7 (positive-map neutrality) | Any smooth, strictly monotone positive map induces an `alpha`-space preconditioner `m_g(alpha) = [g'(g^{-1}(alpha))]^2`. After matching the effective initial alpha and tuning the learning rate per map, the leading-order local rate is map-independent up to a constant absorbed by the learning rate. Only non-smooth or non-monotone maps (ReLU dead zone, square sign-folding) genuinely lag. | Argued | Finding 4 (exp is not special; smooth maps tie; only non-smooth/non-monotone maps lag). |
 | P8 (scalar preconditioning is insufficient) | A scalar `alpha`-space preconditioner acts on a single direction and cannot reproduce the recovery effect that lives in the coupling between the shared representation directions. With `theta, beta` frozen and only the scalar `alpha_j` optimized, all reasonable `alpha`-space update rules converge to the same band. | Argued + Empirical (direct-alpha control) | Finding 4 (the scalar preconditioner-only explanation is refuted by the direct-alpha control). |
 | P9 (representation coupling is the mechanism) | The validated accelerator is REPRESENTATION DECOUPLING, not scalar reparameterization. A shared item code gives the code's Hessian block a two-direction structure with condition number `kappa = I(theta)/I(alpha) >> 1`, so a single-step-size flow resolves the alpha-aligned component at a rate throttled by `kappa`. A separate alpha code has curvature `~ I(alpha)` only and resolves alpha at its own uncontested rate. The speedup factor is `O(kappa)`, growing with K. Same fixed point in both cases (free-table invariant), so it is a pure rate / early-stopping effect. | Proved (local quadratic rate) + Argued (global endpoint via P4b) + Empirical (rung-7, K-sweep, N-sweep) | Replaces the REFUTED `alpha^2`-preconditioner proposition; anchors the gate (d1), trajectory (d2), 28x gradient (d3), stiffness rank 0.89 (d4), N-sweep (d5). |
+| P10 (theta wants the encoder input narrow) | The amortized ability readout pools item codes through the encoder. Widening the code that enters the encoder raises the VARIANCE of `theta_hat` by giving the encoder degrees of freedom to absorb item-specific idiosyncrasy (item identity, learner-by-item response noise) into the ability state. So theta recovery DEGRADES with encoder-input width and degrades FURTHER along the training trajectory as the optimizer drives the over-parameterized encoder deeper into interpolation. This is a finite-data capacity / generalization effect on an amortized readout, DISTINCT in kind from alpha's conditioning (P9), and OUTSIDE the free-table invariant (P4b) because theta is read by an encoder, not a free per-item table. | Argued (linear-amortizer bias-variance `O(W/n)`) + Argued (lift to the LSTM) + Empirical (theta 0.97->0.88 with width; 0.97->0.68 with training; theta-pathway gradient on the shared code grows ~28x) | Finding (gate Pareto theta side); the d2 theta-overfit trajectory; the d3 28x gradient growth as the theta side of the curvature asymmetry. |
+| P11 (beta is the indifferent control) | Difficulty beta is a high-Fisher location parameter (`I(beta) = alpha^2 w`, same order as I(theta)), read DIRECTLY off the item code with no amortized-pooling pathway. So beta neither NEEDS width (high Fisher pins it from a thin code, unlike alpha) nor is HURT by it (no learner-by-item leakage channel into a per-learner latent, unlike theta). Beta is therefore the negative control on BOTH pressures: a richer / wider / state-conditioned treatment is a no-op for beta. | Proved (Fisher form + readout structure) + Empirical (delta_beta ~ 0 across K, beta ~0.98 everywhere) | Finding (the beta negative control: decoupling and dynamic treatment lift alpha but do essentially nothing for beta, delta_beta ~ +0.003). |
+| P12 (shared ties the widths -> Pareto frontier; decoupling unties them -> Pareto-dominant) | A SHARED code uses ONE width W for both the encoder input and the readout code. Alpha's pressure (P9) wants W large, theta's pressure (P10) wants W small, beta is flat, so sweeping the single knob W traces a Pareto frontier in (theta, alpha): theta down, alpha up, beta flat. DECOUPLING introduces a SECOND knob, a narrow encoder-input width and a separate wide readout width, so alpha gets its capacity without widening the encoder. The decoupled point dominates the shared frontier (high theta AND high alpha): it ESCAPES the frontier rather than moving along it. | Proved (two independent knobs dominate one coupled knob given opposing single-knob gradients) + Empirical (the gate: shared frontier theta 0.97->0.88 / alpha 0.66->0.91; decoupled sits above it; matched-total-capacity controlled) | Finding (the Phase-0 gate Pareto and its decoupled dominance at matched total capacity). |
 
 The free-table invariant (Section 4.3) is the single load-bearing structural
 fact behind P4 through P9: as long as the per-item parameters form a free table
@@ -887,6 +905,272 @@ mechanism is the coupling, not the reparameterization."
 
 ---
 
+## 7.6 The joint three-parameter trade-off and the Pareto escape (P10, P11, P12)
+
+Sections 2 through 7.5 analyze one parameter, alpha. That is half the story. The
+architecture poses a THREE-WAY trade-off, and the alpha-only narrative hides the
+parameter that actually drives the decoupling decision, ability theta. This
+section formalizes the theta side (P10), the beta control (P11), and the
+trade-off synthesis (P12), and cross-references P9 for the alpha half.
+
+### 7.6.1 The architecture: one code, two consumers
+
+The item code `e_j` feeds TWO consumers with opposite width needs.
+
+- The ability ENCODER (its INPUT). The encoder pools the per-step item codes
+  across a learner's history to form the amortized ability `theta_hat_i`. In the
+  real model the LSTM input at step t is `[e_{q_t}, r_t]`, so `e_j` is the
+  encoder's per-item INPUT signal (`deep_irt/core/encoder.py`, `_direct_hidden`).
+- The alpha/beta READOUTS (the readout code). Linear heads read
+  `alpha_j = g(a^T e_j)`, `beta_j = b^T e_j` (and the GPCM threshold readouts)
+  directly off `e_j`.
+
+The two architectures differ ONLY in whether one width serves both consumers.
+
+- SHARED: a single width `W` is the item-code width = encoder input = readout
+  code. Widening to give the readouts capacity simultaneously widens the encoder
+  input.
+- DECOUPLED: a NARROW encoder input (`emb_dim = 8`) and a SEPARATE WIDE readout
+  code (`item_key_dim = W - 8`) that feeds ONLY the alpha/beta readouts, never
+  the encoder input (`item_val_emb` feeds the LSTM; `item_key_emb` feeds the
+  readouts). `state_alpha = True` in both, so the comparison isolates WHICH width
+  serves the encoder, not whether alpha is state-conditioned.
+
+This is the precise structure behind the gate (Section 2.1) and is the lever the
+whole study turns on.
+
+### 7.6.2 Alpha wants the readout code WIDE (recap of P9)
+
+The alpha half is P9 and is not repeated. In one line: alpha is the
+low-Fisher (`I(alpha) = (theta - beta)^2 w`, P2) hard-to-read parameter; it needs
+readout CAPACITY to be expressed, and within a shared width it is RATE-throttled
+by the block conditioning `kappa = I(theta)/I(alpha)` (P9a, P9b). So alpha's
+pressure is "make the readout code wide," and the benefit of doing so grows with
+K (P6). This pressure acts on the READOUT consumer.
+
+### 7.6.3 Theta wants the encoder input NARROW (P10)
+
+The new content. Theta's pressure acts on the ENCODER consumer and points the
+opposite way. The mechanism is NOT conditioning; it is capacity / generalization
+of an amortized readout, and it is honestly the softest formalization in the
+document, so the status markers are explicit at every step.
+
+**The dynamical picture.** Theta is a low-rank latent (one scalar per learner).
+The only history content that should inform `theta_hat_i` is each answered item's
+location and discrimination, NOT its identity. Widening the encoder INPUT code
+gives the encoder degrees of freedom to route item-IDENTITY (and the
+learner-by-item response noise that rides on it) into the ability state, fitting
+training responses through a channel that does not generalize to `theta*`. So the
+variance of `theta_hat` rises with encoder-input width, and the optimizer drives
+it higher along the trajectory.
+
+**Setup (linear-amortizer surrogate).** To make the variance statement rigorous,
+replace the LSTM with a linear amortizer, the standard tractable surrogate (the
+same move the toy ladder uses for the fixed-pool rungs). A learner answers a set
+of items; stack their item codes as rows of `X_i in R^{n_i x W}` (each row an
+answered item's `W`-dim code), and let the amortizer read ability as a linear
+functional of the pooled, response-weighted codes, fit by least squares against
+the response signal. The estimable ability is the projection of the response
+signal onto the `W`-dimensional code span.
+
+**Proposition P10a (variance of the amortized theta grows with encoder-input
+width).** For the linear amortizer fitting `theta_hat` from a `W`-dimensional
+per-item code at finite data `n` per learner, the excess risk decomposes as
+
+```
+E[(theta_hat_i - theta*_i)^2]  =  bias(W)^2  +  Var(W),     Var(W) ~ sigma_r^2 * (W / n),
+```
+
+with `sigma_r^2` the per-response noise variance. The variance term is MONOTONE
+INCREASING in the number of fitted code directions `W` (the effective degrees of
+freedom of the readout): each extra code direction the encoder is allowed to read
+is an extra direction along which it can fit response noise into `theta_hat`. The
+bias term is non-increasing in `W` (more directions can only improve the best
+achievable fit), but for a low-rank latent like theta the bias saturates after a
+few directions (the location/discrimination-relevant subspace is small), so past
+that point widening `W` is PURE variance.
+
+*Proof sketch.* Ordinary least squares of a target on a `W`-column design has
+estimator variance `sigma^2 tr[(X^T X)^{-1} X^T X] / n = sigma^2 W / n` in the
+isotropic case (effective-degrees-of-freedom = number of fitted directions); this
+is the textbook variance / d.o.f. identity. The bias is the approximation error
+of the best `W`-direction fit, non-increasing in `W` and saturating once the span
+contains the theta-relevant subspace. *Status: Proved* for the linear amortizer
+(it is the standard bias-variance / d.o.f. decomposition); the `W/n` rate is the
+isotropic-design special case. ∎
+
+**The lift to the LSTM (Argued).** The real encoder is a nonlinear sequence model,
+not a linear least-squares readout, so P10a is a surrogate. The lifted claim is:
+a wider input code raises the encoder's capacity to absorb item-identity nuisance
+into the hidden state, so `theta_hat`'s variance / item-identity leakage rises
+with `emb_dim`, with the same sign as P10a. *Status: Argued* (the nonlinear,
+sequential generalization of the d.o.f. argument; not proved). The plain-words
+version is already in `deep_irt/core/encoder.py` ("a fat encoder input lets the
+LSTM memorize items into the ability state").
+
+**The training-time face (Argued + Empirical, the weakest link).** P10a is a
+finite-data statement at a fixed fit. The empirical signature is also a
+TRAJECTORY effect: theta recovery PEAKS then DECAYS with training (study Sec 2.2:
+0.97 at ep150 to 0.68 at ep500 for the bare wide encoder), and decays FASTEST for
+the widest shared encoder. The dynamical reading: gradient flow on an
+over-parameterized encoder does not stop at the generalizing fit; it keeps
+descending the training loss by fitting residual training-response noise through
+the surplus code directions, so the variance term of P10a INFLATES along the
+trajectory. *Status: Argued* (the over-parameterized-interpolation reading of the
+trajectory) *+ Empirical* (the peak-then-decay curve, and its width-ordering).
+This is the honest soft spot: there is no closed-form trajectory for the theta
+variance under the LSTM, only the surrogate's static `W/n` plus the empirical
+decay shape. We do not claim a proved over-training law for theta.
+
+**Why this is OUTSIDE the free-table invariant (the key distinction from P9).**
+P4b protects the endpoint only for parameters produced by a FREE per-item table.
+Theta is NOT such a parameter: it is read by a shared ENCODER, an amortized
+function, not a free per-learner table. So the invariant does not apply to theta,
+and theta CAN be displaced from truth at finite data by the variance term of P10a
+even at the loss optimum of the prediction objective (the encoder minimizes
+prediction loss by overfitting, which is not the same as recovering `theta*`).
+This is exactly why P10 is a different KIND of mechanism from P9: P9 is a
+transient RATE effect on an invariant endpoint (alpha, a free item parameter);
+P10 is a finite-data ENDPOINT / generalization effect on an amortized readout
+(theta, not a free parameter). Naming them as one "trade-off" must not collapse
+this distinction.
+
+**The 28x gradient as the theta-side signature.** Study Sec 2.3 measures the
+theta-pathway gradient on the shared code growing ~28x over training while the
+alpha-pathway gradient stays flat. P9 reads this as the alpha side (alpha at
+shrinking SNR). P10 reads the SAME number as the theta side: the encoder keeps
+finding ability-explaining (and, past the generalizing fit, noise-explaining)
+variation in the wide shared code to exploit, so its pull on the code keeps
+growing; the growing pull IS the encoder routing more of the code into theta over
+training, the dynamical visible form of the variance term inflating. One
+measurement, two consistent readings, which is why it sits under both P9 (d3) and
+P10.
+
+### 7.6.4 Beta is the indifferent control (P11)
+
+Beta closes the three-way picture by being neither side.
+
+**Proposition P11 (beta needs no width and is not hurt by it).** Two facts.
+
+1. Beta is HIGH-Fisher. `I(beta) = alpha^2 w` (P2), the same order as `I(theta)`
+   and far above `I(alpha)`. So beta is well determined from a THIN code; it does
+   not need the readout width alpha needs. *Status: Proved* (the Fisher form P2).
+2. Beta has NO amortized-pooling pathway. Beta is read DIRECTLY off the item's own
+   code by a linear head (one location vector per item), not pooled across a
+   learner's history into a per-learner latent. There is therefore no
+   learner-by-item nuisance channel through which code width could leak into a
+   beta estimate, so beta does not suffer theta's variance inflation (P10). beta
+   is a free per-item readout, so it is also fully protected at the endpoint by the
+   free-table invariant (P4b). *Status: Proved* (readout structure + P4b).
+
+Hence beta is the NEGATIVE CONTROL on both pressures: it does not need width
+(unlike alpha) and is not degraded by it (unlike theta). A wider / richer /
+state-conditioned treatment of beta should do essentially nothing.
+
+*Empirical anchor.* The dynamic-beta arm moves beta by `delta_beta ~ +0.003`
+mean across K (study Sec 3.1), versus `delta_alpha ~ +0.042` for the matched
+dynamic-alpha arm, and beta recovery sits at ~0.98 everywhere regardless of
+width. Beta is flat along the gate frontier. This is the parameter-specificity
+control that rules out "generic flexibility helps": the same architectural
+change that lifts the low-Fisher pooled parameter (alpha) is a no-op on the
+high-Fisher direct parameter (beta). *Status: Empirical.*
+
+A subtlety to keep honest. In the DECOUPLED config beta is read from the WIDE
+item key (it sides with alpha on the readout side, since a wide readout does not
+hurt it and the high Fisher means it recovers cleanly either way). The precise
+statement is therefore: beta does not DRIVE the demand for width (P11.1) and is
+not on the HARMED side of width (P11.2). It is content with whatever the readout
+width is, narrow or wide, and it is the encoder-input width that beta, like
+theta, has no reason to inflate.
+
+### 7.6.5 The trade-off and the Pareto escape (P12)
+
+Now assemble the three pressures on the single shared knob.
+
+**The collision.** In SHARED, one width `W` is the encoder input AND the readout
+code. The three single-knob gradients are:
+
+```
+d(alpha recovery) / dW  >  0    (P9: alpha needs readout capacity; throttled by kappa)
+d(theta recovery) / dW  <  0    (P10: wider encoder input inflates theta variance)
+d(beta  recovery) / dW  ~  0    (P11: beta indifferent)
+```
+
+Two of the three pull in OPPOSITE directions on the SAME knob. Sweeping `W` can
+therefore only trade theta for alpha; it cannot raise both.
+
+**Proposition P12 (shared traces a Pareto frontier; decoupling is
+Pareto-dominant).**
+
+(a) Under the shared architecture the achievable `(theta recovery, alpha
+recovery)` pairs, as `W` varies, form a Pareto FRONTIER: theta monotone down,
+alpha monotone up, beta flat. No single `W` attains both the high-theta value of
+small `W` and the high-alpha value of large `W`, because the two objectives are
+monotone in opposite directions in the one free variable.
+
+*Proof.* A single scalar control with two objectives whose gradients have
+OPPOSITE signs everywhere admits no interior point dominating both endpoints:
+increasing `W` strictly improves one and strictly worsens the other, so the
+image of the map `W -> (theta(W), alpha(W))` is a monotone curve, the definition
+of a Pareto frontier for two opposed monotone objectives. *Status: Proved* (given
+the signs of 7.6.5, which are P9 / P10 / P11; the SIGNS are Proved-for-alpha,
+Argued-for-theta, so the frontier inherits the theta side's Argued status). ∎
+
+(b) The DECOUPLED architecture has TWO independent knobs, `W_enc` (encoder input)
+and `W_read` (separate readout code). Set `W_enc` narrow (theta keeps its low
+variance, P10) and `W_read` wide (alpha gets its capacity, P9; beta unaffected,
+P11). The resulting `(theta, alpha)` point lies ABOVE the shared frontier:
+high theta from small `W_enc` AND high alpha from large `W_read`, simultaneously.
+Decoupling is Pareto-DOMINANT; it ESCAPES the frontier rather than moving along
+it.
+
+*Proof.* With two independent controls each objective is optimized by its OWN
+knob without coupling: `theta` by `W_enc`, `alpha` by `W_read`, so the pair
+`(theta(W_enc^*), alpha(W_read^*))` attains each coordinate's best value
+independently. This pair dominates every shared point, where one knob serves both
+and the opposed gradients forbid attaining both bests at once. *Status: Proved*
+(two independent controls dominate one coupled control under opposed single-knob
+gradients) *+ Empirical* (the gate at matched TOTAL capacity: the decoupled point
+sits above the shared frontier even when the shared table is widened to 6x the
+decoupled budget, so the dominance is ALLOCATION, not budget). ∎
+
+**The honest scope of P12.** What is Proved is the STRUCTURE: opposed single-knob
+gradients force a frontier under sharing, and two independent knobs dominate it.
+What is Argued is the theta-side SIGN that the structure rests on (P10 is the
+Argued/Empirical part). What is Empirical is the MAGNITUDE and the matched-budget
+control (the gate numbers). The claim is not that decoupling improves any
+parameter's ENDPOINT for free; theta's protection is a finite-data / generalization
+gain (P10) and alpha's is a finite-budget rate gain (P9), and beta is unchanged.
+At the joint infinite-data-and-training limit alpha's rate gain vanishes (P9c)
+and theta's variance vanishes (`W/n -> 0` in P10a), so the frontier and its
+escape are a FINITE-regime phenomenon, exactly the regime the real model trains
+in.
+
+### 7.6.6 One-line mapping to the gate / trajectory / gradient empirics
+
+- GATE (Section 2.1, the Pareto). The shared frontier (theta 0.97->0.88, alpha
+  0.66->0.91, beta flat as `W` grows) is P12(a): opposed single-knob gradients
+  (P9 up, P10 down, P11 flat). The decoupled point above it at matched total
+  capacity is P12(b): two knobs dominating one. The theta DOWN-slope specifically
+  is P10 (encoder-input variance); the alpha UP-slope is P9 (readout capacity +
+  conditioning relief).
+- TRAJECTORY (Section 2.2, theta overfits with training). The peak-then-decay of
+  theta, fastest for the widest shared encoder, is P10's training-time face: the
+  over-parameterized encoder descends into interpolation, inflating the theta
+  variance term along the trajectory. Decoupling does NOT fix the theta
+  over-training decay (it is a separate regularization problem, study Sec 2.2),
+  consistent with P10 locating it in the encoder INPUT width, which decoupling
+  keeps narrow but does not regularize.
+- GRADIENT (Section 2.3, theta-pathway grows 28x). The theta side of the same
+  curvature / capacity asymmetry as d3: the encoder's growing pull on the shared
+  code IS the encoder routing more code into theta over training (P10), the dual
+  reading of the alpha-SNR-shrinking story (P9).
+- BETA NULL (Section 3.1, delta_beta ~ 0). P11: the high-Fisher direct-readout
+  parameter is indifferent to the architectural change that lifts the low-Fisher
+  pooled parameter, the parameter-specificity control.
+
+---
+
 ## 8. The gauge, and why claims are on rank
 
 The 2PL and GPCM losses are invariant under the joint reparameterization
@@ -936,6 +1220,13 @@ What this document establishes, and as importantly what it does not.
   an `O(kappa)` rate penalty on alpha in the shared case and a `~ kappa` decoupling
   speedup that grows with K, with the SAME fixed point in both cases (P9, the
   validated mechanism, replacing the refuted scalar-preconditioner claim).
+- Beta is the indifferent control: high Fisher (`I(beta) = alpha^2 w`) so it
+  recovers from a thin code and does not need width, and a direct (non-pooled)
+  readout protected by the free-table invariant so width does not hurt it (P11).
+- The Pareto STRUCTURE: opposed single-knob gradients (alpha up, theta down, beta
+  flat) force the shared architecture onto a frontier in `(theta, alpha)`, and two
+  independent widths (decoupling) dominate one coupled width (P12). The structure
+  is Proved given the gradient signs; the theta-side sign it rests on is Argued.
 
 **Argued (heuristic, locally rigorous but not a global theorem).**
 
@@ -951,6 +1242,12 @@ What this document establishes, and as importantly what it does not.
 - That the validated accelerator is REPRESENTATION decoupling, a coupled-two-block
   conditioning effect, not a scalar reparameterization (P9); the block-diagonal
   reduction (A5) and the orthogonality-consistency reading are the Argued parts.
+- That theta wants the encoder input NARROW because encoder-input width inflates
+  the variance of the amortized `theta_hat` (item-identity leakage), DISTINCT from
+  alpha's conditioning and OUTSIDE the free-table invariant (P10). The clean part
+  is the linear-amortizer `O(W/n)` variance / d.o.f. decomposition (P10a, Proved);
+  the lift to the LSTM and the over-training INFLATION of that variance are Argued
+  (this is the document's softest formalization, flagged as such in 7.6.3).
 
 **Empirical only (this document supports but does not derive).**
 
@@ -971,6 +1268,10 @@ What this document establishes, and as importantly what it does not.
   ~30x magnitude shrinkage). The theory explains WHY magnitude is
   under-identified (alpha's low prediction leverage where `theta ~ beta`, P3) but
   the calibration constant is empirical.
+- The MAGNITUDE of the theta degradation with width (0.97->0.88) and with
+  training (0.97->0.68), and the matched-total-capacity gate dominance. The theory
+  (P10, P12) gives the SIGN, the parameter-specificity, and the allocation-not-
+  budget structure; the magnitudes and the over-training decay SHAPE are empirical.
 
 **Explicitly NOT claimed (consistent with the study's refutations).**
 
@@ -989,7 +1290,16 @@ What this document establishes, and as importantly what it does not.
   finite-training RATE phenomenon, not an endpoint law.
 - No claim that decoupling or a richer alpha readout improves the ENDPOINT.
   Configurations tie at convergence (Finding 3); the benefit is speed and rank at
-  a finite budget.
+  a finite budget. (Theta is the exception that proves the rule: its protection is
+  a finite-DATA generalization gain, P10, not an endpoint identity, because theta
+  is amortized and falls outside the free-table invariant. The joint
+  infinite-data-and-training limit erases both alpha's rate gain and theta's
+  variance, P12.)
+- No claim of a PROVED over-training law for theta. P10's training-time
+  inflation of the theta variance is Argued plus Empirical (the peak-then-decay
+  curve), not a closed-form trajectory.
+- No claim that beta is helped or harmed by the architecture (P11: it is the
+  null control).
 - No variational content. The whole analysis is a point estimate on a likelihood,
   so it is distinct from the GVEM / IW-GVEM posterior-approximation
   discrimination bias; that boundary (Section 7 of the toy appendix) is untouched.
@@ -1007,4 +1317,21 @@ item-code block removes the high-curvature ability direction from alpha's block,
 cutting the shared block's `kappa = I(theta)/I(alpha)` rate penalty to `O(1)` and
 speeding alpha's rank recovery by a factor `~ kappa` that grows with K, with no
 change to the fixed point.
+
+The joint sentence (the three-parameter picture). The single item code feeds two
+consumers, the ability encoder and the alpha/beta readouts, and the three
+parameters pull its width in opposite directions: alpha wants the readout WIDE
+(low Fisher, needs capacity, throttled by `kappa`, P9), theta wants the encoder
+input NARROW (a wide input inflates the variance of the amortized `theta_hat` by
+letting the encoder absorb item identity, a finite-data generalization effect
+outside the free-table invariant, P10), and beta is indifferent (high Fisher,
+direct readout, the null control, P11). Because a SHARED code ties the
+encoder-input width to the readout width, these pressures collide on one knob and
+the architecture is forced onto a Pareto frontier, theta down as alpha up, beta
+flat (P12a, the gate). DECOUPLING gives each consumer its own width, a narrow
+encoder input for theta and beta and a separate wide readout for alpha, so it
+ESCAPES the frontier rather than trading along it and is Pareto-dominant (P12b).
+The alpha gain is a finite-budget rate effect and the theta gain is a finite-data
+variance effect; both vanish only at the joint infinite limit, so the real model,
+finite in both, gets both.
 ```
