@@ -15,7 +15,27 @@ claim falsifiable, not decoration and not the topic.
 
 ---
 
-## 1. The single defensible novel claim
+## 0. The question the paper asks (the spine)
+
+**How and why do the three item-response parameters — ability (theta), difficulty
+(beta), and discrimination (alpha) — learn at different rates, and what
+representation does each need?** This is the canonical heterogeneous-learning-dynamics
+question (the Saxe lineage: different modes learn at rates set by their information),
+instantiated per-parameter in the one setting where "low information" is closed-form.
+
+The arc of the answer: information geometry sets the rate (high-Fisher theta and beta
+fast, low-Fisher alpha last); that geometry dictates the representation each needs
+(theta is the dynamic state, beta a thin static readout, alpha the under-served
+low-Fisher one); forcing a shared representation makes alpha pay a conditioning penalty
+(the sharp, theorem-backed core), relieved by two parameter-specific allocations, a
+separate wide channel (decoupling) and a state-conditioned channel (dynamic alpha).
+
+Title direction: *How three item parameters learn at different rates: information
+geometry and representation allocation in a prediction-trained encoder-decoder.*
+
+---
+
+## 1. The single defensible novel claim (the answer's sharp core)
 
 > In a prediction-trained shared-representation encoder-decoder, the slow mode is
 > the readout whose Fisher leverage on the prediction is structurally suppressed
@@ -78,7 +98,16 @@ near a gauge-fixed optimum), **Argued**, **Empirical**.
   Empirical: holds on the recurrent and memory encoders; the attention encoder is
   optimization-limited at high K (see section 7).*
 
-### Two-mechanism box (do not collapse; the title must not generalize one to both)
+- **C6. The low-Fisher readout also benefits from a state-conditioned (dynamic)
+  channel; the high-Fisher control does not.** State-conditioning discrimination
+  improves its *rank* recovery for K>=4 and the effect grows with K; difficulty is
+  unaffected. *Status: Empirical, firmed to 12 seeds (paired Wilcoxon p<=0.007 and
+  95% CIs exclude zero for K=4..11; delta_alpha grows monotonically with K, Spearman
+  of mean-vs-K = +1.0; delta_beta null at every K, |mean| <= 0.0006; K=2 a clean
+  null). A RANK result, not magnitude (the ~30x under-identification, RQ3, stands).
+  NRM decoder out of scope (state-conditioned slopes unstable there).*
+
+### How the three parameters learn differently (the allocation picture; keep the two mechanisms distinct)
 
 - **Discrimination (alpha): a transient RATE effect** on an invariant endpoint
   (P9, inside the free-table invariant P4b). Vanishes only at the joint
@@ -92,6 +121,11 @@ near a gauge-fixed optimum), **Argued**, **Empirical**.
   ~ +0.003` vs `delta_alpha ~ +0.042`).
 - **The Pareto escape (P12) is the synthesis**, and inherits the Argued status of the
   theta arm.
+- **One principle, two allocation axes.** Allocation tracks information geometry: the
+  low-Fisher discrimination is under-served and benefits from BOTH a separate wide
+  channel (decoupling, C2/C5) and a state-conditioned channel (dynamic, C6); ability
+  is the dynamic state itself; difficulty needs neither (the null control). This is the
+  direct answer to the paper's question (section 0).
 
 ---
 
@@ -150,7 +184,7 @@ reweights `kappa` but cannot flip its sign or the K-monotonicity.
 | F4 K-sweep | the task-indexed rate law | delta_K vs stiffness Spearman 0.891, K=2..11, 10 seeds | `ksweep_table.md` | C3 |
 | F5 N-sweep | rate-limited, not data-limited | gap flat-to-widening at fixed budget | `ndata_sweep_plot.png` | C2 (rate) |
 | F6 map convergence | smooth maps tie, non-smooth lag | smooth cluster +-0.002; ReLU/square lag | `map_convergence_K4.json` | C4 |
-| T1 RQ1 asymmetry | beta is the indifferent control | delta_alpha +0.042 vs delta_beta +0.003; Pearson(delta_alpha,K)=0.877 | `alpha_beta_asymmetry` | C3, control |
+| T1 dynamic-alpha asymmetry | state-conditioning helps the low-Fisher readout; difficulty is the null control | delta_alpha significant for K>=4 (Wilcoxon p<=0.007, CIs exclude 0), grows with K (Spearman mean-vs-K +1.0); delta_beta null (\|mean\|<=0.0006); 12 seeds | `alpha_beta_asymmetry_stats` | C6, control |
 | T2 architecture lift (K=4) | decoupling lift on three backbones | alpha shared->decoupled ~0.65->0.92 (LSTM/Transformer/DKVMN) | `swap_table.md` | C5 |
 | T3 architecture K-sweep | the K-scaling across encoders | DKVMN ρ=0.90 (replicates); Transformer optimization-limited | `arch_ksweep_dkvmn.json`, `arch_ksweep_transformer.json` | C5, scope |
 
@@ -182,8 +216,9 @@ control** (gate); **GD vs Adam** (rung-7, 2.2x->1.6x); **NLL vs WOL** loss-invar
 
 - **Seed floor >= 10** for any claim-bearing run. Currently under-powered and must be
   re-run before submission: the trajectory (C1, 3 seeds), the gradient split (C2,
-  effectively 1 SHARED-WIDE run for the 28x), RQ1/RQ3 (3 seeds). The gate (>=5) and
-  the K-sweep (10) are adequate.
+  effectively 1 SHARED-WIDE run for the 28x), RQ3 (3 seeds). The gate (>=5), the
+  K-sweep (10), and the dynamic-alpha asymmetry (C6, now 12 seeds with paired tests
+  and bootstrap CIs, done) are adequate.
 - **Inferential statistics on every headline number.** Bootstrap or seed-level CIs;
   for decoupled-vs-shared deltas use a *paired* test across seeds (same seed, both
   arms), report effect size + CI, not "9/10 seeds positive." For the stiffness
@@ -324,7 +359,7 @@ These were left out of the outline and must be pinned in the paper or its append
 - The GPCM step-threshold (B_jk) parameterization.
 - The data-generating priors: N=800, Q=60, T=60, alpha ~ LogNormal(0,0.3), static
   ability; and that all dynamics evidence is synthetic.
-- Seed counts per result, with the under-powered ones (RQ1/RQ3 at 3 seeds) labeled
+- Seed counts per result, with the under-powered ones (RQ3 at 3 seeds) labeled
   preliminary and the robust-signal-first ordering adopted (endpoints, beta null,
   K-correlation, the 10-seed stiffness Spearman).
 
@@ -343,6 +378,9 @@ These were left out of the outline and must be pinned in the paper or its append
   inherits this Argued status on the theta arm.
 - The attention-encoder K-scaling is optimization-limited and pending the rerun
   protocol in section 6.
+- The dynamic-alpha (state-conditioning) result is firmed to 12 seeds (C6) but is a
+  RANK result; the state-conditioned alpha magnitude is ~30x under-identified (RQ3),
+  and the NRM decoder (state-conditioned slopes unstable) is out of scope.
 
 ---
 
