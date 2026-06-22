@@ -9,7 +9,7 @@
 \graphicspath{{figs/}}
 
 \title[A shared item code forces a three-way trade-off]{A shared item representation forces a three-way trade-off in neural IRT}
-\subtitle{ability overfits wide, discrimination needs wide, difficulty is content-narrow}
+\subtitle{the gradient flow predicts it; the experiments confirm it}
 \author{Wenrui Yuan}
 \date{}
 
@@ -51,25 +51,58 @@ $\Rightarrow$ \emph{shared ties the encoder-input width to the readout width.} T
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Three parameters, three opposite preferences}
-Fisher information ($w=p(1{-}p)$):
-\[ I(\theta)=I(\beta)=\alpha^2 w,\qquad I(\alpha)=(\theta-\beta)^2 w \]
-\medskip
-\begin{itemize}
-\item \textbf{$\alpha$ wants the readout WIDE}, low Fisher ($\to0$ at $\theta{=}\beta$), needs capacity to be read off
-\item \textbf{$\theta$ wants the encoder input NARROW}, a wide input lets the encoder absorb item idiosyncrasy and overfit ability
-\item \textbf{$\beta$ is content NARROW}, high Fisher, read directly, no pooling; needs no width and is not hurt by it
-\end{itemize}
+\begin{frame}{First the math: the gradient flow of all three}
+Per-parameter gradients, residual $r=p-y$:
+\[ \partial_\theta L=r\alpha,\qquad \partial_\beta L=-r\alpha,\qquad \partial_\alpha L=r(\theta-\beta). \]
+Near the optimum each parameter's mode decays at its Fisher rate ($w=p(1{-}p)$):
+\[ \underbrace{I(\theta)=I(\beta)=\alpha^2 w}_{\text{fast}},\qquad
+   \underbrace{I(\alpha)=(\theta-\beta)^2 w}_{\text{slow},\ \to0\ \text{at}\ \theta=\beta}. \]
+\centering
+Discrimination is the one low-rate mode: its lever arm $(\theta-\beta)$ vanishes exactly where
+responses concentrate. \textbf{The math singles out $\alpha$ before any experiment.}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{The phenomenon: a three-way trade-off}
+\begin{frame}{What the math predicts (then we test each)}
+\begin{enumerate}
+\item \textbf{Discrimination recovers last} \,(it is the single slow mode; $\theta,\beta$ fast).
+\item \textbf{A shared code forces a three-way trade-off}: $\theta$ wants it narrow,
+$\alpha$ wants it wide, $\beta$ is indifferent.
+\item \textbf{Sharing adds conditioning} $\kappa=I(\theta)/I(\alpha)$: it throttles $\alpha$'s
+rate; decoupling removes it (speedup $\sim\kappa$, growing with $K$).
+\item \textbf{Positivity is necessary, the map shape is not}: among smooth positive maps the
+convergence is the same; $\exp$ is not special.
+\end{enumerate}
+\medskip
+\centering
+Synthetic GPCM, known $\theta,\alpha,\beta$, LSTM. Each prediction is tested next.
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{Prediction 1: discrimination recovers last}
+\begin{columns}
+\begin{column}{0.62\textwidth}
+\includegraphics[width=\linewidth]{s1_three_speeds.png}
+\end{column}
+\begin{column}{0.36\textwidth}
+\begin{itemize}
+\item ability, difficulty: fast (high Fisher rate)
+\item discrimination: slow, lags by hundreds of epochs
+\end{itemize}
+\medskip
+Exactly the ordering the rates predict.
+\end{column}
+\end{columns}
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{Prediction 2: the three-way trade-off}
 \begin{columns}
 \begin{column}{0.58\textwidth}
 \includegraphics[width=\linewidth]{j1_three_param_vs_width.png}
 \end{column}
 \begin{column}{0.4\textwidth}
-Widen the shared code $W$:
+As the shared code widens:
 \begin{itemize}
 \item $\alpha$ rises $0.61\to0.92$ (gets capacity)
 \item $\theta$ falls (overfits the wide input)
@@ -82,25 +115,24 @@ One knob, opposed pressures. $\beta$ does not pay.
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Two trade-offs of different KIND (the key point)}
+\begin{frame}{The two pressures are of different KIND}
 \begin{itemize}
 \item \textbf{$\alpha$: a RATE effect, endpoint invariant.} $\alpha$ is a free per-item
 table, so the optimum is unbiased (free-table invariant). Sharing only slows it
 (conditioning $\kappa$); decoupling speeds it. Transient: vanishes as training $\to\infty$, not at a fixed budget. \hfill(P9)
 \item \textbf{$\theta$: an ENDPOINT effect, not invariant.} $\theta$ is read by the
 amortized encoder, NOT a free table. A wide input overfits it,
-$\ \mathrm{Var}(\hat\theta)\sim \sigma^2\, W/n$. A finite-data generalization loss
-that does NOT vanish at convergence. \hfill(P10)
+$\ \mathrm{Var}(\hat\theta)\sim \sigma^2\, W/n$. It does NOT vanish at convergence. \hfill(P10)
 \item \textbf{$\beta$: indifferent control.} High Fisher, non-pooled $\Rightarrow$
 neither needs width nor is hurt ($\Delta_\beta\approx0$). \hfill(P11)
 \end{itemize}
 \medskip
 \centering
-Not one phenomenon. A slow mode (rate) \emph{and} an overfit (endpoint), tied by one width.
+A slow mode (rate) \emph{and} an overfit (endpoint), tied by one width.
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Not capacity: allocation (the gate)}
+\begin{frame}{Prediction 3a: not capacity, allocation}
 \begin{columns}
 \begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{j3_tradeoff_frontier.png}
@@ -108,7 +140,7 @@ Not one phenomenon. A slow mode (rate) \emph{and} an overfit (endpoint), tied by
 \begin{column}{0.42\textwidth}
 \textbf{Control}: matched total item-embedding params.
 \begin{itemize}
-\item shared sweep traces a Pareto frontier
+\item widening the shared code traces a Pareto frontier
 \item decoupled sits \textbf{above} it, even at $6\times$ the shared budget
 \end{itemize}
 \medskip
@@ -118,7 +150,7 @@ $\Rightarrow$ allocation, not budget. Decoupling \emph{escapes} the frontier (P1
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{$\alpha$ side, dynamics: reached then left}
+\begin{frame}{Prediction 3b: the good $\alpha$ solution is reached then left}
 \begin{columns}
 \begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d2_trajectory.png}
@@ -129,13 +161,13 @@ $\Rightarrow$ allocation, not budget. Decoupling \emph{escapes} the frontier (P1
 \item decoupled: rises $0.91$, holds
 \end{itemize}
 \medskip
-$\Rightarrow$ the good $\alpha$ solution is reachable, reached, then abandoned $=$ dynamics, not a ceiling.
+$\Rightarrow$ reachable, reached, then abandoned $=$ dynamics, not a ceiling.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{$\alpha$ side, mechanism: the shared code is conditioned}
+\begin{frame}{Prediction 3c: the shared code is conditioned}
 \begin{columns}
 \begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{d3_gradient_capture.png}
@@ -151,7 +183,7 @@ $\Rightarrow$ the good $\alpha$ solution is reachable, reached, then abandoned $
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{$\alpha$ side, the gradient-flow ODE}
+\begin{frame}{Prediction 3: the gradient-flow ODE}
 One item's embedding $e_q$. Near its optimum, $\delta=e_q-e_q^*$, $H_q$ the Hessian in $e_q$'s directions:
 \[ \dot\delta=-H_q\delta,\qquad \delta_c(t)=\delta_c(0)e^{-\lambda_c t}. \]
 \begin{itemize}
@@ -163,7 +195,7 @@ Same fixed point $\Rightarrow$ rate, not endpoint. Largest under GD; Adam compre
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{$\theta$ side, overfitting: an endpoint effect}
+\begin{frame}{The $\theta$ side: an endpoint overfit}
 \begin{columns}
 \begin{column}{0.56\textwidth}
 \includegraphics[width=\linewidth]{j2_theta_overfit_vs_epoch.png}
@@ -186,8 +218,8 @@ regularization issue, not the width effect.)
 % ===========================================================================
 \begin{frame}{The resolution: untie the two widths}
 \begin{itemize}
-\item \textbf{Shared}: one width, opposed knobs ($d\alpha/dW>0$, $d\theta/dW<0$, $d\beta/dW\approx0$) $\Rightarrow$ a Pareto frontier, no $W$ wins both
-\item \textbf{Decoupled}: two independent widths $\Rightarrow$ narrow encoder (good $\theta,\beta$) $+$ wide readout (good $\alpha$); each optimized by its own knob
+\item \textbf{Shared}: one width, opposed knobs ($d\alpha/dW>0$, $d\theta/dW<0$, $d\beta/dW\approx0$) $\Rightarrow$ a Pareto frontier
+\item \textbf{Decoupled}: two independent widths $\Rightarrow$ narrow encoder (good $\theta,\beta$) $+$ wide readout (good $\alpha$)
 \end{itemize}
 \medskip
 \centering
@@ -195,6 +227,19 @@ $\Rightarrow$ decoupling is Pareto-\textbf{dominant}: it escapes the frontier, n
 \medskip
 
 It cures both pressures at once: $\theta$ keeps its bottleneck, $\alpha$ gets its capacity.
+\end{frame}
+
+% ===========================================================================
+\begin{frame}{Prediction 4: positivity needed, map shape is not}
+\centering
+\includegraphics[width=0.8\linewidth]{j5_map_convergence.png}
+
+\raggedright\footnotesize
+\begin{itemize}
+\item smooth maps (exp, softplus, sigmoid) share one convergence profile; non-smooth (relu, square) lag mid-training
+\item endpoints nearly tie, so the \emph{profile} separates them, exp is not special
+\item direct-$\alpha$ control ($\theta,\beta$ frozen): a scalar reparameterization does nothing ($\kappa{=}1$) $\Rightarrow$ the lever is the representation, not the map
+\end{itemize}
 \end{frame}
 
 % ===========================================================================
@@ -216,29 +261,11 @@ It cures both pressures at once: $\theta$ keeps its bottleneck, $\alpha$ gets it
 \end{frame}
 
 % ===========================================================================
-\begin{frame}{Ruled out: the positivity map}
-\begin{columns}
-\begin{column}{0.54\textwidth}
-\includegraphics[width=\linewidth]{s3_formula_distractor.png}
-\end{column}
-\begin{column}{0.44\textwidth}
-$\alpha=g(\cdot)$, $g$ positive. Is $g=\exp$ special?
-\begin{itemize}
-\item matched init $+$ per-map LR: exp ties all smooth maps ($\Delta\approx0$)
-\item direct-$\alpha$ control ($\theta,\beta$ frozen): scalar preconditioner does nothing ($\kappa{=}1$)
-\end{itemize}
-\medskip
-$\Rightarrow$ positivity needed, exp not special. The lever is the representation.
-\end{column}
-\end{columns}
-\end{frame}
-
-% ===========================================================================
 \begin{frame}{Conclusion}
 \begin{block}{}
-A shared item code ties the encoder-input width to the readout width, forcing a
-three-way trade-off: $\theta$ overfits wide, $\alpha$ needs wide, $\beta$ is
-content-narrow. Decoupling unties the widths and dominates.
+The gradient flow predicts, and the experiments confirm, that a shared item code
+forces a three-way trade-off: $\theta$ overfits wide, $\alpha$ needs wide, $\beta$
+is content-narrow. Decoupling unties the widths and dominates.
 \end{block}
 \medskip
 \begin{itemize}\small
