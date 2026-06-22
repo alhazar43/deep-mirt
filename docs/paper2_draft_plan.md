@@ -14,10 +14,13 @@ job: they removed the over-reaches and left a smaller, evidenced core.
 - **Not a universal representation law.** A non-IRT static-code toy showed the
   decoupling benefit is exactly zero (a per-item MLE oracle matches both arms); the
   effect needs the amortized-encoder structure. Scope = neural IRT. (Pillar 1)
-- **Not kappa-as-predictor.** In the K-sweep, K and kappa are perfectly collinear
-  (Spearman 1.0), and kappa fits the gap *worse* than raw K. The "tracks kappa at
-  0.89" claim is unidentifiable from "tracks K." We describe the K-growth directly,
-  not as a conditioning law. (Pillar 2; the kappa-identification probe is running.)
+- **Not kappa, as predictor or mechanism.** K and kappa are perfectly collinear in
+  the K-sweep (Spearman 1.0). Breaking that — varying kappa 45x at fixed K — the gap
+  is FLAT in kappa (Spearman -0.3 to -0.5), over a kappa range wider than the whole
+  K-sweep. Both arms improve as alpha gets more informative, so their difference does
+  not track kappa. The lever is K (ordinal information / shared-channel capacity), not
+  the Fisher conditioning number; conditioning is dropped as a named mechanism.
+  (Pillar 2 + the kappa-identification probe.)
 - **Not a confound.** Recovered alpha is *not* contaminated by ability or difficulty
   (leakage correlations null in both arms). The distortion is **attenuation +
   geometric under-allocation**, not cross-parameter leakage. (Pillar 3)
@@ -82,10 +85,12 @@ It lives at the seam: it needs both the amortized encoder and interpretable reco
   starving alpha; **the geometric probe (C3) is the direct evidence**, which makes
   "allocation" literal rather than metaphorical.
 - The free-table invariant (P4b) carries the "not a data limit" half.
-- **Dropped from the theory's load-bearing claims:** kappa as a quantitative
-  predictor (K-collinear, pending the identification probe), the smooth-map and
-  block-Hessian results stay as supporting lemmas but are not the headline.
-- No universality claim. No confound claim.
+- **Dropped:** kappa entirely. The identification probe found the gap flat in kappa
+  at fixed K, so conditioning is refuted as the lever, not merely unidentifiable. The
+  K-growth is **channel capacity**: more categories strain the single narrow shared
+  item channel, while the decoupled arm's own wide channel exploits the extra ordinal
+  information. The smooth-map / block-Hessian results survive only as minor lemmas.
+- No conditioning claim. No universality claim. No confound claim.
 
 ## 4. Figure / table inventory (post-prelim, bound to artifacts)
 
@@ -123,8 +128,9 @@ It lives at the seam: it needs both the amortized encoder and interpretable reco
   IRT plus a measurement-validity caution, with a geometric signature. Workshop /
   measurement-methods scale, not a discovery.
 - **Two ceiling-probes running** (could enlarge or further prune, expected to prune):
-  - *kappa-identification:* vary kappa at fixed K (break the K-kappa collinearity) —
-    decides whether "conditioning" survives as a named mechanism or it is just K.
+  - *kappa-identification (done, negative):* with kappa varied 45x at fixed K the gap
+    is flat (Spearman -0.3 to -0.5). Conditioning does not survive; the lever is K /
+    channel capacity. Dropped.
   - *amortized-encoder generality toy:* a non-IRT model whose shared code is inferred
     per-instance by an encoder — decides whether the phenomenon is general to
     amortized-encoder settings or specific to IRT.
@@ -152,6 +158,7 @@ unregularized-substrate decay; every number bound to an experiment and seed coun
 ## 9. The retired claims (honest record, appendix)
 
 exp-is-special (refuted, smooth-map equivalence); the population-limit law
-(downgraded to finite-budget rate); kappa-as-quantitative-predictor (K-collinear);
-the ability-into-discrimination confound (leakage null); universality beyond IRT
-(static-code toy null). Kept as the honest record of what we tested and ruled out.
+(downgraded to finite-budget rate); kappa as predictor AND mechanism (the gap is flat
+in kappa at fixed K over a 45x range; the K-growth is channel capacity, not Fisher
+conditioning); the ability-into-discrimination confound (leakage null); universality
+beyond IRT (static-code toy null). Kept as the honest record of what we tested and ruled out.
