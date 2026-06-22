@@ -19,3 +19,6 @@
 [submodule "ma-irt"]
 	path = ma-irt
 	url = https://github.com/alhazar43/ma-irt.git
+[submodule "docs/slides"]
+	path = docs/slides
+	url = https://git.overleaf.com/6a38edef17b13acfe450f9c4
