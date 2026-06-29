@@ -1,5 +1,23 @@
 # Research Program 1. Dynamic Latent Ability as Structured Learning Dynamics
 
+> Cross-references: `docs/GOAL_identifiability_audit.md` (charter and integration), `docs/PROGRESS_identifiability_audit.md` (live tracker).
+
+## Post-gate update (2026-06-29)
+
+**Leg A is now an AUDIT, not a model build.** Fast-fail A fired NO-GO: the black-box LSTM already pins seed-stable per-learner inertia at the deploy operating point (cross-seed rho 0.77 > 0.7). An explicit gate is therefore a constrained LSTM, not a new contribution. The architecture, data, and evaluation design below are preserved as reference; the scientific question stands; the contribution is the audit of what the black-box already captures and where it breaks down.
+
+**Finding.** Level recovers (vs-truth Spearman 0.95). Rate is reproducible-but-not-recovered: cross-seed rho 0.77 (seed-stable), vs-truth rho 0.36 (not recovered). The reproduce-vs-recover gap is the headline.
+
+**Mechanism.** Estimator inductive bias. The rate is information-rich (conditional retention eta approx 0.45), not starved; the encoder's population-common smoothing prior overrides the per-learner signal and reproduces a common inertia without recovering the individual one.
+
+**Separator.** Perturbation locality. A learner-invariant impulse kernel (same response regardless of who receives the perturbation) is the artifact tell. Prefix-stability and item-information-coupling are DROPPED as separators; neither discriminated.
+
+**Rescue regime (boundary, not recipe).** Spaced-repetition / repeated transients: saw-tooth ability trajectories the smoothing prior cannot fit. Reported as the recovery boundary, not proposed as a new model.
+
+**Integration.** Leg A is the temporal axis of the unified identifiability audit (`docs/GOAL_identifiability_audit.md`). It shares the three-metric diagnostic (marginal Fisher, conditional retention eta, reproduce-vs-recover gap) with Leg B. The two legs fail by different mechanisms (estimator inductive bias here, collinearity in Leg B) unified by the same diagnostic.
+
+**Guardrail.** No proposed gated trajectory model. ELBO (PSI-KT) is touched only as a foil; even ELBO reproduces-toward-its-prior on the temporal axis without recovering truth. Do not cross into PSI-KT's modeling territory.
+
 ## Premise and the precise scientific question
 
 The learner ability trajectory is already a first-class object in `deep_irt`. The
@@ -49,6 +67,9 @@ See the milestone ladder for their go/no-go wiring.
   room to add identifiability. *Falsifiable.* If the LSTM's implicit `rho` is
   already seed-stable, the gate buys nothing and the program is "a constrained
   LSTM." Runs on existing checkpoints, zero new code.
+  **Result (2026-06-29): NO-GO fired. LSTM cross-seed rho 0.77 > 0.7; implicit
+  inertia is already seed-stable. Program reframed to audit; see post-gate
+  update above.**
 
 - **H0b (the structure-vs-rate split has a home).** Within one data-generating
   process, a dimensionless inertia/retention parameter recovers in a regime where
@@ -58,6 +79,10 @@ See the milestone ladder for their go/no-go wiring.
   one curve's rate is unidentified. *Falsifiable and the headline falsifier.* If
   `rho` dies whenever the rate dies on the synthetic saturation variant, the
   "survives where rate did not" claim is dropped, not reported as a sub-result.
+  **Result (2026-06-29): resolved via G3 probes. Separator confirmed as
+  perturbation locality. Rescue regime confirmed as spaced-repetition. The
+  structure-vs-rate split is now the boundary characterization of the audit,
+  not a gate for building an encoder.**
 
 - **H-I1 (positive control).** On synthetic data with a *known* dynamical law and
   a **starved** `theta_tilde` (rank-1 or linear readout), the gated encoder
@@ -72,6 +97,9 @@ See the milestone ladder for their go/no-go wiring.
   post-hoc AR(1) `rho`. Validity is anchored to synthetic ground truth, not to
   seed-stability alone. *Falsifiable.* No identifiability gain at parity demotes
   the gate to an ablation, not a headline.
+  **Superseded (2026-06-29): H-I2 requires a built gate. H0a NO-GO means no gate
+  is built. The LSTM's implicit rho is the audit's object; no encoder adjudication
+  runs.**
 
 - **H-I3 (structure survives where rate did not, conditional).** On
   repeated-transient real data (Duolingo SLAM, adapter already present at
@@ -148,6 +176,10 @@ invariants survive prediction-loss training on near-saturated data, with
 gauge-free, Fisher-leverage controls and an explicit no-dynamics null.
 
 ## Architecture on deep_irt and the baseline to beat
+
+> **Note (2026-06-29):** this build plan was superseded by the H0a NO-GO result.
+> The section is preserved as reference architecture and identifiability design.
+> The audit uses the trained LSTM directly; `GatedThetaEncoder` is not built.
 
 **Baseline to beat.** The black-box LSTM, `encoder="lstm"`
 (`deep_irt/core/encoder.py:200,244`), which already emits a per-step scalar theta.
@@ -260,11 +292,11 @@ comparison.
 
 | Stage | Scope | Go / No-go |
 |---|---|---|
-| **Fast-fail A (H0a)** zero new code, ~1 afternoon | Fit AR(1) to existing trained LSTM theta tracks across seeds; measure `rho` seed-stability | GO: LSTM implicit `rho` seed-unstable, the gate has identifiability room. **NO-GO: LSTM `rho` already seed-stable, the gate is a constrained LSTM, reconsider the whole program before writing one file** |
+| **Fast-fail A (H0a)** DONE 2026-06-29 | Fit AR(1) to existing trained LSTM theta tracks across seeds; measure `rho` seed-stability | **NO-GO fired: cross-seed rho 0.77 > 0.7, LSTM implicit rho already seed-stable. Program reframed to audit (see post-gate update above).** |
 | **Fast-fail B (H0b)** generator only + post-hoc estimate, ~1 day | On the saturation and forgetting variants, test whether `rho` recovers where a single-curve rate does not | GO: `rho` recovers in the repeated-transient regime where the rate is ill-posed. **NO-GO: `rho` dies whenever the rate dies, DROP the "survives where rate did not" headline, revert to existence + shape invariants** |
-| **I-M0 MVP (~1 day)** | `GatedThetaEncoder` forward; `StructuredIRTModel` shim; assert scalar-theta path unchanged; tiny-synthetic train | GO: trains, held-out NLL within noise of LSTM. NO-GO: cannot match LSTM, form over-constrained, revisit head |
-| **I-M1 positive control** | Recover known `rho`/`tau`; no-dynamics null flat; `theta_tilde` capacity-swap stability | GO: Spearman(`rho_hat`,`rho`) >= ~0.7 over 5 seeds, null flat, `rho` invariant to `theta_tilde` capacity. **NO-GO: `rho` unrecoverable on clean data, STOP, identifiability broken** |
-| **I-M2 LSTM adjudication** | Gate vs LSTM, matched budget, parity + recovery-of-truth + seed-variance | GO: NLL parity AND gate `rho` closer to synthetic truth with lower seed-variance than LSTM post-hoc `rho`. NO-GO: demote to "constrained LSTM" ablation, do not headline |
+| **I-M0 MVP (~1 day)** SUPERSEDED | `GatedThetaEncoder` forward; `StructuredIRTModel` shim; assert scalar-theta path unchanged; tiny-synthetic train | Superseded by H0a NO-GO; gate not built. |
+| **I-M1 positive control** SUPERSEDED | Recover known `rho`/`tau`; no-dynamics null flat; `theta_tilde` capacity-swap stability | Superseded by H0a NO-GO; audit characterizes LSTM implicit rho directly. |
+| **I-M2 LSTM adjudication** SUPERSEDED | Gate vs LSTM, matched budget, parity + recovery-of-truth + seed-variance | Superseded by H0a NO-GO; no encoder adjudication. |
 | **I-M3 saturation / forgetting confrontation (conditional headline)** | Existence gate + descriptors on SLAM, KDD (shape only), EdNet contrast; + synthetic forgetting variant | GO: descriptors recover where repeated transients exist, die on plateau, the structure-vs-rate split. NO-GO (uniform death): report the clean negative, restrict to synthetic + machine, headline already dropped by H0b |
 | **I-M4 cross-encoder invariance (DEFERRED)** | Gate added as a fourth arm to `run_arch_trajectory.py` | Backlog until I-M1 and I-M2 pass |
 
@@ -288,6 +320,7 @@ in under two days before the encoder is built.
   regularization on the gate; never report quantitative curvature (H-I4).
 - **Justify-over-LSTM bar unmet.** *De-risk.* Fast-fail A and I-M2 are hard gates;
   if they fail the honest contribution is "a constrained LSTM" and we say so.
+  *(Fast-fail A fired; the contribution is now the audit, not a gated encoder.)*
 - **PSI-KT subsumes the architecture.** *De-risk.* The contribution is
   recoverability-under-prediction-loss plus gauge-free invariant analysis plus the
   saturation result, stated up front; the build claims no architectural novelty,
@@ -297,16 +330,14 @@ in under two days before the encoder is built.
 
 ## Honest feasibility verdict and what was cut
 
-**Verdict: GO on the spine, conditional GO on the headline.** The spine,
-synthetic-known recovery (I-M1) plus the LSTM adjudication (I-M2) plus
-existence-gated shape invariants on real data, is architecture-cheap (scalar theta,
-no Codex edits, M effort) and well supported by reused infrastructure. The
-**headline**, "trajectory structure survives where the rate did not," is **not
-asserted, it is gated**, on fast-fail B and on SLAM carrying a resolvable
-transient. SLAM's adapter already exists, which lowers the cost materially, but the
-data-property gate stands. If both fail, the program still ships a real result, the
-synthetic recovery plus the LSTM adjudication plus the clean negative, which is
-publishable and pre-registered.
+**Verdict (updated 2026-06-29): REFRAMED to audit.** Fast-fail A fired NO-GO;
+the encoder build (I-M0 to I-M2) is superseded. The audit result stands: level
+recovered (0.95 vs truth), rate reproducible-not-recovered (cross-seed 0.77,
+vs-truth 0.36), mechanism diagnosed (estimator inductive bias, eta approx 0.45),
+separator confirmed (perturbation locality), and rescue regime characterized
+(spaced-repetition). Open GPU items are the perturbation re-encode on a trained
+checkpoint and the spaced-repetition train, both small. The build milestones
+(I-M0 through I-M2) are not pursued.
 
 The deeper honest point. This is **one identifiability result on a third class of
 object**, not a new architecture and not two programs. Paper 2 ran the thread on
@@ -323,8 +354,7 @@ rather than papered over.
 - SDE rejected as unidentifiable under point-estimate prediction; Hamiltonian
   rejected as the wrong (conservative) bias; latent-ODE / Neural-CDE deferred under
   the evidence clock.
-- Cross-encoder invariance (H-I5 / I-M4) deferred to backlog until the gate earns
-  its place at I-M1 and I-M2.
+- Cross-encoder invariance (H-I5 / I-M4) deferred; I-M1 and I-M2 superseded by H0a NO-GO.
 - The "structure survives where rate did not" headline is no longer assumed. It is
   pre-registered as conditional on the repeated-transient regime, the only place it
   is well-posed, and dropped if fast-fail B says `rho` dies with the rate.
