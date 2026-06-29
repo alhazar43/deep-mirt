@@ -1,19 +1,42 @@
 # Distributed Latent Field over Anchored Concepts (Program II)
 
+> Cross-references: `docs/GOAL_identifiability_audit.md` (charter), `docs/PROGRESS_identifiability_audit.md` (live tracker).
+
 Final research plan. Revised to address the adversarial review by down-scoping
 where the critique landed, adding the no-training and easiest-synthetic
 fast-fails, fixing the identifiability and control story, and narrowing the
-novelty claim to what survives PSI-KT.
+novelty claim to what survives PSI-KT. Updated 2026-06-29 per the post-gate section below.
+
+---
+
+## Post-gate update (2026-06-29)
+
+Gates G1/G2/G3 and the Leg B fast-fail (Stage -1 Fisher) are all done. Three points update the plan.
+
+**Leg B is an audit, not a measurement-geometry model.** The goal is to measure the conditional Fisher retention eta of the propagation operator P under prediction-loss training. The architecture in sections 4 and 5 is the audit instrument, not a thesis contribution in its own right. No learned-operator model is proposed or delivered.
+
+**Correction: the recovered-vs-dominated split is readout vs operator, not diagonal vs off-diagonal.** The Stage -1 Fisher calculation (`deep_irt/bench/_stage_minus1_fisher_P.py`) found eta(P_diag) and eta(P_off) are indistinguishable, both approximately 0.04 to 0.13 in the realistic regime. The whole operator P is the dominated party. The recovered quantity is the readout alpha (discrimination), with eta approximately 0.27, the same Paper 2 channel. The mechanism is collinearity: the Q-masked ability signal in any one response is nearly collinear with the information needed to pin individual P entries, whether diagonal or off-diagonal.
+
+**Rescue regime as a boundary.** Strong anchoring (gain approximately 2 to 8) crossed with a decorrelating (source-isolation) curriculum lifts eta to a ridge at approximately 0.32. This is a boundary condition, not a recipe. Past anchor strength approximately 10, P identifiability collapses. Buying coupling identifiability costs the discrimination channel (eta(alpha) drops from approximately 0.27 to 0.13). Rescue is reported as a boundary, not a recommended operating point.
+
+**Diagonal-P null is the fabrication control.** A diagonal true P must yield off-diagonal detection AUC near 0.5. This is H1's decisive control and is not a real-data null.
+
+**ELBO foil arm.** PSI-KT's operator is reimplemented as a comparison arm in the generator (AGPL-safe, no vendored code from `mlcolab/psi-kt`). Real-data PSI-KT runs are isolated and cited only. The foil tests whether generative targeting (ELBO) clears the coupling recovery boundary where prediction loss does not.
+
+**Integration.** Leg B is the dimensional axis of the identifiability audit. It shares the three-metric diagnostic (marginal Fisher, conditional retention eta, reproduce-vs-recover gap) and the unified generator with Leg A (temporal axis). Synthesis in `docs/GOAL_identifiability_audit.md`.
+
+**Guardrail.** No proposed learned-operator model, no concept-graph or prerequisite-graph deliverable, no learner-trait discovery. Rescue regimes are reported as boundaries only. PSI-KT owns the generative modeling; this work owns the audit and the boundary.
 
 ---
 
 ## 0. Framing and the one constraint that defines the contribution
 
-The headline object is a **learned, gauge-fixed, identifiable propagation
-operator P among anchored concepts**, recovered under **prediction-loss**
-training and validated by recovery of a **known** P with a **diagonal-P null**.
+The **audit object** is the propagation operator P among anchored concepts.
+The plan does not propose a learned-operator model; it measures whether P
+survives prediction-loss training and under what conditions. Recovery of a
+**known** P against a **diagonal-P null** is the primary experimental control.
 Anchoring (a fixed Q-matrix) removes rotational and sign indeterminacy so P
-becomes meaningful, and the IRT field on anchored slots makes per-concept
+becomes a named object, and the IRT field on anchored slots makes per-concept
 mastery readable.
 
 **The binding prior-art constraint, do not claim architecture novelty.** PSI-KT
@@ -80,17 +103,18 @@ identifying scalar-gain assumption is violated?
 
 ## 2. Hypotheses
 
-**H0 (Fisher precondition, a calculation, no training).** The Fisher information
-of an off-diagonal entry `I(P_ij)` under the planned curriculum is far smaller
-than `I(alpha)` from Paper 2 (the channel that already showed about 30x head
-shrinkage). *Falsifiable and pre-registering: if `I(P_ij)/I(alpha) << 1`, the
-magnitude claim is dead before any run and the program is pre-registered
-rank-only and resized.* This is back-of-envelope and **precedes Stage 0**.
+**H0 (Fisher precondition, a calculation, no training) -- DONE.** The conditional
+retention eta for P entries is approximately 0.04 to 0.13 in the realistic
+regime, with eta(P_diag) and eta(P_off) indistinguishable; eta(alpha) is
+approximately 0.27. Both diagonal and off-diagonal P fall well below alpha in
+retention, confirming the magnitude claim is dead and the program is
+**rank-only** with magnitude attenuation pre-registered as expected. This result
+**precedes Stage 0** and was the fast-fail gate.
 
 **H1 (well-posedness and the SNR threshold).** An oracle joint-MLE that knows Q
-and the state-space form recovers a known off-diagonal P on the observable
-bilinear forms `a_q'^T P a_q`, and a known **diagonal** P_true yields near-zero
-recovered off-diagonals. The identifying observable for `P_{c'c}` is
+and the state-space form recovers known P entries (diagonal and off-diagonal) on
+the observable bilinear forms `a_q'^T P a_q`, and a known **diagonal** P_true
+yields near-zero recovered off-diagonals. The identifying observable for `P_{c'c}` is
 second-order small, `a_q'^T P a_q ~ P_{c'c} a_{q'c'} a_{qc}`, so the threshold is
 **the oracle's Cramer-Rao bound, not an arbitrary 0.9**. *Falsifiable: oracle
 recovery reaches the CR bound on recovery-vs-N and recovery-vs-|P_offdiag|
@@ -99,10 +123,10 @@ ill-posedness or coverage, almost always a curriculum-support problem, and is
 the cheapest kill switch after H0.
 
 **H2 (neural recovery, rank-not-magnitude, CONFIRMATORY).** A prediction-trained
-`AnchoredMIRTModel` recovers off-diagonal P **in rank/sign** above both the
+`AnchoredMIRTModel` recovers P entries **in rank/sign** above both the
 diagonal-P null and a shuffled-sequence floor, with **attenuated magnitude**,
 the multidimensional analog of Paper 2's discrimination-magnitude collapse.
-*Falsifiable: off-diag Spearman vs truth > null floor at Wilcoxon p < 0.01
+*Falsifiable: P-entry Spearman vs truth > null floor at Wilcoxon p < 0.01
 across 5 seeds, magnitude attenuation pre-registered as expected, not a
 failure.* This confirms a known mechanism in a new setting and is sized as a
 methods result, not a discovery.
@@ -162,11 +186,14 @@ on a well-traversed pair is the ceiling of what real data can deliver.*
 ### 3.2 Avoid re-deriving, especially the dynamic-theta and Paper 2 results
 
 - **Paper 2 (`docs/LEARNING_DYNAMICS_STUDY.md`) low-Fisher recovery is the whole
-  H2 risk, transposed.** P perturbs dims the current item does not load on, so it
-  has near-zero leverage on the current prediction. P is the multidimensional
-  analog of discrimination. **Do not present rank-not-magnitude P-recovery as a
-  finding.** It is the predicted shape. The new content is the diagonal-P null
-  (does the estimator fabricate) and the oracle-vs-neural gap at the CR bound.
+  H2 risk, transposed.** P has near-zero leverage on the current prediction in
+  both its faces: off-diagonal (the current item does not load the perturbed dim)
+  and diagonal (theta absorbs the within-concept variance). Both arise from
+  collinearity. The recovered quantity remains alpha at eta approximately 0.27; P
+  sits at approximately 0.04 to 0.13. **Do not present rank-not-magnitude
+  P-recovery as a finding.** It is the predicted shape. The new content is the
+  diagonal-P null (does the estimator fabricate) and the oracle-vs-neural gap at
+  the CR bound.
 - **The dynamic-theta / trajectory program (`docs/trajectory_findings.md`) is the
   saturation precedent.** The per-student rate had no external validity on
   near-saturated logs (split-half 0.17). The off-diagonal P effect is
@@ -337,7 +364,7 @@ before M is pinned.
 |---|---|---|
 | H0 | `I(P_ij)` under the planned curriculum vs `I(alpha)` from Paper 2 | None, a closed-form calculation; pre-registers rank-only if `I(P_ij)/I(alpha) << 1` |
 | H1 | Oracle recovery of P_hat vs P_true on observable bilinear forms `a_q'^T P a_q`, scored against the **Cramer-Rao bound**; recovery-vs-N and recovery-vs-|P_offdiag| curves; eigenstructure of L_hat | Diagonal-P_true must give off-diag detection **AUC ~ 0.5** (the decisive "registers absence" control) |
-| H2 | Off-diagonal P Spearman vs truth (rank), 5 seeds, mean +/- 95% bootstrap CI | Diagonal-P null floor; shuffled-sequence negative floor; oracle joint-MLE positive ceiling; report the magnitude attenuation ratio (expected per Paper 2) |
+| H2 | P-entry Spearman vs truth (rank), 5 seeds, mean +/- 95% bootstrap CI | Diagonal-P null floor; shuffled-sequence negative floor; oracle joint-MLE positive ceiling; report the magnitude attenuation ratio (expected per Paper 2) |
 | H3 | H2 metric under each ablation, scalar-vs-vector Delta, PSD-vs-free P, curriculum-connectivity sweep | Each must degrade in the predicted direction; coverage-sweep error must concentrate on off-support P entries |
 | H3b | P-recovery under the scalar-gain model on per-concept-gain data vs scalar-gain-matched data | The matched generator is the ceiling; the gap is the reported misspecification cost |
 | H4 | Separability index (`ednet_sep`) for item-only vs state-conditioned P; per-concept reliability | Diagonal-P null separates recovered-from-propagated; split-half reliability of the field |
@@ -366,13 +393,10 @@ LSTM).
 
 ## 7. Milestone ladder, MVP to full, each with go/no-go and fast-fail
 
-**Stage -1, the Fisher calculation (hours, no training, the cheapest
-fast-fail).** Compute `I(P_ij)` under the planned curriculum and compare to
-`I(alpha)` from Paper 2. *Go:* ratio is not astronomically small, proceed and
-keep the magnitude question open. *No-go on magnitude:* if `I(P_ij)/I(alpha) <<
-1`, pre-register **rank-only**, resize the program to an identifiability methods
-contribution, and skip every magnitude claim. This is back-of-envelope and
-**precedes all code**.
+**Stage -1, the Fisher calculation -- DONE.** eta(P_diag) and eta(P_off) both
+approximately 0.04 to 0.13; eta(alpha) approximately 0.27. Magnitude claim is
+dead; program is pre-registered **rank-only**. Artifacts:
+`deep_irt/bench/_stage_minus1_fisher_P.py`, `_stage_minus1_fisher_matrix.py`.
 
 **Stage 0, generator + oracle identifiability (days, the kill switch).** Build
 `datagen_field.py` (known A, known P, K=3) and the oracle joint-MLE that knows Q
