@@ -1,0 +1,44 @@
+# e1_lstm_gpcm.yaml -- E1 full cell: LSTM encoder + GPCM decoder.
+# 5 data seeds x 3 init seeds = 15 fits. One point in the encoder x decoder matrix.
+# Duplicate with encoder: dkvmn | transformer and decoder: nrm | binary for other E1 cells.
+#
+# Blueprint: E1 swap matrix; per-parameter Spearman + Kendall's W ordering-concordance.
+# Expected: GPCM alpha worst in all encoders; NRM a_k not worst.
+
+experiment: e1_lstm_gpcm
+description: "E1: LSTM encoder + GPCM decoder, static ability, 5 data x 3 init seeds."
+
+data:
+  kind: static
+  n_learners: 800
+  n_items: 60
+  seq_len: 60
+  n_cats: 4
+  n_holdout: 10
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: gpcm
+  emb_dim: 8
+  hidden_dim: 32
+  state_alpha: false
+  state_beta: false
+
+train:
+  optimizer: adam
+  n_epochs: 120
+  lr: 1.0e-2
+  grad_clip_norm: 5.0
+
+eval:
+  n_data_seeds: 5
+  n_init_seeds: 3
+  n_bootstrap: 2000
+  gauge: affine
+  paired_test: wilcoxon
+
+report:
+  output_dir: outputs/p2
+  cell_name: e1_lstm_gpcm
+  quick: false

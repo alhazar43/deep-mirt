@@ -1,0 +1,45 @@
+# oracle_clamp.yaml -- Oracle clamp experiment config.
+# Run via _p2_oracle.clamp_theta_and_recover() or mle_item_recovery();
+# the standard run_cell() pipeline does NOT implement the oracle clamp.
+# This config provides the data / model parameters so both the oracle and
+# the matched free model use identical settings.
+#
+# Blueprint: "Oracle-clamp: teacher-force theta = theta*, recover items only;
+# causal Fisher-rate attribution + MLE-oracle ceiling."
+# Primary comparison: oracle a_spearman vs free-model a_spearman.
+# Positive oracle gain => theta channel is the bottleneck for alpha recovery.
+
+experiment: oracle_clamp
+description: "Oracle: theta clamped to truth. Item-only recovery ceiling for Fisher-rate attribution."
+
+data:
+  kind: static
+  n_learners: 800
+  n_items: 60
+  seq_len: 60
+  n_cats: 4
+  n_holdout: 10
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: gpcm
+  emb_dim: 8
+  hidden_dim: 32
+  state_alpha: false
+
+train:
+  optimizer: adam
+  n_epochs: 120
+  lr: 1.0e-2
+
+eval:
+  n_data_seeds: 5
+  n_init_seeds: 3
+  n_bootstrap: 2000
+  gauge: affine
+
+report:
+  output_dir: outputs/p2
+  cell_name: oracle_clamp
+  quick: false

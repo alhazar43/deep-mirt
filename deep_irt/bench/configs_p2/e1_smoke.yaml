@@ -1,0 +1,39 @@
+# e1_smoke.yaml -- Quick smoke test for E1 (encoder x decoder swap).
+# 1 data seed x 1 init seed, small N/Q/T, 10 epochs.
+# Run: python -m deep_irt.bench._p2_run_cell configs_p2/e1_smoke.yaml --device cpu
+#
+# Expected wall-clock: < 30 s on CPU.
+
+experiment: e1_smoke
+description: "E1 smoke: LSTM+GPCM, 1x1 seeds, N=100 Q=20 T=20. Verify pipeline only."
+
+data:
+  kind: static
+  n_learners: 100
+  n_items: 20
+  seq_len: 20
+  n_cats: 4
+  n_holdout: 5
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: gpcm
+  emb_dim: 8
+  hidden_dim: 32
+
+train:
+  optimizer: adam
+  n_epochs: 10
+  lr: 1.0e-2
+
+eval:
+  n_data_seeds: 1
+  n_init_seeds: 1
+  n_bootstrap: 200
+  gauge: affine
+
+report:
+  output_dir: outputs/p2
+  cell_name: e1_smoke
+  quick: true
