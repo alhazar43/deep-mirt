@@ -55,4 +55,3 @@ fix = decoupling: 2PL/GPCM discrimination on its own item key (Option A); NRM fi
 | kdd_2pl_fix | kdd | 2pl | fix | 0.786 | 0.826 | 0.831 | 0.381 | 0.822 | - |
 | kdd_gpcm_shared | kdd | gpcm | shared | 0.714 | 0.884 | 0.816 | 0.400 | 0.823 | - |
 | kdd_gpcm_fix | kdd | gpcm | fix | 0.786 | 0.886 | 0.824 | 0.425 | 0.839 | - |
-| ednet_2pl_shared | ednet | 2pl | shared | 0.115 | 0.808 | 0.615 | 0.228 | 0.649 | - |
