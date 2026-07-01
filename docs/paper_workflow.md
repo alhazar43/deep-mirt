@@ -18,7 +18,7 @@ we are. Update the STATUS lines as you go. Nothing is written into the paper unt
 - Decision DONE: fuse (MA-GPCM is a free draft, user controls it), organic single story, KT home / IRT
   flavor, target JEDM, provisional title = the workshop title.
 - Nothing written into the paper yet. No experiments run yet for this paper.
-- NEXT ACTION: user approves the theory spine (`docs/theory_memo.md`); then Phase 2 (framework + infrastructure). Phase 1 theory is DONE.
+- NEXT ACTION: Phase 2 design (rigorous protocol + pipeline) IN PROGRESS. DIRECTIVE (2026-07-01): redo the entire experiment from scratch at journal rigor, do NOT reuse workshop results as evidence. BUILD+RUN needs ultracode. Phase 1 theory DONE (memo at docs/theory_memo.md).
 
 ## Constraints (do not violate)
 - **KT is home, IRT is a flavor.** Do not let the paper drift IRT-centric; that was MA-GPCM's mistake.
@@ -67,7 +67,12 @@ Goal: the formal spine on paper, for the user to approve before any writing.
   loop) reconcile and show the user.
 - Done when: the user approves the spine.
 
-### Phase 2: Framework and experiment infrastructure  [STATUS: NOT STARTED]
+### Phase 2: Framework and experiment infrastructure  [STATUS: IN PROGRESS (design) -- 2026-07-01]
+DIRECTIVE: redo the ENTIRE experiment from scratch at journal rigor; do NOT reuse workshop-grade results as
+evidence. Design agents launched (research-scientist = rigorous protocol; ml-system-architect = unified
+pipeline). ULTRACODE: the BUILD + RUN (Phase 2 build + Phase 3) is the coding-heavy, massively-parallel
+phase, enable ultracode so it runs as a workflow. The design step does not need it. Present the rigorous
+blueprint to the user for confirmation before the big build+run.
 Goal: one clean pipeline to run every experiment consistently.
 - *research-scientist* (Opus, design): spec the swappable framework and the experiment designs (E1, E2,
   E-budget, E-levers, E8) in KT terms; confirm which already exist in `deep_irt/`.

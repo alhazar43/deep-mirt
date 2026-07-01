@@ -126,8 +126,15 @@ the readout/embedding level. Architectures are swappable realizations.
 9. Discussion, boundaries, threats.
 10. Conclusion; appendices (GPCM and NRM gradients and Fisher, gauge handling, reproducibility).
 
-## 10. Experiments (have vs need)
-Have, to consolidate under one protocol: three-speeds recovery; shared-vs-decoupled trade-off and
+## 10. Experiments (REDO FROM SCRATCH at journal rigor)
+
+> Directive (2026-07-01): the workshop-grade results are NOT conference/journal-grade and are NOT reused
+> as evidence. Rebuild the ENTIRE program from scratch under ONE clean protocol, with proper seeds and CIs
+> and the full control suite in docs/theory_memo.md (oracle-clamp, eigenmode/a_star, an I(theta)-at-fixed-K
+> knob, the NRM confound controls, and the two decouplings kept distinct). The rigorous protocol is a
+> Phase 2 design deliverable.
+
+Rebuilt from scratch (not consolidated), under one protocol: three-speeds recovery; shared-vs-decoupled trade-off and
 decoupling escape; dynamic-head rescue (synthetic + EdNet/KDD); the NRM dissociation (8 seeds + EdNet);
 MA-GPCM DKVMN+GPCM recovery and ASSISTments; EdNet/KDD reliability.
 Need:
