@@ -1,0 +1,46 @@
+# bench_dense_lstm_gpcm.yaml -- Dense control: LSTM x GPCM, every learner sees all Q items (small bank).
+
+experiment: bench_dense_lstm_gpcm
+description: "Dense control: LSTM x GPCM, every learner sees all Q items (small bank)."
+
+data:
+  regime: realistic
+  kind: static
+  n_learners: 800
+  n_items: 60
+  seq_len: 60
+  n_cats: 4
+  n_holdout: 10
+  dense: true
+  popularity: uniform
+  alpha_sigma: 0.5
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: gpcm
+  emb_dim: 8
+  hidden_dim: 32
+  state_alpha: false
+  state_beta: false
+
+train:
+  optimizer: adam
+  n_epochs: 120
+  lr: 0.01
+  grad_clip_norm: 5.0
+  early_stop_patience: 10
+  gpcm_loss: ordinal_ce
+
+eval:
+  n_data_seeds: 5
+  n_init_seeds: 3
+  n_folds: 5
+  n_bootstrap: 2000
+  gauge: affine
+  paired_test: wilcoxon
+
+report:
+  output_dir: outputs/p2
+  cell_name: bench_dense_lstm_gpcm
+  quick: false

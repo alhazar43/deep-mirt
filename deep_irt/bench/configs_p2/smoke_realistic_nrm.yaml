@@ -1,0 +1,45 @@
+# smoke_realistic_nrm.yaml -- corrected-bed smoke, NRM cell (random selection).
+# Same admin-noise bed as the GPCM smoke (Q=40, admin Uniform(15,30), N=300,
+# non-dense random selection) but Bock NRM responses; the generator emits
+# aux["nrm_a"]/aux["nrm_c"] so item recovery (slope a_k + intercept c_k) scores.
+# Run: python -m deep_irt.bench._p2_run_cell configs_p2/smoke_realistic_nrm.yaml --quick
+
+experiment: smoke_realistic_nrm
+description: "Corrected-bed smoke: LSTM+NRM on the admin-noise bed, random selection."
+
+data:
+  regime: realistic
+  kind: static
+  n_learners: 300
+  n_items: 40
+  seq_len: 30
+  n_cats: 4
+  n_holdout: 5
+  admin_min: 15
+  admin_max: 30
+  dense: false
+  popularity: uniform
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: nrm
+  emb_dim: 8
+  hidden_dim: 32
+
+train:
+  optimizer: adam
+  n_epochs: 10
+  lr: 1.0e-2
+
+eval:
+  n_data_seeds: 1
+  n_init_seeds: 1
+  n_folds: 2
+  n_bootstrap: 200
+  gauge: none
+
+report:
+  output_dir: outputs/p2
+  cell_name: smoke_realistic_nrm
+  quick: true

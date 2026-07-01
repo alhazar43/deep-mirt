@@ -20,29 +20,37 @@ low-Fisher rate penalty that a state-conditioned head fixes.
 
 ## The mechanism (the sharp point, worked out from the NRM control)
 Look at where each item parameter sits relative to ability.
-- GPCM logit `alpha*theta - alpha*beta`: the only bilinear term is `alpha*theta`.
-- NRM logit `a_k*theta + c_k`: the only bilinear term is `a_k*theta`; `c_k` is additive.
+- GPCM logit `alpha*theta - alpha*beta`: the only bilinear term is `alpha*theta` (`alpha` is the discrimination,
+  `beta` the difficulty / step thresholds).
+- NRM logit `a_k*theta + c_k`: the only bilinear term is `a_k*theta` (`a_k` the slope); `c_k` (the intercept) is additive.
 
-Two gauges follow:
-- **SCALE gauge (multiplicative):** `alpha*theta` / `a_k*theta` is invariant under `alpha -> alpha/s, theta -> s*theta`.
-  Prediction loss pins only the product, so under finite data and a shared representation the split of scale between
-  the slope and ability is under-determined. That is the slope-vs-ability trade-off. **Decoupling the representation
-  is the fix.** The additive `c_k` never multiplies ability, so no scale coupling, no trade-off.
-- **LOCATION gauge (additive):** `theta - beta`. Threshold identifiability; it breaks if the ability readout sees the
-  current item (the ability-item coupling). Structural, does not vanish with data.
+Two mechanisms follow, with two different fixes.
+- **The multiplicative scale gauge (representation).** `alpha*theta` / `a_k*theta` is invariant under
+  `alpha -> alpha/s, theta -> s*theta`, so prediction loss pins only the product. Under finite data and a shared
+  embedding, the split of scale between the multiplicative parameter and ability is under-determined. That is the
+  trade-off. **Decoupling** (the multiplicative parameter gets its own item key) is the fix. It fires for any slope on
+  ability, GPCM `alpha` or NRM `a_k`, whatever its Fisher. The additive `c_k` never multiplies ability, so it carries
+  no scale gauge.
+- **Fisher information (recovery rate).** Low Fisher curvature makes a coordinate the slow direction, recovering last
+  and least reliably. The targeted fix is the **dynamic (state-conditioned) head**, which helps only a low-Fisher
+  coordinate. GPCM `alpha` is low-Fisher (its leverage `(theta-beta)^2` vanishes where responses concentrate); the NRM
+  slope `a_k` is not.
 
-**NRM is the control that dissociates two things the deck was blurring:**
-- a multiplicative coupling (the trade-off, common to GPCM `alpha` and NRM `a_k`, cured by decoupling), and
-- a low-Fisher RATE penalty (only GPCM `alpha`, cured by the state-conditioned head).
-`a_k` is multiplicative so it trades off with ability, but it is NOT low information, so it recovers at a normal rate
-and the dynamic head does nothing for it. `alpha` is both. That is the paper's sharpest result.
+**NRM is the control that dissociates the two:**
+- the representation trade-off (common to GPCM `alpha` and NRM `a_k`, cured by decoupling), and
+- a low-Fisher rate penalty (only GPCM `alpha`, cured by the dynamic head).
+`a_k` shares ability's representation so it pays the trade-off, but it is NOT low information, so it recovers at a
+normal rate and the dynamic head does nothing for it (it hurts it). `alpha` has both problems at once. That is the
+paper's sharpest result. The full 10-setup NRM run decides which NRM parameter needs its own item key; do not presume
+it is the slope (the deck's evidence points to the intercept `c_k`).
 
 ## Story arc (the deck, told as a paper)
 1. KT bolts interpretable IRT readouts on for interpretability, but are the parameters actually recovered?
 2. A modular framework to ask cleanly: swap the encoder, swap the IRT decoder; benchmark by recovery. (a)
 3. Recovery is uneven: the coefficient that multiplies ability comes back worst.
 4. Why: the multiplicative coupling (scale gauge). Decoupling the representation escapes it.
-5. It is a finite-data effect, the gap closes as data and training grow.
+5. It is a finite-budget effect, vanishing only asymptotically; at realistic data and training sizes the decoupling
+   advantage holds and does not wash out.
 6. A separate, second penalty, low Fisher, lands only on GPCM `alpha`; a state-conditioned head is the targeted fix.
 7. NRM is the control that separates the two (multiplicative-but-not-low-Fisher `a_k`).
 8. Holds across the matrix and on real data (reliability). Practice: decouple always, state-condition only the
@@ -77,7 +85,8 @@ Cite-and-distinguish Ma et al. 2024 [VERIFY].
 
 ## Template and terminology
 JEDM acmtrans class, two-column, NOT elsarticle. Never "neural KT". No decorative or invented jargon; exact names
-(low Fisher, Fisher information, the slope a_k, the intercept c_k, multiplicative coupling, scale gauge). No em- or
+(low Fisher, Fisher information, the discrimination alpha, the difficulty / step thresholds beta, the slope a_k, the
+intercept c_k, multiplicative coupling, scale gauge). No em- or
 en-dashes, no colons in flowing prose, American English, grant-then-qualify.
 
 ## Honest caveats

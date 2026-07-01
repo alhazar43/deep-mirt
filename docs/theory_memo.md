@@ -10,9 +10,10 @@ coordinates, not the subject.
 A prediction-trained KT encoder with an IRT readout relaxes each readout coordinate at a rate set by
 that coordinate's Fisher curvature, so the flat direction (discrimination) is learned last. That
 penalty is a finite-budget transient plus a finite-sample variance term; both vanish as gradient
-steps and observations grow. A separate, structural failure occurs if the ability readout is allowed
-to see the current item, which enlarges the gauge group and destroys the ability-difficulty location
-split at every budget.
+steps and observations grow. A separate, representation effect follows from the multiplicative scale gauge: alpha
+multiplies theta, so prediction loss pins only their product, and when discrimination and ability read from one shared
+embedding width their split is under-determined. Decoupling (a separate item key for the multiplicative parameter)
+clears it; the dynamic head is a second, targeted fix for the low-Fisher parameter.
 
 ## Setup
 Causal state h_t = enc(y_{1..t-1}). Readout exposes per-item coordinates xi_i and ability
@@ -42,23 +43,20 @@ I(theta) = I(beta) = alpha^2 w, not suppressed. Discrimination is the slow direc
   after T steps is ~ exp(-T/kappa); the recovery GAP ~ exp(-T/kappa) -> 0 (geometric in steps).
 - Statistical axis (T = infinity): a free per-item table (rank >= K) reaches the unbiased endpoint; the
   residual reliability gap between alpha and theta is O(kappa/N), plus an O(1/N) errors-in-variables bias
-  on alpha (noisy amortized theta_hat attenuates the bilinear slope).
+  on alpha (noisy amortized theta_hat attenuates the recovered discrimination alpha).
 - Joint: G(T, N) <~ exp(-T/kappa) + O(kappa/N). Both terms carry kappa; both -> 0 under min(T, N) growing.
   THIS licenses the honest headline: the penalty is real at finite budget and vanishes asymptotically.
 
-**C3, COUPLING / IDENTIFIABILITY (STRUCTURAL).** The logit alpha_i(theta - beta_i) carries the global
-affine gauge (theta, beta) -> (s theta + c, s beta + c), alpha -> alpha/s (2 parameters, fixed by one
-normalization). DECOUPLED theta_t = phi(h_t) (excludes item i): one theta_t faces every item at step t,
-cannot re-center per item, so beta_i is identified. COUPLED theta_{t,i} = phi(h_t, e_i): per item,
-(theta_{t,i}, beta_i) -> (theta_{t,i} + delta_i, beta_i + delta_i) is a likelihood symmetry, and phi
-(already a function of e_i) absorbs delta_i; the gauge orbit enlarges from 2 to 2 + J (one location shift
-per item). Those J directions are exact flat directions of the POPULATION loss, so no estimator at any N
-identifies beta_i within its orbit. This is MA-GPCM's threshold collapse read correctly as identifiability,
-not rate; it persists at all budgets. (Validation caveat: regularization or finite width turns exact
-flatness into near-flatness; the does-not-vanish-with-data property still holds.) The general statement is
-a measurability condition: theta_t must be measurable with respect to a sigma-field EXCLUDING e_i. DKVMN's
-separated pathway (theta from the memory-read alone) and the LSTM's narrow item-value embedding plus a
-separate wide item-key are two enforcements; neither architecture's trick is claimed encoder-generic.
+**C3, SCALE GAUGE / REPRESENTATION (FINITE).** The bilinear term alpha_i theta carries a multiplicative scale gauge
+alpha -> alpha/s, theta -> s theta (one parameter, fixed by one normalization), so prediction loss pins only the
+product alpha theta, never the split. Magnitude is unidentified, rank survives (hence Spearman rho for the
+multiplicative parameter). This is not a structural failure. It becomes a REPRESENTATION trade-off when discrimination
+and ability read from one shared embedding of width W. Widening W reallocates that width between the two coordinates,
+so the discrimination rank rises while the ability rank falls, and no single width serves both. Giving the
+multiplicative parameter its own item key (decoupling) removes the shared-width constraint and clears the trade-off.
+This fires for any slope on ability, GPCM alpha or NRM a_k, independent of Fisher curvature; it is the mechanism the
+NRM control (C4) isolates from the Fisher-rate effect. The additive intercept c_k never multiplies theta, so it carries
+no scale gauge.
 
 **C4, NRM CONTROL (consistency).** NRM's slope a_k is the genuine discrimination analogue (GPCM is a
 constrained NRM with a_k = alpha k; Thissen & Steinberg 1986). Its leverage is theta itself, centered at
@@ -67,14 +65,16 @@ theta = 0 (away from the response mode), so I(a_k)/I(c_k) ~ 0.90, NOT low, unlik
 of Fisher) from a FISHER effect (the dynamic head helps only a low-information coordinate). Report 0.90 as
 MEASURED; "~1" (E[theta^2] = 1) is intuition only, since p(1-p) co-varies with theta.
 
-## The key refinement (both passes flagged it): two "decouplings," keep them distinct
-The plan section 5 runs together two mechanisms on two different readouts:
-- (a) ABILITY-readout coupling -> the location-gauge IDENTIFIABILITY failure (C3, STRUCTURAL).
-- (b) any readout SHARING EMBEDDING WIDTH -> the capacity/representation trade-off (rate/conditioning, FINITE).
-Both are called "decoupling" but sit on different axes with different asymptotics. The NRM control (C4)
-adjudicates only (b); it says NOTHING about (a). Do not let NRM evidence support the location-gauge claim.
-E2 is the vehicle for (a); keep the evidence separate. The paper must not let one decoupling borrow the
-other's credit.
+## The key refinement: two mechanisms, two fixes, keep them distinct
+Two mechanisms govern how well a readout parameter recovers, and each has its own fix.
+- REPRESENTATION (C3, FINITE): sharing one embedding width between a slope and ability forces a trade-off. The fix is
+  DECOUPLING (a separate item key for the multiplicative parameter). Fires for any slope on ability, independent of Fisher.
+- FISHER INFORMATION (C1/C2, FINITE): low Fisher curvature makes a coordinate the slow direction, recovering last and
+  least reliably. The targeted fix is the DYNAMIC (state-conditioned) head, which helps ONLY a low-Fisher coordinate
+  and hurts one whose Fisher is not low.
+GPCM discrimination has BOTH problems at once (low Fisher AND a slope sharing ability's representation); the NRM slope
+a_k has only the second. The NRM control (C4) is what dissociates them. The paper must not let the decoupling result
+borrow the dynamic head's credit, or vice versa.
 
 ## Honest caveats and reviewer attacks (keep on the record)
 1. Per-eigenmode, not per-parameter. F has off-diagonal F_{alpha,beta} = E[w(theta-beta)(-alpha)], so the
@@ -99,23 +99,23 @@ directions). (f) softmax-CE-family loss (plain, class-weighted, WOL): a detached
 enters as a scale and preserves kappa's structure; breaks for EMD, margin, or regression-on-E[k] losses.
 
 ## Implications for Phase 2/3 experiments
-- E2 must isolate mechanism (a) (ability-item coupling -> identifiability) SEPARATELY from mechanism (b)
-  (width sharing -> rate). Do not let NRM stand in for (a).
+- Keep the two fixes separate in the experiments: decoupling (own item key) tests the REPRESENTATION mechanism, the
+  dynamic (state-conditioned) head tests the FISHER mechanism. The NRM control adjudicates both; do not let one fix's
+  evidence stand in for the other's.
 - NRM confound (C4): NRM has more parameters and its own identification constraints (sum-to-zero or a
   reference category). Hold K, N, Q, seeds fixed; score slope-VECTOR rank recovery vs truth; check a_k recovery
   is information-geometry-driven, not parameter-count/identification-driven. ("Decoupling a_k alone breaks c_k
-  to 0.392" shows NRM's own internal readout coupling, control it.)
-- E8 (adaptive testing): frame alpha as the DEGRADED channel within a JOINT (alpha, beta) selection rule (item
-  info peaks at theta ~ beta, so location matters too), not the sole determinant. Score with recovered params
-  against the oracle at fixed test length.
+  to 0.392" shows NRM's own a_k / c_k entanglement, control it.)
+- E8 (adaptive testing, downstream / open): frame discrimination as the DEGRADED channel within a JOINT
+  (discrimination, difficulty) selection rule (item info peaks at theta ~ difficulty, so difficulty matters too),
+  not the sole determinant. Score with recovered params against the oracle at fixed test length.
 - Add the oracle-clamp control (theta = theta*) to bridge the co-learned-theta gap.
 - To claim the exp(-T/kappa) rate COEFFICIENT (not just form and sign), add a knob that varies I(theta) at fixed K.
 
 ## IRT-centrism guard
-The three most psychometric pieces (the Fisher/rate theory, the gauge/identifiability formalization, the CAT
-downstream) must read as PROPERTIES OF THE KT TRACER'S READOUT and A KT DEPLOYMENT DECISION OUR READOUTS
-CHANGE, never as new psychometrics or a CAT advance. Keep the gauge section at the readout level
-(phi(h_t, e_i) versus phi(h_t)).
+The psychometric pieces (the Fisher/rate theory and the scale-gauge/representation analysis) must read as PROPERTIES
+OF THE KT TRACER'S READOUT, never as new psychometrics. Keep the scale-gauge argument at the readout level (the
+product alpha theta and which embedding feeds each readout), a property of the tracer, not a psychometric claim.
 
 ## Source derivations (agent-committed)
 docs/learning_dynamics_theory_support.md (P1-P12), docs/paper2_leverage_proposition.md (the conditional
