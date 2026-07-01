@@ -177,6 +177,7 @@ def _build_engine(cfg: P2Config, ds, init_seed: int, device: str):
             encoder=mc.encoder,
             device=device,
             seed=init_seed,
+            nrm_channel=mc.nrm_channel,
         )
     if mc.engine == "ma_irt":
         separate_theta = not mc.coupled_theta
@@ -249,16 +250,51 @@ def _nrm_ground_truth(ds):
     return a, c
 
 
+def _theta_orientation(theta_hat: np.ndarray, theta_true: np.ndarray) -> float:
+    """+1 or -1: the global latent-orientation flip that aligns hat to truth.
+
+    Pearson-signed, matching ``metrics_bench._align_sign`` / ``nrm_metrics``.
+    Returns +1 (leave as-is) when the correlation is non-negative or undefined.
+    """
+    h = np.asarray(theta_hat, dtype=float).ravel()
+    t = np.asarray(theta_true, dtype=float).ravel()
+    if h.size < 2 or np.std(h) < 1e-9 or np.std(t) < 1e-9:
+        return 1.0
+    r = float(np.corrcoef(h, t)[0, 1])
+    return -1.0 if (r == r and r < 0) else 1.0
+
+
 def _score_theta(cfg: P2Config, ds, theta_traj_val: np.ndarray,
                  val_rows: np.ndarray) -> dict:
-    """Theta recovery on the held-out fold learners (static level or net drift)."""
+    """Theta recovery on the held-out fold learners (static level or net drift).
+
+    NRM carries a global latent-orientation indeterminacy: (theta -> -theta,
+    a_k -> -a_k) leaves the softmax invariant, so a fit recovers ability up to a
+    per-fit sign.  The NRM ITEM recovery already resolves this by sign-aligning
+    a_k/c_k to truth (``nrm_metrics._align_sign``); theta scoring must apply the
+    SAME orientation or the sign leaks into the reported correlation (positive on
+    some fits, negative on others, collapsing the fold-mean toward zero).  We fix
+    the orientation ONCE per fit from the recovered-vs-true level and flip the
+    whole trajectory, so drift/pooled/final all inherit one consistent sign.
+    GPCM/2PL are untouched: their gauge is pinned by correct-option monotonicity,
+    so the raw signed correlation is already the honest number.
+    """
     gt = ds.gt
+    theta_hat = np.asarray(theta_traj_val, dtype=float)
+    if cfg.model.decoder == "nrm":
+        # One global sign, fixed from the level that will be scored (dynamic ->
+        # pooled trajectory, static -> final step) and applied to the whole array.
+        if cfg.data.kind == "dynamic":
+            sign = _theta_orientation(theta_hat, gt.theta_traj[val_rows])
+        else:
+            sign = _theta_orientation(theta_hat[:, -1], gt.theta0[val_rows])
+        theta_hat = sign * theta_hat
     if cfg.data.kind == "dynamic":
         return metrics_bench.theta_recovery_dynamic(
-            theta_traj_val, gt.theta_traj[val_rows]
+            theta_hat, gt.theta_traj[val_rows]
         )
     return metrics_bench.theta_recovery_static(
-        theta_traj_val[:, -1], gt.theta0[val_rows]
+        theta_hat[:, -1], gt.theta0[val_rows]
     )
 
 
@@ -283,8 +319,11 @@ def _score_item_recovery(cfg: P2Config, ds, engine,
     seen[np.unique(np.asarray(ds.items0[train_rows]))] = True
 
     if mc.decoder == "nrm":
-        # KEEP the intercept; do NOT route through the GPCM-shaped path.
-        params = model.recover_item_params()          # {alpha (Q,K), intercept (Q,K)}
+        # KEEP the intercept; do NOT route through the GPCM-shaped path.  Pass the
+        # training-fold sequences: the channel decoder's dynamic couplings
+        # occurrence-average the state-conditioned a_k/c_k readout over them
+        # (static couplings ignore them and do a direct id lookup).
+        params = model.recover_item_params(train_it, train_rp)  # {alpha,intercept,seen}
         a_hat = np.asarray(params["alpha"])
         c_hat = np.asarray(params["intercept"])
         a_true, c_true = _nrm_ground_truth(ds)
