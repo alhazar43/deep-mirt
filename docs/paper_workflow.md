@@ -94,10 +94,15 @@ two-column), scrub-clean, KT-home/IRT-flavor, full prose. MA-GPCM archived as ov
 (do NOT discard). Committed in overleaf-sync LOCALLY (commit e2f0088). Each experiment carries a one-line strengthening
 note pointing to the rigorous rebuild (Phase 2 scaffold + Phase 3). 10 bibitems added (5 marked [VERIFY]: ma_neural_2024,
 vtirt_2023, wide_deep_irt_2024, beta4irt_2023, autoirt_2024).
-BLOCKER (needs USER): the Overleaf push 403s (git.overleaf.com/698a08a1498be338a24fd941, the PAPER project; the deck
-project pushed fine, so it is project-specific access, not a general outage). I cannot fix Overleaf auth (never touch the
-token). USER ACTION: refresh/enable the Overleaf git access for this project, then `git -C overleaf-sync push origin master`
-(or I retry). Durable source backup on GitHub at docs/paper_not_all_params_draft.tex until the Overleaf push succeeds.
+BLOCKER (Overleaf auth, account/service-wide): ALL Overleaf git access now 403s, including the DECK project that pushed
+fine earlier THIS session, plus the user's NEW project 6a4518736a3fce49c9041e19, with both the cached credential AND the
+user-provided token (olp_, used correctly as username=git / password=token). Since a previously-working project now 403s
+too, it is NOT the token or the project. Most likely Overleaf RATE-LIMITING from several auth attempts in quick succession,
+or the account's git integration (premium) lapsed. STOPPED further attempts to avoid deepening a rate-limit. Submodule
+origin now points at the new project 6a45... (tokenless) for the retry. Paper is SAFE: local commit e2f0088 + GitHub backup
+docs/paper_not_all_params_draft.tex. RETRY after a ~20-30 min cooldown: the new project has UNRELATED history so it needs a
+FORCE push, `git -C overleaf-sync push --force <token-URL> master`; if it still 403s, it is account-side (check Overleaf
+premium / whether the project shows a Git menu) or push from a machine with a live Overleaf session.
 NOTE: this PRECEDES the rigorous experiments (Phase 3), by user directive; the rigorous results swap in later.
 Goal: the fused draft in `overleaf-sync`, KT home, IRT flavor.
 - I (main loop): framing, thesis, claim lines, jargon scrub, KT-centric voice.
