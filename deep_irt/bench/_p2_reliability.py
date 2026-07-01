@@ -275,7 +275,13 @@ def _fit_recover_half(responses, items, mask, idx, engine_cls, engine_kwargs,
     engine.fit(**train_kwargs)
 
     model = engine.model
-    if getattr(model, "_uses_state", False):
+    # The state-conditioned GPCM/2PL path AND every NRM channel decoder need the
+    # (N, T) sequences to recover: dynamic couplings occurrence-average the
+    # state-conditioned readout, and even a STATIC NRM channel decoder's
+    # recover_item_params dereferences the passed id tensor (it is not optional).
+    needs_seq = (getattr(model, "_uses_state", False)
+                 or getattr(model, "_nrm_channel", None) is not None)
+    if needs_seq:
         import torch
         it_t = torch.as_tensor(it_half, dtype=torch.long)
         rp_t = torch.as_tensor(rp_half, dtype=torch.long)
@@ -286,6 +292,95 @@ def _fit_recover_half(responses, items, mask, idx, engine_cls, engine_kwargs,
         rec = model.recover_item_params()
         seen = _seen_from_items(it_half, Q, m_half)
     return rec, seen
+
+
+# ---------------------------------------------------------------------------
+# Predictive-accuracy guard (the reliability number is only meaningful when the
+# model actually predicts the held-out responses; a model that reads noise can
+# post a high split-half correlation on garbage, so reliability is reported
+# alongside its accuracy)
+# ---------------------------------------------------------------------------
+
+def predictive_accuracy(
+    responses: np.ndarray,
+    items: np.ndarray,
+    engine_cls: type,
+    engine_kwargs: dict,
+    train_kwargs: dict,
+    decoder: str = "gpcm",
+    n_cats: int = 4,
+    n_holdout: int = 10,
+    train_frac: float = 0.8,
+    seed: int = 0,
+    mask: Optional[np.ndarray] = None,
+) -> Dict[str, float]:
+    """Held-out tail prediction accuracy for ONE fit on a train/val learner split.
+
+    Fits a single ``engine_cls`` on a ``train_frac`` slice of the learners and
+    scores the last ``n_holdout`` VALID positions of the held-out learners with
+    the same prediction metrics the synthetic pipeline reports
+    (``metrics_bench``/``nrm_metrics``).  This is the guardrail for the
+    split-half reliability: a reliability number is trustworthy only if the same
+    model predicts the responses above chance.
+
+    Args mirror :func:`split_half_reliability`; ``decoder`` selects the metric
+    family (``"nrm"`` -> top-1 + macro-AUC via ``nrm_metrics``, otherwise
+    acc/qwk/auc via ``metrics_bench``).
+
+    Returns the metric dict (e.g. ``{"acc", "qwk", "auc"}``) plus ``n_val`` and
+    ``n_scored`` (held-out learners and scored positions).
+    """
+    from deep_irt.bench.datagen import (
+        BenchDataConfig, BenchDataset, BenchGroundTruth,
+    )
+    from deep_irt.bench import metrics_bench, nrm_metrics
+
+    responses = np.asarray(responses)
+    items = np.asarray(items)
+    N, T = items.shape
+    Q = int(items[items >= 0].max()) + 1 if (items >= 0).any() else 0
+    if mask is None:
+        mask = items >= 0
+    mask = np.asarray(mask, dtype=bool)
+
+    it = items.copy()
+    rp = responses.copy()
+    it[~mask] = 0
+    it[it < 0] = 0
+    rp[~mask] = 0
+    rp[rp < 0] = 0
+
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(N)
+    n_tr = max(1, min(N - 1, int(round(train_frac * N))))
+    train_idx = np.sort(perm[:n_tr])
+    val_idx = np.sort(perm[n_tr:])
+
+    cfg = BenchDataConfig(
+        name="real_acc", kind="static", n_learners=N, n_items=Q,
+        seq_len=T, n_cats=n_cats, n_holdout=n_holdout, seed=seed,
+    )
+    gt = BenchGroundTruth(
+        theta0=np.zeros(N), a=np.zeros(Q), b=np.zeros((Q, max(n_cats - 1, 1))),
+    )
+    ds = BenchDataset(
+        cfg=cfg, gt=gt, items0=it, responses=rp,
+        train_idx=train_idx, val_idx=val_idx, aux={"mask": mask},
+    )
+
+    ekw = dict(engine_kwargs)
+    ekw.setdefault("seed", seed)
+    engine = engine_cls(ds=ds, **ekw)
+    engine.fit(**train_kwargs)
+
+    probs, targets = engine.predict_heldout()
+    if decoder == "nrm":
+        out = dict(nrm_metrics.prediction_metrics(probs, targets, n_cats))
+    else:
+        out = dict(metrics_bench.prediction_metrics(probs, targets, n_cats))
+    out["n_val"] = int(val_idx.size)
+    out["n_scored"] = int(targets.size)
+    return out
 
 
 # ---------------------------------------------------------------------------

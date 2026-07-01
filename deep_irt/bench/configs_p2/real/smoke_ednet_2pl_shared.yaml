@@ -1,0 +1,16 @@
+# SMOKE: 2PL on EdNet, SHARED. Subsampled + short; use --smoke or these small sizes.
+dataset: ednet
+decoder: 2pl
+arm: shared
+n_learners: 400
+n_items: 150
+max_seq_len: 100
+min_answers: 15
+scan_files: 6000
+n_epochs: 20
+lr: 0.01
+batch_size: 256
+hidden_dim: 32
+n_holdout: 10
+n_splits: 2
+seed: 42

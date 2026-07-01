@@ -1,0 +1,18 @@
+# Real-data reliability cell: 2PL on kdd, FIX arm.
+# Split-half reliability of recovered item params (slope Spearman, location
+# Pearson), Spearman-Brown corrected, guarded by held-out accuracy. No ground truth.
+dataset: kdd
+decoder: 2pl
+arm: fix
+n_learners: 3000
+n_items: 250
+max_seq_len: 200
+min_answers: 20
+scan_files: 30000
+n_epochs: 150
+lr: 0.01
+batch_size: 512
+hidden_dim: 32
+n_holdout: 10
+n_splits: 4
+seed: 42
