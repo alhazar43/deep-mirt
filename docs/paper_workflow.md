@@ -18,7 +18,7 @@ we are. Update the STATUS lines as you go. Nothing is written into the paper unt
 - Decision DONE: fuse (MA-GPCM is a free draft, user controls it), organic single story, KT home / IRT
   flavor, target JEDM, provisional title = the workshop title.
 - Nothing written into the paper yet. No experiments run yet for this paper.
-- NEXT ACTION: Phase 1 (theory formalization). See below.
+- NEXT ACTION: user approves the theory spine (`docs/theory_memo.md`); then Phase 2 (framework + infrastructure). Phase 1 theory is DONE.
 
 ## Constraints (do not violate)
 - **KT is home, IRT is a flavor.** Do not let the paper drift IRT-centric; that was MA-GPCM's mistake.
@@ -47,7 +47,14 @@ we are. Update the STATUS lines as you go. Nothing is written into the paper unt
 
 ## Phases
 
-### Phase 1: Theory formalization  [STATUS: NOT STARTED]
+### Phase 1: Theory formalization  [STATUS: DONE (theory) / AWAITING USER APPROVAL -- 2026-07-01]
+Reconciled memo at `docs/theory_memo.md`. No hard math errors; the spine holds. KEY REFINEMENT (both
+passes): the two "decouplings" are distinct axes -- ability-item coupling = identifiability (structural,
+persists), width sharing = representation/rate (finite, vanishes asymptotically); NRM adjudicates only the
+representation one, E2 is the vehicle for identifiability. Other corrections folded into the memo: write
+GPCM gradients in the honest binary+r_k form (not compressed scalar-r); control the NRM parameter-count
+confound; frame adaptive testing as a joint (alpha,beta) rule with alpha the degraded channel. Do NOT
+start Phase 2 or any writing until the user approves the spine.
 Goal: the formal spine on paper, for the user to approve before any writing.
 - *ml-math-researcher* (Opus): the Fisher-rate derivation for a generic readout parameter; the
   coupling/identifiability formalization (coupled vs decoupled readout, encoder-agnostic); the gauge

@@ -66,6 +66,11 @@ components, stated with their asymptotic behavior:
   restores it. This does not vanish with more data; it is a gauge choice.
 
 ## 5. The two levers and the NRM adjudication
+
+> Phase 1 refinement (see `docs/theory_memo.md`): keep TWO decouplings distinct. Ability-item coupling ->
+> identifiability (structural, persists at all budgets); width sharing -> representation/rate (finite,
+> vanishes asymptotically). NRM adjudicates only the representation one; E2 is the vehicle for
+> identifiability. Do not let one borrow the other's credit.
 - **Decoupling = representation lever (robust).** A narrow ability embedding plus a separate wide
   item key. Escapes the shared-capacity trade-off (rate) and, applied to the ability readout,
   restores the gauge (identifiability). Fires whenever a readout shares a representation, regardless
