@@ -83,7 +83,15 @@ Goal: one clean pipeline to run every experiment consistently.
   consolidation harness. Foreground, JSON out, 8 GB GPU aware.
 - Done when: the pipeline runs one matrix cell end to end and writes recovery JSON.
 
-### Phase 3: Experiments  [STATUS: NOT STARTED]
+### Phase 3: Experiments  [STATUS: DONE (synthetic + real) -- 2026-07-01, overnight autonomous run]
+Record (config in, raw numbers out, NO interpretation): docs/experiment_results.md. Ran via the _p2_ pipeline (built
+from the scaffold). DONE: (a) 11 BENCHMARK cells: {lstm,dkvmn,transformer} x {2pl,gpcm,nrm} + a dense control + a drift
+arm, realistic bed Q=200 / N=2000 / admin Uniform(40,80) / uniform exposure, 150 epochs, 5 data seeds x 5 folds.
+(b) 18 TOGGLE cells: 2pl/gpcm {shared,decoupled} x {static,dynamic} = 8; nrm 10 couplings x {static,dynamic}.
+(c) 10 REAL-DATA reliability cells: EdNet + KDD x {2pl,gpcm,nrm}, shared vs fix, split-half Spearman-Brown, accuracy-
+guarded. FIX applied during the run: NRM ability (theta) had a GLOBAL-SIGN scoring bug -> sign-aligned in _p2_run_cell
+(item params were always correct; re-scored from saved per-fold, no re-train). GAP: ASSISTments data absent on disk
+(its 2 cells not run -- fetch to complete). Raw per-cell JSON: outputs/p2/{bench,toggle}/ and deep_irt/bench/outputs/p2_real/.
 Goal: the evidence. Run and interpret. See the checklist below.
 - *ml-system-architect* / *research-scientist* run (Sonnet) and interpret (Opus). Foreground, JSON out,
   short summaries back.
