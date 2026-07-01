@@ -40,3 +40,20 @@
 | toggle_nrm_decoupled_dynamic | decoupled | dyn | 0.716 | 0.941 | 0.460 | 0.494 | 0.750 |
 | toggle_nrm_shared_static | shared | stat | 0.758 | 0.881 | 0.470 | 0.469 | 0.721 |
 | toggle_nrm_shared_dynamic | shared | dyn | 0.500 | 0.913 | 0.515 | 0.484 | 0.736 |
+
+## Real-data reliability (EdNet + KDD, lstm; split-half Spearman-Brown |r|, 3000 learners, ~250 items, 4 splits, 150 epochs)
+fix = decoupling: 2PL/GPCM discrimination routed to its own item key (Option A); NRM fix = c_only_dec. discrim/slope = |Spearman|, diff/intercept = |Pearson|, guarded by held-out accuracy. ASSISTments data absent (not run).
+
+| cell | dataset | dec | arm | discrim/slope reliab | diff/intcpt reliab | acc | QWK | AUC | macroAUC |
+|---|---|---|---|---|---|---|---|---|---|
+| ednet_2pl_shared | ednet | 2pl | shared | 0.754 | 0.960 | 0.613 | 0.222 | 0.652 | - |
+| ednet_2pl_fix | ednet | 2pl | fix | 0.821 | 0.946 | 0.636 | 0.264 | 0.689 | - |
+| ednet_gpcm_shared | ednet | gpcm | shared | 0.678 | 0.959 | 0.486 | 0.183 | 0.605 | - |
+| ednet_gpcm_fix | ednet | gpcm | fix | 0.745 | 0.959 | 0.516 | 0.220 | 0.663 | - |
+| ednet_nrm_shared | ednet | nrm | shared | 0.695 | 0.707 | 0.616 | - | - | 0.831 |
+| ednet_nrm_fix | ednet | nrm | fix | 0.207 | 0.676 | 0.579 | - | - | 0.791 |
+| kdd_2pl_shared | kdd | 2pl | shared | 0.730 | 0.812 | 0.832 | 0.385 | 0.810 | - |
+| kdd_2pl_fix | kdd | 2pl | fix | 0.786 | 0.826 | 0.831 | 0.381 | 0.822 | - |
+| kdd_gpcm_shared | kdd | gpcm | shared | 0.714 | 0.884 | 0.816 | 0.400 | 0.823 | - |
+| kdd_gpcm_fix | kdd | gpcm | fix | 0.786 | 0.886 | 0.824 | 0.425 | 0.839 | - |
+| ednet_2pl_shared | ednet | 2pl | shared | 0.115 | 0.808 | 0.615 | 0.228 | 0.649 | - |
