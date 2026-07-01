@@ -1,6 +1,6 @@
 # Experiment record (no interpretation). NRM ability sign-corrected (mean of |per-fold r|).
 
-## Benchmark (fixed setup, realistic bed)
+## Benchmark (fixed setup: realistic bed Q=200 N=2000 admin U(40,80), 150ep, 5 data x 5 folds; dense = N800/Q60 all-items; _rw = drift)
 | cell | enc | dec | discrim/slope rho | diff/intcpt r | ability r | ability rho | acc | QWK | AUC | NLL | mAUC |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | bench_dense_lstm_gpcm | lstm | gpcm | 0.786 | 0.940 | 0.970 | 0.972 | 0.487 | 0.608 | 0.845 | - | - |
@@ -27,7 +27,7 @@
 | toggle_gpcm_shared_dynamic | gpcm | shared | dyn | 0.842 | 0.929 | 0.459 | 0.488 | 0.618 | 0.846 |
 | toggle_gpcm_shared_static | gpcm | shared | stat | 0.823 | 0.916 | 0.494 | 0.484 | 0.613 | 0.845 |
 
-## Toggles NRM (lstm): 10 couplings x static/dynamic
+## Toggles NRM (lstm): couplings x static/dynamic
 | cell | coupling | dyn | slope rho | intcpt r | ability r | acc | mAUC |
 |---|---|---|---|---|---|---|---|
 | toggle_nrm_a_only_dec_static | a_only_dec | stat | 0.499 | 0.308 | 0.302 | 0.459 | 0.717 |
@@ -41,10 +41,9 @@
 | toggle_nrm_shared_static | shared | stat | 0.758 | 0.881 | 0.470 | 0.469 | 0.721 |
 | toggle_nrm_shared_dynamic | shared | dyn | 0.500 | 0.913 | 0.515 | 0.484 | 0.736 |
 
-## Real-data reliability (EdNet + KDD, lstm; split-half Spearman-Brown |r|, 3000 learners, ~250 items, 4 splits, 150 epochs)
-fix = decoupling: 2PL/GPCM discrimination routed to its own item key (Option A); NRM fix = c_only_dec. discrim/slope = |Spearman|, diff/intercept = |Pearson|, guarded by held-out accuracy. ASSISTments data absent (not run).
-
-| cell | dataset | dec | arm | discrim/slope reliab | diff/intcpt reliab | acc | QWK | AUC | macroAUC |
+## Real-data reliability (EdNet + KDD, lstm; split-half Spearman-Brown |r|, 3000 learners ~250 items, 4 splits, 150ep)
+fix = decoupling: 2PL/GPCM discrimination on its own item key (Option A); NRM fix = c_only_dec. ASSISTments data absent (not run).
+| cell | dataset | dec | arm | discrim/slope reliab | diff/intcpt reliab | acc | QWK | AUC | mAUC |
 |---|---|---|---|---|---|---|---|---|---|
 | ednet_2pl_shared | ednet | 2pl | shared | 0.754 | 0.960 | 0.613 | 0.222 | 0.652 | - |
 | ednet_2pl_fix | ednet | 2pl | fix | 0.821 | 0.946 | 0.636 | 0.264 | 0.689 | - |
