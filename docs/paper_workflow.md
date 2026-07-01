@@ -67,15 +67,13 @@ Goal: the formal spine on paper, for the user to approve before any writing.
   loop) reconcile and show the user.
 - Done when: the user approves the spine.
 
-### Phase 2: Framework and experiment infrastructure  [STATUS: DESIGN DONE; SCAFFOLD IN PROGRESS -- 2026-07-01]
-DIRECTIVE: redo the ENTIRE experiment from scratch at journal rigor; do NOT reuse workshop results as evidence.
-DESIGN DONE: reconciled blueprint at `docs/experiment_blueprint.md` (one shared protocol; experiment->config
-mapping; build order; reproducibility; honest compute). USER DIRECTIVE: write the design + SCAFFOLD now, defer the
-code-heavy fill-in and the GPU runs. SCAFFOLD (in progress): the _p2_ pipeline skeleton in deep_irt/bench/ (config
-schema, run_cell, sweep, stubbed experiment scripts, configs_p2/) with TODO fill-in markers; NO heavy logic, NO runs.
-DEFERRED to Phase 3 (needs ultracode): the code-heavy fill-in + the GPU runs (sequential on one 8 GB card). Open
-config decisions (NOT blocking the scaffold, resolved at run-time): E2(a) coupling vehicle (ma_irt vs deep_irt-native);
-cell size vs compute (N~800 days vs N~4000 weeks).
+### Phase 2: Framework and experiment infrastructure  [STATUS: DESIGN + SCAFFOLD DONE; PARKED for the later rigorous redesign -- 2026-07-01]
+Blueprint at `docs/experiment_blueprint.md`. SCAFFOLD DONE: the _p2_ pipeline skeleton in deep_irt/bench/ (9 modules:
+_p2_config [near-complete], _p2_run_cell, _p2_sweep, _p2_oracle, _p2_datagen_budget, _p2_coupled_theta, _p2_reliability,
+_p2_cat, _p2_aggregate) + configs_p2/ templates, all TODO-stubbed, no runs. Fill-in order = blueprint build order 0-8.
+Known fill-in blocker: beta_sigma is not yet a field in the Codex-owned datagen. REORDERING (user directive): write the
+full STRUCTURED paper NOW using existing results (Phase 4, in progress), then do the code-heavy fill-in + GPU runs LATER
+(needs ultracode) and swap the rigorous results in. Open config decisions deferred: E2(a) vehicle; cell size vs compute.
 Goal: one clean pipeline to run every experiment consistently.
 - *research-scientist* (Opus, design): spec the swappable framework and the experiment designs (E1, E2,
   E-budget, E-levers, E8) in KT terms; confirm which already exist in `deep_irt/`.
@@ -90,7 +88,17 @@ Goal: the evidence. Run and interpret. See the checklist below.
   short summaries back.
 - Done when: every checklist item is DONE or explicitly deferred with a logged reason.
 
-### Phase 4: Writing  [STATUS: NOT STARTED]
+### Phase 4: Writing  [STATUS: DRAFT DONE -- 2026-07-01]
+Full structured combined draft written to overleaf-sync/main.tex (compiles, ~40pp elsarticle review mode / ~13pp
+two-column), scrub-clean, KT-home/IRT-flavor, full prose. MA-GPCM archived as overleaf-sync/main_magpcm_ijaied.tex
+(do NOT discard). Committed in overleaf-sync LOCALLY (commit e2f0088). Each experiment carries a one-line strengthening
+note pointing to the rigorous rebuild (Phase 2 scaffold + Phase 3). 10 bibitems added (5 marked [VERIFY]: ma_neural_2024,
+vtirt_2023, wide_deep_irt_2024, beta4irt_2023, autoirt_2024).
+BLOCKER (needs USER): the Overleaf push 403s (git.overleaf.com/698a08a1498be338a24fd941, the PAPER project; the deck
+project pushed fine, so it is project-specific access, not a general outage). I cannot fix Overleaf auth (never touch the
+token). USER ACTION: refresh/enable the Overleaf git access for this project, then `git -C overleaf-sync push origin master`
+(or I retry). Durable source backup on GitHub at docs/paper_not_all_params_draft.tex until the Overleaf push succeeds.
+NOTE: this PRECEDES the rigorous experiments (Phase 3), by user directive; the rigorous results swap in later.
 Goal: the fused draft in `overleaf-sync`, KT home, IRT flavor.
 - I (main loop): framing, thesis, claim lines, jargon scrub, KT-centric voice.
 - *research-scientist* (Opus): framework and experiment sections in the DL-KT voice.
