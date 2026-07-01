@@ -67,12 +67,15 @@ Goal: the formal spine on paper, for the user to approve before any writing.
   loop) reconcile and show the user.
 - Done when: the user approves the spine.
 
-### Phase 2: Framework and experiment infrastructure  [STATUS: IN PROGRESS (design) -- 2026-07-01]
-DIRECTIVE: redo the ENTIRE experiment from scratch at journal rigor; do NOT reuse workshop-grade results as
-evidence. Design agents launched (research-scientist = rigorous protocol; ml-system-architect = unified
-pipeline). ULTRACODE: the BUILD + RUN (Phase 2 build + Phase 3) is the coding-heavy, massively-parallel
-phase, enable ultracode so it runs as a workflow. The design step does not need it. Present the rigorous
-blueprint to the user for confirmation before the big build+run.
+### Phase 2: Framework and experiment infrastructure  [STATUS: DESIGN DONE; SCAFFOLD IN PROGRESS -- 2026-07-01]
+DIRECTIVE: redo the ENTIRE experiment from scratch at journal rigor; do NOT reuse workshop results as evidence.
+DESIGN DONE: reconciled blueprint at `docs/experiment_blueprint.md` (one shared protocol; experiment->config
+mapping; build order; reproducibility; honest compute). USER DIRECTIVE: write the design + SCAFFOLD now, defer the
+code-heavy fill-in and the GPU runs. SCAFFOLD (in progress): the _p2_ pipeline skeleton in deep_irt/bench/ (config
+schema, run_cell, sweep, stubbed experiment scripts, configs_p2/) with TODO fill-in markers; NO heavy logic, NO runs.
+DEFERRED to Phase 3 (needs ultracode): the code-heavy fill-in + the GPU runs (sequential on one 8 GB card). Open
+config decisions (NOT blocking the scaffold, resolved at run-time): E2(a) coupling vehicle (ma_irt vs deep_irt-native);
+cell size vs compute (N~800 days vs N~4000 weeks).
 Goal: one clean pipeline to run every experiment consistently.
 - *research-scientist* (Opus, design): spec the swappable framework and the experiment designs (E1, E2,
   E-budget, E-levers, E8) in KT terms; confirm which already exist in `deep_irt/`.
