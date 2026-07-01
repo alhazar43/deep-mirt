@@ -149,15 +149,14 @@ fix (>=15/cell) the benchmark and toggle counts roughly triple, so the true enve
 the 8 GB RTX 4060. Clean-bed fits are ~1-3 min; the heavy tail is the Q>=500 stress -- gate it behind the Q=200 primary.
 Recount precisely once the replication unit (open decision 1) is fixed.
 
-## Open decisions (need the user before any run)
-1. REPLICATION UNIT (highest priority). The adversarial pass shows 5-fold paired Wilcoxon CANNOT reach p<0.05 (min
-   0.0625). It recommends the scaffold's >=15-replicate Monte-Carlo (fresh ground-truth bank per data seed) over your
-   "5 CV." For a parameter-recovery paper this is stronger (K-fold cross-validates only prediction, not recovery).
-   DECIDE: Monte-Carlo replication (recommended) vs 5-fold learner CV.
-2. GPCM/2PL routing. Option A (build the static-alpha-on-key head for a clean 2x2, recommended) vs Option B (accept the
-   entanglement, frame the static arm as beta-decoupled).
-3. NRM dynamic scope. Run 7 of 10 (add the shared+dynamic pure-dynamic arm, per the adversarial) vs 6.
-4. E2 coupled-theta identifiability arm (in the workshop, not in the 6-step storyline): keep (fill `_p2_coupled_theta`
-   Vehicle A) or park.
+## Decisions (LOCKED 2026-07-01)
+1. Replication = **5-FOLD LEARNER CV** (user's choice over the MC recommendation). Since 5 paired folds cannot reach
+   p<0.05 via Wilcoxon, toggle comparisons are adjudicated by the **paired fold-mean difference + bootstrap 95% CI +
+   rank-biserial effect size**, NOT a 5-sample significance test. Report recovery as fold-mean +/- bootstrap CI.
+2. GPCM/2PL routing = **Option A**: fix the decoupling so **discrimination** (the single slope for 2PL/GPCM) routes to
+   its OWN item key in the STATIC arm (current code routes only difficulty there). Clean {discrimination-decoupled} x
+   {static, dynamic} 2x2.
+3. NRM = **run ALL 10 setups** (5 decoupling configs x static/dynamic).
+4. E2 coupled-theta arm = **PARKED** (stay on the 6-step storyline).
 
 Full workflow output (three diagnoses + synthesis + adversarial verdict) is in the run transcript for this session.
