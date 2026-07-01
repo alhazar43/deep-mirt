@@ -1,177 +1,196 @@
 # Project Handoff (START HERE)
 
-Last updated 2026-06-17. This is the orientation doc for a fresh
-conversation. Read this first, then the pointers at the bottom only as
-needed. Everything here is committed locally; origin is out of sync after
-the 2026-06-17 history rewrite (see Repo maintenance).
+Last updated 2026-07-01. Orientation for a fresh conversation. This handoff is
+scoped to the CURRENT active work: the **Q-MIRT transfer / active-learning paper**
+(the "show learning via transfer" line) and the **NRM parameter-representation
+study**. Older parked tracks (OrdRec/Duolingo, Chapter-0 ma-irt) are one-liners at
+the end; do not start there.
 
-## What this project is
+Repo root: `C:/Users/steph/documents/deep-mirt`. Canonical branch
+`feat/prediction-loss`.
 
-Three stacked pieces in one repo (`C:/Users/steph/documents/deep-mirt`).
+## 1. What the active work is
 
-1. **ma-irt** (`ma-irt/`), a deep ordinal IRT model. DKVMN/LSTM/
-   Transformer encoder feeding a GPCM decoder, recovers theta, alpha,
-   beta from response sequences. This is the paper under review at
-   IJAIED and is slated for public release. Now a git submodule
-   (github alhazar43/ma-irt). Frozen Chapter 0; do not edit it except
-   additive configs.
+Two threads, both prediction-trained neural IRT, both live on `feat/prediction-loss`.
 
-2. **deep_irt** (`deep_irt/`), the ACTIVE framework. DeepIRTModel with
-   swappable lstm/transformer/dkvmn encoders, decoupled-alpha default,
-   PREDICTION-loss training (IRT as a readout flavor, no model-wise NLL).
-   Holds the RQ1-3 learning-dynamics study (docs/LEARNING_DYNAMICS_STUDY.md,
-   sections 3 and 4 for RQ1/RQ2 and RQ3) and the workshop deck
-   (docs/slides/workshop.tex + workshop.pdf). 139 tests pass, 3 skipped.
+**Thread A -- Q-MIRT: show LEARNING via cross-concept TRANSFER.** A dynamic,
+multi-concept (MA-GPCM) model that tracks a NAMED per-concept ability over time and
+answers: when a learner practices concept A, does performance on a related concept B
+move. Framed as "fixed measurement, moving STATE" (NOT "evolving theta" -- IRT rejects
+an evolving trait): item parameters stay fixed/identified, only the per-concept state
+moves; learning is shown OBSERVABLY (anchor-item score growth, held-out prediction),
+not by waving the latent. Recovery of the static MA-GPCM is already settled and is NOT
+the contribution; the contribution is the active, structured cross-concept change.
 
-3. **OrdRec** (`rl/`), an ExRec-style exercise-recommendation framework
-   built on a custom PPO, parked at the D1 SLAM milestone. The Duolingo
-   track. Modular, adapter-based.
+**Thread B -- NRM parameter representation.** Extends the workshop deck ("Not All
+Parameters Learn Alike", docs/slides/workshop.tex). See section 4; a redo is IN FLIGHT.
 
-`overleaf-sync/` is also a git submodule (the paper draft).
+## 2. deep_irt structure (the framework both threads sit on)
 
-## Branch map
+`DeepIRTModel` (`deep_irt/core/model.py`): swappable sequence encoder + swappable IRT
+decoder, trained end-to-end on a PREDICTION loss (IRT is a readout flavor; no IRT-NLL).
 
-| Branch | What it holds |
-|---|---|
-| **`feat/prediction-loss`** | **THE CANONICAL LIVE WORKING BRANCH.** All current work: deep_irt learning-dynamics study + OrdRec (E1-E4.7 + D1 SLAM) + workshop slides. Work here. |
-| `feat/ordrec` | OrdRec mainline pointer; fully contained in prediction-loss ancestry. |
-| `main` | Public-facing ma-irt release line; far behind the research branches. |
+- Encoders (`core/encoder.py`): `lstm` (default), `transformer`, `dkvmn`. All expose
+  `theta_for_prediction`, `state_for_prediction`, `aligned_theta_and_state`,
+  `item_val_emb` (thin, feeds encoder/theta), `item_key_emb` (wide, feeds readouts).
+- Decoders (`core/decoders.py`): `gpcm` (ordered K cats, WeightedOrdinalLoss),
+  `binary` (2PL, BCE), `nrm` (unordered K options, CE), `bt` (pairwise).
+- **Decoupled architecture** (`decouple=True`, default for gpcm/binary): `state_alpha`
+  reads discrimination from a state-conditioned head (DYNAMIC); `item_key_dim=64` is a
+  separate wide KEY table for the static readouts (DECOUPLED) while the thin value table
+  feeds theta only. **`decouple` is a NO-OP for `nrm` and `bt`** -- NRM has no
+  decoupled/dynamic heads yet (this is the gap thread B must build).
+- Single-shift causal alignment: theta at step t is a function of history strictly before t.
+- IRT params recovered AFTER training from frozen decoder weights (`recover_item_params`).
 
-The old per-milestone branches (feat/duolingo-mini, feat/ordrec-e1..e47,
-feat/ordrec-d1-slam, feat/online-step-api, feat/v2-simulator-delta-j) and
-all worktree-* refs were deleted in the 2026-06-17 cleanup; their history
-is preserved in the backup bundle (see Repo maintenance).
+Codex owns `deep_irt/core/*`, `deep_irt/bench/run_*.py`, `datagen.py`, `engines.py` --
+do NOT edit; extend additively from scratch (`deep_irt/bench/_*.py`, gitignored) or new
+modules. Scratch files are `_`-prefixed and gitignored.
 
-## Status, what is done
+## 3. Thread A (Q-MIRT transfer) -- overnight campaign results
 
-**OrdRec is fully built, 228 tests pass.** Layers, data adapters
-(E1-E2), env (E3), reward (E3), PPO library (E4), plus hardening
-(E4.6a/b). ~11,400 lines under `rl/`.
+Full per-venue log with every number and root-cause: `docs/overnight_transfer_active_campaign.md`.
+Models/generators in `deep_irt/bench/_qmirt_*.py` (all gitignored scratch).
 
-**The headline scientific result (E4.7).** On static synthetic data
-the learned policy LOSES to random (an honest null traced to theta
-saturation). On DYNAMIC data (ability drifts within a session) the
-ordering flips completely, PPO > BC > max-Fisher > random with
-non-overlapping CIs on both staircase and random-walk cohorts, and the
-VOI reward goes from never-positive to 100 percent positive in
-training. The story, adaptive ordinal item selection pays precisely
-when ability moves, and a learned policy beats greedy information
-maximization. This is the OrdRec paper core.
+### 3.1 The model (technical)
+`deep_irt/bench/_qmirt_state_model.py` (`ExplicitStateModel`) and
+`_qmirt_state_model_fb.py` (`ExplicitStateModelFB`, the DEFAULT). Explicit per-concept
+state `z` (D concepts), causal transition:
+```
+z_{t+1,c} = decay_c * z_{t,c} + own_gain_c * Q[item_t, c]
+          + resp_feedback_c            # FB only: Q-gated PSI-KT innovation, own-concept
+          + (prac_t @ G.T)[c]          # G = G_raw * (1 - eye(D)) = SOLE cross-concept route
+```
+- Item params (a_j discriminations, delta_j thresholds) fit static in Stage 1 then FROZEN;
+  Stage 2 releases G with an L1 penalty (no-transfer is the default). Compensatory GPCM
+  readout (logit = sum_c Q[j,c]*a_{j,c}*z_{t,c} - delta). Soft GPCM likelihood.
+- ACTIVE-CHANGE isolation is structural: z_A never enters z_B's update; cross-concept
+  only via G[B,A]; G-zero control gives pure decay on non-practiced concepts to ~1e-8.
+- FB fix (PSI-KT): a Q-gated `resp_proj(one_hot(r_t))` innovation updates only the
+  answered concept's own state (isolation preserved), which restored individual
+  learning recovery.
 
-**First real-data run (D1).** SlamAdapter on the public Duolingo SLAM
-2018 en_es corpus (2,593 real learners, ~960k responses), K=3 ordinal,
-zero ma-irt edits. ACC 0.682, QWK 0.374, binary-collapsed AUC 0.773.
-Proves deep_irt runs end-to-end on real Duolingo data.
+### 3.2 The metric (technical)
+`deep_irt/bench/_qmirt_forecast.py`. The gauge-free primary metric is the masked-forecast
+"active gap": condition on [0,T_cond) with real responses, forecast [T_cond,T) with
+responses MASKED, target concept measured-not-practiced while a source is practiced (so
+the target's only forecast route is G[target,source]). active_gap = (No-G minus With-G)
+forecast NLL on the target, WITHIN-CONDITION (item params + split-state cancel). Read
+matched-null paired (transfer minus same-seed null), NEVER a fitted G against zero (the
+fitted G carries a per-seed additive offset). Generator: `_qmirt_datagen2.py` (directed
+exponential-approach learning curves, pure/anchor items, transfer G_matrix, decoupling
+episodes, drift modes).
 
-**The Duolingo collaboration angle is verified and time-sensitive.** A
-101-agent adversarial verification confirmed the published Duolingo
-calibration line (AutoIRT, BanditCAT) is dichotomous-only, and their
-own June 2026 paper (S2A3, arXiv 2606.07364) names the polytomous
-extension as roadmap future work. The pitch fills an author-
-acknowledged, still-unpublished gap, but the window is closing, so the
-pitch leads with ordinal PLUS longitudinal deep tracking (the part
-their roadmap does not cover). Correction adopted, the operational DET
-already ingests some polytomous grades under an undocumented model
-class, so the claim is "published line is binary-only," never
-"Duolingo is binary-only."
+### 3.3 Findings (venues 0-4)
+- **OBJ2 active change: achieved.** Structural isolation + the within-condition forecast
+  control. Passive LSTM cannot forecast the target's rise without its responses.
+- **OBJ1 transfer real: achieved (direction/existence; magnitude gauge-bound).** Forecast
+  active gap +0.22 to +0.36 on the target, ~0 on controls and the null twin.
+- **Survives confounds** (venue 2): correlated-no-transfer ~0, curriculum co-scheduling ~0
+  in aggregate, shuffle-order COLLAPSES to 0, reverse-direction 0. Residual: pure
+  co-scheduling is non-identified (collinear practice) -> needs decoupling episodes
+  (stated requirement, same shape as the measurement-invariance gauge).
+- **Survives noisy/non-monotone theta** (venue 3/3b): the clean-curve model FABRICATES on
+  non-monotone data (null gap 96% of active gap); the PSI-KT mean-reverting (OU)
+  transition CLEARS it, and with the regularizer loosened to l1=0.001 the signal survives
+  at power (+0.066, 9/9 seeds).
+- **Individual learning recovery 0.80** with FB (from 0.37 without response feedback).
+- **Robust across active mechanisms** (venue 4): linear own-gain, mastery-ceiling gain,
+  and rate+forgetting all carry real active transfer (~+0.36).
+- **Measurement invariance** (person-learning vs item-drift): PROVEN-WITH-A-STATED-
+  ASSUMPTION. Uniform global item drift = location gauge (unprovable from responses);
+  differential drift is detectable via the early-vs-late anchor-stability check scored
+  against the Q-induced baseline; the fixed-item model is fooled otherwise. Carry the
+  differential-invariance check as a companion + state the no-uniform-anchor-drift
+  assumption (standard IRT equating posture).
 
-## Open decisions, the user must call these
+### 3.4 Honest sizing + corrections
+- Magnitude is gauge-bound throughout (direction/existence only).
+- Everything is SYNTHETIC under correct specification (estimator = generator family),
+  D=3, small seed counts.
+- CORRECTION made in venue 4: venue-1's "beats a passive LSTM by +0.63" was confounded
+  (free vs frozen decoder) and model-seed-specific. The robust "active" operationalization
+  is the WITHIN-CONDITION no-G control, not the passive-LSTM comparison.
 
-1. **Eedi download (the only hard blocker).** The OrdRec headline
-   confirmation (E5) on real knowledge-tracing data needs the user to
-   download Eedi NeurIPS 2020 Task 3+4 csvs locally. Then it runs
-   largely unattended. E5 is PAUSED, not abandoned, behind the
-   Duolingo track.
-2. **Paper structure.** Open. Recommendation, two papers, OrdRec RL to
-   IJAIED and the ordinal-calibration SLAM result to BEA or EDM (where
-   the Duolingo team publishes). Deferred until D4/E5 results.
-3. **The mixed-K item-bank feature.** Open. The only proposed change
-   to the public ma-irt repo (a per-category mask, 20-50 lines).
-   Recommendation, HOLD, single-K adapters cover current work.
-4. **Duolingo outreach.** Open. Recommendation, plan it, gate the cold
-   email on D4 so it leads with two pieces of evidence and names the
-   S2A3 authors.
-5. **Origin re-add and force-push.** After the history rewrite, origin
-   no longer matches local. Decision pending on whether to re-add the
-   remote and force-push feat/prediction-loss, or leave origin stale.
+### 3.5 Open (Thread A)
+- **D-scaling to D=5,8**: needs the masked-forecast harness GENERALIZED (the D=3 version
+  bakes concept roles, the single edge, and the practice/measure schedule into a fixed
+  `ITEM_SEQ_TOTAL` in `_qmirt_forecast.py:151+`). Direct-G recovery is resp_proj-
+  confounded, so the gauge-free forecast metric is the one to generalize. Build a SILENT
+  runner (json-only) -- workflow agents twice crashed on the 32k output-token limit here.
+- **KDD Cup 2010 real data**: needs that harness + a KC->concept mapping. No ground truth,
+  so the claim steps down to predictive-improvement (transfer model beats no-transfer on
+  held-out) + differential-invariance + seed stability. Judgment-heavy; do with the user.
 
-Priority is LOCKED, the Duolingo / SLAM track is the active build
-priority (user decision 2026-06-11).
+## 4. Thread B (NRM parameter representation) -- corrected study IN FLIGHT
 
-## Immediate next step
+The workshop deck (docs/slides/workshop.tex) studies, for GPCM: prediction-trained neural
+IRT recovers each item parameter by its FISHER LEVERAGE (difficulty fast, discrimination
+slow); a SHARED embedding forces a capacity trade-off (wide helps discrimination but
+overfits ability; difficulty indifferent); DECOUPLING (narrow value + wide key) escapes
+it; DYNAMIC (state-conditioned) heads reach the escape faster and rescue reliability on
+real data (EdNet, KDD). Synthetic setup: GPCM, known theta/alpha/beta, LSTM encoder,
+N=800, Q=60, K=4, prediction loss, reported at 150 epochs, >=8 seeds, 95% CIs. Two lenses:
+recovery (vs truth) and reliability (split-half agreement, works without ground truth).
 
-**D2.** Add the SLAM es_en track plus LSTM and logistic-regression
-baselines, tabulate AUC and log-loss, show the real-data result is
-competitive. Then D3/D4 (synthetic mixed-format generator and recovery
-experiment, the IJAIED scientific core). Branch off
-`feat/prediction-loss`. SLAM config defaults already taken, K=3, es_en
-next. The full D-milestone ladder is in
-`docs/duolingo_mini_plan.md` Section 8.
+**The NRM question (correctly framed):** NRM gives each category a slope `a_k` and
+intercept `c_k`. `a_k` is slope-on-ability like GPCM alpha but its Fisher is
+near-symmetric with `c_k` (I_a/I_c ~ 0.90, not 5-10x). So run the SAME architectural
+sweep -- {shared, decoupled} x {static, dynamic} for the a_k and c_k readouts, plus the
+shared-width sweep -- and measure recovery + reliability for theta, a_k, c_k, and the
+TRADE-OFFS theta<->a_k, theta<->c_k, a_k<->c_k. Because a_k is a slope but NOT low-Fisher,
+this dissociates whether the shared-embedding trade-off comes from being a SLOPE
+(representation) or from LOW FISHER. Build the decoupled/dynamic NRM heads additively
+(decouple is a no-op for nrm in core). Prior data point (memory nrm-decoder-default):
+a naive state-conditioned a_k did not earn the default (unstable, no gain) -- re-examine
+properly. Real data only if synthetic is meaningful: NRM fits OPTION TRACING (modeling
+which multiple-choice option a learner selects; search for datasets then).
 
-## Operating conventions (carry these into the new conversation)
+The earlier "objective A" pass (Fisher symmetry + recovery-trajectory + gauge audit) is
+CORRECT as far as it goes and produced 3 gauge-clean slides now in the deck, but it did
+NOT run the architectural sweep -- that is the redo. Files: `deep_irt/bench/_nrm_leverage.py`,
+`_nrm_gates.py`; results `_nrm_leverage.json`, `_nrm_gates.json`.
 
-- **Minimum ma-irt edits.** ma-irt is now a submodule (frozen Chapter 0).
-  Extend from `deep_irt/` or `rl/`, additive configs only, see memory
-  `ordrec-ma-irt-boundary`.
-- **Model economy.** Subagents on sonnet, trivial tasks on haiku,
-  reserve the top model for the main loop and project-level decisions,
-  see memory `model-economy`.
-- **Writing style (strict).** No em-dashes or en-dashes, no colons in
-  flowing prose, American English. Applies to all docs and paper text.
-- **Staging discipline.** Never `git add -A`. Explicit paths only.
-  Never stage `__pycache__`, `outputs/`, `*/data/`, or
-  `ma-irt/_plot_encoder_recovery.py` (a persistent untracked stray,
-  leave it alone).
-- **Attribution.** Commits and PRs carry NO Co-Authored-By and NO
-  Claude/Anthropic attribution. The author is the user only.
-- **Env.** `conda activate research`, then set
-  `PYTHONPATH=".;rl/src;ma-irt"` (Windows semicolon separator) and
-  `KMP_DUPLICATE_LIB_OK=TRUE`. Tests: deep_irt suite via
-  `python -m pytest deep_irt/tests/`; OrdRec suite via
-  `python -m pytest rl/src/ordrec/ rl/tests/`. CUDA is an RTX 4060
-  Laptop 8 GB. A full PPO synthetic run is ~90s; a world-model train
-  ~4 min.
-- **Workflow pattern.** Build in an isolated worktree, verify, document,
-  commit with explicit staging, push the feature branch, then the main
-  loop merges with `--no-ff` and re-runs tests. Worktrees must be
-  cleaned (`git worktree remove --force`) after each.
+## 5. Operating conventions (carry into the new conversation)
 
-## Repo maintenance (2026-06-17)
+- **Env.** `source ~/anaconda3/etc/profile.d/conda.sh && conda activate research`, then
+  `export PYTHONPATH=".;rl/src;ma-irt"` (Windows `;` separator) and
+  `export KMP_DUPLICATE_LIB_OK=TRUE`. Tests: `python -m pytest deep_irt/tests/`. CUDA is
+  an RTX 4060 Laptop 8 GB (single GPU -> runs are sequential).
+- **Do NOT edit Codex-owned files**: `deep_irt/core/*`, `deep_irt/bench/run_*.py`,
+  `datagen.py`, `engines.py`. Extend additively in `_`-prefixed gitignored scratch.
+- **Execution discipline (learned the hard way).** Run training SYNCHRONOUSLY in the
+  foreground and WAIT -- do NOT launch detached/background jobs (they silently die).
+  Scripts write full results to a JSON; agents return SHORT summaries (<600 words) --
+  do NOT paste per-cell logs (agents crash on the 32k output-token limit).
+- **Model economy.** Subagents on sonnet, trivial on haiku; reserve the top model for the
+  main loop, planning, verification. Decompose independent work.
+- **Writing style (strict).** No em-dashes or en-dashes, no colons in flowing prose,
+  American English. Use ESTABLISHED names, never invent labels (memory use-established-names).
+  Slides: noun-phrase titles reused as bold summary leads, terse bullets, grant-then-qualify.
+- **Staging.** Never `git add -A`; explicit paths only. Never stage `__pycache__`,
+  `outputs/`, `*/data/`, `archive/`. No Co-Authored-By / Claude attribution; author = user.
+- **PSI-KT is AGPL** -- reference its design (per-concept state, OU mean-reverting transition
+  with a learned concept graph, generative ELBO, per-learner traits, single-concept readout)
+  but never vendor its code into deep_irt.
 
-The 2026-06-17 cleanup made the following permanent changes.
+## 6. Immediate next steps
+1. Thread B: build the decoupled/dynamic NRM heads + run the shared/decoupled x
+   static/dynamic sweep with the workshop synthetic setup; report the theta<->a_k,
+   theta<->c_k, a_k<->c_k trade-offs (recovery + reliability). (Workflow in flight.)
+2. Thread A: hand-build the D>3 masked-forecast harness (silent runner) to close
+   D-scaling, then the KDD option (with the user).
+3. If Thread B synthetic is meaningful, find an option-tracing real dataset.
 
-- **Legacy tree removed.** The untracked `legacy/` directory (~5.5 GB,
-  predecessor projects deep-gpcm/akt/pykt/kt-mirt/mirt-dkvmn and old
-  experiment outputs) was deleted. Small paper artifacts inside legacy/
-  were retained.
-- **Git history rewritten.** `git filter-repo` purged dead predecessor
-  trees (kt-gpcm, mirt-dkvmn, kt-mirt, figures, substrate,
-  sn-article-template, archive) and the pre-submodule ma-irt file blobs.
-  The `.git` pack went from 1.44 GiB to 15 MiB.
-- **EdNet kept.** `EdNet-KT1/` (4.1 GB public dataset, used by
-  `deep_irt/ednet_sep`) was NOT removed.
-- **Backup.** Full bundle at
-  `C:/Users/steph/documents/deep-mirt-backup-20260617-1136.bundle`
-  plus a refs snapshot
-  `deep-mirt-refs-20260617-1136.txt`. All deleted branch history is
-  recoverable from the bundle.
-- **Origin removed.** `filter-repo` removed the origin remote. Local
-  history now diverges from origin (origin still holds old branches and
-  the full old history). Do NOT `git fetch` the old origin; doing so
-  re-bloats the pack. Re-adding origin and force-pushing
-  `feat/prediction-loss` is a pending decision (open item 5 above).
+## Parked / separate tracks (one-liners, do not start here)
+- **ma-irt** (`ma-irt/`): frozen Chapter-0 deep ordinal IRT, IJAIED submission. Submodule;
+  additive configs only.
+- **OrdRec** (`rl/`): parked ExRec-style ordinal item-recommendation (E1-E4.7 + D1 SLAM).
+  Prior handoff details in git history / `docs/duolingo_mini_plan.md` if that track resumes.
 
-## Pointers (read only if relevant)
-
-- `docs/duolingo_mini_plan.md`, the active track plan, Section 0 is the
-  decisions log, Section 8 the D-milestones.
-- `docs/ordrec_progress.md`, the full milestone change log.
-- `docs/exrec_ordinal_plan.md`, the OrdRec strategic plan.
-- `docs/ordrec_impl_guide.md`, the file-level implementation contract.
-- `rl/README.md`, the current rl/ tree map and how to run things.
-- `rl/results/E47_dynamic_dgp.md`, the headline result writeup, plots
-  under `rl/results/plots/e47_*`.
-- `rl/results/D1_slam_en_es.md`, the first real-data run.
-- `docs/LEARNING_DYNAMICS_STUDY.md`, the consolidated RQ1-3 learning-dynamics
-  study (theory appendix `docs/learning_dynamics_toy.md`).
-- `docs/slides/workshop.pdf`, the workshop deck.
+## Pointers
+- `docs/overnight_transfer_active_campaign.md` -- Thread A per-venue log (numbers + root-causes).
+- `docs/slides/workshop.tex` (XeLaTeX, SimplePlusAIC theme) + `docs/LEARNING_DYNAMICS_STUDY.md`
+  -- Thread B framework and the GPCM result.
+- `deep_irt/README.md` -- framework API and the decoupled/dynamic architecture.
+- `deep_irt/bench/_qmirt_*.py`, `_nrm_*.py` -- scratch models/generators/probes (gitignored).
