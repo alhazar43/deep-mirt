@@ -18,7 +18,8 @@ we are. Update the STATUS lines as you go. Nothing is written into the paper unt
 - Decision DONE: fuse (MA-GPCM is a free draft, user controls it), organic single story, KT home / IRT
   flavor, target JEDM, provisional title = the workshop title.
 - Nothing written into the paper yet. No experiments run yet for this paper.
-- NEXT ACTION: Phase 2 design (rigorous protocol + pipeline) IN PROGRESS. DIRECTIVE (2026-07-01): redo the entire experiment from scratch at journal rigor, do NOT reuse workshop results as evidence. BUILD+RUN needs ultracode. Phase 1 theory DONE (memo at docs/theory_memo.md).
+- SCOPE TIGHTENED + PLAN APPROVED (2026-07-01): the paper is ONLY (a) a modular KT-encoder + IRT-decoder benchmarked by the recovery MATRIX across encoders x decoders, and (b) the finite-data law that the parameter which MULTIPLIES ability recovers worst (a scale-gauge multiplicative effect; NRM dissociates it from the low-Fisher rate penalty). See docs/paper_plan.md. Salvage the old paper's recovery benchmark; drop its ordinal-KT / separated-pathway / deployment framing. Never "neural KT".
+- NEXT ACTION: Phase 4 REWRITE on the JEDM acmtrans class (two-column, ~12-15pp), deck-anchored, tight scope. Previous elsarticle draft SCRAPPED. Rigorous experiments (Phase 3, incl. the new multiplicative-vs-additive ablation E-mult) come after. Overleaf push blocked (403), preview from local builds. Phase 1 theory DONE (docs/theory_memo.md).
 
 ## Constraints (do not violate)
 - **KT is home, IRT is a flavor.** Do not let the paper drift IRT-centric; that was MA-GPCM's mistake.
@@ -30,7 +31,7 @@ we are. Update the STATUS lines as you go. Nothing is written into the paper unt
   the dynamic head as a clean win.
 - **Writing style:** call things by exact names, no decorative or invented jargon (no "Fisher-starved",
   "doubly cursed", etc.), no em-dashes or en-dashes, no colons in flowing prose, American English,
-  grant-then-qualify, claims sized to evidence. Match `overleaf-sync/main.tex` register. Scrub any agent
+  grant-then-qualify, claims sized to evidence. Match the workshop deck's register. NEVER use the term "neural KT" (banned), say knowledge tracing or a KT encoder with an IRT decoder. Scrub any agent
   draft for jargon before it lands.
 - **Model economy:** Opus for thinking (theory, design, analysis, writing, review); Sonnet for mechanical
   (runs, file ops, git, Overleaf sync, literature fetches).
@@ -88,7 +89,13 @@ Goal: the evidence. Run and interpret. See the checklist below.
   short summaries back.
 - Done when: every checklist item is DONE or explicitly deferred with a logged reason.
 
-### Phase 4: Writing  [STATUS: DRAFT DONE -- 2026-07-01]
+### Phase 4: Writing  [STATUS: RESTART on JEDM class -- 2026-07-01]
+RESTART (plan approved 2026-07-01): the previous elsarticle draft glued MA-GPCM in and is SCRAPPED. Rewrite on the JEDM
+acmtrans class (two-column, ~12-15pp), TIGHT scope per docs/paper_plan.md: only (a) the modular recovery-matrix and (b) the
+finite-data MULTIPLICATIVE-coupling law (the trade-off is the scale-gauge coefficient*ability effect; NRM dissociates it from
+the low-Fisher rate penalty; add the multiplicative-vs-additive ablation E-mult). Deck-anchored, no "neural KT". Salvage the
+old paper's recovery benchmark for the matrix; drop its ordinal-KT / separated-pathway / deployment framing. The notes below
+describe the SCRAPPED elsarticle draft, retained only for the record:
 Full structured combined draft written to overleaf-sync/main.tex (compiles, ~40pp elsarticle review mode / ~13pp
 two-column), scrub-clean, KT-home/IRT-flavor, full prose. MA-GPCM archived as overleaf-sync/main_magpcm_ijaied.tex
 (do NOT discard). Committed in overleaf-sync LOCALLY (commit e2f0088). Each experiment carries a one-line strengthening
@@ -136,6 +143,7 @@ Goal: survive the reviewer before submission.
 - [ ] E1  swappability matrix {DKVMN, LSTM, (transformer)} x {GPCM, NRM, binary} recovery, synthetic
 - [ ] E2  coupling lever (coupled vs decoupled ability readout) in DKVMN and LSTM = "why separate"; alpha vs beta
 - [ ] E-budget  recovery gap vs data size and training budget (asymptotic vanishing)
+- [ ] E-mult  MULTIPLICATIVE-vs-additive ablation (hold Fisher fixed, vary multiplicative vs additive entry with ability; the trade-off should track multiplicative entry, not information) -- CORE, makes the multiplicative claim necessary
 - [ ] E-levers  decoupling+static vs decoupling+dynamic, synthetic recovery and real reliability, NRM as control
 - [ ] E8  adaptive item selection by max Fisher info at the running ability estimate, vs oracle
 - [ ] Consolidation  re-run key panels under one training protocol
