@@ -1,496 +1,816 @@
-\documentclass[review,12pt,authoryear]{elsarticle}
+%----------------------------------------------------------------------------------------
+%  "Not All Parameters Learn Alike"
+%  Provisional acmart two-column stand-in for the JEDM acmtrans class.
+%  Swap \documentclass to the JEDM class at submission; content is class-agnostic.
+%  Compile: pdflatex -> bibtex -> pdflatex x2.
+%----------------------------------------------------------------------------------------
+\documentclass[sigconf,nonacm,screen]{acmart}
 
-\usepackage{graphicx}%
-\usepackage{multirow}%
-\usepackage{amsmath,amssymb,amsfonts}%
-\usepackage{amsthm}%
-\usepackage{mathrsfs}%
-\usepackage{xcolor}%
-\usepackage{textcomp}%
-\usepackage{booktabs}%
-\usepackage{algorithm}%
-\usepackage{algorithmic}%
-\usepackage{listings}%
-\usepackage{url}%
-\usepackage{placeins}%
+% --- strip ACM conference/copyright boilerplate ---------------------------------------
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\settopmatter{printfolios=true}
+\acmConference{}{}{}
+\acmBooktitle{}
+\setlength{\footskip}{12pt}
 
-\usepackage{pgfplots}
-\usepackage{calc}
+% --- packages -------------------------------------------------------------------------
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
 \usepackage{tikz}
-\usepackage{float}
-\usepackage[labelsep=space]{caption}
-\usepackage{subcaption}
-\usetikzlibrary{positioning,arrows.meta,backgrounds,calc}
-\pgfplotsset{compat=1.18}
-\raggedbottom
+\usetikzlibrary{positioning,arrows,arrows.meta,backgrounds,calc}
+\graphicspath{{figures/}}
 
-\newtheorem{claim}{Claim}
-\newtheorem{proposition}{Proposition}
-
-\journal{Journal of Educational Data Mining}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
 
 \begin{document}
 
-\begin{frontmatter}
-
-\title{Not All Parameters Learn Alike: Uneven Recovery of Interpretable Parameters in Prediction-Trained Knowledge Tracing}
+\title{Not All Parameters Learn Alike}
+\subtitle{Parameter Recovery in Knowledge Tracing with Item Response Readouts}
 
 \author{Wenrui Yuan}
-\address{Section Cognition, Data and Education, University of Twente, The Netherlands}
+\affiliation{%
+  \institution{Section Cognition, Data and Education, University of Twente}
+  \city{Enschede}
+  \country{The Netherlands}
+}
+\email{}
+
+\renewcommand{\shortauthors}{Yuan}
 
 \begin{abstract}
-Knowledge tracing (KT) models increasingly attach an item-response-theory (IRT) readout to a sequence encoder so that a next-response prediction can also be read as a student ability, an item discrimination, and a set of step thresholds. Whether those readouts are recovered, as opposed to merely present, is rarely audited. We treat recovery as the object of study. We first show that the encoder and the IRT decoder are swappable modular slots rather than the fixed pairing prior work assumed, and that a standard prediction loss recovers the readout parameters without any variational machinery. On synthetic data with known generating parameters, recovery is real but uneven, and the unevenness follows a stable order in which discrimination returns last. A local analysis of the readout under gradient flow explains the order. Each coordinate relaxes at a rate set by its Fisher information, and discrimination is the flat direction because its information is suppressed where responses concentrate. This rate penalty is a finite-budget effect that closes as data and training grow, so it bites in the realistic regime rather than in the limit. A separate and structural failure occurs when the ability readout is allowed to see the current item, which breaks the ability-difficulty location split at every budget. Embedding and readout configuration is the lever. A decoupled embedding, a narrow ability input with a separate wide item key, escapes the shared-capacity trade-off and restores the location split; a state-conditioned discrimination head instead helps only a low-information parameter and can hurt one that is not. The nominal response model, whose slope loads on ability but is not low in information, separates the two effects. On real educational data we report the honest mixed verdict, that a static decoupled configuration is the reliability winner and that the decoupling benefit is contingent on item coverage. The current evidence is synthetic recovery plus real-data reliability; a rigorous rebuild under one protocol and a downstream adaptive-testing evaluation are the planned strengthening steps.
+Knowledge tracing models increasingly attach an item response readout so that a
+prediction network also reports an ability, a discrimination, and a difficulty
+for every learner and item. Practitioners then read those numbers. Trained only
+to predict the next response, does the network actually recover them? We build a
+modular tracer, a sequence encoder that swaps freely with an interpretable item
+response decoder, and take parameter recovery against synthetic ground truth as
+the yardstick. Across the encoder-by-decoder matrix, ability and difficulty come
+back well, but the parameter that multiplies ability, the discrimination, comes
+back worst. We trace the effect to a scale gauge. The logit multiplies
+discrimination by ability, prediction loss constrains only that product, and
+under a shared finite-width representation the split of scale between the slope
+and the ability is under-determined, so the two compete. Decoupling the item
+representation from the ability representation removes the competition, and the
+additive difficulty, which never multiplies ability, never pays it. The effect is
+a finite-data one that shrinks only in the joint limit of more training and more
+learners. A second and separate penalty, a slow low-Fisher recovery rate, lands
+on the generalized partial credit discrimination alone, and a state-conditioned
+discrimination head is the targeted fix for it. The nominal response model
+dissociates the two, since its slope multiplies ability and so trades off and is
+rescued by decoupling, yet its Fisher information is not low, so the
+state-conditioned head does nothing for it and even hurts. On EdNet and a KDD Cup
+algebra set, discrimination reliability sits far below difficulty, static
+decoupling can collapse it, and the state-conditioned head restores it. The
+practice is to decouple always and to state-condition only the low-Fisher
+parameter.
 \end{abstract}
 
-\begin{keyword}
-Knowledge tracing \sep Item-response theory \sep Parameter recovery \sep Learning dynamics \sep Fisher information \sep Interpretability
-\end{keyword}
+\keywords{knowledge tracing, item response theory, parameter recovery,
+representation learning, learning dynamics, Fisher information, identifiability}
 
-\end{frontmatter}
+\maketitle
 
+%======================================================================================
 \section{Introduction}
-\label{sec:intro}
-Knowledge tracing predicts a student's next response from the history of past interactions, and the field has moved from hidden Markov models \citep{corbett_knowledge_1994} to deep sequence models \citep{piech_deep_2015, zhang_dynamic_2017, pandey_self-attentive_2019, ghosh_context-aware_2020}. Those sequence models predict well, but the states they learn are high-dimensional and not, by construction, tied to quantities a teacher or a test designer can act on. A now-common response is to attach an item-response-theory (IRT) readout to the encoder, so that the same forward pass that predicts a response also emits an ability estimate, an item discrimination, and item difficulty \citep{yeung_deep-irt_2019, converse_irt_kt_2021, xu_dkvmn_2024}. The appeal is interpretability. The hidden state is read as ability, and the item embedding is read as discrimination and difficulty.
+%======================================================================================
+Knowledge tracing follows a learner through a stream of graded responses and
+predicts the next one \cite{corbett_knowledge_1994,piech_deep_2015}. A now common
+design bolts an item response readout onto the prediction network, so that the
+same model that forecasts the next answer also emits, at every step, an ability
+$\theta_t$ for the learner and a discrimination $\alpha$ and a difficulty $\beta$
+for each item \cite{yeung_deep-irt_2019,converse_irt_kt_2021}. The readout is
+attractive because those three coordinates are readable. An instructor can look at
+a discrimination and call an item sharp, look at a difficulty and call an item
+hard, look at an ability trajectory and call a learner improving. The same three
+numbers are increasingly load-bearing, since a difficulty and a discrimination are
+what an item-selection rule consumes and a discrimination is the coordinate that
+decides how much a response moves an ability estimate, so a wrong discrimination is
+not a cosmetic blemish but a bad input to whatever the tracer feeds.
 
-This paper flips the premise that motivates that construction. The IRT readouts are asserted, or checked against face validity, far more often than they are audited against a known ground truth. We therefore ask a plain question. When a KT encoder with an IRT readout is trained only to predict responses, does it actually recover the readout parameters it exposes? To ask the question cleanly we need a framework whose encoder and decoder are genuinely separable, so that any answer is a property of the readout and the training signal rather than of one architecture. We build such a framework, and we find that on synthetic data with known generating parameters recovery is real, but it is uneven, and the unevenness follows a stable order across encoder and decoder swaps. Item difficulty and student ability come back quickly and reliably. Item discrimination comes back last, least reliably, and systematically under-recovered.
+The reading rests on an assumption that is rarely tested. The network is trained
+on one objective only, the likelihood of the observed responses. Nothing in that
+objective supervises $\theta$, $\alpha$, or $\beta$ against a target. The item
+response layer is a chosen parameterization of the output probabilities, and the
+optimizer is free to reach the same predictions through any assignment of the
+readout coordinates that produces them. Whether the recovered numbers track the
+quantities they are named for is therefore an empirical question, and it is the
+question this paper asks.
 
-The order is not an accident of any one encoder, and a local analysis of the readout explains it. Near an optimum, each readout coordinate relaxes under gradient flow at a rate set by that coordinate's Fisher information, and discrimination is the slow direction because its information, which scales with the squared separation between ability and difficulty, is suppressed exactly where the responses concentrate. Stated loudly, this rate penalty is a finite-budget property. It closes as the number of training steps and the number of observations grow, so it is a genuine feature of the realistic regime in which practitioners train, not an asymptotic impossibility. A second failure is different in kind. If the ability readout is allowed to condition on the current item, ability can absorb that item's location, and the split between ability and difficulty is no longer identified. This one is structural. It does not vanish with more data, because it is a property of what the loss can and cannot pin down.
+We ask it with a modular tracer. A sequence encoder, an LSTM, a memory network,
+or a transformer, consumes the response history and produces a state. An item
+response decoder, a binary two-parameter head, an ordinal generalized partial
+credit head \cite{van_der_linden_generalized_1997}, or a nominal response head
+\cite{bock_estimating_1972}, turns the state and an item embedding into a
+distribution over the response categories. Encoder and decoder swap
+independently, which lets us take one clean measurement, parameter recovery, and
+read it across the whole grid. Recovery is the rank agreement between a recovered
+parameter and its synthetic truth. It is the natural yardstick because the model
+is identified only up to scale, so rank is what a scale-free estimator can hope to
+pin \cite{baker_item_2004}.
 
-Both failures are addressed by how the embedding and the readout are wired, and there are two distinct levers that must not be confused. A decoupled embedding, meaning a narrow ability input together with a separate wide item key, escapes the shared-capacity trade-off between ability and discrimination and, applied to the ability readout, restores the location split. This lever is about representation, and it fires whenever a readout shares a representation with ability, whether or not that readout is low in information. A state-conditioned, or dynamic, discrimination head is the other lever. It feeds the learner state into the discrimination readout, and it helps a low-information parameter while it can hurt a parameter that is not low in information. To keep the two levers apart we use the nominal response model (NRM) as a control, because its category slope loads on ability like discrimination but carries near-symmetric information. On the NRM the representation lever still fires and the dynamic lever reverses, which is exactly what tells the two apart.
+The measurement returns an uneven verdict. Ability and difficulty recover well,
+across encoders and across decoders. The discrimination recovers worst. The gap is
+not an artifact of one backbone, because it survives every swap, and it is not
+small, because it separates configurations that predict equally well.
 
-We summarize the contribution as five points.
-\begin{enumerate}
-    \item \textbf{The encoder and the decoder are swappable modular slots.} The interpretable pairing that prior work treated as a fixed architecture is in fact a sequence encoder slot and an IRT readout slot that vary independently. We demonstrate the pairing across encoders and decoders. This is the instrument, not the claim.
-    \item \textbf{Plain prediction loss suffices.} Prior neural-IRT recovers parameters through variational inference \citep{wu_variational_2020}. We show that standard prediction-loss KT training recovers them too, with no variational posterior and no evidence lower bound. This both simplifies the recipe and sets up the catch.
-    \item \textbf{Some parameters recover badly, and it is a finite-data problem.} A local gradient-flow analysis says why. Low Fisher information makes discrimination the slow direction, and coupling the ability readout to the item breaks the location split. Experiments say how, through a stable recovery order. Most of the rate penalty vanishes as data and training grow, so the contribution lives in the realistic finite regime.
-    \item \textbf{Two levers, and which wins is genuinely mixed.} On synthetic recovery a dynamic head can rescue the low-information discrimination channel. On real-data reliability the winner is a static decoupled configuration. We report the mix straight.
-    \item \textbf{The nominal response model explains the mix.} Its slope loads on ability but is not low in information, so it separates a representation effect, which is robust and fires regardless of information, from a Fisher effect, which is conditional and helps only a low-information parameter. A static decoupled configuration winning on finite real data is therefore a prediction of the theory, not an embarrassment.
-\end{enumerate}
+The rest of the paper explains the verdict and acts on it. The parameter that
+recovers worst is, in both the ordinal and the nominal decoder, the one that
+multiplies ability inside the logit. That multiplication is a scale gauge. The
+product of the slope and the ability is invariant when the slope is divided by a
+constant and the ability multiplied by it, and prediction loss constrains only the
+product. Under a shared representation of fixed width the division of scale between
+the two is left to the optimizer, and the slope and the ability compete for it.
+Giving the item its own representation, a step we call decoupling, ends the
+competition, and the additive parameters, which never multiply ability, never
+enter the competition at all. This coupling is a finite-data effect. It shrinks as
+training and data grow together, and at any realistic budget it does not vanish.
 
-The single thread through the paper is to change the configuration and watch recovery move. KT nets bolt on an IRT readout and declare interpretability done. We ask whether the readout is recovered. To ask cleanly we build a framework whose encoder and decoder swap. On synthetic ground truth recovery is real but uneven and stable across swaps, with plain prediction loss and no variational machinery. A local analysis of the readout explains the unevenness as a finite-budget rate effect plus a structural identifiability effect. Configuration is the lever, decoupling for the representation problem and a dynamic head for the low-information problem, with the NRM as the control that separates them. The pattern holds on real data, where the honest verdict is a static decoupled configuration. We describe the downstream decision this would change, adaptive item selection, as a planned evaluation.
+A second penalty is layered on the ordinal discrimination and only on it. Its
+Fisher information is low, because its leverage on the responses is concentrated
+where responses are least informative, so it relaxes slowly and recovers late. The
+fix for a low-Fisher parameter is to let it move with the state rather than sit as
+a single item constant, a state-conditioned head. The nominal response model is the
+control that keeps the two penalties apart. Its slope multiplies ability, so it
+suffers the scale coupling and is helped by decoupling, yet its Fisher information
+is not low, so the state-conditioned head does nothing for it and in fact hurts.
+The ordinal discrimination has both problems, the nominal slope has only the first.
 
-Throughout, the home is knowledge tracing and the representation learning inside a KT encoder. IRT supplies readable coordinates and a controlled recovery target, not the subject. We do not claim a new psychometric result. The contribution is the translation of a classical fact about information geometry into the training dynamics of a prediction-trained tracer, and the practical levers that follow.
+Our contribution is therefore twofold. First, a modular tracer and a recovery
+benchmark across the encoder-by-decoder matrix, which establishes that the readouts
+are unevenly recoverable and that the ordering is a property of the readout, not of
+any one network. Second, a finite-data, finite-budget account of the ordering, in
+which the parameter that multiplies ability recovers worst through a multiplicative
+scale coupling that decoupling removes, kept distinct from a low-Fisher rate penalty
+that a state-conditioned head removes, with the nominal response model as the
+control that dissociates them. The two levers give one practice recommendation.
+Decouple the item representation always, and state-condition only the parameter
+whose Fisher information is low.
 
-\section{A Swappable Knowledge-Tracing Framework}
-\label{sec:framework}
-The instrument for the whole study is a framework that separates a KT model into two slots, a sequence encoder and an IRT-style readout, that can be varied independently. This section defines the two slots and their interface, and it presents the memory-augmented instance that motivated the question and that we reuse as the precursor.
+%======================================================================================
+\section{Related work}
+%======================================================================================
+Knowledge tracing began with a latent mastery state updated by a hidden Markov
+model \cite{corbett_knowledge_1994} and moved to recurrent networks with deep
+knowledge tracing \cite{piech_deep_2015}, then to memory and attention backbones
+\cite{zhang_dynamic_2017,pandey_self-attentive_2019,ghosh_context-aware_2020}. The
+objective throughout is next-response prediction, and the item response readout is a
+recent addition that reinterprets the prediction network's internals as measurement.
+That reading began with Deep-IRT, which reads an ability and a difficulty out of a
+memory network \cite{yeung_deep-irt_2019,zhang_dynamic_2017}, and continued through
+explicit IRT-in-KT constructions \cite{converse_irt_kt_2021} and independent student
+and item networks \cite{tsutsumi_state_2023,tsutsumi_deep_2024}. These works read the
+recovered parameters as measurements. The closest neighbors to our finding saw the
+symptom without the mechanism. \citet{converse_irt_kt_2021} report discrimination
+recovering less well than the other parameters and read it as a data limitation,
+and the beta4 item response model \cite{beta4irt_2023} reports an unexplained
+shrinkage of discrimination magnitudes. We supply the mechanism those symptoms
+share, a multiplicative scale coupling under a shared representation, and separate
+it from a distinct low-Fisher rate penalty.
 
-\subsection{The Two Slots and Their Interface}
-\label{sec:two_slots}
-At time step $t$ a student interacts with an item indexed by $i$ and produces a response $r_t \in \{0, 1, \ldots, K-1\}$ over $K$ ordered categories, with $K=2$ the binary correct-or-incorrect special case. Writing the interaction as $x_t = (i_t, r_t)$ and the history as $\mathcal{X}_{t} = \{x_1, \ldots, x_t\}$, the prediction target is the distribution of the next response,
-\begin{equation}
-    P\bigl(r_{t+1} = k \mid i_{t+1}, \mathcal{X}_t \bigr), \qquad k \in \{0, \ldots, K-1\}.
-\end{equation}
+A parallel line recovers item response parameters by variational inference rather
+than by prediction, from the variational item response model
+\cite{wu_variational_2020} to variational temporal formulations \cite{vtirt_2023},
+and \citet{ma_neural_2024} report the discrimination deficit under a variational
+objective and attribute it to the variational gap. Our claim is narrower and about
+a different training signal. Under plain prediction loss the deficit follows from
+the scale gauge and from Fisher curvature, not from an inference gap, which is why
+a variational method fit as well-specified generative inference can recover
+discrimination best without contradicting us.
 
-The \emph{encoder} is any causal sequence model that consumes the encoded history and emits a state, $h_t = \mathrm{enc}(x_1, \ldots, x_{t})$. We make no commitment to its internal form. A recurrent network, a memory-augmented network, and a causal transformer are all admissible, and we use the encoder purely through the state $h_t$ it produces. The \emph{decoder}, or IRT readout, maps the state and a per-item embedding $e_i$ into interpretable coordinates and then into a category distribution. It exposes a student ability $\theta_t$, per-item parameters $\xi_i$, and a response model $R$ that turns them into logits $\eta = R(\xi_i; \theta_t)$. Different measurement models occupy the decoder slot by changing $R$ and $\xi_i$ without touching the encoder, and the encoder changes without touching the decoder. Training uses the prediction loss alone. No term supervises $\theta$, $\alpha$, or $\beta$ directly, and item parameters are read out of the trained weights after the fact.
+The nominal response readout has a precedent in option tracing, which predicts the
+chosen distractor rather than only correctness \cite{ghosh_option_2021}. We use the
+nominal response model \cite{bock_estimating_1972} not for its options but as a
+control, because it gives each category its own slope and intercept and so splits a
+slope on ability away from low Fisher information, a separation the generalized
+partial credit model cannot make since it is the constrained nominal model with the
+slopes tied to a single discrimination \cite{thissen_taxonomy_1986}. The rate half
+of our account rests on standard learning-dynamics and information-geometry results,
+the relaxation of modes near an optimum at rates set by curvature
+\cite{saxe_exact_2014} and the Fisher metric of the natural gradient
+\cite{amari_natural_1998}, and the gauge half restates the classical fact that item
+response scales are fixed only up to an affine transform
+\cite{baker_item_2004,bock_mle_1981}, read here as a property of a learned readout,
+adjacent to the impossibility results for unsupervised disentanglement
+\cite{locatello_disentanglement_2019,xi_indeterminacy_2023}.
 
-The interface carries one design decision that this paper makes central, namely which inputs each readout is allowed to see. Ability characterizes the student and not the item being presented, so the natural choice is for $\theta_t$ to depend on the state alone, $\theta_t = \phi(h_t)$, and not on the item embedding $e_i$. Item parameters characterize the item and not the student, so they are functions of the item embedding. As Section~\ref{sec:method} shows, this apparently cosmetic wiring choice is exactly what decides whether the ability-difficulty split is identified, and widening or sharing the embedding that feeds a readout is exactly what sets the recovery rate of that readout. The two slots and their input wiring are therefore the levers we manipulate.
+%======================================================================================
+\section{The modular tracer and the recovery benchmark}
+%======================================================================================
+\label{sec:tracer}
 
-\subsection{Ordinal Encoding}
-\label{sec:ordinal_encoding}
-Because responses are ordered, the encoding of a response should preserve category distance, so that a score of $2$ is represented as more similar to $3$ than to $0$. We use a triangular, linear-decay kernel \citep{vargas_soft_2023} that spreads a response across neighboring categories,
-\begin{equation}\label{eqn:linear_embed}
-    s_t^{(k)} = \max\!\left(0, \; 1 - \frac{|k - r_t|}{K-1}\right), \qquad 0 \le k \le K-1,
-\end{equation}
-so that $\mathbf{s}_t = [s_t^{(0)}; \ldots; s_t^{(K-1)}]$. With $K=4$ and $r_t = 2$ this gives $\mathbf{s}_t = [0.33, 0.67, 1.0, 0.67]$. At $K=2$ the kernel reduces to a binary indicator, recovering the standard interaction encoding of binary KT \citep{zhang_dynamic_2017}. Item identity is fused with $\mathbf{s}_t$ through a learned item embedding, and the fused vector is what the encoder consumes. This encoding is orthogonal to the recovery questions we study, and we hold it fixed throughout.
+\input{fig_architecture.tex}
 
-\subsection{The Memory-Augmented Precursor}
-\label{sec:precursor}
-The framework grew out of a memory-augmented instance that pairs a Dynamic Key-Value Memory Network (DKVMN) encoder \citep{zhang_dynamic_2017} with a Generalized Partial Credit Model (GPCM) decoder \citep{van_der_linden_generalized_1997}, which we refer to as MA-GPCM and use as the precursor. Figure~\ref{fig:architecture} shows this instance. The DKVMN maintains a static key memory that represents latent skill areas and a dynamic value memory that tracks the student's evolving mastery, and item-determined attention weights read the value memory into a summary. The GPCM decoder turns that summary, together with the item key, into the ability and item parameters and a distribution over ordered categories.
+\subsection{The tracer}
+The tracer has two swappable halves joined by a fixed interface (Figure
+\ref{fig:architecture}). A sequence encoder maps the interaction history
+$(q_1,r_1),\dots,(q_{t-1},r_{t-1})$ to a causal state $h_t$. From that state a
+readout emits the person coordinate, the ability $\theta_t=\phi(h_t)$, while a
+separate item embedding $e_i$ feeds the item coordinates. A decoder combines
+$\theta_t$ and the item coordinates into a distribution over the $K$ response
+categories, and the whole model is trained on the categorical likelihood of the
+observed responses alone.
 
-\begin{figure}[!htbp]
-\centering
-\resizebox{0.82\linewidth}{!}{%
-\begin{tikzpicture}[
-    >=stealth, line width=0.65pt,
-    box/.style={draw, rounded corners=4pt, minimum width=2.4cm, minimum height=0.75cm,
-                align=center, font=\small, inner sep=3pt, line width=0.70pt},
-    widebox/.style={draw, rounded corners=4pt, minimum width=5.0cm, minimum height=0.9cm,
-                    align=center, font=\small, inner sep=4pt, line width=0.70pt},
-    arr/.style={->, semithick, line width=0.80pt},
-    darr/.style={->, semithick, dashed, line width=0.80pt},
-    lbl/.style={font=\scriptsize, inner sep=1pt},
-    hdr/.style={font=\footnotesize\bfseries, text=black!45, inner sep=2pt},
-]
+The encoder half is deliberately interchangeable. We use a plain LSTM, a key-value
+memory network of the kind used in knowledge tracing \cite{zhang_dynamic_2017}, and
+a transformer encoder \cite{vaswani_attention_2017,pandey_self-attentive_2019}. The
+decoder half is likewise interchangeable across response formats. The binary
+two-parameter head gives the logit $\alpha_i(\theta_t-\beta_i)$. The ordinal
+generalized partial credit head \cite{van_der_linden_generalized_1997} accumulates
+category logits $\sum_{m\le k}\alpha_i(\theta_t-\beta_{i,m})$, reducing to the
+binary head at $K=2$. The nominal response head \cite{bock_estimating_1972} gives
+each category its own slope and intercept, $a_{i,k}\theta_t+c_{i,k}$. All three
+place a person term and an item term into one logit, which is the interface the
+encoder and decoder agree on, and everything below concerns how that shared logit
+distributes credit among its parts.
 
-\fill[rounded corners=6pt, fill=yellow!12]  (-4.4,  9.6) rectangle (4.4, 10.9);
-\fill[rounded corners=6pt, fill=cyan!8]     (-4.4,  7.6) rectangle (4.4,  9.2);
-\fill[rounded corners=6pt, fill=blue!7]     (-4.4,  4.3) rectangle (4.4,  7.2);
-\fill[rounded corners=6pt, fill=gray!10]    (-4.4,  2.0) rectangle (4.4,  3.9);
-\fill[rounded corners=6pt, fill=purple!7]   (-4.4, -0.1) rectangle (4.4,  1.6);
-\fill[rounded corners=6pt, fill=green!8]    (-4.4, -2.8) rectangle (4.4, -0.5);
+Two configuration choices are the levers the paper turns on, so we fix their meaning
+here. The item representation is either \emph{shared} or \emph{decoupled}. A shared
+item embedding of width $W$ feeds both the encoder input and the item readouts, tying
+the ability's representation to the discrimination's, and the sweeps below vary $W$.
+A decoupled item representation splits that in two, a narrow value embedding that
+feeds the encoder and so shapes the ability, and a separate wide key embedding that
+feeds the discrimination and difficulty readouts, so the two no longer share one
+pool. The discrimination readout is either \emph{static} or \emph{state-conditioned}.
+A static discrimination is one constant per item, read from the item key alone. A
+state-conditioned discrimination is a function of the learner's current state as well,
+$\alpha_{i,t}=\exp\bigl(w^\top[\,\text{key}_i;\,h_t\,]+b\bigr)$, so it varies along the
+sequence rather than resting as a lookup. We train every configuration on the
+categorical likelihood alone with Adam, the same schedule and the same $150$-epoch
+stop, and read the readouts post hoc, so nothing but the response prediction shapes
+what the parameters become.
 
-\node[hdr, anchor=north east] at (4.2, 10.85) {Input};
-\node[hdr, anchor=north east] at (4.2,  9.15) {Encoding};
-\node[hdr, anchor=north east] at (4.2,  7.15) {Memory};
-\node[hdr, anchor=north east] at (4.2,  3.85) {Summary};
-\node[hdr, anchor=north east] at (4.2,  1.55) {IRT};
-\node[hdr, anchor=north east] at (4.2, -0.55) {Prediction};
+\subsection{Recovery as the yardstick}
+Because the likelihood fixes the item response scale only up to an affine transform
+\cite{baker_item_2004}, no single-pass estimator can pin the raw magnitude of a
+parameter, and a fair score reads rank rather than value. We take recovery to be
+the sign-aligned Spearman rank correlation between a recovered parameter and its
+generating truth, computed per item for the item parameters, averaged across
+thresholds for the ordinal difficulties, and against per-learner ability for
+$\theta$. Rank recovery near one means the model has ordered items and learners as
+the truth did, which is what an interpretable readout must do to be read. Where
+ground truth is absent, on real data, recovery is unavailable and we fall back to
+split-half reliability, the rank agreement of a recovered parameter estimated on
+two random halves of the learners, which needs no truth and so extends to the
+field.
 
-\node[box, fill=yellow!30, draw=orange!50] (qt) at (-2.0, 10.25)
-    {$q_t$\;{\scriptsize(item)}};
-\node[box, fill=yellow!30, draw=orange!50] (rt) at ( 2.0, 10.25)
-    {$r_t$\;{\scriptsize(response)}};
+Rank is the primary score, but it hides where an estimator has settled on the raw
+scale, so we read two diagnostics alongside it, the signed bias and the root mean
+squared error of a recovered parameter against its truth. A rank near one with a
+large bias says the ordering is right while the magnitude has drifted along the
+scale gauge, which is the pattern the discrimination shows and the diagnostic that
+first flagged it. Two reference points frame the recovery numbers. An offline
+calibration of the same generalized partial credit model by marginal maximum
+likelihood \cite{bock_mle_1981,chalmers_mirt_2012}, which sees the whole response
+matrix at once rather than one causal pass, is the upper bound a single-pass tracer
+is measured against, and a static per-learner ability table with no sequence model
+is the non-sequential floor. The tracer sits between them, and the question is how
+close to the offline bound each readout coordinate lands.
 
-\node[box, fill=cyan!22, draw=cyan!55!black] (ke) at (-2.0, 8.4)
-    {Item Embed.\\$\mathbf{k}_t \!\in\! \mathbb{R}^{d_k}$};
-\node[box, fill=orange!22, draw=orange!60!black] (oe) at ( 2.0, 8.4)
-    {Ordinal Enc.\\$\mathbf{v}_t \!\in\! \mathbb{R}^{d_v}$};
+The synthetic generator is a generalized partial credit process with known
+parameters, $N=800$ learners, $Q=60$ items, $K=4$ categories, sequences of length
+$60$, ability $\theta\sim\mathcal{N}(0,1)$, discrimination
+$\alpha\sim\mathrm{LogNormal}(0,0.5)$ as a moderate-spread prior consistent with
+calibrated banks \cite{de_ayala_theory_2009}, and step thresholds drawn per item
+around an item base. We train on prediction loss only, report at $150$ epochs, the
+early-stopped operating point where a practitioner stops rather than a converged
+one, and aggregate over eight seeds with $95\%$ confidence intervals unless noted.
+This compact setting is the through-line for every result that follows. A per-item
+recovery view on a larger instantiation ($N=5000$, $Q=200$) is shown for legibility
+in Figure \ref{fig:recovery}.
 
-\node[widebox, fill=blue!13, draw=blue!50!black, minimum height=2.2cm] (dkvmn) at (0, 5.75)
-    {\textbf{DKVMN Memory}\\[2pt]
-     $\mathbf{M}^k$ (static key)\quad$\mathbf{M}^v_t$ (dynamic value)\\[1pt]
-     {\footnotesize attn $\to$ read $\mathbf{r}_t$\;/\;erase-add}};
+\subsection{Recovery across the matrix}
+\label{sec:matrix}
+Table \ref{tab:matrix} reads recovery across the encoder-by-decoder grid. Two
+facts hold in every cell. Ability and difficulty recover well, the ability rank
+from $0.85$ to $0.97$ and the difficulty rank from $0.90$ to $0.99$, so the tracer
+is genuinely modular and the readout is genuinely recoverable. The exception is
+always the same coordinate. The discrimination, the coefficient that multiplies
+ability, is the low and variable one, $0.71$ for the plain LSTM under an ordinal
+head and $0.65$ for the binary head, and it climbs to about $0.89$ to $0.91$
+exactly for the encoders that give the item its own wide key, the memory network,
+the wide-key LSTM, and the transformer. The nominal slope $a_k$ recovers at $0.85$,
+well above the ordinal discrimination in the matched narrow setting. The ordering
+is a property of the readout that survives every swap of the network, and it
+already points at the mechanism, since the discrimination recovers better precisely
+where the item stops sharing the ability's representation.
 
-\node[box, fill=gray!20, draw=gray!60, minimum width=3.2cm] (summ_item) at (-2.0, 2.95)
-    {Item Summary\\$\mathbf{f}_t = \tanh(W[\mathbf{r}_t;\mathbf{k}_t])$};
-\node[box, fill=orange!15, draw=orange!55, minimum width=3.2cm] (summ_ab) at ( 2.0, 2.95)
-    {Ability Summary\\$\mathbf{f}_t^{(\theta)} = \tanh(W_\theta\,\mathbf{r}_t)$};
+The encoders that recover the discrimination best also carry more parameters, from
+about seven thousand for the plain LSTM to thirteen thousand for the memory network
+and thirty-two thousand for the transformer, so the matrix alone cannot separate a
+representational cause from raw capacity. The controlled sweep of Section
+\ref{sec:escape} draws the line. There, widening a single shared embedding adds
+capacity yet lowers the ability even as it lifts the discrimination, and a decoupled
+model with fewer parameters than the widest shared one recovers both at once, so the
+gain is about how the representation is divided and not about how much of it there
+is. The matrix shows the ordering is robust to the backbone, and the sweep shows the
+cause is the representation split.
 
-\node[box, fill=purple!20, draw=purple!60, minimum width=2.8cm] (ab) at (-2.0, 0.75)
-    {Item Param.\ Net\\$\alpha_i,\;\boldsymbol{\beta}_i$};
-\node[box, fill=purple!20, draw=purple!60, minimum width=2.8cm] (th) at ( 2.0, 0.75)
-    {Ability Net\\$\theta_t$};
-
-\node[widebox, fill=green!18, draw=green!50!black] (gpcm) at (0, -1.2)
-    {GPCM decoder};
-\node[box, fill=green!32, draw=green!60!black] (out) at (0, -2.35)
-    {$\hat{P}(r_{t+1}\!=\!k)$\;{\scriptsize prediction}};
-
-\draw[arr] (qt) -- (ke);
-\draw[arr] (rt) -- (oe);
-\draw[arr, black!35] (qt.east) -- ++(0.5,0) |- ([yshift=2pt]oe.north);
-
-\draw[arr, blue!65] (ke.south) -- (ke |- dkvmn.north);
-\node[lbl, anchor=east] at ([xshift=-3pt]$(ke.south)!0.5!(ke |- dkvmn.north)$) {\color{blue!65}query};
-\draw[arr, teal!65] (oe.south) -- (oe |- dkvmn.north);
-\node[lbl, anchor=west] at ([xshift=3pt]$(oe.south)!0.5!(oe |- dkvmn.north)$) {\color{teal!65}write};
-
-\draw[arr, purple!60] (dkvmn.south) -- ++(0,-0.30) coordinate (read_fork);
-\draw[arr, purple!60] (read_fork) -| (summ_item.north);
-\draw[arr, purple!60] (read_fork) -| (summ_ab.north);
-\node[lbl, anchor=north] at ([yshift=-2pt]read_fork) {\color{purple!60}read $\mathbf{r}_t$};
-
-\draw[darr, orange!70] (ke.west) -- (-5.8, 8.4)
-    -- (-5.8, 2.95) -- (summ_item.west);
-\draw[darr, orange!70] (-5.8, 2.95) -- (-5.8, 0.75) -- (ab.west);
-\node[lbl, anchor=east] at (-6.0, 5.75) {\color{orange!70}$\mathbf{k}_t$ bypass};
-
-\draw[arr] (summ_item) -- (ab);
-
-\draw[arr, orange!70, line width=1.2pt] (summ_ab) -- (th);
-
-\draw[arr, purple!55] (ab.south) -- ++(0,-0.25) coordinate (irt_left) -| ([xshift=-0.9cm]gpcm.north);
-\node[lbl, anchor=east] at ([xshift=-2pt]irt_left) {\color{purple!55}\scriptsize $\alpha_i,\boldsymbol{\beta}_i$};
-\draw[arr, purple!55] (th.south) -- ++(0,-0.25) coordinate (irt_right) -| ([xshift=0.9cm]gpcm.north);
-\node[lbl, anchor=west] at ([xshift=2pt]irt_right) {\color{purple!55}\scriptsize $\theta_t$};
-
-\draw[arr] (gpcm) -- (out);
-
-\draw[darr, teal!45] (summ_ab.east) -- (5.5, 2.95)
-    -- (5.5, 5.75) -- (dkvmn.east);
-\node[lbl, anchor=west, align=center] at (5.7, 4.35) {\color{teal!45}\scriptsize erase-add\\ \scriptsize $M_{t+1}^v$};
-
-\end{tikzpicture}%
-}%
-\caption{The framework at time step $t$, drawn as its precursor instance MA-GPCM (a DKVMN encoder with a GPCM decoder). The memory read $\mathbf{r}_t$ feeds two summaries. The ability summary $\mathbf{f}_t^{(\theta)}$ (orange, $\mathbf{r}_t$ only) produces $\theta_t$ without item identity, an instance of the decoupled ability readout $\theta_t = \phi(h_t)$. The item summary $\mathbf{f}_t$ (gray, $[\mathbf{r}_t;\mathbf{k}_t]$) provides context for $\alpha_i$, and step thresholds $\boldsymbol{\beta}_i$ receive the item key directly (dashed left bypass). The encoder and decoder are separable slots; the encoder here is DKVMN and the decoder GPCM, and either may be replaced without changing the other.}
-\label{fig:architecture}
-\end{figure}
-
-The precursor already exhibits, as an architectural choice, the two input-wiring decisions this paper formalizes. Ability reads a separated summary that sees the memory read alone and not the item key, and step thresholds are a function of the item key alone. As we show next, the first is one instance of the ability-item decoupling that governs identifiability, and the split between the ability input and the item key is one instance of the width decoupling that governs recovery rate. We reuse MA-GPCM's synthetic recovery evidence in Section~\ref{sec:swappable}, and we recast its separated pathway as one instance of a general lever rather than as a co-contribution.
-
-\section{Related Work}
-\label{sec:related}
-We situate the work in three rings, ordered from the nearest scientific neighbors outward, and then state the anti-variational positioning that point two of the message rests on.
-
-\subsection{Interpretable Knowledge Tracing and Neural IRT}
-\label{sec:related_kt}
-Deep knowledge tracing learns high-dimensional latent states from interaction sequences \citep{piech_deep_2015}, and the DKVMN introduced a structured memory that separates static concept representations from evolving mastery \citep{zhang_dynamic_2017}. A line of work then couples these encoders to IRT-style readouts for interpretability. Deep-IRT attaches an ability-and-difficulty readout to a DKVMN \citep{yeung_deep-irt_2019}, and \citet{converse_irt_kt_2021} incorporate IRT parameters into KT training more generally.\footnote{Cite-and-distinguish target [VERIFY]. We rely on the AIED 2021 version and confirm its recovery claims against its own shuffled-response analysis before submission.} These models expose parameters that a practitioner can inspect, and they argue interpretability from the presence of the parameters and from face validity, checking that estimated abilities and difficulties look reasonable. Our question is upstream of that argument. We ask whether the exposed parameters recover their generating values at all, and we find that the answer depends on which parameter, on the training budget, and on how the readout is wired. Recent independent-network variants such as \citet{tsutsumi_deep_2024} separate the student and item pathways for stability, which is consistent with the decoupling lever we analyze, though they do not connect the separation to a recovery-rate or identifiability mechanism.
-
-\subsection{Discrimination-Recovery Failures}
-\label{sec:related_disc}
-Reports that item discrimination is the hardest parameter to recover recur across the neural and the psychometric literature, usually diagnosed as a nuisance rather than as a mechanism. \citet{converse_irt_kt_2021} observe degraded discrimination and connect it to data ordering. A beta-distributed IRT variant reports an unexplained shrinkage of the recovered discrimination magnitude in its recovery figure.\footnote{beta4-IRT [VERIFY]; confirm authors and the figure reference.} We read these as the same symptom, and we supply the mechanism. Discrimination sits on the low-information direction of the readout, so it relaxes slowly under gradient flow and is under-served at any finite budget, and the magnitude shrinkage others report is the expected signature of a slow, under-recovered coordinate rather than a separate defect.
-
-\subsection{Option and Choice Modeling}
-\label{sec:related_option}
-The nominal response model gives each response category its own slope and intercept \citep{thissen_taxonomy_1986}, and it appears in KT as a diagnostic tool for tracing which distractor a student selects \citep{ghosh_option_2021}. We do not propose it as a better tracer. We repurpose it as a control, because its category slope loads on ability like discrimination but, unlike GPCM discrimination, is not low in information. That single dissociation is what lets us separate a representation effect from an information effect, as Section~\ref{sec:nrm} makes precise.
-
-\subsection{The Anti-Variational Positioning}
-\label{sec:related_var}
-A distinct family recovers IRT parameters through variational inference. Variational IRT fits an amortized posterior over abilities and item parameters and reports accurate recovery \citep{wu_variational_2020}, and temporal variational IRT extends this to sequences and, notably, reports discrimination recovered best.\footnote{VTIRT [VERIFY]; confirm the venue and the discrimination-recovery claim.} A further variational neural IRT reports the same discrimination deficit we study and attributes it to the variational gap.\footnote{Ma et al. 2024 [VERIFY], arXiv:2310.12010; confirm authors, title, and venue.} We make two points about this family. First, those results are well-specified generative inference with an explicit posterior, not the plain prediction loss that KT actually trains on, so they do not speak to whether a standard KT tracer recovers its readouts. Second, where the variational literature attributes the discrimination deficit to the variational objective, our analysis locates it in the information geometry of the readout, which predicts the deficit even with no variational objective present. Our contribution is precisely that plain prediction loss recovers the parameters, and that the deficit that remains is a Fisher-geometry property rather than an artifact of a particular objective. For the downstream use of a recovered discrimination in adaptive testing we draw on the computerized-adaptive-testing literature \citep{gmocat_2023, autoirt_2024}, which we return to in Section~\ref{sec:downstream}.
-
-\section{Method and Theory}
-\label{sec:method}
-This section formalizes recovery at the level of the decoder and the readout, so that the statements are encoder-agnostic. The home is the representation learning inside the KT encoder, and IRT supplies the readable coordinates whose recovery we track. We first fix the decoder math and the honest form of the per-parameter gradients, then state the rate result and its asymptotic behavior, then the identifiability result, and finally the nominal-model control. Each claim is labeled \textsc{finite} or \textsc{structural}.
-
-\subsection{Decoder Math and Honest Gradients}
-\label{sec:decoder_math}
-The causal state is $h_t = \mathrm{enc}(x_1, \ldots, x_{t})$. The readout exposes per-item coordinates $\xi_i$ and an ability $\theta_t = \phi(h_t)$, optionally also conditioned on $e_i$. The response is categorical with logits $\eta = R(\xi_i; \theta_t)$, the loss is the expected cross-entropy $L = \mathbb{E}[\mathrm{CE}]$, the vector residual is $r_k = p_k - y_k$ with $p$ the predicted probabilities and $y$ the one-hot response, and the per-observation covariance is $\Sigma = \mathrm{diag}(p) - p\,p^\top$. Two decoders instantiate $R$. The GPCM sets a category logit through a cumulative sum,
-\begin{equation}\label{eqn:gpcm_prob}
-    p_{k} = \frac{\exp\!\left(\sum_{m=0}^{k-1} \alpha_i(\theta_t - \beta_{i,m})\right)}
-                 {\sum_{c=0}^{K-1} \exp\!\left(\sum_{m=0}^{c-1} \alpha_i(\theta_t - \beta_{i,m})\right)},
-\end{equation}
-with discrimination $\alpha_i$ and step thresholds $\boldsymbol{\beta}_i = (\beta_{i,0}, \ldots, \beta_{i,K-2})$. The NRM gives each category its own slope and intercept,
-\begin{equation}\label{eqn:nrm_prob}
-    p_{k} = \mathrm{softmax}_k\!\left(a_{i,k}\,\theta_t + c_{i,k}\right),
-\end{equation}
-with slopes $a_{i,k}$ and intercepts $c_{i,k}$. The GPCM is a constrained NRM with $a_{i,k} = \alpha_i k$ \citep{thissen_taxonomy_1986}, a fact we use in Section~\ref{sec:nrm}.
-
-We write the gradients in their honest form rather than in a compressed scalar shorthand. The clean scalar residual $r = p - y$ and the chain rule
-\begin{equation}\label{eqn:binary_grads}
-    \partial_\theta L = r\,\alpha, \qquad \partial_\beta L = -\,r\,\alpha, \qquad \partial_\alpha L = r\,(\theta - \beta)
-\end{equation}
-hold for the binary, two-parameter-logistic case, where the sigmoid-with-cross-entropy pairing makes $r = p - y$ the gradient of the loss with respect to the logit. For the general GPCM the corresponding statements use the vector residual $r_k = p_k - y_k$. The ability gradient is $\alpha_i$ times the expected-score residual, the difference between the model's expected category and the observed one, and the threshold gradient is a cumulative residual. We carry the binary setup together with the vector-residual generalization into the analysis, and we do not present a single scalar $r$ as the literal GPCM gradient. The structural facts the argument uses survive the generalization, that ability and difficulty enter the logit scaled by discrimination, that discrimination carries the separation leverage $\theta - \beta$, and that difficulty is the sign-flip of ability, $\partial_\beta L = -\partial_\theta L$. For the NRM the chain rule through the category logit, with $\partial_{a_k}\eta_k = \theta$ and $\partial_{c_k}\eta_k = 1$, gives
-\begin{equation}\label{eqn:nrm_grads}
-    \partial_{a_k} L = r_k\,\theta, \qquad \partial_{c_k} L = r_k .
-\end{equation}
-
-\subsection{Recovery Rate and Its Asymptotics}
-\label{sec:rate}
-Fix the affine gauge (Section~\ref{sec:identif}) and work near a well-specified, zero-residual optimum, where the Gauss-Newton curvature equals the Fisher information $F$. Small deviations of a readout coordinate from the optimum then relax under gradient flow as
-\begin{equation}\label{eqn:grad_flow}
-    \dot{\delta} = -F\,\delta, \qquad \delta_c(t) = \delta_c(0)\,e^{-\lambda_c t},
-\end{equation}
-so each eigendirection decays at a rate set by its curvature, and a coordinate recovers in time of order $1/I(\xi)$. For a generic readout coordinate the per-coordinate information is the quadratic form
-\begin{equation}\label{eqn:fisher_generic}
-    I(\xi) = \left(\frac{\partial \eta}{\partial \xi}\right)^{\!\top} \Sigma \left(\frac{\partial \eta}{\partial \xi}\right).
-\end{equation}
-
-\begin{claim}[Rate, \textsc{finite}]\label{claim:rate}
-In the binary case, the multiplier coordinates carry $I(\theta) = I(\beta) = \alpha^2 w$ with $w = p(1-p)$, while the discrimination coordinate carries $I(\alpha) = \mathbb{E}[\,w\,(\theta - \beta)^2\,]$. The discrimination information is suppressed exactly where the response mass concentrates, near $\theta \approx \beta$, so discrimination is the slow direction and recovers last. The ordering is read from the curvature alone, with no appeal to a link function or a conditioning number.
-\end{claim}
-
-The rate penalty is not permanent. Let the budget be a pair $(T, N)$ of gradient steps and observations, and let $\kappa = \lambda_{\max}/\lambda_{\min} \approx I(\theta)/I(\alpha)$ be the readout conditioning number.
-
-\begin{claim}[Statistical decay, \textsc{finite}]\label{claim:decay}
-On the optimization axis, with $N$ effectively infinite and a stability-bounded shared step size, the slow-mode residual after $T$ steps contracts as $\exp(-T/\kappa)$, so the recovery gap between discrimination and ability shrinks geometrically in steps. On the statistical axis, with $T$ effectively infinite, a free per-item table reaches the unbiased endpoint, and the residual reliability gap between $\alpha$ and $\theta$ is of order $\kappa/N$, plus an errors-in-variables bias of order $1/N$ on $\alpha$ from the noisy amortized ability estimate. Jointly the gap obeys $G(T, N) \lesssim \exp(-T/\kappa) + \mathcal{O}(\kappa/N)$, and both terms vanish as $\min(T, N)$ grows.
-\end{claim}
-
-Claim~\ref{claim:decay} licenses the honest headline of the paper. The discrimination penalty is real at any finite budget and it closes asymptotically, so the contribution lives in the realistic finite regime rather than in a claim of asymptotic impossibility. This is the classical statement that the flat direction of a well-specified model is learned slowly and estimated noisily \citep{amari_natural_1998, saxe_exact_2014}, translated to a KT readout trained by prediction.
-
-\subsection{Coupling and Identifiability}
-\label{sec:identif}
-The GPCM logit $\alpha_i(\theta_t - \beta_i)$ carries a global affine gauge, the joint map $(\theta, \beta) \mapsto (s\theta + c, \; s\beta + c)$ with $\alpha \mapsto \alpha/s$, which has two parameters and is fixed by one normalization of location and one of scale. Whether more of the gauge is free depends on which inputs the ability readout sees.
-
-\begin{claim}[Coupling, \textsc{structural}]\label{claim:coupling}
-Let the ability readout be decoupled, $\theta_t = \phi(h_t)$, excluding the current item $i$. Then a single $\theta_t$ faces every item at step $t$, cannot re-center itself per item, and $\beta_i$ is identified up to the global gauge. Let it instead be coupled, $\theta_{t,i} = \phi(h_t, e_i)$. Then for each item the shift $(\theta_{t,i}, \beta_i) \mapsto (\theta_{t,i} + \delta_i, \; \beta_i + \delta_i)$ is a likelihood symmetry, and because $\phi$ already depends on $e_i$ it can absorb $\delta_i$. The gauge orbit enlarges from $2$ to $2 + J$ dimensions, one location shift per item, and those $J$ directions are exact flat directions of the population loss, so no estimator at any $N$ identifies $\beta_i$ within its orbit. The general condition is a measurability statement, that $\theta_t$ must be measurable with respect to a sigma-field that excludes $e_i$.
-\end{claim}
-
-This is the correct reading of the threshold collapse the precursor exhibits (Section~\ref{sec:swappable}). It is an identifiability failure, not a rate effect, and it persists at every budget. Regularization or finite width softens the exact flatness to near-flatness, but the property that it does not vanish with more data survives. The claim is stated at the readout level, and it is enforced by different architectural means in different encoders. The DKVMN separated pathway reads ability from the memory alone, and a recurrent or transformer encoder can enforce the same measurability by feeding ability a narrow item-value embedding while a separate wide item key feeds the item readouts. Neither trick is claimed to be encoder-generic; the math is the general statement, and the architectures are instances.
-
-\subsection{Two Decouplings, Kept Distinct}
-\label{sec:two_decouplings}
-The word decoupling covers two mechanisms that sit on different axes, and the paper keeps them apart by construction.
-\begin{itemize}
-    \item \textbf{Ability-item decoupling governs identifiability.} Removing $e_i$ from the ability readout fixes the location gauge of Claim~\ref{claim:coupling}. This is structural and persists at all budgets.
-    \item \textbf{Width decoupling governs rate.} Giving a readout its own embedding width, rather than sharing one narrow width across ability and the item readouts, relieves the capacity trade-off that sets the conditioning number and hence the recovery rate. This is finite and vanishes asymptotically.
-\end{itemize}
-The nominal-model control of Section~\ref{sec:nrm} adjudicates the width mechanism only. It says nothing about the ability-item mechanism, and we do not let evidence for one stand in for the other. The identifiability mechanism is tested by manipulating the ability readout's inputs directly.
-
-\subsection{The Nominal-Model Control}
-\label{sec:nrm}
-The NRM slope $a_k$ is the genuine discrimination analogue, because the GPCM is the constrained NRM with $a_k = \alpha k$ \citep{thissen_taxonomy_1986}. Its leverage on the logit is $\theta$ itself, centered at $\theta = 0$, which is away from the response mode, so its information is not suppressed the way GPCM discrimination is by the $(\theta - \beta)^2$ term that centers on the mode.
-
-\begin{claim}[Nominal-model control, consistency]\label{claim:nrm}
-The NRM slope and intercept carry near-equal information, with a measured ratio $I(a_k)/I(c_k) \approx 0.90$ across seeds, in contrast to the fivefold-to-tenfold discrimination-versus-difficulty gap of the GPCM. The NRM therefore separates a representation effect, in which width decoupling fires regardless of information, from an information effect, in which a state-conditioned head helps only a low-information coordinate. We report $0.90$ as measured; the intuition that the ratio is near one, from $\mathbb{E}[\theta^2] = 1$, is only heuristic because $p(1-p)$ co-varies with $\theta$.
-\end{claim}
-
-\subsection{Assumptions}
-\label{sec:assumptions}
-The leverage-sets-rate statement holds under a stated set of conditions, which we make explicit because the honest scope of the result depends on them. The analysis is local, near a gauge-fixed, identifiable, well-specified optimum with small residual. It assumes an encoder timescale separation, that the amortized ability settles fast relative to readout relaxation, or that ability is held at its true value, which is the oracle-clamp control we name in Section~\ref{sec:experiments_overview}. It assumes rank adequacy, that the shared code has rank at least $K$, since otherwise an expressivity wall rather than a rate controls recovery. The ordering is an eigenmode statement, and it holds for discrimination above a crossover value $a_\star \approx 1$; we return to the inversion below $a_\star$ in Section~\ref{sec:boundaries}. The raw conditioning-number penalty assumes a single global step size, since an adaptive optimizer preconditions parameters and compresses the penalty. Finally it assumes a softmax-cross-entropy-family loss, plain, class-weighted, or ordinal-weighted, where a detached positive per-sample weight enters as a scale and preserves the structure, and it breaks for earth-mover, margin, or regression-on-expected-category losses.
-
-\section{Experiments}
-\label{sec:experiments}
-
-\subsection{Overview and Evidence Status}
-\label{sec:experiments_overview}
-We report the evidence in the order of the argument, recovery across swaps, then the finite-data problem and its two levers, then real data, then the planned downstream evaluation. The current evidence comes from two sources, the memory-augmented precursor's synthetic recovery study, which supplies the swap-level recovery and the discrimination-worst order and the ASSISTments analysis, and a controlled prediction-loss study on a recurrent encoder, which supplies the three-speed order, the shared-versus-decoupled trade-off, the static-versus-dynamic comparison, the nominal-model dissociation, and the real-data reliability legs. The controlled study uses synthetic GPCM and NRM data with $N=800$ learners, $Q=60$ items, $K=4$ categories, a recurrent encoder, prediction loss only, and results read at a realistic $150$-epoch operating point with at least eight seeds and $95\%$ confidence intervals.
-
-A single directive governs the experiments to come. The workshop-grade results below are treated as directional evidence, and the entire program is being rebuilt from scratch under one clean protocol at journal rigor, with separated data and initialization seeds, paired comparisons, bootstrap confidence intervals, and the full control suite of Section~\ref{sec:method}, including an oracle clamp that fixes ability at its true value, an eigenmode probe that varies the mean discrimination to locate the crossover $a_\star$, a knob that varies the ability information at fixed $K$ by spreading item difficulty, and the nominal-model confound controls. To keep the reader oriented, each results subsection closes with one sentence naming the specific rebuild that will strengthen it, using the experiment labels E1, E2, E-budget, E-levers, and E8. No number below is fabricated, and the two genuinely new experiments carry no numbers at all.
-
-\subsection{Recovery Across Encoder and Decoder Swaps}
-\label{sec:swappable}
-On synthetic GPCM data with known generating parameters, the framework recovers all three parameter types in a single forward pass, and it does so unevenly. Table~\ref{tab:magpcm_recovery} reports rank recovery, as the sign-aligned correlation between recovered and true values, for the precursor and its ablations at $K=4$, against an offline expectation-maximization ceiling.
-
-\begin{table}[!htbp]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{6pt}
-\renewcommand{\arraystretch}{1.05}
-\caption{Rank recovery on synthetic-static GPCM data at $K=4$, as sign-aligned correlation of recovered against true values. Offline expectation-maximization (EM) is the ceiling. The single-pass sequential models recover ability and thresholds well but discrimination worst, and the shared-summary variant collapses on thresholds, the identifiability signature of a coupled ability readout.}
-\label{tab:magpcm_recovery}
-\begin{tabular}{l ccc}
+\begin{table}[t]
+\caption{Recovery across the encoder-by-decoder matrix (synthetic, $N=800$,
+$Q=60$, $K=4$, $150$ epochs, sign-aligned Spearman rank against truth). Ability and
+difficulty recover well in every cell; the discrimination coefficient (bold) is the
+low and variable one, and it rises for encoders that give the item its own wide
+key. GPCM and 2PL rows are three seeds, the NRM row eight. The discrimination
+column reports $\alpha$ for GPCM and 2PL and the slope $a_k$ for NRM; the location
+column reports $\beta$ for GPCM and 2PL and the intercept $c_k$ for NRM. The last
+column is the parameter count, so the discrimination recovery can be read against
+capacity.}
+\label{tab:matrix}
+\small
+\begin{tabular}{@{}llcccr@{}}
 \toprule
-\textbf{Model} & \textbf{Discrimination} $\alpha$ & \textbf{Thresholds} $\beta$ & \textbf{Ability} $\theta$ \\
+Encoder & Decoder & Ability & \textbf{Discrim.} & Location & Params \\
 \midrule
-GPCM (EM), ceiling      & 0.991 & 0.990 & 0.980 \\
-Static GPCM             & 0.447 & 0.947 & 0.968 \\
-Dynamic GPCM            & 0.842 & 0.964 & 0.936 \\
-Shared summary (coupled)& 0.880 & 0.631 & 0.938 \\
-Separated (decoupled)   & 0.894 & 0.967 & 0.957 \\
+LSTM              & GPCM & 0.967 & \textbf{0.713} & 0.977 & 7.0k \\
+Memory (DKVMN)    & GPCM & 0.905 & \textbf{0.894} & 0.911 & 12.9k \\
+LSTM, wide key    & GPCM & 0.928 & \textbf{0.911} & 0.952 & 14.9k \\
+Transformer       & GPCM & 0.851 & \textbf{0.894} & 0.901 & 31.7k \\
+\midrule
+LSTM              & 2PL ($K{=}2$) & 0.875 & \textbf{0.649} & 0.986 & 6.9k \\
+LSTM              & NRM  & 0.953 & \textbf{0.846} & 0.887 & 7.0k \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Two facts stand out and both drive the rest of the paper. First, discrimination is the hardest parameter for every single-pass model. Even the best single-pass discrimination recovery, $0.894$, sits well below the same model's threshold and ability recovery, which exceed $0.95$, whereas the EM ceiling recovers all three above $0.98$. This is the discrimination-worst order that Claim~\ref{claim:rate} predicts, and it is the same symptom that the neural and psychometric literatures report as a nuisance. Second, the shared-summary variant, in which the ability readout also sees the item key, collapses threshold recovery to $0.631$ while the separated variant, in which ability reads the memory alone, holds it at $0.967$. The two variants share the same encoder, the same item encoding, and the same decoder, and they differ only in whether the ability readout is coupled to the item. The collapse is therefore the identifiability signature of Claim~\ref{claim:coupling}, read on synthetic ground truth, and separating the ability read is one instance of the ability-item decoupling. Figure~\ref{fig:recovery} shows the per-item scatter, where discrimination follows the identity line with the visible dispersion at high values that marks recovery from response variation alone, and the coupled variant's thresholds detach from the diagonal.
-
-\begin{figure}[!htbp]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.92\columnwidth]{figures/recovery_k4_item.pdf}
-\caption{Per-item recovery on synthetic-static data at $K=4$, recovered against true discrimination $\alpha$ and step thresholds. Rows are the single-pass models of Table~\ref{tab:magpcm_recovery}. Discrimination follows the identity line with dispersion at high values, and the coupled shared-summary variant's thresholds detach from the diagonal while the separated variant's stay on it.}
+\includegraphics[width=0.98\columnwidth]{recovery_k4_item.pdf}
+\caption{Per-item recovery on a synthetic generalized partial credit set
+($N=5000$, $Q=200$, $K=4$). Rows are four instantiations of the tracer, a
+static-ability baseline, a gated-recurrent encoder, a memory encoder with a shared
+readout, and a memory encoder with a decoupled item pathway. The left column plots
+recovered against true discrimination, the remaining columns recovered against the
+true step difficulties, and the dashed line is the identity. The difficulty columns
+hug the identity, while the discrimination column is visibly the most dispersed,
+the same ordering Table \ref{tab:matrix} reports numerically.}
 \label{fig:recovery}
 \end{figure}
 
-The order and the collapse are stable across the generating regimes we tested, static ability, discrete ability shifts, and continuous drift, and under item banks up to two thousand items. Under time-varying ability the coupled variant's damage spreads from thresholds to ability as well, because item-side variance then has a path into the ability estimate, and the separated variant leads ability tracking at every category resolution. We take these as the swap-level demonstration that recovery is real, uneven, and governed by the readout rather than by the encoder, and we defer the class-imbalance and binary-reduction checks of the precursor to Appendix~\ref{app:magpcm}. \emph{Strengthening.} A full swap matrix over three encoders, DKVMN, a recurrent network, and a causal transformer, crossed with GPCM, NRM, and binary decoders, with fifteen seeds per cell and an ordering-concordance statistic, is the planned experiment E1 that turns this into a claim about the framework rather than one architecture.
+%======================================================================================
+\section{Method and theory}
+%======================================================================================
+\label{sec:theory}
+This section explains why the coefficient that multiplies ability recovers worst.
+The account has two parts that must be kept apart, a multiplicative scale coupling
+that is about the representation and a low-Fisher rate that is about curvature. We
+first write the gradients honestly, then read the two gauges the logit carries,
+then locate each penalty, then state what is finite and what is structural.
 
-\subsection{Recovery Follows Fisher Information}
-\label{sec:three_speeds}
-The controlled prediction-loss study reads the recovery order directly off the training trajectory. Ability and difficulty recover fast, reaching rank recovery near $0.97$ and $0.99$ at the operating point, while discrimination recovers slowly and only later, in a band from about $0.70$ at a narrow embedding to about $0.92$ at a wide one. This is precisely the ordering that the curvatures of Claim~\ref{claim:rate} predict, the two high-information multiplier coordinates fast and the low-information separation coordinate slow, and it is read from the recovery dynamics with no appeal to a conditioning number. The finding is the empirical counterpart of the rate claim, and it holds at the realistic operating point rather than only at convergence. \emph{Strengthening.} A budget sweep over training steps and sample size, fitting the gap to the $\exp(-T/\kappa) + \mathcal{O}(\kappa/N)$ form of Claim~\ref{claim:decay} and adding an oracle-clamp arm that fixes ability at its true value, is the planned experiment E-budget that separates the training-time rate from the finite-sample variance and earns the finite-data framing against a train-longer objection.
+\subsection{The gradients, written honestly}
+Take one response through the binary head, where the algebra is cleanest. With
+logit $z=\alpha(\theta-\beta)$, predicted probability $p=\sigma(z)$, and observed
+$y\in\{0,1\}$, the cross-entropy loss and the sigmoid link give the residual
+$r:=\partial L/\partial z=p-y$. The chain rule through $z$, with
+$\partial_\theta z=\alpha$, $\partial_\beta z=-\alpha$, and
+$\partial_\alpha z=\theta-\beta$, gives
+\begin{equation}
+\partial_\theta L=r\,\alpha,\qquad
+\partial_\beta L=-r\,\alpha,\qquad
+\partial_\alpha L=r\,(\theta-\beta).
+\label{eq:gpcm-grad}
+\end{equation}
+The clean scalar $r=p-y$ is the binary, canonical-link case. The ordinal head is
+the same construction with a vector residual $r_k=p_k-y_k$, so the ability gradient
+becomes the discrimination times an expected-score residual and the difficulty
+gradient a cumulative residual, while the structure that matters is already visible
+in \eqref{eq:gpcm-grad}. Ability and difficulty are both scaled by the
+discrimination and carry opposite signs, and the discrimination itself is driven by
+the person-item separation $\theta-\beta$.
 
-\subsection{Configuration Is the Lever}
-\label{sec:configuration}
-The recovery rate is not fixed. It is set by how the embedding that feeds each readout is sized and shared, which is the width decoupling of Section~\ref{sec:two_decouplings}. Table~\ref{tab:tradeoff} reports the trade-off and the escape on the controlled GPCM study.
+The nominal head exposes the same skeleton with the slopes untied. With category
+logit $z_k=a_k\theta+c_k$ and residual $r_k=p_k-y_k$,
+\begin{equation}
+\partial_{a_k}L=r_k\,\theta,\qquad
+\partial_{c_k}L=r_k.
+\label{eq:nrm-grad}
+\end{equation}
+The slope $a_k$ is a slope on ability, the nominal analogue of the ordinal
+discrimination, and its gradient carries the factor $\theta$, while the intercept
+$c_k$ carries none.
 
-\begin{table}[!htbp]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{6pt}
-\renewcommand{\arraystretch}{1.05}
-\caption{The shared-width trade-off and the decoupled escape on the controlled GPCM study at the $150$-epoch operating point ($N=800$, $Q=60$, $K=4$, recurrent encoder). Widening a shared embedding lifts discrimination but overfits ability, while difficulty is indifferent. A decoupled embedding reaches the wide model's discrimination and keeps the narrow model's ability at once. Values are approximate summaries of the current study and are the target of the rigorous rebuild.}
-\label{tab:tradeoff}
-\begin{tabular}{l ccc}
+\subsection{The two gauges}
+The logit carries two invariances, and each governs a different pair of
+coordinates.
+
+The \emph{scale gauge} is multiplicative and it is the one that matters here. The
+logit multiplies the slope by the ability, $\alpha\theta$ in the ordinal head and
+$a_k\theta$ in the nominal head, and that product is unchanged under
+\begin{equation}
+\alpha\to\alpha/s,\qquad \theta\to s\,\theta,\qquad s>0.
+\label{eq:scale-gauge}
+\end{equation}
+Prediction loss sees only the product, so it pins the product and leaves the factor
+$s$ free. When the slope and the ability are read from one shared representation of
+fixed width, the optimizer must divide a finite pool of representational scale
+between them, and because the data do not constrain the division, the two compete
+for it. That competition is the slope-versus-ability trade-off. Reading the slope
+from a separate item representation removes the shared pool and so removes the
+competition, which is the decoupling fix. The additive intercept $c_k$ never
+multiplies ability, so it carries no scale gauge with the ability and pays no such
+trade-off, and this is the contrast the nominal head lets us draw.
+
+The \emph{location gauge} is additive and structural. The logit reads the
+difference $\theta-\beta$, which is unchanged under $\theta\to\theta+c$,
+$\beta\to\beta+c$. This threshold identifiability holds as long as the ability
+readout does not see the current item. If the ability readout $\phi(h_t,e_i)$ is
+allowed to read item $i$, it can absorb a per-item location shift, one flat
+direction is added to the loss for every item, and the difficulty becomes
+unidentified at every budget. We keep the ability readout item-blind, $\phi(h_t)$,
+by construction, which fixes the location gauge and lets us study the scale gauge in
+isolation. The location failure does not vanish with data, but it is a design choice
+we make once, not the subject of the experiments below.
+
+\subsection{Where each penalty lands}
+Near a gauge-fixed optimum each representational direction relaxes as
+$\dot\delta=-H\delta$, with $\delta_c(t)=\delta_c(0)\,e^{-\lambda_c t}$ and the rate
+$\lambda_c$ set by that direction's Fisher curvature
+\cite{saxe_exact_2014,amari_natural_1998}. For a readout coordinate $\xi$ the
+curvature is $I(\xi)=(\partial\eta/\partial\xi)^\top\Sigma\,(\partial\eta/\partial\xi)$
+with $\Sigma$ the response covariance. Reading \eqref{eq:gpcm-grad}, the ability and
+difficulty curvatures are $\alpha^2 w$ with $w=p(1-p)$, not suppressed, so those
+directions are fast. The discrimination curvature is
+\begin{equation}
+I(\alpha)=\E\!\left[w\,(\theta-\beta)^2\right],
+\label{eq:fisher-alpha}
+\end{equation}
+which is small exactly where response mass concentrates, at $\theta\approx\beta$, so
+the discrimination is the slow direction and recovers late. This low-Fisher rate is
+a property of the ordinal discrimination in particular, because its leverage
+$(\theta-\beta)^2$ centers on the response mode, where a response carries the least
+information about how sharply the item separates learners. The ratio of the fast
+curvature to the slow one, $\kappa=I(\theta)/I(\alpha)$, is the conditioning number
+of the readout, and a shared-step-size optimizer needs on the order of $\kappa$ more
+steps to relax the discrimination than to relax the ability. A more discriminating
+bank, with larger $\alpha$, raises $\kappa$ and so widens the gap, which is why the
+effect is easiest to see where items separate learners well.
+
+The nominal slope is the decisive check. Its leverage is $\theta$ itself, centered
+at $\theta=0$ away from the mode, so its Fisher information is not low. Measured on
+our synthetic set the ratio of the slope curvature to the intercept curvature is
+about $0.90$, not the several-fold ability-to-discrimination gap the ordinal head
+shows. The nominal slope multiplies ability, so it lives in the scale gauge of
+\eqref{eq:scale-gauge} and shares the shared-representation trade-off, but its
+Fisher information is ordinary, so it carries no low-Fisher rate penalty. That is
+the dissociation the whole account turns on. The ordinal discrimination is both
+multiplicative and low Fisher, the nominal slope is multiplicative but not low
+Fisher, and the two levers should therefore act on them differently.
+
+\subsection{Finite versus asymptotic}
+Both penalties are finite. The low-Fisher rate is a slow relaxation mode plus a
+finite-sample variance term, and the recovery gap between the slow coordinate and
+the fast ones behaves like $e^{-T/\kappa}+O(\kappa/N)$ in training steps $T$ and
+learners $N$, with $\kappa$ the ratio of the fast curvature to the slow one, so it
+vanishes only in the joint limit of both growing. The scale coupling is finite in
+the same spirit, since it is about how a finite-width shared code divides scale, and
+it is removed structurally by decoupling. Only the location gauge is structural, and
+we fix it by construction as above.
+
+Two honesty notes bound the account. The ordering is a statement about the
+eigenmodes of the Fisher matrix, not about raw parameters read one at a time,
+because the discrimination and difficulty curvatures are coupled off-diagonally, and
+the slow eigenvector is discrimination-dominated only where the discrimination is
+above roughly one. Below that the order can invert, and we state the inversion
+rather than hide it. And the equality of the Gauss-Newton curvature with the Fisher
+information holds at a well-specified zero-residual optimum, so the phrase
+``vanishes asymptotically'' is a within-model statement. On misspecified real data
+the two curvatures differ and a residual gap need not close, which is why our
+real-data claims below are about reliability and calibration, not about recovery
+against a truth that does not exist.
+
+%======================================================================================
+\section{Experiments}
+%======================================================================================
+\label{sec:exp}
+The experiments walk the account from Section \ref{sec:theory} through the compact
+synthetic setting and then onto real data. Recovery follows the readout structure,
+the shared representation forces the trade-off and decoupling escapes it, the effect
+is finite-data, the state-conditioned head fixes the low-Fisher rate, the nominal
+response model dissociates the two penalties, and the reliability picture holds on
+EdNet and a KDD Cup algebra set.
+
+\subsection{Recovery follows the readout structure}
+The matrix of Table \ref{tab:matrix} and the scatter of Figure \ref{fig:recovery}
+already make the first point. The coordinate that multiplies ability is the one that
+recovers worst, in every encoder and in both graded decoders, while ability and
+difficulty recover well throughout. The ordering also tracks training time (Table
+\ref{tab:speeds}). In the narrow shared setting the discrimination rank climbs slowly,
+from $0.10$ at $25$ epochs to $0.25$ at $50$ to $0.66$ at $150$, while the ability is
+already at $0.94$ by $25$ epochs and the difficulty is high from the start. The two
+axes come apart in a way that matters for model selection. Prediction quality plateaus
+by about epoch $50$, well before the discrimination has finished recovering, so a
+model chosen by its held-out loss is chosen while its discrimination is still moving,
+and recovery is a distinct axis from prediction rather than a proxy for it. This is
+the slow low-Fisher direction relaxing under \eqref{eq:fisher-alpha}, seen as a
+trajectory.
+
+\begin{table}[t]
+\caption{Recovery against training time in the narrow shared setting (synthetic
+GPCM, eight seeds, Spearman against truth). Ability recovers by the first
+checkpoint, and difficulty is likewise high from the start, while the discrimination
+climbs slowly and is still moving at epoch $150$, well past the epoch near $50$ where
+prediction quality has already plateaued.}
+\label{tab:speeds}
+\small
+\begin{tabular}{@{}lcc@{}}
 \toprule
-\textbf{Configuration} & \textbf{Discrimination} $\alpha$ & \textbf{Ability} $\theta$ & \textbf{Difficulty} $\beta$ \\
+Epoch & Ability & \textbf{Discrimination} \\
 \midrule
-Shared, narrow    & $\approx 0.70$ & $\approx 0.97$ & $\approx 0.99$ \\
-Shared, wide      & $\approx 0.92$ & $\approx 0.90$ & $\approx 0.99$ \\
-Decoupled, static & $\approx 0.92$ & $\approx 0.96$ & $\approx 0.99$ \\
+25  & 0.942 & \textbf{0.102} \\
+50  & 0.961 & \textbf{0.251} \\
+150 & 0.968 & \textbf{0.663} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Under a shared embedding, widening the width lifts discrimination from about $0.70$ toward $0.92$, because the embedding then allocates more capacity to the low-information parameter, but the same widening overfits ability, which falls from about $0.97$ toward $0.90$, while difficulty stays flat near $0.99$. Discrimination and ability therefore oppose each other along the shared frontier, and no single width serves both. A decoupled embedding, a narrow ability input with a separate wide item key, lands above that frontier. It reaches the wide model's discrimination, about $0.92$, while keeping the narrow model's ability, about $0.96$, which is a clean escape on the ability axis rather than a move along the frontier. The escape persists as the number of learners grows at fixed compute, so it is not a small-data quirk that more data washes out. This is the width decoupling acting on rate, distinct from the ability-item decoupling of Section~\ref{sec:swappable} that acts on identifiability, and both are recast instances of the precursor's separated pathway. \emph{Strengthening.} A two-by-two manipulation that varies ability-item coupling and embedding width independently, on both a recurrent and a memory encoder, with beta rank as the identifiability readout and alpha rank as the rate readout, is the planned experiment E2 that settles which decoupling lifts which parameter and prevents one from borrowing the other's credit.
+\subsection{The shared representation forces the trade-off, decoupling escapes it}
+\label{sec:escape}
+Table \ref{tab:escape} isolates the scale coupling with a single knob, the width of
+the shared embedding. Widening it lifts the discrimination, from $0.66$ at width $8$
+to about $0.92$ by width $48$, but the same widening lowers the ability, from $0.97$
+to $0.90$, and the difficulty stays flat throughout. The discrimination and the
+ability move in opposition, which is the trade-off the scale gauge predicts, one
+pool of scale divided between two claimants. No single shared width serves both.
 
-\subsection{Static Versus Dynamic Decoupling}
-\label{sec:static_dynamic}
-Within the decoupled family there is a second choice, whether the discrimination readout is static or is conditioned on the learner state, and the honest comparison is mixed. On synthetic recovery, where the generating parameters are known, recovery is high and nearly flat across configurations, near $0.93$, so recovery cannot separate them. Split-half reliability, the agreement of a recovered parameter across two random halves of the learners, is the harder lens and does separate them. Reliability is lower and configuration-dependent, from about $0.75$ to about $0.84$, and the dynamic head is at least as reliable as the static head in every cell. The dynamic head thus helps, or at worst does not hurt, on the low-information discrimination channel, which is the Fisher lever of Section~\ref{sec:two_decouplings} acting where it should. The picture reverses on a parameter that is not low in information, as the next subsection shows. \emph{Strengthening.} A dedicated static-versus-dynamic comparison at eight or more seeds on synthetic recovery and on real reliability, with the nominal-model control run alongside, is the planned experiment E-levers that reports the mixed verdict with paired tests rather than from summary bands.
+Decoupling escapes the trade-off rather than moving along it. A narrow value
+embedding that feeds the encoder, paired with a separate wide key that feeds the
+item readouts, recovers the discrimination at $0.92$ and the ability at $0.96$ at
+once, above the shared frontier on the ability axis with non-overlapping intervals.
+To match the decoupled discrimination a shared model must widen to about width $48$,
+and there its ability has fallen to $0.90$, well below the decoupled $0.96$. The
+escape is a genuine improvement in the ability coordinate at fixed discrimination,
+not a repackaging of the same frontier.
 
-\subsection{The Nominal Response Model Separates the Levers}
-\label{sec:nrm_experiments}
-The nominal response model is the control that tells the representation lever from the information lever, because its slope loads on ability like discrimination but is not low in information. Table~\ref{tab:nrm} reports the dissociation on matched synthetic data at $K=4$ with eight seeds.
+\begin{table}[t]
+\caption{The shared-width trade-off and the decoupling escape (synthetic GPCM, eight
+seeds, $150$ epochs, Spearman against truth). Within the shared family, widening
+lifts discrimination but lowers ability while difficulty stays flat. Decoupling
+(narrow value width $8$, wide key width $64$) reaches high discrimination and high
+ability together, above the shared frontier on ability.}
+\label{tab:escape}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Configuration & Discrimination & Ability \\
+\midrule
+Shared, width 8   & 0.663 & \textbf{0.968} \\
+Shared, width 16  & 0.843 & 0.946 \\
+Shared, width 32  & 0.913 & 0.914 \\
+Shared, width 48  & 0.924 & 0.903 \\
+Shared, width 96  & 0.914 & 0.903 \\
+\midrule
+Decoupled (8, 64) & \textbf{0.921} & \textbf{0.959} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{table}[!htbp]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{6pt}
-\renewcommand{\arraystretch}{1.05}
-\caption{Nominal-model dissociation on matched synthetic data ($N=800$, $Q=60$, $K=4$, recurrent encoder, eight seeds). Rank recovery of the category slope $a_k$, the intercept $c_k$, and ability $\theta$, at the $150$-epoch operating point. The slope is not the slow one, the width trade-off appears even though the slope is not low in information, and the dynamic head hurts the slope.}
+\subsection{The effect is finite-data}
+The trade-off is a finite-data one, and the decoupling advantage is what a finite
+budget buys. Adding learners at fixed compute does not wash it out. Sweeping the
+learner count from $100$ to $1600$ at $K=4$, the decoupling advantage on
+discrimination stays essentially flat, $0.23$ at $N=100$ and $0.28$ at $N=1600$,
+rather than shrinking toward zero. This matches the account of Section
+\ref{sec:theory}, where the gap closes only in the joint limit of training and data
+growing together and so persists at every realistic operating point. More data alone
+does not make it go away, which is why the representational fix is worth making
+rather than waiting out.
+
+\subsection{The state-conditioned head fixes the low-Fisher rate}
+Decoupling addresses the scale coupling, not the low-Fisher rate. The targeted fix
+for a low-Fisher parameter is to let it move with the learner's state instead of
+resting as one item constant, a state-conditioned discrimination head. A static
+discrimination has to relax along its own slow, low-information direction, the one
+\eqref{eq:fisher-alpha} shows is starved near the response mode. A
+state-conditioned discrimination instead reads the learner's state, which is a
+well-conditioned quantity that the ability has already driven to a good estimate
+early in training, so the slope rides a fast-relaxing basis rather than waiting on
+its own slow one. On the ordinal discrimination this helps, most clearly on real
+data where the static decoupled discrimination can be starved, as Section
+\ref{sec:real} shows, and it never lowers the ordinal discrimination in any cell we
+ran, because a richer and faster source of variation for a slow coordinate can only
+speed its relaxation. Whether that is a fix or a mere convenience is decided by the
+nominal control, which we turn to now, since it is exactly where the
+state-conditioned head stops helping.
+
+\subsection{The nominal response model dissociates the two penalties}
+\label{sec:nrm}
+The nominal response model holds the multiplicative structure fixed while removing
+the low Fisher information, and it splits the two levers cleanly (Table
+\ref{tab:nrm}). The slope $a_k$ multiplies ability, so it shares the ability's
+representation and pays the same trade-off, widening the shared embedding lifts
+$a_k$ from $0.85$ to $0.94$ while dropping the ability from $0.80$ to $0.62$, the
+signature of the scale gauge appearing even though $a_k$ is not low Fisher.
+Decoupling clears it, the slope reaching $0.98$ and the intercept $0.98$ together,
+above the best shared width at once. So far the nominal slope behaves like the
+ordinal discrimination, which confirms that the trade-off is about sharing a
+representation and not about low Fisher information.
+
+The state-conditioned head is where they part. On the ordinal discrimination it
+helps, but on the nominal slope it hurts, dropping $a_k$ from $0.98$ to $0.74$ while
+the split-half reliability stays at $0.999$. The recovered slope is stable and
+wrong, agreeing with itself across halves while disagreeing with the truth, because
+the extra state variation is noise for a coordinate whose Fisher information is
+already adequate. The state-conditioned head helps a parameter only where its Fisher
+information is low, and the nominal slope, multiplicative but not low Fisher, is
+helped by decoupling and hurt by state conditioning. The ordinal discrimination,
+which is both, needs both levers, and the nominal slope shows that the levers are
+genuinely two and not one. A note of caution belongs on the record. Decoupling the
+nominal slope alone leaves its intercept starved at $0.39$, which is the nominal
+head's own internal competition between its slope and its intercept for the item
+key, a separate matter from the slope-versus-ability coupling, and we control it by
+decoupling both.
+
+\begin{table}[t]
+\caption{The nominal response model dissociates the two penalties (synthetic, eight
+seeds, $150$ epochs). Top, the slope $a_k$ multiplies ability and pays the
+shared-representation trade-off just as the ordinal discrimination does, and
+decoupling clears it. Bottom, state conditioning helps the low-Fisher ordinal
+discrimination but hurts the nominal slope, whose Fisher information is not low (the
+recovered slope is stable across halves yet far from truth).}
 \label{tab:nrm}
-\begin{tabular}{l ccc}
+\small
+\begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Configuration} & \textbf{Slope} $a_k$ & \textbf{Intercept} $c_k$ & \textbf{Ability} $\theta$ \\
+Configuration & Slope $a_k$ & Intercept $c_k$ & Ability \\
 \midrule
-Shared, width $8$        & 0.85 & 0.89 & 0.80 \\
-Shared, width $32$       & 0.94 & 0.90 & 0.62 \\
-Decoupled, static        & 0.98 & 0.98 & 0.85 \\
-Decoupled, dynamic slope & 0.74 & 0.97 & 0.86 \\
-Decouple $a_k$ only      & 0.87 & 0.39 & 0.81 \\
-Decouple $c_k$ only      & 0.96 & 0.98 & 0.87 \\
-All decoupled            & 0.98 & 0.97 & 0.84 \\
+Shared, width 8   & 0.846 & 0.887 & 0.797 \\
+Shared, width 32  & 0.939 & 0.895 & 0.620 \\
+Decoupled         & \textbf{0.980} & \textbf{0.982} & 0.853 \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{State-conditioned slope}} \\
+Decoupled, static  & \textbf{0.980} & 0.982 & 0.853 \\
+Decoupled, dynamic & \textbf{0.735} & 0.969 & 0.857 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Three readings separate the levers. First, the slope is not the slow one. At a shared width of eight the slope and the intercept recover alike, $0.85$ against $0.89$, with none of the discrimination-versus-difficulty gap the GPCM shows, and under a decoupled embedding both reach $0.98$. Equal information gives equal recovery, so the GPCM discrimination lag came from low information, not from being a slope. Second, the width trade-off still appears. Widening the shared embedding from eight to thirty-two lifts the slope by about $0.09$ but overfits ability, which falls from $0.80$ to $0.62$, and a separate wide key clears the trade-off, lifting the slope to $0.98$ and the intercept to $0.98$ while ability reaches $0.85$, all above the best shared width at once. Because the trade-off appears even though the slope is not low in information, it tracks the slope sharing a representation with ability, which is the representation lever, not information. The asymmetry within the readout confirms the mechanism, since decoupling the intercept alone leaves the slope at $0.96$ on the narrow input, while decoupling the slope alone breaks the intercept to $0.39$, and giving both their own key adds nothing beyond decoupling. Third, the dynamic head reverses. State-conditioning rescued GPCM discrimination, which is low in information, but here it hurts the slope, from $0.98$ down to $0.74$, while its split-half reliability stays near one. That combination, high stability and low recovery, is what state-conditioning produces when the information is not low, because the state then adds only noise. The dynamic head therefore helps a parameter only where its information is low. Taken together, representation governs the shared-width trade-off and the decoupling escape in both models, while information governs the recovery rate and where the dynamic head helps, which is the axis that splits the two models. GPCM discrimination has both problems at once, low information and a slope that shares ability's representation, and the nominal-model slope has only the second. \emph{Strengthening.} Holding $K$, $N$, item count, and seeds fixed, scoring the slope vector rather than a single slope, adding a parameter-count-matched control, and sweeping the mean discrimination to locate the crossover $a_\star$, are the nominal-model confound controls within E-levers that establish the dissociation is information-geometric rather than an artifact of parameter count or identification.
-
-\subsection{Real Data}
+\subsection{Real data}
 \label{sec:real}
-Real educational data carry no ground truth, so recovery against truth is unavailable and split-half reliability is the working lens, the real-data echo of recovery. We report two legs, the recovery geometry on proxy-ordinal tutoring data and the reliability behavior on large option-tracing data, and we state the honest verdict.
+On real data there is no generating truth, so we read split-half reliability rather
+than recovery. Table \ref{tab:real} reports it on EdNet \cite{choi_ednet_2020} and a
+KDD Cup algebra set \cite{stamper_kdd_2010}, both scored into three ordered
+categories from correctness and effort. EdNet contributes $3000$ learners over $250$
+items with a median sequence of $115$, the three categories being wrong, correct but
+slow, and correct and fast. The algebra set contributes $2476$ learners over $250$
+items with a median sequence of $172$, the three categories reading a correct first
+attempt, a correct answer after no hint, and a correct answer that needed a hint.
+Both pass a monotonicity check, the learner accuracy correlating with the mean
+category at rank about $0.85$, so the ordinal coding is faithful. The synthetic
+ordering survives.
+Discrimination reliability sits far below difficulty on both sets, $0.77$ against
+$0.94$ on EdNet and $0.62$ against $0.81$ on the algebra set, so the coordinate that
+was hardest to recover against truth is also the least stable across learners in the
+field.
 
-\subsubsection{Recovery Geometry on Proxy-Ordinal Tutoring Data}
-\label{sec:assistments}
-On the ASSISTments tutoring datasets, four ordered categories are derived from correctness together with attempt count and hint usage, so the labels are proxy-ordinal rather than rubric-scored, and the analysis reads model behavior rather than true item characteristics. Prediction quality is comparable across the GPCM-based models, within run-to-run variance of a softmax decoder on the ordinal metrics. The instructive contrast is in the recovered item geometry. The coupled shared-summary variant produces tightly clustered, sharply separated threshold modes, which looks like sharper measurement but is in fact a low-rank projection. Its ability estimate has absorbed the item-specific component of the proxy categories, which are themselves item-conditioned through hints and attempts, so residual item variation has been routed out of the thresholds and onto ability, collapsing the recovered item space toward a single difficulty axis. The separated variant refuses that absorption. Its thresholds spread per item, with partial overlap of adjacent modes, which recovers the higher-dimensional transition structure the proxy actually carries, at the cost of a small ordinal-metric decrement. Figure~\ref{fig:assist} shows the contrast. This is the same identifiability mechanism as the synthetic threshold collapse, now visible without ground truth, and it is why the separated readout is the one to deploy when the item parameters are meant to be read. We expect the decrement to narrow on rubric-anchored data, where the score levels reflect proficiency rather than item-specific behavior.
+The two levers behave as the synthetic account predicts. Static decoupling can
+starve the discrimination, most sharply on the algebra set where it collapses to
+$0.39$, because decoupling removes the shared pool but leaves a low-Fisher
+coordinate to relax on its own. The state-conditioned head rescues it, lifting the
+algebra discrimination from $0.39$ to $0.64$ and the EdNet discrimination from
+$0.64$ to $0.78$, and it never lowers discrimination reliability in any cell. The
+practice that emerges is to decouple and to state-condition the discrimination
+together, since decoupling clears the scale coupling and the state-conditioned head
+covers the low-Fisher rate that decoupling leaves exposed.
 
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=0.95\columnwidth]{figures/assistments_item_params_3model.pdf}
-\caption{Recovered per-item discrimination and step thresholds on proxy-ordinal ASSISTments data, comparing a per-item lookup baseline, the coupled shared-summary variant, and the separated variant. The coupled variant's sharply separated threshold modes are a low-rank projection onto a single difficulty axis, and the separated variant's wider per-item spread recovers the transition structure the proxy carries.}
-\label{fig:assist}
-\end{figure}
+The nominal readout on real data adds a coverage caveat that the reliability lens
+makes visible. On EdNet option tracing, where each of more than ten thousand items
+is seen only about a dozen times, the decoupling escape reverses, shared ability
+reliability at $0.68$ over decoupled at $0.29$, because a wide item key cannot be
+estimated from a dozen observations. Aggregating to knowledge components, about
+$845$ observations per unit, the escape revives, decoupled at $0.66$ against shared
+at $0.70$, while the state-conditioned head still does not help the nominal slope,
+$0.49$ below the static $0.66$. The portable finding is the one that does not depend
+on coverage, the state-conditioned head helps the low-Fisher ordinal discrimination
+and not the ordinary-Fisher nominal slope, exactly as the synthetic dissociation
+says.
 
-\subsubsection{Reliability and Coverage on Option-Tracing Data}
-\label{sec:ednet}
-On large-scale option-tracing data with a nominal decoder, split-half reliability of the ability estimate exposes a coverage dependence that qualifies the escape. Table~\ref{tab:ednet} reports ability reliability under two coverage regimes.
-
-\begin{table}[!htbp]
-\centering
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.05}
-\caption{Split-half ability reliability (Spearman-Brown corrected) on option-tracing data under a nominal decoder, by item coverage. At low coverage the decoupling escape reverses and the shared readout is more reliable; at knowledge-component density it revives; the dynamic head does not rescue ability at either coverage.}
-\label{tab:ednet}
-\begin{tabular}{l ccc}
+\begin{table}[t]
+\caption{Real-data split-half reliability (rank agreement across two random halves
+of the learners, four splits). Discrimination reliability sits far below difficulty
+on both datasets. Static decoupling can starve the discrimination (bold on the
+algebra set), and the state-conditioned head restores it without ever lowering it.}
+\label{tab:real}
+\small
+\begin{tabular}{@{}llcc@{}}
 \toprule
-\textbf{Coverage} & \textbf{Shared static} & \textbf{Decoupled static} & \textbf{Decoupled dynamic} \\
+Dataset & Configuration & Discrimination & Difficulty \\
 \midrule
-Per item ($\approx 12$ obs)   & 0.68 & 0.29 & $-0.01$ \\
-Per KC ($\approx 845$ obs)    & 0.70 & 0.66 & 0.49 \\
+EdNet   & Shared, static     & 0.771 & 0.940 \\
+        & Shared, dynamic    & 0.790 & 0.941 \\
+        & Decoupled, static  & 0.639 & 0.953 \\
+        & Decoupled, dynamic & 0.784 & 0.955 \\
+\midrule
+Algebra & Shared, static     & 0.621 & 0.810 \\
+        & Shared, dynamic    & 0.628 & 0.836 \\
+        & Decoupled, static  & \textbf{0.391} & 0.888 \\
+        & Decoupled, dynamic & 0.640 & 0.870 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-At about twelve observations per item the escape reverses, with the shared ability readout reliable at $0.68$ against the decoupled readout's $0.29$, because a wide item key with too little data is worse than sharing. At knowledge-component density, about eight hundred observations per unit, the escape revives, with the decoupled readout at $0.66$ close to the shared readout's $0.70$. At both coverages the dynamic head fails to rescue ability, sitting at $-0.01$ and $0.49$ respectively, below the static readout, which is exactly the reversal Section~\ref{sec:nrm_experiments} predicts for a parameter that is not low in information. On the GPCM side, where discrimination is low in information, the reliability picture is the mirror image, the low-information discrimination channel sits well below difficulty on both option-tracing and a second large benchmark, the static decoupled discrimination channel collapses into a band from about $0.39$ to about $0.64$, and the dynamic head rescues it without hurting elsewhere. The honest verdict is therefore mixed and we report it straight. Between a static and a dynamic decoupled configuration, the static one is the reliability winner on the ability channel, the dynamic head is a targeted fix for the low-information discrimination channel rather than a default, and the decoupling benefit itself is contingent on item coverage. \emph{Strengthening.} A classical marginal-maximum-likelihood calibration on the same real banks, used as a cross-calibration reference for the recovered item parameters, is the planned appendix experiment E9 that adds a calibration check to the reliability evidence, held off the critical path because it is fragile on sparse banks.
+Real item-parameter geometry corroborates the reliability picture (Figure
+\ref{fig:assist}). On the proxy-ordinal ASSISTments releases, which score effort
+into ordered categories and carry no ground truth, the recovered discrimination
+distribution across items is dispersed and heavy-tailed relative to the difficulty
+distribution, the visual signature of the least stable coordinate, consistent with a
+channel whose scale is only weakly pinned by the data. The 2009 release spans $2596$
+learners over $3910$ items and the 2017 release $1699$ learners over $772$ items, and
+in both the memory encoder with a decoupled item pathway spreads its discrimination
+into a longer tail than the shared-readout encoders, which is what a coordinate free
+to absorb loose scale does when nothing anchors its magnitude. The point is not that
+one instantiation is right, since no truth adjudicates it, but that the coordinate
+the synthetic and reliability results single out is exactly the coordinate whose
+real-data geometry is least settled.
 
-\subsection{Downstream: Adaptive Item Selection}
-\label{sec:downstream}
-The recovery findings change a concrete downstream decision, which is how an adaptive test selects the next item. Adaptive testing selects items to maximize information at the running ability estimate, and item information peaks where ability meets difficulty and scales with discrimination, so a selection rule is a joint function of the recovered discrimination and difficulty in which discrimination is the degraded channel. The planned evaluation selects items by maximum information at the running ability estimate, using each configuration's recovered parameters against a per-item oracle, and scores the configurations by ability error at a fixed test length, against an oracle ceiling and a random-selection floor. This is the experiment E8, and it is described here as planned. We report no adaptive-testing numbers, because the point of the rigorous rebuild is to measure this decision under a clean protocol rather than to assert it. The second genuinely new experiment, the classical cross-calibration of Section~\ref{sec:ednet}, is likewise planned and carries no numbers.
+\begin{figure*}[t]
+\centering
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{assist2009_ord_item_params_3model.pdf}
+\\{\small (a) ASSISTments 2009 ($Q=3{,}910$)}
+\end{minipage}\hfill
+\begin{minipage}{0.48\textwidth}
+\centering
+\includegraphics[width=\linewidth]{assistments_item_params_3model.pdf}
+\\{\small (b) ASSISTments 2017 ($Q=772$)}
+\end{minipage}
+\caption{Per-item parameter geometry on the proxy-ordinal ASSISTments releases,
+which carry no ground truth. Each panel shows, across items, the density of the
+recovered discrimination (top) and of the recovered step difficulties (bottom) for
+three instantiations of the tracer, a gated-recurrent encoder, a memory encoder with
+a shared readout, and a memory encoder with a decoupled item pathway. The
+discrimination density is dispersed and heavy-tailed relative to the difficulty
+density, and the decoupled item pathway spreads it furthest, the geometry of the
+least stable coordinate.}
+\label{fig:assist}
+\end{figure*}
 
+%======================================================================================
 \section{Discussion}
-\label{sec:discussion}
+%======================================================================================
+\subsection{Two levers, one recommendation}
+The recovery deficit on the coordinate that multiplies ability has two causes, and
+each has its own lever. The scale coupling under a shared representation is a
+representational cause, and its lever is decoupling, a narrow value embedding for
+the encoder and a separate wide key for the item readouts. The low Fisher
+information of the ordinal discrimination is a curvature cause, and its lever is the
+state-conditioned head. The two are not the same knob, which the nominal response
+model proves by carrying the first without the second. The recommendation is
+therefore specific. Decouple the item representation always, because any slope on
+ability pays the shared-representation trade-off and a wide key clears it at no cost
+to ability whether or not the slope's Fisher information is low. State-condition
+only the parameter whose Fisher information is low, because the state-conditioned
+head rescues the ordinal discrimination and degrades the nominal slope, so it is a
+targeted fix and not a default.
 
-\subsection{Two Levers and a Practice Recommendation}
-\label{sec:two_levers}
-The study resolves into two levers with different scopes, and confusing them is the mistake to avoid. The representation lever, a decoupled embedding with a narrow ability input and a separate wide item key, governs the shared-capacity trade-off and, applied to the ability readout, restores the location split. It fires whenever a readout shares a representation with ability, whether or not that readout is low in information, and it is the robust one. The information lever, a state-conditioned discrimination head, helps a low-information parameter and can hurt one that is not. The nominal-model control is what keeps them apart, because on a slope that is not low in information the representation lever still fires while the information lever reverses.
+\subsection{What a trustworthy discrimination buys}
+The discrimination is the coordinate a reader is most tempted to act on, since it
+labels an item sharp or dull, and it is the coordinate this paper finds least
+trustworthy under prediction training. The levers matter because they make the label
+safer to read. A decoupled, state-conditioned discrimination is the one
+configuration that recovers the parameter against synthetic truth and holds its rank
+across learners on real data, which is the minimum an interpretable readout owes the
+instructor who reads it. The same estimate is what a downstream selection rule would
+consume, so a discrimination one can trust is not only a cleaner number but a better
+input to whatever the tracer feeds.
 
-For practice this yields two recommendations sized to the evidence. First, give a readout its own embedding when it shares a representation with ability, because any slope on ability pays the shared-width trade-off and a separate wide key clears it whether or not its information is low, and because separating the ability read from the item is what makes the item parameters identifiable in the first place. Second, treat a dynamic discrimination head as a targeted fix and not a default, because it revives the low-information discrimination channel but degrades a slope whose information is not low, and on the ability channel of real option-tracing data a static decoupled configuration is the reliability winner. The practical default is therefore a static decoupled configuration, with the dynamic head reserved for the discrimination channel where its information is low.
+\subsection{Boundaries}
+The account is sized to its evidence and we mark its edges. The synthetic results
+use eight seeds at a single number of categories, and the ordering law is per
+eigenmode, so below a discrimination of about one it can invert. The real-data leg
+is reliability and calibration rather than recovery against a truth that does not
+exist, and the nominal escape is coverage-contingent, reversing where items are seen
+only a handful of times. Two confirmations remain to be run and we state each
+plainly. A controlled ablation that holds Fisher information fixed while varying only
+whether a parameter enters multiplicatively or additively with ability would turn
+multiplicative entry from the best explanation into a demonstrated cause, and the
+nominal slope and intercept already give a natural version of that contrast. An
+oracle clamp that fixes the ability at its true value while the discrimination alone
+relaxes would isolate the rate claim from the co-learning of the ability, and a knob
+that varies the ability's Fisher information at fixed category count would pin the
+rate coefficient rather than only its form and sign.
 
-\subsection{Boundaries and Threats}
-\label{sec:boundaries}
-We keep the honest caveats on the record rather than hiding them, because several are load-bearing for how far the claims reach.
-
-The rate law is per eigenmode, not per parameter. The Fisher matrix has an off-diagonal coupling between discrimination and difficulty, so the slow eigenvector is discrimination-dominated only when the mean discrimination exceeds the crossover $a_\star \approx 1$, and below that value the ordering inverts and difficulty becomes the slower coordinate. We state the inversion and we plan to locate the crossover empirically.
-
-The equality of Gauss-Newton curvature and Fisher information holds only at a zero-residual, well-specified optimum. On misspecified real data the curvature and the information differ, and a residual gap need not vanish, so the statement that the rate penalty vanishes asymptotically is a within-model statement. On real data the evidence is reliability, and with the planned cross-calibration also calibration, rather than recovery against truth.
-
-The contraction shape $\exp(-T/\kappa)$ is a claim about form and sign, not a fitted coefficient. Over a category-count sweep the conditioning number and the category count move together, so the two cannot be told apart from a category sweep alone, and isolating the conditioning number needs a separate knob that varies the ability information at fixed category count, which we plan through an item-difficulty-spread sweep.
-
-The central open gap is the co-learned ability. The ability estimate is amortized and learned jointly with the readouts, so its effective rate is the Fisher rate attenuated by pooling variance, and the load-bearing object is the curvature restricted to the shared code, with the slow direction living in code space rather than on the bare discrimination axis. The oracle-clamp control, which fixes ability at its true value and recovers items only, is the check that bridges this gap, and it is part of the planned rebuild.
-
-Finally, the theory is classical in parts, drawing on natural-gradient learning and the spectral dynamics of learning \citep{amari_natural_1998, saxe_exact_2014}, and we sell it as a translation to knowledge tracing rather than as new psychometrics. The swappability claim is demonstrated on the swaps we ran and is being extended by the planned swap matrix, and no single architecture's trick is claimed to be encoder-generic.
-
+%======================================================================================
 \section{Conclusion}
-\label{sec:conclusion}
-Knowledge tracing models attach an item-response-theory readout so that a prediction can be read as an ability, a discrimination, and a difficulty, and the field has largely taken the readouts at face value. We treated their recovery as the object of study. Built as two swappable slots and trained by plain prediction loss with no variational machinery, the framework recovers its readouts on synthetic ground truth, but unevenly and in a stable order in which discrimination returns last. A local analysis explains the order as a finite-budget rate effect, in which the low-information direction relaxes slowly and closes only asymptotically, alongside a structural identifiability effect, in which coupling the ability readout to the item breaks the location split at every budget. Configuration is the lever. A decoupled embedding escapes the shared-capacity trade-off and restores the split, a state-conditioned head helps only a low-information parameter, and the nominal response model separates the two because its slope loads on ability but is not low in information. On real data the honest verdict is a static decoupled configuration, with the dynamic head a targeted fix and the decoupling benefit contingent on coverage. The design pattern that follows is to give a readout its own embedding when it shares a representation with ability, and to reserve state-conditioning for the channel whose information is low. The rigorous rebuild under one protocol, and the downstream adaptive-testing evaluation, are the steps that will turn this directional evidence into a measured result.
+%======================================================================================
+Prediction-trained knowledge tracing with an item response readout does recover
+interpretable parameters, but not alike. Ability and difficulty come back well
+across encoders and decoders, and the coefficient that multiplies ability comes back
+worst. Two mechanisms govern the gap, and keeping them apart is the paper's point. A
+multiplicative scale coupling under a shared representation makes any slope on
+ability compete with the ability for a finite pool of scale, and decoupling the item
+representation ends the competition. A low Fisher information makes the ordinal
+discrimination relax slowly, and a state-conditioned head speeds it. The nominal
+response model dissociates the two, since its slope is multiplicative but not low
+Fisher, so decoupling helps it and state conditioning hurts it. The practice follows
+without ambiguity. Decouple always, and state-condition only the parameter whose
+Fisher information is low.
 
-\appendix
-
-\section{GPCM and NRM Gradients and Fisher Information}
-\label{app:gradients}
-For the binary two-parameter-logistic case, with logit $z = \alpha(\theta - \beta)$, predicted probability $p = \sigma(z)$, and residual $r = p - y$, the loss gradients are those of Equation~\eqref{eqn:binary_grads}, $\partial_\theta L = r\alpha$, $\partial_\beta L = -r\alpha$, and $\partial_\alpha L = r(\theta - \beta)$. The per-coordinate Fisher information follows from Equation~\eqref{eqn:fisher_generic} with $\Sigma = w = p(1-p)$, giving $I(\theta) = I(\beta) = \alpha^2 w$ and $I(\alpha) = \mathbb{E}[w(\theta - \beta)^2]$. For the general GPCM the residual is the vector $r_k = p_k - y_k$, the ability gradient is $\alpha_i$ times the expected-score residual, and the threshold gradients are cumulative residuals, with the covariance $\Sigma = \mathrm{diag}(p) - pp^\top$ entering the information as the quadratic form of Equation~\eqref{eqn:fisher_generic}. For the NRM the gradients are those of Equation~\eqref{eqn:nrm_grads}, $\partial_{a_k} L = r_k \theta$ and $\partial_{c_k} L = r_k$, and the measured information ratio is $I(a_k)/I(c_k) \approx 0.90$ across seeds, reported as measured because $p(1-p)$ co-varies with $\theta$.
-
-\section{Gauge Handling}
-\label{app:gauge}
-The GPCM logit carries the affine gauge $(\theta, \beta) \mapsto (s\theta + c, s\beta + c)$ with $\alpha \mapsto \alpha/s$, two parameters fixed by one location and one scale normalization. Rank metrics need only sign alignment and are gauge-free. Level metrics fix the two-parameter affine gauge by a single global linear map from recovered to true values, never a per-item map, because a per-item map would absorb exactly the per-item location shifts that the identifiability failure of Claim~\ref{claim:coupling} produces. Under a coupled ability readout a global affine map cannot rescue the per-item flat directions, so degraded threshold rank recovery is itself the identifiability signature rather than a scaling artifact.
-
-\section{Precursor Synthetic Details}
-\label{app:magpcm}
-The precursor's synthetic protocol simulates static ability, discrete ability shifts, and continuous drift from a known GPCM, with abilities standard normal, discrimination log-normal with moderate spread, and ordered thresholds per item. The recovery order and the threshold collapse of Section~\ref{sec:swappable} hold across all three regimes and across item banks from two hundred to two thousand items, and they persist under right-skewed response distributions. At two categories the decoder reduces to a two-parameter-logistic head and the model recovers standard binary knowledge tracing, so the framework subsumes binary KT as a special case. A category-count sweep over three to six categories shows the recovery order unchanged, with discrimination the hardest parameter at every resolution and the threshold split between the coupled and separated variants widening as the resolution grows. The training objective is a weighted ordinal loss that penalizes far misclassifications more than near ones, a detail orthogonal to the recovery questions and held fixed throughout.
-
-\section{Reproducibility}
-\label{app:repro}
-The controlled study fixes $N=800$ learners, $Q=60$ items, and $K=4$ categories on a recurrent encoder, trained by prediction loss and read at a $150$-epoch operating point with at least eight seeds and $95\%$ confidence intervals. The planned rebuild separates data seeds from initialization seeds, uses paired comparisons with bootstrap confidence intervals, records per-cell configuration hashes and an environment manifest, and reports every experiment as one point in a single protocol. Item parameters are recovered post hoc from frozen weights, item-level estimates are averaged across encounters before scoring, and reliability is odd-even split-half with a Spearman-Brown correction, per parameter.
-
-\bibliographystyle{elsarticle-harv}
+\bibliographystyle{ACM-Reference-Format}
 \bibliography{ref}
 
 \end{document}
