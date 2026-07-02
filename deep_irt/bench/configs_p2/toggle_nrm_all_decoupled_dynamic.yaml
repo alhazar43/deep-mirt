@@ -1,7 +1,7 @@
-# bench_dkvmn_nrm.yaml -- Benchmark (fixed setup) dkvmn encoder x NRM decoder, static theta, realistic PRIMARY bed (Q=200, admin Uniform(40,80)).
+# toggle_nrm_all_decoupled_dynamic.yaml -- NRM toggle 10/10: all_decoupled (config 5) -- a_k and c_k each on their OWN wide item key; theta on the value; dynamic (state-conditioned) option readout.
 
-experiment: bench_dkvmn_nrm
-description: "Benchmark (fixed setup) dkvmn encoder x NRM decoder, static theta, realistic PRIMARY bed (Q=200, admin Uniform(40,80))."
+experiment: toggle_nrm_all_decoupled_dynamic
+description: "NRM toggle 10/10: all_decoupled (a_k and c_k each on their own wide item key, theta on the thin value), dynamic (state-conditioned) option readout."
 
 data:
   regime: realistic
@@ -18,12 +18,14 @@ data:
 
 model:
   engine: deep_irt
-  encoder: dkvmn
+  encoder: lstm
   decoder: nrm
   emb_dim: 8
   hidden_dim: 32
-  state_alpha: false
+  state_alpha: true
   state_beta: false
+  nrm_channel: all_decoupled
+  item_key_dim: 64
 
 train:
   optimizer: adam
@@ -42,5 +44,5 @@ eval:
 
 report:
   output_dir: outputs/p2
-  cell_name: bench_dkvmn_nrm
+  cell_name: toggle_nrm_all_decoupled_dynamic
   quick: false

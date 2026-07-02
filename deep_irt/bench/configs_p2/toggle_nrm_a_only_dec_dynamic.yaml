@@ -1,7 +1,7 @@
-# bench_dkvmn_nrm.yaml -- Benchmark (fixed setup) dkvmn encoder x NRM decoder, static theta, realistic PRIMARY bed (Q=200, admin Uniform(40,80)).
+# toggle_nrm_a_only_dec_dynamic.yaml -- NRM toggle 4/10: a_only_dec (config 2) -- a_k on its own wide item key; c_k on the thin value; dynamic (state-conditioned) option readout.
 
-experiment: bench_dkvmn_nrm
-description: "Benchmark (fixed setup) dkvmn encoder x NRM decoder, static theta, realistic PRIMARY bed (Q=200, admin Uniform(40,80))."
+experiment: toggle_nrm_a_only_dec_dynamic
+description: "NRM toggle 4/10: a_only_dec (a_k on its own wide item key, c_k on the thin value), dynamic (state-conditioned) option readout -- informative negative."
 
 data:
   regime: realistic
@@ -18,12 +18,14 @@ data:
 
 model:
   engine: deep_irt
-  encoder: dkvmn
+  encoder: lstm
   decoder: nrm
   emb_dim: 8
   hidden_dim: 32
-  state_alpha: false
+  state_alpha: true
   state_beta: false
+  nrm_channel: a_only_dec
+  item_key_dim: 64
 
 train:
   optimizer: adam
@@ -42,5 +44,5 @@ eval:
 
 report:
   output_dir: outputs/p2
-  cell_name: bench_dkvmn_nrm
+  cell_name: toggle_nrm_a_only_dec_dynamic
   quick: false

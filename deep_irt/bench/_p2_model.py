@@ -46,6 +46,7 @@ from torch import Tensor
 from deep_irt.core.model import DeepIRTModel
 from deep_irt.bench._p2_ordinal_ce import OrdinalCELoss
 from deep_irt.bench._p2_gpcm_alpha_key import build_alpha_key_decoder
+from deep_irt.bench._p2_nrm_channels import build_nrm_channel_decoder
 
 
 class _P2Model(DeepIRTModel):
@@ -59,14 +60,51 @@ class _P2Model(DeepIRTModel):
     All other parameters are forwarded verbatim to :class:`DeepIRTModel`.
     """
 
-    def __init__(self, *args, gpcm_loss: str = "ordinal_ce", **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        gpcm_loss: str = "ordinal_ce",
+        nrm_channel: Optional[str] = None,
+        nrm_dynamic: bool = False,
+        nrm_item_key_dim: Optional[int] = 64,
+        **kwargs,
+    ) -> None:
         if gpcm_loss not in ("ordinal_ce", "wol"):
             raise ValueError(
                 f"gpcm_loss must be 'ordinal_ce' or 'wol', got {gpcm_loss!r}"
             )
         # Set before super().__init__: the base constructor calls _build_loss_fn().
         self.gpcm_loss = gpcm_loss
+        # NRM channel routing state (None => the plain gpcm/binary/core-nrm path).
+        self._nrm_channel: Optional[str] = None
+        self._nrm_dynamic: bool = False
         super().__init__(*args, **kwargs)
+
+        # Route decoder == "nrm" through the channel-routing decoder (the 10
+        # toggle_nrm_* configs).  The core NRM decoder built by super().__init__
+        # is discarded here: the channel decoder owns its own wide-key tables so
+        # it can give a_k and c_k SEPARATE keys and gate each head's state-
+        # conditioning, which the core NRMDecoder cannot.  The x-mode (static vs
+        # dynamic option readout) rides ``nrm_dynamic`` -- the config's
+        # ``state_alpha`` -- because the core forbids state_alpha for NRM, so the
+        # engine neutralizes it before the base build and passes it here instead.
+        # ``nrm_channel is None`` (gpcm/binary/bt, or a core-nrm caller) is a
+        # no-op: the inherited decoder is untouched.
+        if self.decoder_name == "nrm" and nrm_channel is not None:
+            x_mode = "dynamic" if nrm_dynamic else "static"
+            key_dim = nrm_item_key_dim if nrm_item_key_dim is not None else 64
+            torch.manual_seed(self.seed)  # deterministic channel-decoder init
+            self.decoder = build_nrm_channel_decoder(
+                (nrm_channel, x_mode),
+                num_items=self.num_items,
+                emb_dim=self.emb_dim,
+                n_options=self.n_cats,
+                hidden_dim=self.hidden_dim,
+                item_key_dim=key_dim,
+                correct_option=self.correct_option,
+            ).to(self.device)
+            self._nrm_channel = nrm_channel
+            self._nrm_dynamic = bool(nrm_dynamic)
 
     # ------------------------------------------------------------------
     # Loss: proper GPCM ordinal CE (2PL BCE and NRM softmax CE unchanged)
@@ -89,6 +127,57 @@ class _P2Model(DeepIRTModel):
         if self.decoder_name == "gpcm" and gpcm_loss == "ordinal_ce":
             return OrdinalCELoss(reduction="mean").to(self.device)
         return super()._build_loss_fn(responses, mask)
+
+    # ------------------------------------------------------------------
+    # Training forward: route NRM through the channel decoder's own surface
+    # ------------------------------------------------------------------
+
+    def _compute_loss(
+        self,
+        item_ids: Tensor,
+        responses: Tensor,
+        mask: Optional[Tensor] = None,
+    ) -> Tensor:
+        """Prediction loss.  For the NRM channel path (which needs item ids and a
+        (B, T) forward, not the core's flattened emb-only surface) drive the
+        channel decoder directly; every other decoder defers to the base."""
+        if self._nrm_channel is not None:
+            return self._nrm_channel_loss(item_ids, responses, mask)
+        return super()._compute_loss(item_ids, responses, mask)
+
+    def _nrm_channel_loss(
+        self,
+        item_ids: Tensor,
+        responses: Tensor,
+        mask: Optional[Tensor] = None,
+    ) -> Tensor:
+        """Plain-CE prediction loss on the NRM channel decoder's logits.
+
+        The channel decoder reads its per-option a_k/c_k readouts from the item
+        ids (it owns the wide-key tables), so it takes the (B, T) item ids and
+        the encoder's item value + the prediction-aligned state directly.  Static
+        couplings pass ``state=None``; dynamic couplings pass the aligned state
+        (the same single-shift hidden the theta is read from).  Logits are scored
+        by ``self.loss_fn`` (the NRM plain-CE built by the base loss factory) over
+        the valid positions only.
+        """
+        item_val = self.encoder.item_val_emb(item_ids)              # (B, T, emb)
+        if self._nrm_dynamic:
+            theta_in, state_in = self.encoder.aligned_theta_and_state(
+                item_ids, responses
+            )
+        else:
+            theta_in = self.encoder.theta_for_prediction(item_ids, responses)
+            state_in = None
+        logits = self.decoder(theta_in, item_val, item_ids, state=state_in)  # (B,T,K)
+        B, T, K = logits.shape
+        logits_flat = logits.reshape(B * T, K)
+        resp_flat = responses.reshape(B * T)
+        if mask is not None:
+            m = mask.reshape(B * T).bool()
+            logits_flat = logits_flat[m]
+            resp_flat = resp_flat[m]
+        return self.loss_fn(logits_flat, resp_flat)
 
     # ------------------------------------------------------------------
     # Decoder: Option A alpha-key routing for the decoupled GPCM/2PL arms
@@ -160,6 +249,17 @@ class _P2Model(DeepIRTModel):
         the GPCM alpha-key which the base would have accepted).  Every other case
         (shared static, any dynamic head, bt/nrm) defers to the parent unchanged.
         """
+        # NRM channel path: recover per-option a_k / c_k from the channel decoder
+        # (which owns the wide-key tables), keyed by item id.  Static couplings
+        # ignore the sequences (direct id lookup); dynamic couplings occurrence-
+        # average the state-conditioned readout over the training sequences, so
+        # the (N, T) item_ids/responses are required (passed by the runner).
+        if self._nrm_channel is not None:
+            rec = self.decoder.recover_item_params(
+                self.encoder, item_ids, responses, self.device
+            )
+            return {"alpha": rec["a"], "intercept": rec["c"], "seen": rec["seen"]}
+
         if (not self._uses_state and self.item_key_dim is not None
                 and self.decoder_name in ("gpcm", "binary")):
             enc = self._get_encoder(use_extended)

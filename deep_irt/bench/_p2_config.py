@@ -83,6 +83,14 @@ class ModelConfig:
     state_alpha: bool = False       # dynamic discrimination head (E-levers)
     state_beta: bool = False        # dynamic threshold head
     item_key_dim: Optional[int] = None  # decoupled item key width (E2b)
+    # NRM channel routing (decoder == "nrm" only; the 10 toggle_nrm_* configs).
+    # One of _p2_nrm_channels.COUPLINGS: "shared" | "a_only_dec" | "c_only_dec" |
+    # "decoupled" | "all_decoupled".  Selects which per-option NRM readout (a_k,
+    # c_k) rides its own wide item key vs the thin value embedding.  For NRM the
+    # x-mode (static vs dynamic/state-conditioned option readout) rides the
+    # ``state_alpha`` flag above, so no separate field is needed.  Inert for the
+    # gpcm/binary/bt decoders.
+    nrm_channel: str = "shared"
     # ma_irt engine extra kwargs (ignored when engine == "deep_irt")
     ma_irt_kwargs: Dict[str, Any] = field(default_factory=dict)
     # E2(a) coupling flag: whether the theta stream is item-conditioned

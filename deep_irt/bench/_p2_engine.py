@@ -49,9 +49,27 @@ class _P2Engine(DeepIRTEngine):
     """
 
     def __init__(self, ds, gpcm_loss: str = "ordinal_ce",
-                 inner_val_frac: float = 0.15, **kwargs) -> None:
+                 inner_val_frac: float = 0.15,
+                 nrm_channel: str = "shared", **kwargs) -> None:
         self.gpcm_loss = gpcm_loss
         self.inner_val_frac = float(inner_val_frac)
+
+        # NRM channel routing.  For decoder == "nrm" the x-mode (static vs
+        # dynamic option readout) rides the config's ``state_alpha``, but the core
+        # DeepIRTModel FORBIDS state_alpha on NRM (it is a gpcm/binary head).  So
+        # capture the x-mode here, neutralize ``state_alpha`` before the base
+        # build, and hand the channel decoder its OWN wide key (item_key_dim=None
+        # to the core, so the encoder builds no dead key table -- the channel
+        # decoder owns the wide-key tables).  The real key width is threaded to
+        # the channel-decoder factory via ``nrm_item_key_dim``.
+        is_nrm = kwargs.get("decoder", "gpcm") == "nrm"
+        nrm_dynamic = False
+        nrm_item_key_dim = kwargs.get("item_key_dim", None)
+        if is_nrm:
+            nrm_dynamic = bool(kwargs.get("state_alpha", False))
+            kwargs["state_alpha"] = False
+            kwargs["item_key_dim"] = None
+
         # Let the base engine set up labels/attrs and build a DeepIRTModel...
         super().__init__(ds=ds, **kwargs)
         # ...then rebuild the model as _P2Model with the SAME resolved config.
@@ -76,8 +94,14 @@ class _P2Engine(DeepIRTEngine):
             device=self.device,
             seed=self.seed,
             gpcm_loss=self.gpcm_loss,
+            nrm_channel=(nrm_channel if is_nrm else None),
+            nrm_dynamic=nrm_dynamic,
+            nrm_item_key_dim=nrm_item_key_dim,
         )
         self.label = self.label.replace("deep_irt-", "p2-", 1)
+        # Channel-mode markers for predict/recover routing on the engine.
+        self._nrm_channel = nrm_channel if is_nrm else None
+        self._nrm_dynamic = nrm_dynamic
 
     # ------------------------------------------------------------------
     # Per-sequence validity mask (variable-length leg; None on the clean bed)
@@ -168,6 +192,9 @@ class _P2Engine(DeepIRTEngine):
         mask) every position is valid, so the selection is exactly the base
         ``[:, T-h:]`` tail.
         """
+        if self._nrm_channel is not None:
+            return self._predict_heldout_nrm_channel()
+
         K = self.ds.cfg.n_cats
         T = self.ds.cfg.seq_len
         h = self.ds.cfg.n_holdout
@@ -211,6 +238,47 @@ class _P2Engine(DeepIRTEngine):
         csum = torch.cumsum(valid.long(), dim=1)                   # 1-based valid rank
         L = csum[:, -1:]                                           # (B,1) valid length
         score = valid & (csum > (L - h))                          # (B,T) bool
+
+        probs_tail = probs_full[score].reshape(-1, K).cpu().numpy()
+        targ_tail = rp[score].reshape(-1).cpu().numpy()
+        return probs_tail, targ_tail
+
+    # ------------------------------------------------------------------
+    # Predict for the NRM channel decoder (its own (B, T) forward surface)
+    # ------------------------------------------------------------------
+
+    @torch.no_grad()
+    def _predict_heldout_nrm_channel(self):
+        """probs (M, K), targets (M,) via the channel decoder's (B, T) forward.
+
+        The channel decoder reads a_k/c_k from the item ids and returns the full
+        (B, T, K) option logits in one call, so there is no per-step loop.  Static
+        couplings pass ``state=None``; dynamic couplings pass the aligned state.
+        The same last-``n_holdout``-VALID selection as the GPCM path is applied.
+        """
+        K = self.ds.cfg.n_cats
+        h = self.ds.cfg.n_holdout
+        it, rp = self._tensor(self.ds.val_idx)
+        it = it.to(self.device); rp = rp.to(self.device)
+
+        item_val = self.model.encoder.item_val_emb(it)             # (B,T,emb)
+        if self._nrm_dynamic:
+            theta_in, state_in = self.model.encoder.aligned_theta_and_state(it, rp)
+        else:
+            theta_in = self.model.encoder.theta_for_prediction(it, rp)
+            state_in = None
+        logits = self.model.decoder(theta_in, item_val, it, state=state_in)  # (B,T,K)
+        probs_full = torch.softmax(logits, dim=-1)                 # (B,T,K)
+        self._infer_probs = probs_full
+
+        seq_mask = self._seq_mask()
+        if seq_mask is None:
+            valid = torch.ones(it.shape, dtype=torch.bool, device=self.device)
+        else:
+            valid = seq_mask[self.ds.val_idx].to(self.device)      # (B,T)
+        csum = torch.cumsum(valid.long(), dim=1)
+        L = csum[:, -1:]
+        score = valid & (csum > (L - h))
 
         probs_tail = probs_full[score].reshape(-1, K).cpu().numpy()
         targ_tail = rp[score].reshape(-1).cpu().numpy()

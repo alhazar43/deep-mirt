@@ -28,7 +28,7 @@ model:
 
 train:
   optimizer: adam
-  n_epochs: 120
+  n_epochs: 150
   lr: 0.01
   grad_clip_norm: 5.0
   early_stop_patience: 10
