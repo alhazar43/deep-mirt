@@ -61,3 +61,6 @@ fix = decoupling: 2PL/GPCM discrimination on its own item key (Option A); NRM fi
 - KDD Cup 2010 Algebra 2008-2009: on disk (`data/kdd/algebra_2008_2009_train.txt`).
 - ASSISTments: NOT on disk (its 2PL cells did not run).
 - SLAM / Duolingo: not obtained, gated behind a Dataverse guestbook (doi 10.7910/DVN/8SWHNO).
+
+## Negative results (recorded dead-ends)
+- Two-stage alpha (NO_FIX): a two-stage fit (neural theta, then per-item MLE for discrimination) does NOT beat end-to-end training for discrimination recovery. Documented dead-end; the per-item MLE oracle itself is captured separately. (Scratch `_two_stage_alpha.py` kept on disk.)

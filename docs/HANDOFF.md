@@ -91,7 +91,10 @@ None of the current writeups meet the standard; treat them as raw material, not 
   `export PYTHONPATH=".;rl/src;ma-irt"` (Windows `;`) and `export KMP_DUPLICATE_LIB_OK=TRUE`.
   Tests `python -m pytest deep_irt/tests/`. CUDA is one RTX 4060 Laptop 8 GB (runs sequential).
 - **Codex boundary.** Do NOT edit `deep_irt/core/*`, `bench/run_*.py`, `datagen.py`,
-  `engines.py`, existing `_ednet_ot*.py`. Extend in new `_`-prefixed gitignored scratch.
+  `engines.py`, existing `_ednet_ot*.py`. Extend in new `_`-prefixed gitignored scratch. Codex
+  also maintains an ACTIVE learning-dynamics study (`docs/learning_dynamics_*.md`,
+  `LEARNING_DYNAMICS_STUDY.md`, `deep_irt/slam_extend/`, `_wf*`/`_g*`/`_legb*`/`_stage_minus1_*`
+  scratch), relevant to this paper's evidence, do NOT touch or prune it.
 - **Execution discipline.** Long runs go in a harness-tracked background job that writes full
   results to JSON; agents return SHORT summaries (<600 words), never per-cell log dumps (they
   crash on the 32k output limit). Single GPU, sequential.
@@ -118,6 +121,7 @@ None of the current writeups meet the standard; treat them as raw material, not 
 - Paper: `docs/paper_plan.md`, `docs/theory_memo.md`, `docs/experiment_blueprint.md`,
   `docs/experiment_results.md`, `docs/paper_workflow.md`.
 - Framework API: `deep_irt/README.md`.
-- SUPERSEDED, do not treat as current: `docs/paper2.tex` / `.pdf`,
-  `docs/LEARNING_DYNAMICS_STUDY.md`, `docs/learning_dynamics_*.md` (predate the current paper and
-  the overnight results; salvageable material only).
+- ARCHIVED (abandoned, preserved local-only at `docs/archive/paper2/`, gitignored): the paper2
+  manuscript + figs, superseded by the current paper; salvageable material only.
+- CODEX-owned ACTIVE thread (do NOT prune): the learning-dynamics study, see the Codex boundary
+  in section 6.
