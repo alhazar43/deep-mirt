@@ -67,24 +67,30 @@ NOT DONE (the load-bearing controls from the blueprint, needed before the paper 
 - The a_star / eigenmode-inversion check (below discrimination ~1 the recovery order inverts).
 - ASSISTments cells (raw data absent on disk; only EdNet + KDD ran).
 
-## 4. State of the writing (needs a major rework)
+## 4. State of the writing (major rework needed; paper now lives on GitHub)
 None of the current writeups meet the standard; treat them as raw material, not drafts.
-- `overleaf-sync/main.tex` (acmart sigconf, a local stand-in for JEDM's acmtrans; the "Not All
-  Parameters" draft) is agent-written and below standard; rework on the real results.
-- `overleaf-sync/main_magpcm_ijaied.tex` is the archived MA-GPCM (IJAIED) paper. SALVAGE its
-  recovery-benchmark methodology, metrics, and architecture diagram for scope (a); it is also
-  the prose REGISTER exemplar. Do not discard.
+- **The paper's home is `github.com/alhazar43/JEDM-paper`** (pushed from the `overleaf-sync`
+  submodule, which now has a `jedm` remote). `main.tex` = the active "Not All Parameters" draft
+  (acmart sigconf, a stand-in for JEDM's acmtrans), agent-written and below standard, rework on
+  the real results. `main.tex` `\input`s `fig_architecture.tex` and uses `ref.bib`; figures in
+  `figures/`. Push with `git -C overleaf-sync push jedm HEAD:main`, or clone JEDM-paper directly.
+- `old/main_magpcm_ijaied.tex` (in JEDM-paper) = the archived MA-GPCM/IJAIED paper with its
+  elsarticle bst + title_page + a do-not-edit README. SALVAGE its recovery-benchmark methodology
+  and architecture diagram for scope (a); it is the prose REGISTER exemplar.
+- **Overleaf's git endpoint `git.overleaf.com` is UNREACHABLE from this environment** (TCP
+  connection timeout, NOT a 403; `www.overleaf.com` and GitHub are reachable). Sync goes through
+  the JEDM-paper GitHub repo; to reach Overleaf, link that repo to the Overleaf project via
+  Overleaf's GitHub sync (web side, the user does it).
 - `docs/slides/workshop.tex` (XeLaTeX, Twente SimplePlusAIC theme) is the deck the paper grew
   from; salvage its structure, not its stale headline.
-- Overleaf push is BLOCKED (403, account-wide; see docs/paper_workflow.md); build locally.
-  GitHub backup of the draft source: `docs/paper_not_all_params_draft.tex`.
 
 ## 5. Immediate next steps
 1. Run the missing blueprint controls, ablation first (it is what makes multiplicativity
    necessary), then the budget sweep, oracle-clamp, a_star.
 2. Major rework of the paper prose on the real results, deck-anchored, tight (a)+(b), register
    matched to `main_magpcm_ijaied.tex`.
-3. Resolve Overleaf (403) or keep local; fetch ASSISTments if its cells are wanted.
+3. Edit the paper on `github.com/alhazar43/JEDM-paper` (Overleaf git is unreachable from here);
+   the user links it to Overleaf via GitHub sync. Fetch ASSISTments if its cells are wanted.
 
 ## 6. Operating conventions (carry over)
 - **Env.** `source ~/anaconda3/etc/profile.d/conda.sh && conda activate research`, then
@@ -121,7 +127,12 @@ None of the current writeups meet the standard; treat them as raw material, not 
 - Paper: `docs/paper_plan.md`, `docs/theory_memo.md`, `docs/experiment_blueprint.md`,
   `docs/experiment_results.md`, `docs/paper_workflow.md`.
 - Framework API: `deep_irt/README.md`.
-- ARCHIVED (abandoned, preserved local-only at `docs/archive/paper2/`, gitignored): the paper2
-  manuscript + figs, superseded by the current paper; salvageable material only.
+- ARCHIVED (abandoned, preserved local-only under `docs/archive/`, gitignored): the **paper2**
+  manuscript (`docs/archive/paper2/`) and the **abandoned Chapter-1 "anchoring" paper**
+  (`docs/archive/anchoring/`; the user judged it naive / "established nothing", so its data trees
+  were removed too). Both superseded, salvage material only, do NOT revive as active work.
 - CODEX-owned ACTIVE thread (do NOT prune): the learning-dynamics study, see the Codex boundary
   in section 6.
+- Repo cleaned 2026-07-02: dead experiment trees + scratch removed, `.git` slimmed 1.9 GB -> 57 MB
+  (orphaned `deep-gpcm` submodule cache purged), `.gitmodules` trimmed to the 3 live submodules
+  (ma-irt, overleaf-sync, docs/slides). Purged the deprecated `coupled_theta` code cluster.
