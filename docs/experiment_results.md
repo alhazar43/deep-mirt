@@ -55,3 +55,9 @@ fix = decoupling: 2PL/GPCM discrimination on its own item key (Option A); NRM fi
 | kdd_2pl_fix | kdd | 2pl | fix | 0.786 | 0.826 | 0.831 | 0.381 | 0.822 | - |
 | kdd_gpcm_shared | kdd | gpcm | shared | 0.714 | 0.884 | 0.816 | 0.400 | 0.823 | - |
 | kdd_gpcm_fix | kdd | gpcm | fix | 0.786 | 0.886 | 0.824 | 0.425 | 0.839 | - |
+
+## Data availability
+- EdNet-KT1: on disk (`EdNet-KT1/KT1/` per-user CSVs + `EdNet-Contents/contents/questions.csv` answer key).
+- KDD Cup 2010 Algebra 2008-2009: on disk (`data/kdd/algebra_2008_2009_train.txt`).
+- ASSISTments: NOT on disk (its 2PL cells did not run).
+- SLAM / Duolingo: not obtained, gated behind a Dataverse guestbook (doi 10.7910/DVN/8SWHNO).
