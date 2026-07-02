@@ -196,3 +196,6 @@ deep_irt/bench/_*.py
 /learning_dynamics_guidelines_neural_irt.md
 /read_reframe_neural_kt_irt.md
 
+
+# Root training outputs (regenerable)
+/outputs/
