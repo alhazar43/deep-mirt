@@ -1,8 +1,8 @@
 """_p2_nrm_channels.py -- Canonical NRM channel-routing for ALL 10 Phase-2 configs.
 
-Promotes the selective-decoupling routing that lived in scratch probes
-(``_nrm_repr.py``: shared / decoupled-one-key / all-decoupled-separate-keys;
-``_nrm_asym.py``: a-only / c-only) into ONE importable, self-contained module.
+Consolidates the selective-decoupling NRM routing (the shared / one-key /
+separate-keys and the a-only / c-only variants) into ONE importable,
+self-contained module.
 Core ``NRMDecoder`` offers only shared-vs-both-on-one-key; this module owns the
 wide-key tables so it can give a_k and c_k SEPARATE keys, and gate each head's
 state-conditioning independently.

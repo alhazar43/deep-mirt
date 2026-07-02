@@ -93,9 +93,6 @@ class ModelConfig:
     nrm_channel: str = "shared"
     # ma_irt engine extra kwargs (ignored when engine == "deep_irt")
     ma_irt_kwargs: Dict[str, Any] = field(default_factory=dict)
-    # E2(a) coupling flag: whether the theta stream is item-conditioned
-    # (sets separate_theta=False in MaIrtEngine; see _p2_coupled_theta.py)
-    coupled_theta: bool = False
 
 
 @dataclass

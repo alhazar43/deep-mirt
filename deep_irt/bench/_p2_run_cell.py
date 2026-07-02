@@ -180,13 +180,12 @@ def _build_engine(cfg: P2Config, ds, init_seed: int, device: str):
             nrm_channel=mc.nrm_channel,
         )
     if mc.engine == "ma_irt":
-        separate_theta = not mc.coupled_theta
         return MaIrtEngine(
             ds=ds,
             encoder=mc.encoder,
             device=device,
             seed=init_seed,
-            separate_theta=separate_theta,
+            separate_theta=True,
             **mc.ma_irt_kwargs,
         )
     raise ValueError(f"unknown engine: {mc.engine!r}")
@@ -429,7 +428,7 @@ def run_one(cfg: P2Config, data_seed: int, init_seed: int,
     """One fit-recover-score cycle on the dataset's own train/val split.
 
     Retained for callers that want a single non-CV row (the ``run_one()`` schema
-    referenced by ``_p2_oracle`` / ``_p2_coupled_theta``).  ``run_cell`` uses the
+    referenced by ``_p2_oracle``).  ``run_cell`` uses the
     5-fold CV path below.
     """
     _set_seeds(data_seed, init_seed)
