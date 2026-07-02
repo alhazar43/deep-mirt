@@ -1,0 +1,41 @@
+======================================================================
+STRICT-FORMAT-BLIND RQ1: BINARY-vs-NRM TRANSFER (ma-irt encoder)
+One shared item scale read by a 2PL head and an item-only NRM head?
+======================================================================
+
+DESIGN (real EdNet, interleaved per-learner sequences)
+  Items (4-option, kept):  3744
+  BINARY-ONLY items:       1248  (2PL view only)
+  NRM-ONLY items:          1248  (chosen-option view only)
+  BOTH (bridge) items:     1248  (seen by both heads)
+  Learners:                3000
+  Options K:               4   correct option index: 0 (remapped)
+
+REFERENCE = FULL-INFORMATION fit (every item BOTH; no synthetic truth)
+
+OVERALL
+  Joint d_i vs full-info (all items):   0.7660
+
+CROSS-FORMAT TRANSFER  (held-out-format placement)
+
+  [A] NRM-ONLY items  (NRM head shaped d_i; read on the 2PL/full scale)
+      = NRM -> 2PL direction (softer side expected)
+      Joint:                0.5940   <-- cross-format
+      Indep 2PL (noise):    0.0508   (never saw them)
+      Transfer gap:         +0.5432
+
+  [B] BINARY-ONLY items  (2PL head shaped d_i; read as NRM location)
+      = binary -> NRM direction (stronger side expected)
+      Joint:                0.8652   <-- cross-format
+      Indep NRM (noise):    0.0487   (never saw them)
+      Transfer gap:         +0.8165
+
+SANITY (each indep model on its OWN items vs full-info)
+  Indep 2PL on BINARY-ONLY:  0.8455
+  Indep NRM on NRM-ONLY:     0.6726
+  Joint on BOTH bridge:      0.8715
+
+VERDICT
+  PASS. The shared ma-irt scale unifies binary and nominal on REAL data. NRM-only items land on the 2PL scale (rho=0.594 vs noise 0.051), binary-only items land on the NRM location scale (rho=0.865 vs noise 0.049). Both materially above the independent-baseline noise floor.
+
+======================================================================

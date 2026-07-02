@@ -1,0 +1,92 @@
+==============================================================================
+RQ4/RQ5 EdNet SEPARABILITY -- ma-irt ENGINE REPLICATION
+(engine = LSTMGPCM, separate_theta=True; anchored readout + analysis UNCHANGED)
+==============================================================================
+
+DESIGN
+  Engine        : ma-irt LSTMGPCM (key=64, d_model=64, value=64, separate_theta=True)
+  Decoder       : K=4 GPCM (alpha state-conditioned, beta item-only)
+  Alpha readout : canonical_item_only (frozen per-item discrimination)
+  Joint fit     : 2813 learners, 12261 items, 60 epochs, batch 128, lr 0.01
+  Final NLL     : 0.7190   (train 24.2s)
+  Anchored read : fix ma-irt per-item (a=mean alpha over occurrences, b=item-only threshold); per-part theta by MAP (N(0,1.0^2))
+  Sections      : LISTENING = parts 1-4,  READING = parts 5-7
+
+------------------------------------------------------------------------------
+ANCHORED PER-PART SPLIT-HALF RELIABILITY (Spearman-Brown)
+------------------------------------------------------------------------------
+  part 1 (listening): reliability=0.825  (prior substrate 0.797)  r_half=0.702  n=1210
+  part 2 (listening): reliability=0.849  (prior substrate 0.820)  r_half=0.738  n=2567
+  part 3 (listening): reliability=0.901  (prior substrate 0.875)  r_half=0.820  n=874
+  part 4 (listening): reliability=0.862  (prior substrate 0.796)  r_half=0.757  n=1269
+  part 5 (reading  ): reliability=0.894  (prior substrate 0.855)  r_half=0.808  n=2761
+  part 6 (reading  ): reliability=0.891  (prior substrate 0.801)  r_half=0.803  n=1451
+  part 7 (reading  ): reliability=0.880  (prior substrate 0.798)  r_half=0.785  n=1161
+
+==============================================================================
+HEADLINE COMPARISON -- ma-irt (this run) vs prior SUBSTRATE
+(both anchored fixed-parameter readout; own-ceiling disattenuation)
+==============================================================================
+
+  metric                                   substrate    ma-irt     delta
+  ----------------------------------------------------------------------
+  RQ4 cross-part disattenuated consistency    0.722      0.635    -0.088
+  RQ5b separability index (person share)      0.583      0.547    -0.036
+  RQ5b person x part interaction share        0.410      0.451    +0.040
+  RQ5b part main-effect share                 0.006      0.002    -0.004
+  RQ4 gradient within-section (corrected)     0.790      0.698    -0.092
+  RQ4 gradient cross-section  (corrected)     0.672      0.587    -0.085
+  ----------------------------------------------------------------------
+  prior substrate balanced grid : 373 persons x 5 parts [1, 2, 3, 5, 6]
+  ma-irt   balanced grid : 373 persons x 5 parts [1, 2, 3, 5, 6]
+
+------------------------------------------------------------------------------
+ma-irt ENCODER READOUT vs ANCHORED READOUT (does anchoring still help?)
+------------------------------------------------------------------------------
+  metric                                   encoder    anchored    delta
+  ----------------------------------------------------------------------
+  RQ4 disattenuated consistency (own ceil)    0.403      0.635    +0.232
+  RQ4 raw mean cross-part pearson             0.287      0.554    +0.267
+  RQ5b separability index                     0.289      0.547    +0.258
+
+------------------------------------------------------------------------------
+RQ4 ANCHORED CROSS-PART ALIGNMENT (per pair, ma-irt)
+------------------------------------------------------------------------------
+  pair        n     pearson  ceiling  corrected   section
+  P1-P2     842   +0.663   0.837    +0.792    within
+  P1-P3     572   +0.447   0.862    +0.519    within
+  P1-P4     467   +0.441   0.843    +0.523    within
+  P1-P5     947   +0.481   0.859    +0.560    CROSS
+  P1-P6     547   +0.438   0.857    +0.510    CROSS
+  P1-P7     302   +0.420   0.852    +0.493    CROSS
+  P2-P3     669   +0.582   0.875    +0.665    within
+  P2-P4     567   +0.530   0.855    +0.620    within
+  P2-P5    2410   +0.614   0.871    +0.705    CROSS
+  P2-P6     642   +0.557   0.870    +0.641    CROSS
+  P2-P7     361   +0.482   0.864    +0.557    CROSS
+  P3-P4     506   +0.771   0.881    +0.875    within
+  P3-P5     707   +0.515   0.898    +0.574    CROSS
+  P3-P6     516   +0.542   0.896    +0.604    CROSS
+  P3-P7     332   +0.553   0.890    +0.621    CROSS
+  P4-P5     611   +0.500   0.878    +0.570    CROSS
+  P4-P6     452   +0.497   0.876    +0.567    CROSS
+  P4-P7     310   +0.560   0.871    +0.644    CROSS
+  P5-P6     769   +0.712   0.893    +0.798    within
+  P5-P7     417   +0.593   0.887    +0.668    within
+  P6-P7     362   +0.728   0.885    +0.823    within
+
+  within-section corrected mean = 0.698  (n=9)
+  cross-section  corrected mean = 0.587  (n=12)
+  gradient gap (within-cross, raw) = +0.094  holds = True
+  DISATTENUATED person-consistency (mean corrected over pairs) = 0.635
+
+==============================================================================
+VERDICT (PI 'investigate then continue' rule)
+==============================================================================
+  RQ4 cross-part consistency: DEGRADE  (ma-irt 0.635 vs substrate 0.722, delta -0.088)
+  RQ5b separability index: AGREE  (ma-irt 0.547 vs substrate 0.583, delta -0.036)
+  RQ5b interaction share: AGREE  (ma-irt 0.451 vs substrate 0.410, delta +0.040)
+  RQ4 construct-distance gradient: within 0.698 > cross 0.587 (gap +0.111; substrate gap +0.118) -> HOLDS
+  ANCHORING TIE-IN: on ma-irt the anchored readout still RAISES cross-part consistency over the encoder (0.635 vs 0.403, +0.232) -- the identifiability mechanism does double duty on the better engine too.
+
+==============================================================================
