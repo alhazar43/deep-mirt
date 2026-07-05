@@ -1,0 +1,56 @@
+# _width_2pl_base.yaml -- BASE config for the 2PL arm of the width sweep.
+#
+# Same realistic bed as the GPCM base but the binary (2PL, K=2) decoder: one
+# slope + one difficulty threshold per item.  The driver overrides model.emb_dim
+# per shared-width arm and sets model.item_key_dim=64 for the decoupled point
+# (routes the STATIC slope to the wide item key via _p2_gpcm_alpha_key's
+# Binary2PLAlphaKeyDecoder).  Mirrors bench_lstm_2pl.yaml.
+#
+# report.cell_name / output_dir are placeholders; the driver rewrites them.
+# Scratch file: `_`-prefixed, gitignored.
+
+experiment: width_2pl_base
+description: "2PL width-sweep base (realistic bed); driver overrides emb_dim / item_key_dim per arm."
+
+data:
+  regime: realistic
+  kind: static
+  n_learners: 2000
+  n_items: 200
+  seq_len: 80
+  n_cats: 2
+  n_holdout: 10
+  admin_min: 40
+  admin_max: 80
+  popularity: uniform
+  alpha_sigma: 0.5
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: binary
+  emb_dim: 8            # OVERRIDDEN per arm by the driver (shared width sweep)
+  hidden_dim: 32
+  state_alpha: false    # static readout, NO state-conditioning
+  state_beta: false
+  # item_key_dim: unset (shared arm); driver sets 64 for the decoupled point
+
+train:
+  optimizer: adam
+  n_epochs: 150
+  lr: 0.01
+  grad_clip_norm: 5.0
+  early_stop_patience: 10
+
+eval:
+  n_data_seeds: 5
+  n_init_seeds: 3
+  n_folds: 5
+  n_bootstrap: 2000
+  gauge: affine
+  paired_test: wilcoxon
+
+report:
+  output_dir: outputs/p2_width
+  cell_name: width_2pl_base
+  quick: false

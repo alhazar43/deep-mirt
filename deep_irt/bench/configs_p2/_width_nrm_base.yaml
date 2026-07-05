@@ -1,0 +1,59 @@
+# _width_nrm_base.yaml -- BASE config for the NRM arm of the width sweep.
+#
+# Same realistic bed as the GPCM base but the Bock NRM decoder: per-option slope
+# a_k (MULTIPLIES theta -> should trade off with ability as width grows) and
+# per-option intercept c_k (ADDITIVE -> should stay flat).  The driver overrides
+# model.emb_dim per shared-width arm (nrm_channel=shared: a_k, c_k, theta all on
+# the thin value embedding) and, for the decoupled point, sets
+# nrm_channel=decoupled + model.item_key_dim=64 (a_k and c_k share one wide item
+# key; theta stays on the thin value).  Mirrors toggle_nrm_shared_static.yaml.
+#
+# report.cell_name / output_dir are placeholders; the driver rewrites them.
+# gauge=none: NRM scoring mean-centers a_k / c_k (Bock) and aligns sign itself.
+# Scratch file: `_`-prefixed, gitignored.
+
+experiment: width_nrm_base
+description: "NRM width-sweep base (realistic bed); driver overrides emb_dim / nrm_channel / item_key_dim per arm."
+
+data:
+  regime: realistic
+  kind: static
+  n_learners: 2000
+  n_items: 200
+  seq_len: 80
+  n_cats: 4
+  n_holdout: 10
+  admin_min: 40
+  admin_max: 80
+  popularity: uniform
+  alpha_sigma: 0.5
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: nrm
+  emb_dim: 8            # OVERRIDDEN per arm by the driver (shared width sweep)
+  hidden_dim: 32
+  state_alpha: false    # static option readout, NO state-conditioning
+  state_beta: false
+  nrm_channel: shared   # driver switches to "decoupled" for the escape point
+
+train:
+  optimizer: adam
+  n_epochs: 150
+  lr: 0.01
+  grad_clip_norm: 5.0
+  early_stop_patience: 10
+
+eval:
+  n_data_seeds: 5
+  n_init_seeds: 3
+  n_folds: 5
+  n_bootstrap: 2000
+  gauge: none
+  paired_test: wilcoxon
+
+report:
+  output_dir: outputs/p2_width
+  cell_name: width_nrm_base
+  quick: false

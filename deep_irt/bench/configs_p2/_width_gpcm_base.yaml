@@ -1,0 +1,58 @@
+# _width_gpcm_base.yaml -- BASE config for the GPCM arm of the width sweep.
+#
+# The width-sweep DRIVER (_p2_width_sweep.py) loads this base and overrides
+# model.emb_dim (the shared item-embedding WIDTH) per arm, and for the decoupled
+# escape point sets model.item_key_dim (the separate wide item KEY).  Everything
+# else -- the realistic PRIMARY bed (Q=200, N=2000, admin Uniform(40,80)), the
+# 150-epoch ordinal-CE fit, 5 data seeds x 5 folds -- matches the paper's toggle
+# cells (toggle_gpcm_shared_static.yaml) so the sweep sits on the same bed.
+#
+# report.cell_name / output_dir are placeholders; the driver rewrites them to
+# outputs/p2_width/<decoder>_<arm>.  Scratch file: `_`-prefixed, gitignored.
+
+experiment: width_gpcm_base
+description: "GPCM width-sweep base (realistic bed); driver overrides emb_dim / item_key_dim per arm."
+
+data:
+  regime: realistic
+  kind: static
+  n_learners: 2000
+  n_items: 200
+  seq_len: 80
+  n_cats: 4
+  n_holdout: 10
+  admin_min: 40
+  admin_max: 80
+  popularity: uniform
+  alpha_sigma: 0.5
+
+model:
+  engine: deep_irt
+  encoder: lstm
+  decoder: gpcm
+  emb_dim: 8            # OVERRIDDEN per arm by the driver (shared width sweep)
+  hidden_dim: 32
+  state_alpha: false    # static readout, NO state-conditioning
+  state_beta: false
+  # item_key_dim: unset (shared arm); driver sets 64 for the decoupled point
+
+train:
+  optimizer: adam
+  n_epochs: 150
+  lr: 0.01
+  grad_clip_norm: 5.0
+  early_stop_patience: 10
+  gpcm_loss: ordinal_ce
+
+eval:
+  n_data_seeds: 5
+  n_init_seeds: 3
+  n_folds: 5
+  n_bootstrap: 2000
+  gauge: affine
+  paired_test: wilcoxon
+
+report:
+  output_dir: outputs/p2_width
+  cell_name: width_gpcm_base
+  quick: false
