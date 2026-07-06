@@ -30,8 +30,14 @@ exists); we measure agreement, detection, and cost.
 
 - **Binary (2PL), native, no coercion:** EdNet, KDD Cup 2010 algebra,
   ASSISTments 2009, ASSISTments 2017. (Add others only if declared here first.)
-- **Ordinal (GPCM), genuine partial credit, no coercion:** PISA and/or TIMSS
-  scored constructed-response items, built into a learner x item ordinal matrix.
+- **Ordinal (GPCM), genuine partial credit, no coercion:** TIMSS 2019 Grade 8
+  (IEA public database), human-rater constructed-response rubric scores
+  (0 incorrect / 1 partial / 2 full). Pilot confirmed usable: USA sample =
+  5,135 learners x 31 K=3 items, classical GPCM (mirt/MML) converged, CR
+  sequence ~35 items/learner. Scale by adding countries (same URL pattern).
+  Ship a download+parse script, not the raw .sav (IEA redistribution
+  restriction); cite DOI 10.58150/IEA_TIMSS_2019_G8. R 4.5.0 required for mirt
+  (conda env R 3.6.1 too old).
 - **Nominal (NRM), native option-level:** only if a dataset with recorded
   option selections is located and added here before running.
 - **Robustness anchor (genuine rubric-ordinal, off-KT):** ASAP essay set
