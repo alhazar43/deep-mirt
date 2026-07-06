@@ -41,14 +41,11 @@ exists); we measure agreement, detection, and cost.
 - **Nominal (NRM), native option-level, no coercion:** EdNet, the learner's
   chosen 4-option distractor (EdNet records the selected option, not just
   correct/incorrect). Confirmed available: 3,744 four-option items, 3,000
-  learners, K=4. Classical reference = Bock nominal-model MML.
-- **Robustness anchor (genuine rubric-ordinal, off-KT):** ASAP essay set
-  (already in repo), reported as a separate check that the shared-vs-separate
-  gap is not an artifact of coerced ordinal coding.
+  learners, K=4. Neural NRM head = the arm-1 ORIENTED head (the paper's NRM decoder), not the un-oriented default. Classical reference = Bock nominal-model MML.
 
 ## Protocol
 
-- Encoders: LSTM (reference) and DKVMN (the shipped architecture).
+- Encoders: LSTM, transformer, and DKVMN -- all three, run in that order.
 - Seeds/folds: fixed at the campaign default (5 data seeds x 5 folds),
   seed-clustered 95% intervals.
 - Run each cell once. Report EVERY cell. Heterogeneity across datasets is a
