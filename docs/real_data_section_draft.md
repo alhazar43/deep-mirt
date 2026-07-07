@@ -1,4 +1,55 @@
-# Real-data section — draft for review (LSTM leg)
+# Real-data section — PARKED as placeholder (supervisor discussion pending)
+
+**DECISION (2026-07-07).** The real-data study is left blank / placeholder in
+the manuscript for now. The signal is mixed enough that it does not validate the
+borrowed IRT interpretability reliably on real data, and it goes to the
+supervisor before any write-up. Runs continue (data preserved, `--skip-done`
+resumable) but nothing enters the `.tex`. This file is the brief for that
+discussion.
+
+## The honest result in one place
+
+Separation wins cleanly on **one of eight** LSTM+transformer cells run so far
+(LSTM EdNet-2PL). Cell by cell:
+
+| encoder | cell | concordance (sep−shared) | δ (better head) | verdict |
+|---|---|---|---|---|
+| LSTM | 2PL EdNet | +0.051 (excl 0) | separate | separate wins |
+| LSTM | 2PL KDD | +0.012 (incl 0) | ~tie | null |
+| LSTM | GPCM TIMSS | +0.019 (incl 0) | separate | δ sep, concordance null (31 items) |
+| LSTM | NRM EdNet | +0.025 (floor) | **shared** | reverses (option-level, documented) |
+| transformer | 2PL EdNet | −0.040 | **shared** | **flips vs LSTM** |
+| transformer | KDD / TIMSS / NRM | — | — | pending |
+
+The head that calibrates better is **both dataset- and encoder-dependent**, and
+the flip appears on δ (the credentialed diagnostic), not just concordance — so
+it is robust, not noise.
+
+## Psychometrician's verdict (why we cannot just write it up)
+
+- "δ agrees with concordance" is **two correlated proxies agreeing** (both hinge
+  on the model's own θ̂), not validation. A confidently-wrong head scores low δ.
+- δ IS credentialed against true recovery on synthetic (§4.4, r=0.986) — a real
+  strength the specialist underrated. Concordance is not.
+- **Non-negotiable before publishing:** (1) re-fit the classical reference — a
+  non-converged MML with ~5% negative-α items (EdNet-2PL) is not a silver
+  standard; (2) compare both estimators on the SAME response definition
+  (first-attempt) — neural reads a filtered sequential posterior, classical a
+  static marginal fit; not apples-to-apples.
+- **Missing tool to add (primary):** parameter INVARIANCE across disjoint person
+  subsamples — cleanest truth-free discrimination-stability check. Then
+  held-out-person cross-validated item params, and absolute item fit (S-X²,
+  infit/outfit).
+- Honest framing if pursued: real data **cannot certify calibration** without
+  truth; it can rank stability / predictive consistency and validate the
+  diagnostic's internal coherence. Encoder disagreement is a **finding**
+  (architecture-dependent calibration), not noise.
+- NRM near-floor concordance may be a sign/permutation-gauge artifact of option
+  slopes (Spearman won't fix it) — check before calling it non-recovery.
+
+---
+
+# (Superseded) earlier draft — kept for prose only
 
 **Status.** LSTM leg complete and reported (8 cells, 25/25 folds each, pre-reg
 frozen). Transformer running, DKVMN queued. This draft is anchored on LSTM;
