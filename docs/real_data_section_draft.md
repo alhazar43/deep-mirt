@@ -9,6 +9,41 @@ clean sweep.
 
 ---
 
+## ⚠ UPDATE (transformer, partial) — READ THIS FIRST
+
+The transformer's first cell **reverses LSTM on the flagship EdNet-2PL**, and
+this changes the story materially:
+
+| encoder | concord shared | concord separate | sep−shared | δ shared | δ separate | winner |
+|---|---|---|---|---|---|---|
+| LSTM | 0.685 | 0.736 | **+0.051** | 0.390 | 0.257 | **separate** |
+| transformer | 0.722 | 0.682 | **−0.040** | 0.272 | 0.443 | **shared** |
+
+So on real data the two encoders disagree about *which head is better on the
+same dataset*. "Separation wins on EdNet-2PL" was an LSTM statement, not a
+universal one. This pushes hard toward the safe framing (option 1) — maybe past
+it.
+
+**But the salvageable, honest contribution is the diagnostic, not the fix.**
+Within each encoder, the truth-free δ and the classical concordance **agree on
+the winner**: LSTM's δ and concordance both pick separate; the transformer's
+both pick shared. So δ correctly identifies the better-calibrated head *whichever
+head that is*. The deployable real-data claim is therefore not "use separate
+heads" but "**you can tell which head to trust without ground truth, cheaply,
+and it is not always the same head.**" That is honest, survives the reversal,
+and is arguably a stronger fit for the paper's δ-diagnostic thread than a
+separation win would have been.
+
+**To verify before committing:** does δ agree with concordance about the winner
+on *every* cell and both remaining encoders? I check this once transformer and
+DKVMN finish. If yes, the section leads with the diagnostic. If δ and
+concordance disagree anywhere the concordance is informative, even that retreats.
+
+The LSTM-only draft below is now superseded on framing by this update; I keep it
+for the prose and the table.
+
+---
+
 ## The LSTM result (primary metric = concordance with classical MML)
 
 | decoder / dataset | concord separate | concord shared | sep − shared (95% CI) | δ shared | δ separate | acc sep − shared | reading |
