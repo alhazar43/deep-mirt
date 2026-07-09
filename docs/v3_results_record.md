@@ -297,3 +297,25 @@ figs/fig_case_shsk.* (same-item expected-score and option curves under both
 designs). Tables: stability_shsk, orientation_shsk, ability_shsk. Queued and
 running: EdNet SH ability export (person-side SH rows auto-append when it
 lands).
+
+### Case studies under both designs (fig_timss_case_shsk, fig_ednet_case_shsk)
+
+TIMSS: SH and SK tell the same story in every panel - category curves,
+expected scores, matched-learner trajectories, and thresholds nearly
+coincide; ordered-threshold fraction is 1.00 under BOTH designs. EdNet:
+item-side conclusions agree (correct-option orientation 92.9% vs 91.8%,
+archetype distractors behave the same, intercepts track option frequency for
+both, SH r=.83 / SK r=.80), with SH visibly smoothing: its option-slope
+distribution is compressed into a narrow band and its correct-option curves
+rise more gently.
+
+One finding stands out beyond the figures. For the SAME learners, the two
+designs' ability trajectories correlate at median .84 on TIMSS (six-step
+sequences) but only .21 on EdNet (two-hundred-step sequences). Between-learner
+ordering agrees under both designs (the DOA and score-agreement checks pass
+for both), but the fine-grained within-sequence path a practitioner would
+read as "the learning curve" is largely design-specific on long sequences.
+Prediction-equivalent designs need not agree on the latent trajectory - the
+paper's thesis extended to the person side, and the number behind the
+revision plan's own caution that trajectory panels are model-based traces,
+not measurements. Numbers: case_shsk_numbers.{md,json}.
