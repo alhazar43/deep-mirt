@@ -93,7 +93,20 @@ Delivered: TIMSS full step thresholds (31 x 2, all 25 folds)
 NRM alpha/beta confirmed as option slopes / option intercepts. Not exported
 (noted for a later small run): KDD theta, shared-head theta rows.
 
-## 4. Real-data parameter stability (post-hoc, no GPU)
+## 4. Real-data parameter stability — DEPRECATED as an evaluation metric
+
+**DECISION (user, 2026-07-09): stability is deprecated as a quality measure.**
+Being stable does not mean being right: consistency is blind to bias, and the
+SH-vs-SK comparison demonstrated it on real data (SH option slopes are the
+MOST stable group, .93, while agreeing LESS with the empirical distractor
+statistic, .587 vs .705). The pooled design is wrong the same way in every
+resample, so it agrees with itself. Stability numbers below are retained for
+the audit trail and at most as an internal sanity check (a wildly unstable
+estimate is uninterpretable), but they are NOT reported as evidence of
+parameter quality. The agreement suite (difficulty vs proportion correct,
+discrimination vs the classical index, option slopes vs the distractor
+statistic, DOA, item fit) is the real-data evidence; synthetic recovery is
+the only truth-based check.
 
 Split(fold)/seed/exposure-stratified Spearman per parameter group, SK design
 (gate framing per plan T1; no SH-vs-SK stability contest). Groups: TIMSS
@@ -236,8 +249,8 @@ Figures for this suite: fig_agreement (a)-(d) (difficulty vs p-value, discrimina
 | F3 delta-recovery vs delta-prediction | DONE, 18/18 points (NRM re-sourced from the adopted oriented-head tree; the 13-point v1 used stale pre-orientation NRM cells) | figs/fig_dd.* |
 | F4 width-vs-separation (pareto, 3 encoders) | DONE, with transformer exception | figs/fig_pareto_*.* |
 | T3 real prediction compatibility (+NLL/AUC/mF1) | DONE (DKVMN rows filling, G5) | tab_real_metrics |
-| T4 real parameter stability | DONE | stability_table |
-| F5 stability vs exposure | DONE | figs/fig_stability_exposure.* |
+| T4 real parameter stability | DEPRECATED by user decision (consistency is blind to bias; SH/SK proof case) | stability_table kept for audit |
+| F5 stability vs exposure | DEPRECATED with T4 (figure kept for audit) | figs/fig_stability_exposure.* |
 | sec 9 split/seed/exposure experiments | DONE | stability_table |
 | sec 9.5 agreement with offline reference | DONE | precedent_metrics |
 | sec 10 TIMSS ordinal case study | figures DONE, prose pending | figs/fig_timss_case.* |
