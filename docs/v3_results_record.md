@@ -75,8 +75,9 @@ for G5). Extended metric columns after G4.
 Reading: LSTM-SK is the best neural model on both binary datasets by AUC and
 NLL; the ordered TIMSS is a tie for everyone; on options every structured
 head clears the Direct predictor by a wide margin and macro-F1 nearly equals
-accuracy (balanced, not majority-class). MML-NRM convention changed: scored
-on the positions its calibration covers (34%), not chance-filled.
+accuracy (balanced, not majority-class). MML-NRM convention: scored
+on the positions its calibration covers (26.1% of positions once failed
+calibrations are excluded; an earlier 34% counted them), not chance-filled.
 Option Tracing (AIED 2021) floors for context: random .25, majority .18-.21,
 their models .31-.33 macro-F1 (different data slice; compare to floors, not
 head-to-head). Table: outputs/p2_v3_export/tab_real_metrics.{md,json}.
@@ -131,7 +132,7 @@ reversed sign solution; sign-aligned, seed stability rises .226 -> .781 and
 encoder agreement .314 -> .782, while split stability stays .423-.460 =
 genuine item-level noise of sparse options. Rule for the paper: interpret
 slopes in aggregate and for well-exposed items; intercepts are fully stable.
-Stability rises with exposure for every group
+Stability rises with exposure for every group (one small-bin dip on KDD, n=11)
 (figs/fig_stability_exposure.*). Table: stability_table.{md,json}.
 
 ## 5. Case-study analyses (post-G3)
@@ -319,3 +320,47 @@ Prediction-equivalent designs need not agree on the latent trajectory - the
 paper's thesis extended to the person side, and the number behind the
 revision plan's own caution that trajectory panels are model-based traces,
 not measurements. Numbers: case_shsk_numbers.{md,json}.
+
+## 11. Psychometric review + verification pass (final analysis gate)
+
+An independent psychometric read of every table and figure returned:
+publishable as the real-data half; calls endorsed (stability deprecation,
+sign convention, run-averaged estimator) or qualified (MML coverage); one
+wording rejected. The five verifications it ordered, resolved:
+
+1. **MML prediction is NOT leaky.** Both scoring paths compute the ability
+   for position t from strictly earlier responses (prefix EAP, verified in
+   code). MML's EdNet-2PL AUC edge (.705 vs SK .676) stands, with the honest
+   frame: its item parameters come from one global calibration that saw the
+   evaluation learners' responses, so MML carries an in-sample
+   item-parameter advantage the neural rows do not have.
+2. **Equal-footing comparison added** (tab_real_common). On the 26.1% of
+   option positions MML can score, MML edges SH on rank metrics only; SH
+   ties its accuracy and additionally covers the 74% MML cannot score.
+   True coverage is 26.1%; the record's earlier 34% counted failed
+   calibrations and is corrected above.
+3. **TIMSS discrimination is scoped out.** Learned vs classical
+   discrimination correlates only ~.4 - yet SH and SK agree with each other
+   at .97, so this is under-identification from six-step sequences, not a
+   design artifact. The TIMSS parameter claim covers step thresholds and
+   difficulty (.97/.95 vs classical); discrimination is excluded.
+4. **Trajectory wording settled.** Smoothing raises the between-design
+   agreement from .22 to .50 (window 20) and net trends agree at .56 -
+   nothing reaches .6. Final sentence: part of the gap is step-level
+   design-specific noise, but even smoothed paths agree only moderately, so
+   fine-grained ability dynamics remain underdetermined by fit. The
+   "prediction-equivalent" phrasing is retired (the EdNet pair differs in
+   AUC); the finding stands as underdetermination.
+5. **Figure corrections shipped:** error bars on the delta-delta figure
+   (plus a bug fix in its NRM accuracy spread), labeled overflow bins on
+   item fit, dataset label + shrinkage caveat on the information figure,
+   shared y-axis on the GPCM trade-off row (2PL keeps per-panel axes with
+   an explicit caption warning).
+
+Standing instruction for the writing phase, from the review: tell the
+SK-NRM prediction cost as a finding (SK loses ~6 accuracy points and pays
+NLL vs SH on EdNet options while winning the agreement side); scope the
+free-interpretability claim to synthetic + binary; use the attenuation
+account (prediction-only training shrinks discrimination spread: SH slope
+compression, the information scale gap, and TIMSS's narrow range are one
+phenomenon at three strengths).
