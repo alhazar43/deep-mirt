@@ -82,6 +82,47 @@ Option Tracing (AIED 2021) floors for context: random .25, majority .18-.21,
 their models .31-.33 macro-F1 (different data slice; compare to floors, not
 head-to-head). Table: outputs/p2_v3_export/tab_real_metrics.{md,json}.
 
+### Architecture-wide accuracy (all encoders, assembled from disk)
+
+The extended-metric table above is LSTM-scoped; the accuracy comparison
+below covers all three encoders (transformer n=25; DKVMN n=3-6, the
+reduced/extended runs). The pattern replicates across architectures: the
+IRT heads are free on binary/ordinal, every structured head clears the
+direct predictor on options by a wide margin, and SH outpredicts SK on
+the nominal cell under ALL three encoders (the SK option-prediction cost
+is architectural, not an LSTM quirk). DKVMN-SK is the strongest neural
+cell on EdNet binary (.645, matching MML).
+
+| model | EdNet-2PL | KDD-2PL | TIMSS-GPCM | EdNet-NRM |
+|---|---|---|---|---|
+| LSTM-direct (DKT) | 0.599 | 0.838 | 0.577 | 0.526 |
+| TF-direct | 0.602 | 0.823 | 0.579 | 0.554 |
+| DKVMN-direct | 0.621 | 0.847 | 0.577 | 0.565 |
+| LSTM-SH | 0.600 | 0.840 | 0.580 | 0.648 |
+| LSTM-SK | 0.626 | 0.844 | 0.579 | 0.586 |
+| TF-SH | 0.611 | 0.823 | 0.581 | 0.644 |
+| TF-SK | 0.593 | 0.812 | 0.580 | 0.583 |
+| DKVMN-SH | 0.639 | 0.845 | 0.578 | 0.648 |
+| DKVMN-SK | 0.645 | 0.844 | 0.584 | 0.614 |
+| MML (classical) | 0.645 | 0.830 | 0.584 | 0.609* |
+
+*MML EdNet-NRM on its covered 26.1% of positions.
+
+### n folds
+| model | EdNet-2PL | KDD-2PL | TIMSS-GPCM | EdNet-NRM |
+|---|---|---|---|---|
+| LSTM-direct (DKT) | n=25 | n=25 | n=25 | n=25 |
+| TF-direct | n=25 | n=25 | n=25 | n=25 |
+| DKVMN-direct | n=3 | n=3 | n=3 | n=3 |
+| LSTM-SH | n=25 | n=25 | n=25 | n=25 |
+| LSTM-SK | n=25 | n=25 | n=25 | n=25 |
+| TF-SH | n=25 | n=25 | n=25 | n=25 |
+| TF-SK | n=25 | n=25 | n=25 | n=25 |
+| DKVMN-SH | n=6 | n=5 | n=5 | n=5 |
+| DKVMN-SK | n=5 | n=5 | n=5 | n=5 |
+
+Source: outputs/p2_v3_analysis/tab_real_allenc.md.
+
 ## 3. Export-pass artifacts (G3)
 
 Target files: per-fold thresholds (TIMSS), per-learner θ trajectories +
