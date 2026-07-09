@@ -223,6 +223,8 @@ field's standard rather than matching it.
 NRM person-agreement is weak (r=.14 even sign-aligned) - consistent with the
 known NRM ability pathology, reported not hidden.
 
+Figures for this suite: fig_agreement (a)-(d) (difficulty vs p-value, discrimination vs point-biserial, ability vs total score, option slopes vs option point-biserial) and fig_item_fit (a)-(d) (infit/outfit, EdNet + TIMSS, conventional band shaded, flag rates annotated); all annotations verified against the stored JSONs. Case-study and exposure figures regenerated as labeled (a)-(d) panels with legends.
+
 ## 8. Alignment with the revision plan
 
 | plan item | status | where |
@@ -231,7 +233,7 @@ known NRM ability pathology, reported not hidden.
 | F1 SH/SK architecture figure | keep + recaption (writing-phase) | existing fig_arch |
 | T2 synthetic summary (Acc/Recovery deltas) | data ready (dd_points) | outputs/p2_v3_analysis |
 | F2 recovery scatter | keep, simplify caption (writing-phase) | existing fig_scatter |
-| F3 delta-recovery vs delta-prediction | DONE | figs/fig_dd.* |
+| F3 delta-recovery vs delta-prediction | DONE, 18/18 points (NRM re-sourced from the adopted oriented-head tree; the 13-point v1 used stale pre-orientation NRM cells) | figs/fig_dd.* |
 | F4 width-vs-separation (pareto, 3 encoders) | DONE, with transformer exception | figs/fig_pareto_*.* |
 | T3 real prediction compatibility (+NLL/AUC/mF1) | DONE (DKVMN rows filling, G5) | tab_real_metrics |
 | T4 real parameter stability | DONE | stability_table |
