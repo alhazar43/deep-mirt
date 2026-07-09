@@ -123,6 +123,18 @@ cell on EdNet binary (.645, matching MML).
 
 Source: outputs/p2_v3_analysis/tab_real_allenc.md.
 
+### Extended metrics, all encoders — RUNNING (placeholders)
+
+| model | EdNet-2PL | KDD-2PL | TIMSS-GPCM | EdNet-NRM |
+|---|---|---|---|---|
+| TF-SH | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
+| TF-SK | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
+| DKVMN-SH | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
+| DKVMN-SK | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
+
+GPU re-score in progress (transformer full 25 folds first, then DKVMN on its
+existing reduced folds); rows fill in when it lands.
+
 ## 3. Export-pass artifacts (G3)
 
 Target files: per-fold thresholds (TIMSS), per-learner θ trajectories +
