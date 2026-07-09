@@ -127,13 +127,17 @@ Source: outputs/p2_v3_analysis/tab_real_allenc.md.
 
 | model | EdNet-2PL | KDD-2PL | TIMSS-GPCM | EdNet-NRM |
 |---|---|---|---|---|
-| TF-SH | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
-| TF-SK | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
+| TF-SH | AUC .658 / NLL .686 | AUC .791 / NLL .434 | QWK .403 / NLL .893 | acc .645 / mF1 .642 / NLL .957 |
+| TF-SK | AUC .631 / NLL .766 | AUC .774 / NLL .482 | QWK .400 / NLL .894 | acc .585 / mF1 .582 / NLL 1.436 |
 | DKVMN-SH | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
 | DKVMN-SK | AUC -- / NLL -- | AUC -- / NLL -- | QWK -- / NLL -- | acc -- / mF1 -- / NLL -- |
 
-GPU re-score in progress (transformer full 25 folds first, then DKVMN on its
-existing reduced folds); rows fill in when it lands.
+Transformer rows complete (n=25/cell; reproduction bit-exact on TIMSS, within
+0.015 accuracy elsewhere). Claim checks: the SH-over-SK option gap REPLICATES
+on the transformer (acc .645/.585, NLL .957/1.436, mirroring LSTM); TIMSS QWK
+parity replicates; SK's binary AUC edge does NOT transfer -- TF-SH wins both
+binary cells, the transformer exception again. DKVMN rows still running on its
+reduced folds. Source: outputs/p2_v3_export/tab_real_metrics_allenc.md.
 
 ## 3. Export-pass artifacts (G3)
 
@@ -417,3 +421,45 @@ free-interpretability claim to synthetic + binary; use the attenuation
 account (prediction-only training shrinks discrimination spread: SH slope
 compression, the information scale gap, and TIMSS's narrow range are one
 phenomenon at three strengths).
+
+## 12. EdNet as a two-in-one case study (binary + nominal), the flip explained, and the completed design trio
+
+**Cross-decoder coherence.** The 2PL and NRM readings of the same 250 items
+order the bank the same way on difficulty: an item that is hard in binary
+terms is one where the correct option overtakes the distractor mass only at
+high ability (Spearman .87 SK / .91 SH, robust to the mapping choice).
+Discrimination bridges only moderately (~.35), the campaign's
+hard-to-identify parameter. One calibration, two resolutions, on the
+difficulty axis. (ednet_coherence.{md,json})
+
+**The NRM accuracy flip, tested.** Sparsity is real but explains only ~40%
+of it: the SK deficit narrows with exposure (-.078 thin -> -.047 rich) yet
+never closes, even on items with every option well sampled. The decisive
+control: predicting each item's most popular option (no ability at all)
+scores .653 -- SH sits AT that floor (.652), SK sits .061 BELOW it. Option
+choice at the argmax level is nearly ability-independent; the shared head's
+"win" is the popularity table wearing a model, and the separated key's
+per-item freedom actively costs accuracy under a 4-way softmax at every
+exposure. The calibration side is where data helps: the NLL gap shrinks 2.5x
+with exposure. The 2PL control shows SK ahead in every exposure bin (the
+exposure-narrowing is a general variance effect; the FLIP is the sign
+difference plus its persistent asymptote). (flip_forensics.{md,json},
+fig_flip_forensics)
+
+**The design trio is complete** (TIMSS, EdNet-NRM, now EdNet-2PL:
+fig_ednet_2pl_shsk). On the binary side the item map is design-robust
+(between-design difficulty rho .998, discrimination .978), and the NRM-style
+slope compression is ABSENT -- the shared head's discrimination distribution
+is in fact wider (sd .72 vs .35); a 2PL item has one slope, nothing
+within-item to squeeze. What separates the designs on binary is the person
+side: final ability tracks raw score at r=.54 (SK) vs .36 (SH), and matched
+learners' raw paths agree between designs only at r=.22 (.49 smoothed).
+(ednet_2pl_shsk_numbers.{md,json})
+
+**Agreement figure upgraded.** fig_agreement_both overlays both designs in
+the same four scatters (replacing the dumbbell as the main display): item map
+at parity (difficulty -.97 both; discrimination rho .67 both), person side
+and option orientation favor SK (.54 vs .36; .705 vs .587). The EdNet 2-in-1
+centerpiece (fig_ednet_2in1) carries the bridge panel: one item's binary
+curve decomposed into which-distractor trace lines -- the resolution binary
+KT discards. (fig_agreement_both, fig_ednet_2in1)
