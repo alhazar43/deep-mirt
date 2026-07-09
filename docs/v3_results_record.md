@@ -28,7 +28,7 @@ results are in and reviewed.
 | G4 | Extended prediction metrics (small) | tab:real metric columns: AUC+NLL (binary), NLL (ordinal, QWK exists), option-acc+macro-F1+NLL (nominal); neural rows first, MML rows if cheap via the EAP predictor | DONE |
 | G1 | Transformer width sweep | TF-SH GPCM+2PL at emb w∈{16,32,64,96}, N=2000 Q=200, 25 folds/cell (W=8 anchor + TF-SK point already in outputs/p2_toggle N2000 cells) | DONE |
 | G2 | DKVMN width sweep (reduced) | DKVMN-SH GPCM+2PL at w∈{16,32,64,96}, N=2000, 5 seeds x 1 fold (DKVMN ~10 min/fold; anchors from toggle N2000 cells) | DONE |
-| G5 | Optional, if the night allows | Extend DKVMN realstudy cells from 1 to 5 folds for tab:real credibility | RUNNING (2PL cells ~done, TIMSS/NRM queued) |
+| G5 | Optional, if the night allows | Extend DKVMN realstudy cells from 1 to 5 folds for tab:real credibility | DONE (n=4-6 per cell; DKVMN concordance now favors SK on all four cells with intervals clear of zero; NRM delta still favors SH) |
 
 Verification duties inside the queue: confirm p2_width provenance (encoder +
 N; rows store no encoder field) before reusing it as the LSTM panel; confirm
@@ -251,7 +251,36 @@ Figures for this suite: fig_agreement (a)-(d) (difficulty vs p-value, discrimina
 
 1. Calibration ECE: one ~10-min GPU re-score once G5 finishes.
 2. KDD theta export + shared-head theta rows (small, optional).
-3. G5 completion (DKVMN tab:real rows to n=5).
+3. G5 completion - DONE (n=4-6 per cell).
 4. Transformer exception wording for the width/pareto claim.
 5. NRM slope rule for the case study (aggregate + well-exposed only).
 6. Writing-phase items in section 8 (all analysis dependencies now met).
+
+## 10. SH vs SK on real data (the comparison pass)
+
+All real-data checks recomputed for the shared design beside the separated
+one. Scalar parameters are near-parity (SK marginally more consistent on
+discrimination, ties on difficulty; ability-side DOA and score agreement at
+parity). The headline is the nominal decoder, and it is the paper's thesis in
+miniature, visible on real data with no ground truth:
+
+| check | SK | SH |
+|---|---|---|
+| option-slope consistency (split) | .423 | .929 |
+| option-slope agreement with the distractor statistic | .705 | .587 |
+| correct option carries the largest slope | 92.9% | 91.8% |
+| mirror-flipped runs | 9/25 | 8/25 |
+
+The shared head's option slopes are far MORE self-consistent and LESS
+faithful to the empirical distractor structure: smoothing inflates
+consistency, not correctness. A reader who checked only stability would
+prefer the design whose parameters agree less with the data. This is the
+stable-and-wrong pattern demonstrated in the field, and it is why stability
+is a gate and never a verdict.
+
+Figures: figs/fig_agreement_shsk.* (paired dots, SH orange vs SK blue, one
+row per metric x dataset - the option-slope row is the lone visible gap);
+figs/fig_case_shsk.* (same-item expected-score and option curves under both
+designs). Tables: stability_shsk, orientation_shsk, ability_shsk. Queued and
+running: EdNet SH ability export (person-side SH rows auto-append when it
+lands).
