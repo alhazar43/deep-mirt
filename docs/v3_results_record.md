@@ -90,4 +90,44 @@ agreement with classical item statistics such as proportion-correct and
 point-biserial, which have CTT precedent; stability/consistency precedents)?
 Fallback if no big-gap metric: the item-analysis / interpretability route
 with named precedents for how learned-parameter quality is evaluated.
-- FINDINGS: (pending)
+### FINDINGS (2026-07-09, web-verified with citations)
+
+Adoptable metrics, all precedented — nothing invented:
+1. **Learned difficulty vs empirical p-value + vs classical 1PL/MML fit
+   (Pearson).** Deep-IRT (Yeung, EDM 2019: r~0.56 vs proportion-incorrect,
+   r~0.64 vs 1PL); VIBO (Wu et al., EDM 2020). We already hold the classical
+   fits for EdNet/KDD/TIMSS; p-values are one groupby away. -> analysis A1.
+2. **Learned discrimination vs point-biserial** (Crocker & Algina 2008;
+   Lord & Novick 1968; VIBO companion). -> A2.
+3. **Degree of Agreement (DOA)** on theta — NeuralCD (Wang et al., AAAI
+   2020): higher-proficiency learners should out-answer lower ones per item;
+   ground-truth-free, ML-venue precedent. Needs final theta (G3 export). -> A3.
+4. **Option-level accuracy + macro-F1** — Option Tracing (Ghosh, Raspat,
+   Lan, AIED 2021; AAAI 2022) on EdNet+Eedi: THE task precedent for our NRM
+   0.65 vs direct 0.53. Metric columns already queued (G4). -> A4.
+5. **Option/distractor characteristic curves** — Thissen, Steinberg &
+   Fitzpatrick 1989 ("the distractors are also part of the item"); Bock 1972.
+   Our EdNet case-study curves reproduce the canonical device. -> A5.
+6. **Split-sample/seed parameter stability** — item-parameter invariance
+   lineage (Rasch 1960; Lord 1980; documented r~.97 cross-sample difficulty
+   invariance). NAMING RESOLUTION: tables keep the revision plan's word
+   "stability"; prose cites the invariance literature as the precedent
+   (avoids the loaded "measurement invariance"). -> feeds section 4.
+
+Structural gap over binary KT (lead with these): option prediction (4),
+distractor trace lines (5), partial-credit NLL + QWK on TIMSS (Cohen 1968;
+Taghipour & Ng, EMNLP 2016) — binary KT cannot produce any of them. AKT and
+QIKT evaluate interpretability only qualitatively/via AUC, so metrics 1-3
+differentiate us.
+
+Traps recorded: never anchor to publisher/expert difficulty labels
+(Deep-IRT got r=0.08 there); no multiclass AUC for options (use acc+macro-F1
+per Option Tracing); DOA reported as concordance with its monotonicity
+assumption stated + random floor; ECE optional, no KT precedent claim;
+p-value stays the PRIMARY anchor vs classical-fit correlation (independence
+note against circularity).
+
+New bib entries needed at write-time: Wang et al. AAAI 2020 (NeuralCD);
+Ghosh/Raspat/Lan AIED 2021 (+AAAI 2022); Thissen-Steinberg-Fitzpatrick 1989;
+Bock 1972; Crocker & Algina 2008; Cohen 1968; (optional Taghipour & Ng 2016,
+Guo et al. 2017).
