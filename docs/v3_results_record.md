@@ -668,3 +668,32 @@ joined items; the theta50 mapping diverges under the routed SH -- .93 SK vs
 min in an async CUDA scheduling stall (historical pace 32s; both autograd
 threads idle). CUDA_LAUNCH_BLOCKING=1 resolves it (52s fit/unit); stage-3b
 reruns TF (25x2) + DKVMN (5x2) EdNet under the flag. No code change.
+
+## 18. FINAL BATCH -- every EdNet-NRM entry routed; campaign closed (2026-07-10 evening)
+
+All arm1r runs complete: synthetic full grid (3 encoders x SH/SK x
+N=500-5000, incl. the six late shared cells) + EdNet (LSTM 25x2, TF 25x2,
+DKVMN 5x2; TF under CUDA_LAUNCH_BLOCKING per sec 17).
+
+**tab:real_prediction final cells:** TF-SH .647 / TF-SK .645 (was
+.644/.583 -- routing closes the TF gap by .062), DKVMN-SH .647 / DKVMN-SK
+.643 (was .648/.614). All six routed cells cluster .636-.648; the
+outpredicts sentence softened to "edges ... by margins of 0.002 to 0.012";
+note now reads "All SH and SK EdNet--NRM entries use the gradient-routed
+nominal head." Appendix N-grid TF/DKVMN NRM rows re-sourced (six rows;
+same validated bootstrap); the old monster intervals collapse (e.g.
+TF-SH N=500 slopes .435 [.267,.570] -> .517 [.398,.587]; DKVMN-SH N=5000
+slopes .901 [.820,.949] -> .938 [.929,.948]).
+
+**Routed theta-vs-rawscore by encoder (record):** LSTM .279 SH / .376 SK;
+DKVMN .441 / .192; TF .034 / .044 -- the routed transformer predicts at the
+floor but its ability readout does not track correctness on real data (the
+transformer exception, third appearance: width claim, async stall, dead
+routed theta). Manuscript unaffected (ability rows are LSTM-scoped); flag
+for any encoder-wise ability claim.
+
+**Stale-number sweep:** clean (single coincidental CI-bound match in an
+untouched 2PL row). Export tables tab_real_metrics + allenc fully routed
+with arm1 originals preserved in notes. This closes the arm1r migration:
+every NRM number in the manuscript -- synthetic and real, main and appendix
+-- now comes from the routed head.
