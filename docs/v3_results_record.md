@@ -618,3 +618,29 @@ baseline; option-slope agreement SK .718 / SH .571; correct-largest
 98.7%/97.6% with zero flips and no alignment). Transformer/DKVMN NRM rows
 remain unrouted (flagged in the manuscript note and the allenc table);
 their rerun is not yet ordered.
+
+## 16. EdNet 25-fold arm1r complete; parameter-side artifacts on the full basis
+
+Both EdNet-NRM cells finished all 25 fold-units under arm1r. Full-basis
+numbers (mean over 25; theta = theta-vs-rawscore |rho| per fold):
+
+| design | option acc | mF1 | NLL | theta |
+|---|---|---|---|---|
+| LSTM-SH (arm1r) | .648 | .645 | .932 | .279 |
+| LSTM-SK (arm1r) | .636 | .634 | .995 | **.376** |
+
+Notes. (1) At 25 folds the routed SH's ability is .279 (the fold0x5 .164 was
+a pessimistic sample) and SK holds .376 -- under the uniform routed pairing
+SK ends AHEAD on ability, behind by .012 on option accuracy, both near the
+popularity floor. (2) Orientation at 25-fold seed-means: correct-largest
+99.4% SK / 99.9% SH, correct-slope-positive 100% both, ZERO flips, no
+alignment anywhere. Slope-vs-distractor-pb fidelity: SK .747 / SH .600.
+(3) All eight EdNet-NRM figures + case studies regenerated on the full
+parameter basis (fold JSONs x25 seed-means; rescore/person panels stay
+fold0x5 by design); case-study ability axes now STANDARDIZED everywhere
+(z-metric; a'=a*sd, b'=(b-m)/sd; author preference, also applied to
+fig_timss_case), and slope histograms bin over the data's central 99%
+(the fixed -6..8 span was an arm1-era fossil). (4) tab_real_metrics and the
+manuscript table/summary rows updated to the n=25 values; the "rerun in
+progress" note removed. (5) Synthetic arm1r full grid running (LSTM cells
+first); the synthetic-NRM redraws (fig_dd re-source) follow its completion.
