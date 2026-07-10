@@ -497,3 +497,108 @@ in headline numbers; layout + corrected-caption revision pending, ships
 next push). Placement recommendation recorded: ednet_2pl_shsk (binary
 control) -> gap-flip/bridge (mechanism) -> ednet_case_shsk (option
 structure), mechanism before curves. (reversal_bridge.{md,json})
+
+## 14. Round 4 — the plane-fix ladder: arm1r (gradient-routed plane) PASSES its gate
+
+**The question.** arm1h fixed orientation but ability still collapsed (theta
+.034): the free distractor plane's noise rides theta's bilinear gradient
+(a_perp^T rho), and theta churns as the noise absorber. The g0 probe proved
+the seat: delete the plane and real ability recovers (.281), accuracy jumps
+to the shared level (.644 vs SH .648) — but g0 kills synthetic distractor
+recovery by construction (keyed-only ceiling: slopes .614). Needed: one
+loss-free, constant-free rule serving both regimes.
+
+**Four-agent panel** (files in outputs/p2_v3_analysis/): statistics names
+the disease (Neyman-Scott incidental parameters; free per-item slope MLE is
+James-Stein-inadmissible), deep learning and math independently rank
+GRADIENT ROUTING first (stop-gradient on theta in the plane term; published
+family: Gradient Routing 2024, SimSiam, VQ-VAE straight-through, target
+networks), psychometrics shows the keyed ray is the field default written
+twice (Thissen-Cai-Bock 2010 fixed scoring; Suh-Bolt 2010 ability-free
+distractor nest) and the plane needs several hundred responses/item
+(Revuelta-Ximenez 2017) with a near-zero real-data target (Haberman-Liu-Lee
+2019, ETS). Killed on analysis: pooled-scale weight norm (twice,
+independently), in-graph James-Stein, EMA/rank/bound devices. Killed on
+pilot: arm1g' (moment-calibrated gain) — its pilot on the 25 existing arm1h
+fits INVERTED the regimes (real median gain .226 > synthetic .163) because
+reproducible per-item overfit masquerades as between-item heterogeneity when
+all fits share the same data; no independent replications exist on real
+data (outputs/p2_v3_arm1g2/PILOT_arm1g2.md).
+
+**arm1r.** Forward, loss, parameter count byte-identical to arm1h; one
+autograd edge changes: z = (mag d_q) theta + a_perp sg[theta] + c. Theta
+(and the encoder trunk) receive keyed-route credit only; the plane trains on
+its own numerically-unchanged gradient with theta as a given input.
+Two-stage/Z-estimator reading: truth remains a population fixed point;
+update is a semi-gradient (no term added to the objective; "who learns from
+the error" changes, not "what is a good fit"). Correctness gates:
+routed_gradient_check (theta grad == keyed closed form to 1e-10; plane/z0
+grads == plain backprop to 1e-8; loss identical to the bit), sweep smoke,
+one live real unit. Protocol frozen BEFORE the runs
+(outputs/p2_v3_analysis/mathfix_round4.md sec 3).
+
+**Gate result (outputs/p2_v3_arm1r/VERDICT_arm1r.md): PASS, 7/7 clauses.**
+
+| side | metric | arm1r | refs |
+|---|---|---|---|
+| real (fold0x5) | theta-vs-rawscore | **.334** | g0 .281 / arm1h .034 / SK-free .124 / SH .595 |
+| real | option acc | **.645** | g0 .644 / SH .648 / floor .653 |
+| real | NLL | **.987** | g0 .951 / SH .917 / arm1h 1.069 |
+| synthetic (25 folds) | slope recovery | **.960** | free .940 / arm1h .941 / g0 ceiling .614 |
+| synthetic | theta | **.919** | free .910 / g0 .921 |
+
+Notes for writing. (1) No dead seed (all five >= .232) where g0 had 1/5 —
+with the plane alive-but-quarantined the keyed bootstrap held on every seed;
+recorded, not overclaimed (5 seeds). (2) Synthetic slopes .960 >= free .940:
+the plane regresses on a theta that no longer churns (an errors-in-variables
+reduction), so quarantining theta costs the plane nothing and slightly
+cleans it. (3) Real NLL excess over g0 (+.036) lands inside the predicted
+df/n band (.03-.05). (4) Median keyed contrast .24 (vs arm1h .38, arm1
+2.98): a bilinear GAUGE rescaling (kappa theta product identified, theta's
+scale free once its gradient is keyed-only), not a collapse — theta health
+is the metric and it is 10x arm1h. (5) The remedy is the paper's own
+two-route identity turned from diagnosis into prescription; placement rule:
+headline audit tables stay under standard training, arm1r enters in the
+remedy slot. Adoption/placement: the author's call. arm1s (SK-ray/SH-plane
+hybrid, pure architecture) is implemented, wiring-checked, bars frozen
+(deep_irt/bench/_p2_arm1s_gate_score.py) — the ladder's unused next rung,
+kept as the reviewer-facing alternative if routing is ever ruled out.
+
+## 15. arm1r adopted for BOTH designs; EdNet-NRM figures redrawn (fold0x5 basis)
+
+**The SH panel.** LSTM-SH-arm1r, real EdNet fold0x5: theta-vs-rawscore .164,
+acc .653 (= the popularity floor), NLL .924. Versus SH-arm1 (.595/.648/.917):
+the keyed-orientation machinery leaves SH's prediction untouched and drops
+its ability correlation. The 3-seed arm1h-SH control (.434/.175/.082, mean
+~.23) shows most of the drop comes from the real-key + projection step, not
+the routing edge. Reading: the plane channel carries per-item noise under SK
+(quarantine repairs, .124 -> .334) and pooled structure under SH (severing
+starves the theta readout). One channel, two contents.
+
+**Decision (author, 2026-07-10): BOTH designs ship routed (arm1r).** One
+loose end only, SH vs SK, uniform estimator; theta-vs-rawscore is a
+learned-vs-projection consistency number with no ground truth, decisive near
+zero (the SK-arm1 .034/.124 disease) and only suggestive between healthy
+values, so SH-arm1's .595 does not adjudicate validity and does not veto the
+uniform head. Under the routed pairing: option acc SK .645 / SH .653 (floor
+.653), NLL SK .987 / SH .924, ability .334/.164, implied binary .672/.680,
+allocation .570/.581, pb-slope fidelity SK .718 / SH .571, flips 0/0 with NO
+post-hoc sign alignment anywhere. The exposure gap's rich end nearly closes
+(top bin -.004 vs -.047 under arm1). SK's cross-decoder difficulty coherence
+rises (rho .77 -> .92).
+
+**Redraw record.** All eight EdNet-NRM figures regenerated under
+arm1r-both-designs on the fold0x5 basis and copied to the paper repo:
+fig_reversal_bridge, fig_ednet_gap_flip, fig_ednet_2in1, fig_flip_forensics,
+fig_ednet_case, fig_ednet_case_shsk, fig_case_shsk, fig_agreement_both.
+fig_ednet_2pl_shsk untouched (2PL only). Static figure titles/captions with
+arm1-specific claims were neutralized to descriptive wording in the
+generating scripts (_p2_v3_reversal_bridge.py, _p2_v3_ednet_case.py,
+_p2_v3_ednet_2in1.py); interpretive verdict prose in reversal_bridge.md is
+deferred to the 25-fold rerun. Driver:
+deep_irt/bench/_p2_v3_ednet_nrm_preview_all.py (--final). Theory insert for
+the routing (one equation, eq:nrm_routed, plus incidental-parameters and
+stop-gradient/psychometric citations) delivered as
+overleaf-sync/nrm_routing_theory_draft.tex. Next: full 25-fold EdNet runs
+(both designs), 25-fold redraw refresh, then the arm1r synthetic grid and
+the synthetic-NRM redraws (fig_dd sourcing moves to the arm1r tree).
