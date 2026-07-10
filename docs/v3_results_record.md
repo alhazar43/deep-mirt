@@ -644,3 +644,27 @@ fig_timss_case), and slope histograms bin over the data's central 99%
 manuscript table/summary rows updated to the n=25 values; the "rerun in
 progress" note removed. (5) Synthetic arm1r full grid running (LSTM cells
 first); the synthetic-NRM redraws (fig_dd re-source) follow its completion.
+
+## 17. Synthetic re-source complete; interim real-data updates (2026-07-10 afternoon)
+
+**tab:mass NRM rows** re-sourced to arm1r (N=2000, seed-clustered bootstrap
+validated against the existing arm1 entries to +-.002 before use). Headlines:
+Transf.-SH slopes .577 [.352,.698] -> .668 [.635,.704] (the instability-wide
+interval collapses); LSTM-SH intercepts .706 -> .828; every SK cell holds or
+tightens. **Appendix N-grid LSTM NRM rows** (N=500/1000/5000) likewise --
+N=5000 SK slopes .874 [.633,.984] -> .980 [.978,.981]. TF/DKVMN appendix NRM
+rows wait on the six shared-synthetic cells (stage-3c, queued).
+
+**Figures re-sourced:** fig_dd (all 18 points now arm1r; every recovery gap
+positive, NRM slope gaps shrink because routed-SH improved) and fig_scatter
+(NRM panels from rep1r; provenance guard updated to arm1r).
+
+**tab:ednet_two_resolution:** difficulty-coherence row corrected to the
+intercept-based mapping under arm1r (.82 SH / .83 SK, defined for all 242
+joined items; the theta50 mapping diverges under the routed SH -- .93 SK vs
+.77 SH on 172/103 items -- recorded here, note added to the table).
+
+**TF EdNet stall + fix:** the routed transformer's first real fold hung >90
+min in an async CUDA scheduling stall (historical pace 32s; both autograd
+threads idle). CUDA_LAUNCH_BLOCKING=1 resolves it (52s fit/unit); stage-3b
+reruns TF (25x2) + DKVMN (5x2) EdNet under the flag. No code change.
