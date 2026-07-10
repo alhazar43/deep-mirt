@@ -81,6 +81,9 @@ calibrations are excluded; an earlier 34% counted them), not chance-filled.
 Option Tracing (AIED 2021) floors for context: random .25, majority .18-.21,
 their models .31-.33 macro-F1 (different data slice; compare to floors, not
 head-to-head). Table: outputs/p2_v3_export/tab_real_metrics.{md,json}.
+(2026-07-10: the LSTM EdNet-NRM cells above are superseded by the routed
+head -- see sec 15; tab_real_metrics.{md,json} now carries the arm1r values
+with these arm1 originals preserved in its basis note.)
 
 ### Architecture-wide accuracy (all encoders, assembled from disk)
 
@@ -602,3 +605,16 @@ stop-gradient/psychometric citations) delivered as
 overleaf-sync/nrm_routing_theory_draft.tex. Next: full 25-fold EdNet runs
 (both designs), 25-fold redraw refresh, then the arm1r synthetic grid and
 the synthetic-NRM redraws (fig_dd sourcing moves to the arm1r tree).
+
+**Tables updated (2026-07-10, same fold0x5 basis as the redraw).** LSTM
+EdNet-NRM cells under arm1r: SH acc .653 / mF1 .650 / NLL .924; SK acc .645
+/ mF1 .643 / NLL .987 (macro-F1 from the exact held-out re-score, per seed
+then averaged; still nearly equal to accuracy, balanced not majority-class).
+Updated in outputs/p2_v3_export/tab_real_metrics.{md,json} (arm1 originals
+kept in the basis note), the manuscript's tab:real_prediction LSTM row +
+note, the post-table prose number, and the real-data summary table rows
+(selected-option accuracy .653/.645 near parity at the popular-option
+baseline; option-slope agreement SK .718 / SH .571; correct-largest
+98.7%/97.6% with zero flips and no alignment). Transformer/DKVMN NRM rows
+remain unrouted (flagged in the manuscript note and the allenc table);
+their rerun is not yet ordered.
