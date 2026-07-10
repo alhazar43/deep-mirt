@@ -463,3 +463,37 @@ and option orientation favor SK (.54 vs .36; .705 vs .587). The EdNet 2-in-1
 centerpiece (fig_ednet_2in1) carries the bridge panel: one item's binary
 curve decomposed into which-distractor trace lines -- the resolution binary
 KT discards. (fig_agreement_both, fig_ednet_2in1)
+
+## 13. The reversal, decomposed — hypothesis refuted, mechanism found
+
+The option task factorizes exactly: option prediction = correctness
+prediction + distractor allocation given wrong, and the option log-loss
+splits additively into those two terms (verified to machine precision on
+identical positions, both designs).
+
+The expected story — SK keeps the ability-driven correctness component and
+loses only popularity-driven allocation — is REFUTED. SH wins BOTH
+components: implied-binary AUC .721 vs .636 (SK below the base-rate floors),
+allocation .577 vs .538, and the correctness term carries 66% of SK's excess
+loss. The mechanism: under the separated key the nominal head's ability
+estimate degrades on this slice — theta tracks raw score at |rho| .124 (SH
+.595) and ranks correctness at chance alone (AUC .517). On the same 250
+items SK's 2-parameter binary head wins while its 8-parameter nominal head
+trails everywhere: separation helps the cheap decoder and destabilizes the
+expensive one, degrading ability and item parameters together.
+
+FLAG for writing — a synthetic-real reversal on NRM ability: synthetically
+the SHARED NRM head's ability collapses (fig_surface: .30-.64 vs SK .80+);
+on real EdNet the mirror image (SK .124 vs SH .595). Interpretation (offered
+as reading, not proof): the ability estimate follows where ability signal
+can flow — synthetic options carry it by construction, real EdNet option
+choice barely carries any (the popularity-floor finding), so the
+option-driven pathway starves under SK while SH's shared pathway borrows
+correctness structure. NRM ability claims must be dataset-scoped.
+
+Figures, two options kept per the author: fig_reversal_bridge (the exact
+decomposition proof; approved) and fig_ednet_gap_flip (the mechanism story
+in headline numbers; layout + corrected-caption revision pending, ships
+next push). Placement recommendation recorded: ednet_2pl_shsk (binary
+control) -> gap-flip/bridge (mechanism) -> ednet_case_shsk (option
+structure), mechanism before curves. (reversal_bridge.{md,json})
