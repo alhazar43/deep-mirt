@@ -721,3 +721,38 @@ method variance + scoring-resolution construct shift (option choice uses
 distractor information correctness discards), corroborated by NRM theta
 correlating less with raw score than 2PL theta under both designs. Row
 added to the inter-reading table; all table notes tightened per author.
+
+## 20. deep-irt-port BUILT -- all local gates PASS (2026-07-13)
+
+The portable-repo refactor (docs/refactor_plan.md + halves) executed via
+three orchestrated workflows (12 agents total). The port lives at
+deep-irt-port/ as its own local git repo (7 commits, no remote per the
+author's ruling); the live deep_irt/ is verified byte-untouched.
+
+**Built:** layout-preserving copy of the 92-file CAEAI import closure
+(core 10, bench-tracked 22, bench-scratch 39, tests 21) with every
+sanctioned edit logged (_planning/copy_edits.json: port-root resolution,
+outputs->results, R path -> configs/machines profiles, ma-irt boundary
+documented as an unexercised lazy import -- no vendoring needed); CAEAI
+results keep-set copied verbatim with per-tree count+byte verification
+(~510 MB; archive trees stay in the parent as local reference); pyproject
+packaging (pip install -e, PYTHONPATH retired); unit-addressed entrypoints
+(enumerate_units / train_unit --index / status) wrapping the existing
+drivers unchanged, provenance blocks as new-fields-only, done/failed
+unification per the author's ruling (failed is incomplete -- the sweep
+_fold_done fix), SLURM sbatch stub gated on remote instructions.
+
+**Gates:** Phase-0 adversarial critique (1 blocker found + fixed: the
+answer-key cache the keep-glob dropped); golden-set regeneration PASS
+(fig_dd, fig_scatter, fig_reversal_bridge, fig_ednet_case_shsk,
+fig_agreement_both + table sources byte-identical vs the hash baseline;
+PDFs exact modulo matplotlib date stamps); local smoke 5/5 PASS
+(enumeration counts, real tiny train through train_unit with frozen
+43-key schema + provenance, idempotent skip-done, failed-counts-as-
+incomplete, exact-rescore max|delta|=0 from port artifacts).
+
+**Pending (author):** multi-stage local testing at will; remote/SLURM
+instructions (stub ready); remote choice for the port's git; then retire
+deep_irt/ and rename the port per the swap plan. Known ergonomic note:
+the _p2_v3_* analysis scripts remain script-style (bare sibling imports),
+as in the parent -- the pipeline entrypoints are package-proper.
