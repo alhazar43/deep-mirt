@@ -7,3 +7,6 @@
 [submodule "docs/slides"]
 	path = docs/slides
 	url = https://git.overleaf.com/6a38edef17b13acfe450f9c4
+[submodule "kt-irt"]
+	path = kt-irt
+	url = https://github.com/alhazar43/kt-irt.git

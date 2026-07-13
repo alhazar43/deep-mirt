@@ -756,3 +756,31 @@ instructions (stub ready); remote choice for the port's git; then retire
 deep_irt/ and rename the port per the swap plan. Known ergonomic note:
 the _p2_v3_* analysis scripts remain script-style (bare sibling imports),
 as in the parent -- the pipeline entrypoints are package-proper.
+
+## 21. SWAP EXECUTED -- kt-irt live, deep_irt/ retired (2026-07-14)
+
+The port passed every local gate and the author supplied the remote, so the
+copy-then-swap closed. github.com/alhazar43/kt-irt is the framework's home
+(port main pushed, 12 commits); the parent's in-tree `deep_irt/` was retired
+(231 files git-rm'd, history preserved; pending misspec-probe work committed
+first at 440e454) and `kt-irt/` wired as the fourth submodule. `pip install
+-e kt-irt` replaces the PYTHONPATH import; suite 139/1 green from the new
+location.
+
+Late-swap restructure (author rulings, port commits edb4a5e..5ea02e2):
+datasets moved to tracked `data/cache/` (8 npz; clones train + build figures
+with no manual sync, no raw EdNet); traj npz slimmed to results-only (panel
+served from the datacache via `_p2_traj_store.load_traj`, 140 files
+converted after per-file byte-asserts, 210->123 MB) and git-tracked;
+p2_toggle fold JSONs + arrays_d1_f4 tracked; per-unit weights
+(encoder+decoder state_dicts) to gitignored `checkpoints/` with provenance
+paths; `scripts/make_figures.py` regenerates the full paper set
+byte-identical in ~1 min; the R/MML calibration stage (4 .R + 5 drivers,
+missed by the import closure) ported with an Rscript resolver
+(DEEP_IRT_RSCRIPT). Post-restructure proof: pytest 139/1; make_figures
+git-clean modulo PDF date/ID; EdNet arm1r refit zero-delta; gate scorer
+verdict unchanged.
+
+**Pending (author):** the SLURM leg -- clone kt-irt on the cluster, fill the
+3 sbatch placeholders (partition, account, env), submit an array; report
+back for any Linux-side fixes.
