@@ -704,3 +704,20 @@ untouched 2PL row). Export tables tab_real_metrics + allenc fully routed
 with arm1 originals preserved in notes. This closes the arm1r migration:
 every NRM number in the manuscript -- synthetic and real, main and appendix
 -- now comes from the routed head.
+
+## 19. Cross-reading person agreement via fingerprint-matched learners
+
+The 2PL and NRM trajectory exports do not share learner indexing, but the
+learners are the same people: matching by response-sequence fingerprints
+(first 12 joined-item ids per learner) aligns 1,501/2,000 with PERFECT
+item+correctness validation on spot checks. Final-ability cross-reading
+Spearman (fold0x5): observed .330 SK / .178 SH; cross-seed reliabilities
+2PL .506/.245 and NRM .538/.373 (SK/SH); disattenuated (Spearman 1904,
+reliability = cross-seed reproducibility) .63 SK / .59 SH. Metric ruling
+(outputs/p2_v3_analysis/theta_metric_ruling.md): Spearman primary for all
+gauge-free theta rows (Pearson only for recovery vs known truth); report
+observed + ONE labeled disattenuated ceiling; corrected ~.6 not ~1 means
+method variance + scoring-resolution construct shift (option choice uses
+distractor information correctness discards), corroborated by NRM theta
+correlating less with raw score than 2PL theta under both designs. Row
+added to the inter-reading table; all table notes tightened per author.
