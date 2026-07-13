@@ -686,11 +686,18 @@ TF-SH N=500 slopes .435 [.267,.570] -> .517 [.398,.587]; DKVMN-SH N=5000
 slopes .901 [.820,.949] -> .938 [.929,.948]).
 
 **Routed theta-vs-rawscore by encoder (record):** LSTM .279 SH / .376 SK;
-DKVMN .441 / .192; TF .034 / .044 -- the routed transformer predicts at the
-floor but its ability readout does not track correctness on real data (the
-transformer exception, third appearance: width claim, async stall, dead
-routed theta). Manuscript unaffected (ability rows are LSTM-scoped); flag
-for any encoder-wise ability claim.
+DKVMN .441 / .192; TF .034 / .044. Calibrated reading (author correction
+2026-07-10): the TF theta is NOT established as noise -- its cross-seed
+ordering agreement is .27 mean (pairs up to .43; LSTM ref .54), so a weakly
+reproducible component exists that is simply orthogonal to raw score, and
+the same routed TF recovers theta at .86 against truth on synthetic. What
+is supported: on this real slice the TF's ability ordering is the least
+anchored of the three encoders (weak reproducibility, no raw-score
+alignment); what is NOT supported: calling it dead/noise. Raw score is a
+truth-free consistency anchor, decisive near zero only when reproducibility
+also fails. (Transformer exception, third appearance: width claim, async
+stall, weakly-anchored routed theta.) Manuscript unaffected (ability rows
+are LSTM-scoped); flag for any encoder-wise ability claim.
 
 **Stale-number sweep:** clean (single coincidental CI-bound match in an
 untouched 2PL row). Export tables tab_real_metrics + allenc fully routed
