@@ -14,6 +14,12 @@ Implemented misspecifications:
   favors extreme versus middle categories independent of item content.
 * ``threshold_disorder``: item-level step thresholds are made non-monotone while
   the fitted model still assumes ordered/static thresholds.
+* ``differential_item_functioning``: item thresholds shift by learner group and
+  item while the fitted model has no group-by-item parameter.
+* ``item_exposure_imbalance``: item sampling is made increasingly skewed while
+  the fitted model remains correctly specified conditional on the sampled item.
+* ``drifting_theta``: learner ability follows a controlled random walk while
+  item parameters remain static.
 
 The readout asks where the violation goes:
 
@@ -33,6 +39,12 @@ Outputs
   deep_irt/bench/outputs/misspec_response_style_table.md
   deep_irt/bench/outputs/misspec_threshold_disorder_results.json
   deep_irt/bench/outputs/misspec_threshold_disorder_table.md
+  deep_irt/bench/outputs/misspec_dif_results.json
+  deep_irt/bench/outputs/misspec_dif_table.md
+  deep_irt/bench/outputs/misspec_exposure_imbalance_results.json
+  deep_irt/bench/outputs/misspec_exposure_imbalance_table.md
+  deep_irt/bench/outputs/misspec_drifting_theta_results.json
+  deep_irt/bench/outputs/misspec_drifting_theta_table.md
 """
 
 from __future__ import annotations
@@ -49,6 +61,7 @@ from typing import Any
 import numpy as np
 import torch
 
+from deep_irt.bench import metrics_bench as M
 from deep_irt.bench.datagen import (
     BenchDataConfig,
     BenchDataset,
@@ -78,12 +91,18 @@ _ITEM_KEY_DIM = 64
 _DEFAULT_SEEDS = [0, 1, 2]
 _QUICK_SEEDS = [0]
 _DEFAULT_STRENGTHS = {
+    "differential_item_functioning": [0.0, 0.5, 1.0],
+    "drifting_theta": [0.0, 0.15, 0.3],
+    "item_exposure_imbalance": [0.0, 0.75, 1.5],
     "local_dependence": [0.0, 0.5, 1.0],
     "learner_response_style": [0.0, 0.5, 1.0],
     "noisy_thresholds": [0.0, 0.25, 0.5],
     "threshold_disorder": [0.0, 0.75, 1.5],
 }
 _QUICK_STRENGTHS = {
+    "differential_item_functioning": [0.0, 1.0],
+    "drifting_theta": [0.0, 0.3],
+    "item_exposure_imbalance": [0.0, 1.5],
     "local_dependence": [0.0, 1.0],
     "learner_response_style": [0.0, 1.0],
     "noisy_thresholds": [0.0, 0.5],
@@ -93,6 +112,41 @@ _DEFAULT_VARIANTS = ["static", "state_alpha", "state_beta"]
 _QUICK_VARIANTS = ["static", "state_alpha"]
 
 _MISSPEC_SPECS = {
+    "differential_item_functioning": {
+        "title": "Differential Item Functioning",
+        "strength_label": "group-by-item threshold shift",
+        "description": (
+            "Data are generated from the same known GPCM ground truth as the "
+            "main bench, except learners belong to balanced groups and each "
+            "item has a signed DIF loading that shifts all thresholds in "
+            "opposite directions by group. The fitted model has no explicit "
+            "group-by-item parameter."
+        ),
+        "default_prefix": "misspec_dif",
+    },
+    "drifting_theta": {
+        "title": "Drifting Theta",
+        "strength_label": "theta random-walk step sigma",
+        "description": (
+            "Data are generated from the same known GPCM item parameters and "
+            "item sequences as the static bench, except learner ability follows "
+            "a random walk with common drift directions across strengths. This "
+            "tests whether dynamic theta tracking protects item recovery."
+        ),
+        "default_prefix": "misspec_drifting_theta",
+    },
+    "item_exposure_imbalance": {
+        "title": "Item Exposure Imbalance",
+        "strength_label": "item popularity log-scale",
+        "description": (
+            "Data are generated from the same known GPCM ground truth as the "
+            "main bench, except item sampling probabilities become increasingly "
+            "skewed. The response model is correctly specified conditional on "
+            "the sampled item, so this probes finite-exposure recovery rather "
+            "than a new response-process violation."
+        ),
+        "default_prefix": "misspec_exposure_imbalance",
+    },
     "local_dependence": {
         "title": "Local Dependence",
         "strength_label": "previous-response logit bonus",
@@ -213,6 +267,35 @@ def threshold_disorder_summary(beta: np.ndarray) -> tuple[float, float]:
     return float(np.mean(per_item > 0.0)), float(np.mean(per_item))
 
 
+def item_exposure_summary(items0: np.ndarray, n_items: int) -> dict[str, float]:
+    """Summarize item exposure imbalance for a realized item sequence."""
+    counts = np.bincount(np.asarray(items0, dtype=np.int64).ravel(), minlength=n_items)
+    counts = counts.astype(float)
+    mean = float(np.mean(counts))
+    if mean <= 0.0:
+        return {
+            "item_exposure_cv": float("nan"),
+            "item_exposure_gini": float("nan"),
+            "item_exposure_min": float("nan"),
+            "item_exposure_max": float("nan"),
+            "item_exposure_min_rate": float("nan"),
+            "item_exposure_max_rate": float("nan"),
+        }
+    sorted_counts = np.sort(counts)
+    n = sorted_counts.size
+    weighted = np.sum((np.arange(1, n + 1, dtype=float)) * sorted_counts)
+    gini = (2.0 * weighted / (n * np.sum(sorted_counts))) - ((n + 1.0) / n)
+    total = float(np.sum(counts))
+    return {
+        "item_exposure_cv": float(np.std(counts) / mean),
+        "item_exposure_gini": float(gini),
+        "item_exposure_min": float(np.min(counts)),
+        "item_exposure_max": float(np.max(counts)),
+        "item_exposure_min_rate": float(np.min(counts) / total),
+        "item_exposure_max_rate": float(np.max(counts) / total),
+    }
+
+
 def generate_local_dependence_dataset(
     cfg: BenchDataConfig,
     strength: float,
@@ -327,6 +410,251 @@ def generate_learner_response_style_dataset(
                 "abs_response_style": np.abs(learner_style),
             },
             "response_style_shape": shape,
+        },
+    )
+
+
+def generate_differential_item_functioning_dataset(
+    cfg: BenchDataConfig,
+    strength: float,
+    name: str | None = None,
+) -> BenchDataset:
+    """Generate matched GPCM data with uniform group-by-item DIF.
+
+    ``strength`` scales a signed item loading crossed with a balanced learner
+    group indicator.  The shift is added to all thresholds for the item, so the
+    threshold order is preserved but the effective item location differs by
+    learner group.  The fitted model has no group-by-item parameter and is
+    scored against the balanced common item reference.
+    """
+    if strength < 0.0:
+        raise ValueError("DIF strength must be nonnegative.")
+
+    base = generate(cfg)
+    rng = np.random.default_rng(cfg.seed + 60011)
+    uniforms = rng.random(size=base.responses.shape)
+
+    learner_group = np.empty(cfg.n_learners, dtype=float)
+    half = cfg.n_learners // 2
+    learner_group[:half] = -1.0
+    learner_group[half:] = 1.0
+    if cfg.n_learners % 2:
+        learner_group[-1] = float(rng.choice([-1.0, 1.0]))
+    rng.shuffle(learner_group)
+
+    item_loading = rng.standard_normal(cfg.n_items)
+    item_loading = item_loading - float(np.mean(item_loading))
+    scale = float(np.std(item_loading))
+    if scale > 0.0:
+        item_loading = item_loading / scale
+
+    responses = np.zeros_like(base.responses)
+    gamma = base.gt.gamma
+    dif_interaction = learner_group[:, None] * item_loading[base.items0]
+
+    for learner in range(cfg.n_learners):
+        group = float(learner_group[learner])
+        for step in range(cfg.seq_len):
+            item = int(base.items0[learner, step])
+            theta = float(base.theta_at_step[learner, step])
+            alpha = float(base.gt.a[item])
+            if gamma is not None:
+                alpha *= math.exp(float(gamma[item]) * theta)
+            beta = base.gt.b[item] + float(strength * group * item_loading[item])
+            logits = gpcm_logits(theta, alpha, beta)
+            responses[learner, step] = sample_probs(softmax(logits), uniforms[learner, step])
+
+    cfg_name = name or f"{cfg.name}_dif_{strength:g}"
+    miss_cfg = replace(cfg, name=cfg_name)
+    gt = BenchGroundTruth(
+        theta0=base.gt.theta0,
+        a=base.gt.a,
+        b=base.gt.b,
+        theta_traj=base.gt.theta_traj,
+        gamma=base.gt.gamma,
+    )
+    return BenchDataset(
+        cfg=miss_cfg,
+        gt=gt,
+        items0=base.items0,
+        responses=responses,
+        train_idx=base.train_idx,
+        val_idx=base.val_idx,
+        theta_at_step=base.theta_at_step,
+        aux={
+            "dif_group_mean": float(np.mean(learner_group)),
+            "dif_loading_abs_mean": float(np.mean(np.abs(item_loading))),
+            "dif_threshold_shift_abs_mean": float(strength * np.mean(np.abs(dif_interaction))),
+            "context_variables": {
+                "dif_group": learner_group,
+                "dif_interaction": dif_interaction,
+                "abs_dif_interaction": np.abs(dif_interaction),
+            },
+            "item_variables": {
+                "dif_loading": item_loading,
+                "abs_dif_loading": np.abs(item_loading),
+            },
+        },
+    )
+
+
+def generate_item_exposure_imbalance_dataset(
+    cfg: BenchDataConfig,
+    strength: float,
+    name: str | None = None,
+) -> BenchDataset:
+    """Generate correctly specified GPCM data with skewed item exposure.
+
+    ``strength`` scales a fixed item-popularity score before a softmax.  At
+    strength zero, item sampling is uniform.  Larger strengths concentrate
+    observations on popular items and leave less-popular items weakly exposed.
+    Ground truth, train/validation split, theta trajectories, popularity scores,
+    item-draw uniforms, and response-draw uniforms are held fixed across
+    strengths at the same seed.
+    """
+    if strength < 0.0:
+        raise ValueError("item exposure imbalance strength must be nonnegative.")
+
+    base = generate(cfg)
+    rng = np.random.default_rng(cfg.seed + 70011)
+    item_uniforms = rng.random(size=base.responses.shape)
+    response_uniforms = rng.random(size=base.responses.shape)
+    popularity = rng.standard_normal(cfg.n_items)
+    popularity = popularity - float(np.mean(popularity))
+    scale = float(np.std(popularity))
+    if scale > 0.0:
+        popularity = popularity / scale
+
+    logits = float(strength) * popularity
+    logits = logits - float(np.max(logits))
+    item_probs = np.exp(logits)
+    item_probs = item_probs / np.sum(item_probs)
+    cdf = np.cumsum(item_probs)
+    items0 = np.searchsorted(
+        cdf,
+        np.minimum(item_uniforms.ravel(), np.nextafter(1.0, 0.0)),
+        side="right",
+    ).reshape(base.responses.shape)
+    items0 = np.minimum(items0, cfg.n_items - 1).astype(np.int64)
+
+    responses = np.zeros_like(base.responses)
+    gamma = base.gt.gamma
+    for learner in range(cfg.n_learners):
+        for step in range(cfg.seq_len):
+            item = int(items0[learner, step])
+            theta = float(base.theta_at_step[learner, step])
+            alpha = float(base.gt.a[item])
+            if gamma is not None:
+                alpha *= math.exp(float(gamma[item]) * theta)
+            logits = gpcm_logits(theta, alpha, base.gt.b[item])
+            responses[learner, step] = sample_probs(
+                softmax(logits), response_uniforms[learner, step]
+            )
+
+    counts = np.bincount(items0.ravel(), minlength=cfg.n_items).astype(float)
+    total = float(np.sum(counts))
+    exposure_rate = counts / total if total > 0.0 else np.full(cfg.n_items, np.nan)
+    cfg_name = name or f"{cfg.name}_exposure_imbalance_{strength:g}"
+    miss_cfg = replace(cfg, name=cfg_name)
+    gt = BenchGroundTruth(
+        theta0=base.gt.theta0,
+        a=base.gt.a,
+        b=base.gt.b,
+        theta_traj=base.gt.theta_traj,
+        gamma=base.gt.gamma,
+    )
+    return BenchDataset(
+        cfg=miss_cfg,
+        gt=gt,
+        items0=items0,
+        responses=responses,
+        train_idx=base.train_idx,
+        val_idx=base.val_idx,
+        theta_at_step=base.theta_at_step,
+        aux={
+            "item_probabilities": item_probs,
+            "item_popularity_score": popularity,
+            **item_exposure_summary(items0, cfg.n_items),
+            "item_variables": {
+                "item_exposure_count_total": counts,
+                "item_exposure_rate": exposure_rate,
+                "log_item_exposure_rate": np.log(np.clip(exposure_rate, 1e-12, None)),
+                "item_popularity_score": popularity,
+            },
+        },
+    )
+
+
+def generate_drifting_theta_dataset(
+    cfg: BenchDataConfig,
+    strength: float,
+    name: str | None = None,
+) -> BenchDataset:
+    """Generate matched GPCM data with controlled learner theta drift.
+
+    ``strength`` is the per-step random-walk standard deviation.  The item
+    parameters, item sequences, train/validation split, drift directions, and
+    response uniforms are held fixed across strengths.  At strength zero, this
+    reduces to a static-theta GPCM sampled through the same code path.
+    """
+    if strength < 0.0:
+        raise ValueError("theta drift strength must be nonnegative.")
+
+    base = generate(replace(cfg, kind="static", drift_sigma=0.0))
+    rng = np.random.default_rng(cfg.seed + 80011)
+    drift_basis = rng.standard_normal(size=(cfg.n_learners, cfg.seq_len))
+    response_uniforms = rng.random(size=base.responses.shape)
+
+    steps = float(strength) * drift_basis
+    cum = np.cumsum(steps, axis=1)
+    theta_traj = np.zeros((cfg.n_learners, cfg.seq_len), dtype=float)
+    theta_traj[:, 0] = base.gt.theta0
+    theta_traj[:, 1:] = base.gt.theta0[:, None] + cum[:, :-1]
+    theta_drift = theta_traj - base.gt.theta0[:, None]
+
+    responses = np.zeros_like(base.responses)
+    gamma = base.gt.gamma
+    for learner in range(cfg.n_learners):
+        for step in range(cfg.seq_len):
+            item = int(base.items0[learner, step])
+            theta = float(theta_traj[learner, step])
+            alpha = float(base.gt.a[item])
+            if gamma is not None:
+                alpha *= math.exp(float(gamma[item]) * theta)
+            logits = gpcm_logits(theta, alpha, base.gt.b[item])
+            responses[learner, step] = sample_probs(
+                softmax(logits), response_uniforms[learner, step]
+            )
+
+    cfg_name = name or f"{cfg.name}_drifting_theta_{strength:g}"
+    miss_cfg = replace(cfg, name=cfg_name, kind="dynamic", drift_sigma=float(strength))
+    gt = BenchGroundTruth(
+        theta0=base.gt.theta0,
+        a=base.gt.a,
+        b=base.gt.b,
+        theta_traj=theta_traj,
+        gamma=base.gt.gamma,
+    )
+    theta_step_change = np.zeros_like(theta_traj)
+    theta_step_change[:, 1:] = np.diff(theta_traj, axis=1)
+    return BenchDataset(
+        cfg=miss_cfg,
+        gt=gt,
+        items0=base.items0,
+        responses=responses,
+        train_idx=base.train_idx,
+        val_idx=base.val_idx,
+        theta_at_step=theta_traj,
+        aux={
+            "theta_drift_step_sigma": float(strength),
+            "theta_drift_path_std": float(np.std(theta_drift)),
+            "theta_drift_abs_mean": float(np.mean(np.abs(theta_drift))),
+            "theta_drift_final_std": float(np.std(theta_drift[:, -1])),
+            "context_variables": {
+                "theta_drift": theta_drift,
+                "abs_theta_drift": np.abs(theta_drift),
+                "theta_step_change": theta_step_change,
+            },
         },
     )
 
@@ -460,6 +788,12 @@ def generate_misspecified_dataset(
     misspecification: str,
     strength: float,
 ) -> BenchDataset:
+    if misspecification == "differential_item_functioning":
+        return generate_differential_item_functioning_dataset(cfg, strength)
+    if misspecification == "drifting_theta":
+        return generate_drifting_theta_dataset(cfg, strength)
+    if misspecification == "item_exposure_imbalance":
+        return generate_item_exposure_imbalance_dataset(cfg, strength)
     if misspecification == "local_dependence":
         return generate_local_dependence_dataset(cfg, strength)
     if misspecification == "learner_response_style":
@@ -603,6 +937,22 @@ def contextual_diagnostics(ds: BenchDataset, occ: dict[str, np.ndarray]) -> dict
         "corr_delta_exposure_count": _var_corr(variables, "exposure_count"),
         "corr_delta_response_style": _var_corr(variables, "response_style"),
         "corr_delta_abs_response_style": _var_corr(variables, "abs_response_style"),
+        "corr_delta_dif_group": _var_corr(variables, "dif_group"),
+        "corr_delta_dif_interaction": _var_corr(variables, "dif_interaction"),
+        "corr_delta_abs_dif_interaction": _var_corr(variables, "abs_dif_interaction"),
+        "corr_delta_dif_loading": _var_corr(variables, "dif_loading"),
+        "corr_delta_abs_dif_loading": _var_corr(variables, "abs_dif_loading"),
+        "corr_delta_item_exposure_count_total": _var_corr(
+            variables, "item_exposure_count_total"
+        ),
+        "corr_delta_item_exposure_rate": _var_corr(variables, "item_exposure_rate"),
+        "corr_delta_log_item_exposure_rate": _var_corr(
+            variables, "log_item_exposure_rate"
+        ),
+        "corr_delta_item_popularity_score": _var_corr(variables, "item_popularity_score"),
+        "corr_delta_theta_drift": _var_corr(variables, "theta_drift"),
+        "corr_delta_abs_theta_drift": _var_corr(variables, "abs_theta_drift"),
+        "corr_delta_theta_step_change": _var_corr(variables, "theta_step_change"),
         "corr_delta_threshold_disorder": _var_corr(variables, "threshold_disorder"),
         "corr_delta_threshold_disorder_magnitude": _var_corr(
             variables, "threshold_disorder_magnitude"
@@ -634,6 +984,43 @@ def _build_engine(ds: BenchDataset, variant: str, device: str, seed: int) -> Dee
     )
 
 
+def _exposure_band_recovery(ds: BenchDataset, rec: dict[str, Any]) -> dict[str, float]:
+    counts = np.bincount(
+        np.asarray(ds.items0, dtype=np.int64).ravel(),
+        minlength=ds.cfg.n_items,
+    ).astype(float)
+    seen = np.asarray(rec.get("seen", np.ones(ds.cfg.n_items, dtype=bool)), dtype=bool)
+    low_cut = float(np.nanquantile(counts, 0.25))
+    high_cut = float(np.nanquantile(counts, 0.75))
+    bands = {
+        "low": counts <= low_cut,
+        "high": counts >= high_cut,
+    }
+    out: dict[str, float] = {}
+    a_hat = np.asarray(rec["a"], dtype=float)
+    b_hat = np.asarray(rec["b"], dtype=float)
+    for label, mask in bands.items():
+        band = np.asarray(mask, dtype=bool) & seen
+        out[f"{label}_exposure_items"] = float(np.sum(band))
+        if np.sum(band) < 4:
+            out[f"a_{label}_exposure_spearman"] = float("nan")
+            out[f"a_{label}_exposure_pearson"] = float("nan")
+            out[f"b_{label}_exposure_spearman"] = float("nan")
+            out[f"b_{label}_exposure_pearson"] = float("nan")
+            continue
+        metrics = M.item_recovery(
+            a_hat[band],
+            b_hat[band],
+            ds.gt.a[band],
+            ds.gt.b[band],
+        )
+        out[f"a_{label}_exposure_spearman"] = metrics["a_spearman"]
+        out[f"a_{label}_exposure_pearson"] = metrics["a_pearson"]
+        out[f"b_{label}_exposure_spearman"] = metrics["b_spearman"]
+        out[f"b_{label}_exposure_pearson"] = metrics["b_pearson"]
+    return out
+
+
 def fit_cell(
     ds: BenchDataset,
     misspecification: str,
@@ -653,8 +1040,10 @@ def fit_cell(
         grad_clip_norm=args.grad_clip_norm,
     )
     score = run_map_cell(eng, ds)
+    exposure_rec = _exposure_band_recovery(ds, eng.recover())
     occ = extract_occurrence_params(eng.model, ds.items0, ds.responses, args.device)
     ctx = contextual_diagnostics(ds, occ)
+    exposure_stats = item_exposure_summary(ds.items0, ds.cfg.n_items)
     row = {
         "misspecification": misspecification,
         "strength": float(strength),
@@ -677,6 +1066,17 @@ def fit_cell(
                 threshold_disorder_summary(ds.gt.b)[1],
             )
         ),
+        "dif_group_mean": float(ds.aux.get("dif_group_mean", float("nan"))),
+        "dif_loading_abs_mean": float(ds.aux.get("dif_loading_abs_mean", float("nan"))),
+        "dif_threshold_shift_abs_mean": float(
+            ds.aux.get("dif_threshold_shift_abs_mean", float("nan"))
+        ),
+        "theta_drift_step_sigma": float(ds.aux.get("theta_drift_step_sigma", float("nan"))),
+        "theta_drift_path_std": float(ds.aux.get("theta_drift_path_std", float("nan"))),
+        "theta_drift_abs_mean": float(ds.aux.get("theta_drift_abs_mean", float("nan"))),
+        "theta_drift_final_std": float(ds.aux.get("theta_drift_final_std", float("nan"))),
+        **exposure_stats,
+        **exposure_rec,
         **score,
         **init_info,
         **monitor.summary(),
@@ -707,6 +1107,9 @@ _AGG_KEYS = [
     "auc",
     "theta_spearman",
     "theta_pearson",
+    "theta_netdrift_spearman",
+    "theta_netdrift_pearson",
+    "theta_pooled_pearson",
     "a_spearman",
     "a_pearson",
     "a_high_spearman",
@@ -728,6 +1131,18 @@ _AGG_KEYS = [
     "corr_delta_exposure_count",
     "corr_delta_response_style",
     "corr_delta_abs_response_style",
+    "corr_delta_dif_group",
+    "corr_delta_dif_interaction",
+    "corr_delta_abs_dif_interaction",
+    "corr_delta_dif_loading",
+    "corr_delta_abs_dif_loading",
+    "corr_delta_item_exposure_count_total",
+    "corr_delta_item_exposure_rate",
+    "corr_delta_log_item_exposure_rate",
+    "corr_delta_item_popularity_score",
+    "corr_delta_theta_drift",
+    "corr_delta_abs_theta_drift",
+    "corr_delta_theta_step_change",
     "corr_delta_threshold_disorder",
     "corr_delta_threshold_disorder_magnitude",
     "beta_delta_std",
@@ -735,12 +1150,36 @@ _AGG_KEYS = [
     "beta_delta_history_pos_corr",
     "beta_delta_response_style_corr",
     "beta_delta_abs_response_style_corr",
+    "beta_delta_dif_group_corr",
+    "beta_delta_dif_interaction_corr",
+    "beta_delta_abs_dif_interaction_corr",
+    "beta_delta_dif_loading_corr",
+    "beta_delta_abs_dif_loading_corr",
+    "beta_delta_item_exposure_count_total_corr",
+    "beta_delta_item_exposure_rate_corr",
+    "beta_delta_log_item_exposure_rate_corr",
+    "beta_delta_item_popularity_score_corr",
+    "beta_delta_theta_drift_corr",
+    "beta_delta_abs_theta_drift_corr",
+    "beta_delta_theta_step_change_corr",
     "beta_delta_threshold_disorder_corr",
     "beta_delta_threshold_disorder_magnitude_corr",
     "theta_prev_response_corr",
     "theta_history_pos_corr",
     "theta_response_style_corr",
     "theta_abs_response_style_corr",
+    "theta_dif_group_corr",
+    "theta_dif_interaction_corr",
+    "theta_abs_dif_interaction_corr",
+    "theta_dif_loading_corr",
+    "theta_abs_dif_loading_corr",
+    "theta_item_exposure_count_total_corr",
+    "theta_item_exposure_rate_corr",
+    "theta_log_item_exposure_rate_corr",
+    "theta_item_popularity_score_corr",
+    "theta_theta_drift_corr",
+    "theta_abs_theta_drift_corr",
+    "theta_theta_step_change_corr",
     "theta_threshold_disorder_corr",
     "theta_threshold_disorder_magnitude_corr",
     "response_repeat_rate",
@@ -748,6 +1187,29 @@ _AGG_KEYS = [
     "response_abs_step_change",
     "threshold_disorder_rate",
     "threshold_disorder_magnitude_mean",
+    "dif_group_mean",
+    "dif_loading_abs_mean",
+    "dif_threshold_shift_abs_mean",
+    "theta_drift_step_sigma",
+    "theta_drift_path_std",
+    "theta_drift_abs_mean",
+    "theta_drift_final_std",
+    "item_exposure_cv",
+    "item_exposure_gini",
+    "item_exposure_min",
+    "item_exposure_max",
+    "item_exposure_min_rate",
+    "item_exposure_max_rate",
+    "low_exposure_items",
+    "high_exposure_items",
+    "a_low_exposure_spearman",
+    "a_low_exposure_pearson",
+    "a_high_exposure_spearman",
+    "a_high_exposure_pearson",
+    "b_low_exposure_spearman",
+    "b_low_exposure_pearson",
+    "b_high_exposure_spearman",
+    "b_high_exposure_pearson",
     "n_params",
     "train_time",
     "final_loss",
@@ -845,29 +1307,37 @@ def render_markdown(
     )
     lines.append("## Summary\n")
     lines.append(
-        "| strength | variant | disorder | repeat | QWK | theta_sp | alpha_sp | beta_sp | "
-        "delta std | corr(delta, prev) | corr(delta, info) | corr(delta, style) | "
-        "corr(delta, disorder) | beta delta std | corr(beta, prev) | "
-        "corr(beta, style) | corr(beta, disorder) | strongest |"
+        "| strength | variant | disorder | exposure cv | repeat | QWK | theta_sp | "
+        "theta_pool | alpha_sp | beta_sp | delta std | corr(delta, prev) | "
+        "corr(delta, info) | corr(delta, exposure) | corr(delta, drift) | "
+        "corr(delta, style) | corr(delta, DIF) | corr(delta, disorder) | "
+        "beta delta std | corr(beta, prev) | "
+        "corr(beta, style) | corr(beta, DIF) | corr(beta, disorder) | strongest |"
     )
     lines.append(
-        "|---:|---|---:|---:|---|---|---|---|---|---:|---:|---:|---:|---|---:|---:|---:|---|"
+        "|---:|---|---:|---:|---:|---|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---|"
     )
     for row in agg:
         lines.append(
             f"| {row['strength']:.2f} | {row['variant']} | "
             f"{_fmt(row['threshold_disorder_rate_mean'])} | "
+            f"{_fmt(row['item_exposure_cv_mean'])} | "
             f"{_fmt(row['response_repeat_rate_mean'])} | "
             f"{_fmt_ms(row, 'qwk')} | {_fmt_ms(row, 'theta_spearman')} | "
+            f"{_fmt_ms(row, 'theta_pooled_pearson')} | "
             f"{_fmt_ms(row, 'a_spearman')} | {_fmt_ms(row, 'b_spearman')} | "
             f"{_fmt_ms(row, 'delta_std')} | "
             f"{_fmt(row['corr_delta_prev_response_mean'])} | "
             f"{_fmt(row['corr_delta_info_model_mean'])} | "
+            f"{_fmt(row['corr_delta_exposure_count_mean'])} | "
+            f"{_fmt(row['corr_delta_theta_drift_mean'])} | "
             f"{_fmt(row['corr_delta_response_style_mean'])} | "
+            f"{_fmt(row['corr_delta_dif_interaction_mean'])} | "
             f"{_fmt(row['corr_delta_threshold_disorder_mean'])} | "
             f"{_fmt_ms(row, 'beta_delta_std')} | "
             f"{_fmt(row['beta_delta_prev_response_corr_mean'])} | "
             f"{_fmt(row['beta_delta_response_style_corr_mean'])} | "
+            f"{_fmt(row['beta_delta_dif_interaction_corr_mean'])} | "
             f"{_fmt(row['beta_delta_threshold_disorder_corr_mean'])} | "
             f"{row['strongest_corr_variable_mode']} |"
         )
@@ -878,8 +1348,20 @@ def render_markdown(
         "info_model",
         "history_pos",
         "exposure_count",
+        "item_exposure_count_total",
+        "item_exposure_rate",
+        "log_item_exposure_rate",
+        "item_popularity_score",
+        "theta_drift",
+        "abs_theta_drift",
+        "theta_step_change",
         "response_style",
         "abs_response_style",
+        "dif_group",
+        "dif_interaction",
+        "abs_dif_interaction",
+        "dif_loading",
+        "abs_dif_loading",
         "threshold_disorder",
         "threshold_disorder_magnitude",
     }

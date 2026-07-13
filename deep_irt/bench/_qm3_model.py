@@ -48,7 +48,7 @@ def bank_from_qm2(items):
 class QM3Model(nn.Module):
     def __init__(self, bank, N, inert_items=None, use_encoder=False,
                  enc_window=None, enc_hidden=32, enc_emb=16,
-                 enc_gamma=True, enc_lambda=True,
+                 enc_gamma=True, enc_lambda=True, gain_features=False,
                  init_gain=0.05, frac_practice=True):
         super().__init__()
         J, C, K = bank["J"], bank["C"], bank["K"]
@@ -84,6 +84,28 @@ class QM3Model(nn.Module):
         self.ug_free = nn.Parameter(0.02 * torch.randn(N))
         # recognition network (amortized path)
         self.enc_gamma, self.enc_lambda = enc_gamma, enc_lambda
+        # V2 event-conditioned gain (pre-registered form): the multiplier
+        # exp(w_out*(y/(K-1)-0.5) + w_feat*(f_j - fbar)) scales the OWN
+        # gain of the event that produced outcome y; responses touch the
+        # own-concept transition only, never the cross-concept route.
+        self.gain_features = bool(gain_features)
+        feat = bank.get("feat")
+        if feat is None:
+            feat = np.zeros(J)
+        prac_rows = np.asarray(bank.get("kind", ["x"] * J)) == "apool"
+        fbar = float(feat[prac_rows].mean()) if prac_rows.any() else 0.0
+        self.register_buffer("feat", torch.as_tensor(feat - fbar,
+                                                     dtype=torch.float))
+        self.w_out = nn.Parameter(torch.zeros(()))
+        self.w_feat = nn.Parameter(torch.zeros(()))
+        if self.gain_features:
+            # ISOLATION GUARD (2026-07-05 review caveat): the outcome
+            # multiplier is only leak-free while practice items are
+            # single-concept; a cross-loading practice item would carry
+            # forecast responses into a certified concept's state.
+            live = self.Wprac.sum(1) > 0
+            assert float((self.Wprac[live] > 0).sum(1).max()) <= 1.0, \
+                "gain_features requires single-concept practice items"
         if use_encoder:
             self.item_emb = nn.Embedding(J, enc_emb)
             self.enc = nn.LSTM(enc_emb + K, enc_hidden, batch_first=True)
@@ -132,8 +154,14 @@ class QM3Model(nn.Module):
             prac = self.Wprac[seq_eff[:, t]]                  # (N, C)
             gap_up = (self.ceil - zt).clamp_min(0.0)
             gap_dn = (zt - self.floor).clamp_min(0.0)
-            x = lam.unsqueeze(1) * gain * prac \
-                + gam.unsqueeze(1) * (prac @ Gt.T)
+            own = lam.unsqueeze(1) * gain * prac
+            if self.gain_features and resp is not None:
+                arg = (self.w_out * (resp[:, t].float()
+                                     / (self.K - 1) - 0.5)
+                       + self.w_feat * self.feat[seq_eff[:, t]])
+                mult = torch.exp(arg.clamp(-8.0, 8.0))   # overflow guard
+                own = own * mult.unsqueeze(1)
+            x = own + gam.unsqueeze(1) * (prac @ Gt.T)
             grow = gap_up * x.clamp_min(0.0) - gap_dn * (-x).clamp_min(0.0)
             z.append(zt + grow)
         return torch.stack(z, dim=1)
@@ -159,6 +187,9 @@ class QM3Model(nn.Module):
     # ------------------------------------------------------------ fitting
     def fit_params(self, stage):
         mech = [self.gain_raw, self.ceil, self.floor]
+        if self.gain_features:
+            mech += [p for p in (self.w_out, self.w_feat)
+                     if p.requires_grad]
         person = list(self.enc.parameters()) + [self.head.weight,
                                                 self.head.bias,
                                                 self.item_emb.weight] \
