@@ -784,3 +784,21 @@ verdict unchanged.
 **Pending (author):** the SLURM leg -- clone kt-irt on the cluster, fill the
 3 sbatch placeholders (partition, account, env), submit an array; report
 back for any Linux-side fixes.
+
+## 22. EXTRACTION -- retired apparatus out, replication closed (2026-07-16)
+
+The closure ruling executed: arm1r is the one head (ladder deleted,
+menus/flags/dispatch collapsed, batch mains smoke-only, wol selector and
+the toggle-era NRM couplings/dynamic mode pruned, two orphan drivers
+renamed); SH/SK is the one live toggle under one vocabulary (SK =
+separated key, SH = shared head). The from-scratch audit surfaced and
+closed four replication blockers -- most notably the never-tracked
+_p2_v3_export_sh.py, rebuilt from the campaign's own recipe record and
+validated BIT-EXACT against the shipped SH trajectory -- plus cache-first
+real-data loading, the TIMSS verbatim inputs, the DKVMN mid-N grid, and
+the mass-table toggle fallback (means exact at reported precision).
+Verification: gates green at every step; residue sweep clean (4 prose
+fixes); all 6 replication chains verified; cluster bigger-test 25/25
+fold records and 25/25 trajectories bit-equal across the extraction on
+identical a40/cu126. Runbook: kt-irt/docs/REPLICATION.md; full record
+kt-irt/docs/port/extraction_report.md; ledger 127 sanctioned edits.
