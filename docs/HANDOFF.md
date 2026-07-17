@@ -1,138 +1,46 @@
 # Project Handoff (START HERE)
 
-Last updated 2026-07-02. Orientation for a fresh conversation. The active work is the JEDM
-paper **"Not All Parameters Learn Alike"** (a knowledge-tracing encoder plus an interpretable
-IRT decoder). Honest state: experiments are **partially done**, the paper needs a **major
-rework**, and the current writeups are below standard (some material is salvageable). Do not
-treat any existing draft as final.
+Last updated 2026-07-17. Read CLAUDE.md (working rules) and the memory
+index first; this file is the state pointer, kept short on purpose.
 
-Repo root `C:/Users/steph/documents/deep-mirt`. Canonical branch `feat/prediction-loss`
-(origin github.com/alhazar43/deep-mirt).
+Repo root `C:/Users/steph/documents/deep-mirt`, branch
+`feat/prediction-loss` (origin github.com/alhazar43/deep-mirt).
 
-## 1. The paper (what it argues)
-Home is knowledge tracing; IRT is the readable flavor. Never "neural KT" (banned), never a
-psychometrics-theory contribution. Two things only:
-- **(a) A modular tracer, benchmarked by recovery.** A swappable sequence encoder feeding a
-  swappable IRT decoder; the contribution is the parameter-recovery benchmark across the
-  encoder-by-decoder matrix (modularity is real, and the ordering is not one encoder's artifact).
-- **(b) A finite-data law.** Trained on prediction loss alone, the parameter that MULTIPLIES
-  ability recovers worst (a multiplicative scale-gauge effect), separable from a low-Fisher rate
-  penalty. Two mechanisms, two fixes: DECOUPLING (the multiplicative parameter gets its own item
-  key) fixes the representation / scale-gauge effect; the DYNAMIC (state_t in the readout) head
-  fixes the low-Fisher rate penalty. NRM is the control that dissociates them (its slope a_k is
-  multiplicative but NOT low-Fisher).
+## State in one paragraph
 
-Full design `docs/paper_plan.md`; derivations + reviewer caveats `docs/theory_memo.md`; run
-plan `docs/experiment_blueprint.md`; tracker `docs/paper_workflow.md`. Terminology is exact and
-load-bearing: 2PL/GPCM have DISCRIMINATION (alpha) and DIFFICULTY / step thresholds (beta); NRM
-has SLOPE (a_k) and INTERCEPT (c_k). Never "slope" for GPCM, never "difficulty" for NRM.
-"Decoupling" = own item key for the hard parameter; "dynamic" = whether state_t enters the
-readout. There is NO "coupled theta" and no "two decoupling axes" framing (both purged).
+The measurement-audit paper (CAEAI-first; repo
+github.com/alhazar43/JEDM-paper, name historical; draft
+`overleaf-sync/main_caeai.tex`, plan of record `docs/paper_plan_v2.md`,
+results ledger `docs/v3_results_record.md` through sec 22) has a COMPLETE,
+frozen experimental campaign. The framework lives in the standalone
+`kt-irt/` submodule (github.com/alhazar43/kt-irt), which replaced the
+retired in-tree `deep_irt/` and is verified on all three machines (PC,
+laptop-ready, UT HPC SLURM). The 2026-07-16 extraction closed the
+campaign apparatus: the gradient-routed head (arm1r) is the one NRM head,
+SH/SK (shared head / separated key) is the one live toggle, and the paper
+replicates FROM SCRATCH -- runbook `kt-irt/docs/REPLICATION.md`, closure
+record `kt-irt/docs/port/extraction_report.md`. Every change was gated
+(pytest 139/1; byte-identical figure regeneration; zero-delta refits;
+cluster bit-reproducibility 25/25).
 
-## 2. The framework + the experiment pipeline
-`DeepIRTModel` (`deep_irt/core/model.py`): swappable encoder (lstm default, transformer, dkvmn)
-+ swappable IRT decoder (gpcm, binary=2PL, nrm, bt), trained on a PREDICTION loss (no IRT-NLL;
-GPCM uses ordinal cross-entropy, not WOL, not categorical CE). IRT params are recovered after
-training from frozen decoder weights.
+## Working with kt-irt (the base for new work)
 
-The paper's experiments run through the `_p2_` pipeline in `deep_irt/bench/` (all `_`-prefixed
-scratch that extends deep_irt additively): `_p2_datagen_realistic.py` (the realistic bed),
-`_p2_ordinal_ce.py`, `_p2_model.py`, `_p2_engine.py`, `_p2_run_cell.py`, `_p2_gpcm_alpha_key.py`
-(Option-A discrimination-on-item-key), `_p2_nrm_channels.py` (the 5 NRM couplings),
-`_p2_reliability.py` + `_p2_real.py` (real-data split-half), driven by
-`deep_irt/bench/configs_p2/*.yaml` via `_p2_sweep.py`. **Codex owns and you must NOT edit**
-`deep_irt/core/*`, `bench/run_*.py`, `datagen.py`, `engines.py`, and existing `_ednet_ot*.py`;
-extend only in new `_`-prefixed files.
+- Install: `pip install -e kt-irt` (imports stay `deep_irt.*`); tests
+  `python -m pytest` from `kt-irt/`.
+- Entry points: `deep-irt-train-unit / -enumerate / -status / -figures /
+  -weights-manifest`; batch layers `kt-irt/local/train_batch.ps1`
+  (Windows) and `kt-irt/slurm/autopilot.sh` (UT HPC; cluster facts in
+  memory `ut-hpc-cluster`).
+- Contracts: results are small (fold/verdict JSON, slim traj npz; panel
+  arrays resolve from `data/cache/`); weights two-tier (`weights/*.pt`
+  manifest-tracked, `checkpoints/*.pth` local debug); every
+  byte-diverging edit logged in `kt-irt/docs/port/copy_edits.json`;
+  `results/` artifacts and `docs/port/` records are frozen history.
+- Overleaf's own git endpoint is unreachable from this environment; the
+  paper syncs through the JEDM-paper GitHub repo.
 
-## 3. State of the experiments (partially done)
-Raw record, config in and numbers out, no interpretation: **`docs/experiment_results.md`**.
+## Parked lines
 
-DONE (overnight run 2026-07-01), realistic ma-irt bed (Q=200, N=2000, administration
-Uniform(40,80), uniform exposure, 150 epochs, 5 data seeds x 5 folds):
-- Benchmark, 11 cells: {lstm, dkvmn, transformer} x {2PL, GPCM, NRM} + a dense control + a
-  random-walk drift arm.
-- Toggles, 18 cells: 2PL/GPCM {shared, decoupled} x {static, dynamic} (8); all 10 NRM couplings
-  x {static, dynamic}.
-- Real-data reliability, 10 cells: EdNet + KDD x {2PL, GPCM, NRM}, shared vs fix, split-half
-  Spearman-Brown, accuracy-guarded.
-- Fix applied: NRM ability (theta) had a GLOBAL-SIGN scoring bug, sign-aligned in
-  `_p2_run_cell` (item params were always correct; re-scored from saved folds, no re-train).
-
-NOT DONE (the load-bearing controls from the blueprint, needed before the paper is defensible):
-- The **multiplicative-vs-additive ablation** (hold Fisher fixed, vary only multiplicative vs
-  additive entry). This turns "multiplicative" from best-explanation into necessary and is the
-  single most important missing experiment.
-- The finite-vs-asymptotic budget sweep (the gap should vanish with data and training budget).
-- The oracle-clamp control (theta = theta*) for the co-learned-theta gap.
-- The a_star / eigenmode-inversion check (below discrimination ~1 the recovery order inverts).
-- ASSISTments cells (raw data absent on disk; only EdNet + KDD ran).
-
-## 4. State of the writing (major rework needed; paper now lives on GitHub)
-None of the current writeups meet the standard; treat them as raw material, not drafts.
-- **The paper's home is `github.com/alhazar43/JEDM-paper`** (pushed from the `overleaf-sync`
-  submodule, which now has a `jedm` remote). `main.tex` = the active "Not All Parameters" draft
-  (acmart sigconf, a stand-in for JEDM's acmtrans), agent-written and below standard, rework on
-  the real results. `main.tex` `\input`s `fig_architecture.tex` and uses `ref.bib`; figures in
-  `figures/`. Push with `git -C overleaf-sync push jedm HEAD:main`, or clone JEDM-paper directly.
-- `old/main_magpcm_ijaied.tex` (in JEDM-paper) = the archived MA-GPCM/IJAIED paper with its
-  elsarticle bst + title_page + a do-not-edit README. SALVAGE its recovery-benchmark methodology
-  and architecture diagram for scope (a); it is the prose REGISTER exemplar.
-- **Overleaf's git endpoint `git.overleaf.com` is UNREACHABLE from this environment** (TCP
-  connection timeout, NOT a 403; `www.overleaf.com` and GitHub are reachable). Sync goes through
-  the JEDM-paper GitHub repo; to reach Overleaf, link that repo to the Overleaf project via
-  Overleaf's GitHub sync (web side, the user does it).
-- `docs/slides/workshop.tex` (XeLaTeX, Twente SimplePlusAIC theme) is the deck the paper grew
-  from; salvage its structure, not its stale headline.
-
-## 5. Immediate next steps
-1. Run the missing blueprint controls, ablation first (it is what makes multiplicativity
-   necessary), then the budget sweep, oracle-clamp, a_star.
-2. Major rework of the paper prose on the real results, deck-anchored, tight (a)+(b), register
-   matched to `main_magpcm_ijaied.tex`.
-3. Edit the paper on `github.com/alhazar43/JEDM-paper` (Overleaf git is unreachable from here);
-   the user links it to Overleaf via GitHub sync. Fetch ASSISTments if its cells are wanted.
-
-## 6. Operating conventions (carry over)
-- **Env.** `source ~/anaconda3/etc/profile.d/conda.sh && conda activate research`, then
-  `export PYTHONPATH=".;rl/src;ma-irt"` (Windows `;`) and `export KMP_DUPLICATE_LIB_OK=TRUE`.
-  Tests `python -m pytest deep_irt/tests/`. CUDA is one RTX 4060 Laptop 8 GB (runs sequential).
-- **Codex boundary.** Do NOT edit `deep_irt/core/*`, `bench/run_*.py`, `datagen.py`,
-  `engines.py`, existing `_ednet_ot*.py`. Extend in new `_`-prefixed gitignored scratch. Codex
-  also maintains an ACTIVE learning-dynamics study (`docs/learning_dynamics_*.md`,
-  `LEARNING_DYNAMICS_STUDY.md`, `deep_irt/slam_extend/`, `_wf*`/`_g*`/`_legb*`/`_stage_minus1_*`
-  scratch), relevant to this paper's evidence, do NOT touch or prune it.
-- **Execution discipline.** Long runs go in a harness-tracked background job that writes full
-  results to JSON; agents return SHORT summaries (<600 words), never per-cell log dumps (they
-  crash on the 32k output limit). Single GPU, sequential.
-- **Model economy.** Top model for the main loop, planning, verification; sonnet for mechanical
-  work, haiku for trivial. Decompose independent work and run it in parallel.
-- **Writing.** No em- or en-dashes, no colons in flowing prose, American English. Exact,
-  established names, never invented labels (memory use-established-names). Match the register of
-  `main_magpcm_ijaied.tex` + memory writing-style. Slides: noun-phrase titles reused as bold
-  summary leads, terse bullets, grant-then-qualify.
-- **Staging.** Never `git add -A`; explicit paths only. Never stage `__pycache__`, `outputs/`,
-  `*/data/`, `archive/`. No Co-Authored-By / Claude attribution; author = user.
-- **PSI-KT is AGPL** (relevant to the parked transfer thread): reference its design, never
-  vendor its code.
-
-## Parked / separate tracks (one-liners, do not start here)
-- **Q-MIRT learning-via-transfer paper** (Thread A): a dynamic MA-GPCM that shows learning via
-  cross-concept transfer, fixed-measurement / moving-state. Direction and existence achieved,
-  magnitude gauge-bound; D-scaling and real KDD open. Memory [[qmirt-learning-transfer-paper]],
-  full log `docs/overnight_transfer_active_campaign.md`, scratch `deep_irt/bench/_qmirt_*.py`.
-- **ma-irt** (`ma-irt/`): frozen Chapter-0 deep ordinal IRT, IJAIED. Submodule, additive only.
-- **OrdRec** (`rl/`): parked ExRec-style ordinal item recommendation.
-
-## Pointers
-- Paper: `docs/paper_plan.md`, `docs/theory_memo.md`, `docs/experiment_blueprint.md`,
-  `docs/experiment_results.md`, `docs/paper_workflow.md`.
-- Framework API: `deep_irt/README.md`.
-- ARCHIVED (abandoned, preserved local-only under `docs/archive/`, gitignored): the **paper2**
-  manuscript (`docs/archive/paper2/`) and the **abandoned Chapter-1 "anchoring" paper**
-  (`docs/archive/anchoring/`; the user judged it naive / "established nothing", so its data trees
-  were removed too). Both superseded, salvage material only, do NOT revive as active work.
-- CODEX-owned ACTIVE thread (do NOT prune): the learning-dynamics study, see the Codex boundary
-  in section 6.
-- Repo cleaned 2026-07-02: dead experiment trees + scratch removed, `.git` slimmed 1.9 GB -> 57 MB
-  (orphaned `deep-gpcm` submodule cache purged), `.gitmodules` trimmed to the 3 live submodules
-  (ma-irt, overleaf-sync, docs/slides). Purged the deprecated `coupled_theta` code cluster.
+`ma-irt/` frozen Chapter 0 (IJAIED); `rl/` OrdRec; Q-MIRT transfer paper
+(memory `qmirt-learning-transfer-paper`); thesis north star in
+`docs/Thesis_overview.md` + memory `thesis-vision`.
