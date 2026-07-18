@@ -383,3 +383,47 @@ Acquisitions:
   autopilot with <=8 in flight, GPU-heavy mix, ACT-P0 cells masked;
   local 4060 worker on a partitioned id space; results pulled home
   periodically; coverage-first ordering throughout.
+
+## 2026-07-18 ACT-P0 mechanism found; repair ruled
+
+- Diagnosis (research/act_p0_diagnosis.md): the fabrication is a
+  TRAINING-CONVERGENCE pathology, not structure. softplus(0)~0.69
+  gain init saturates the ceiling gap by itself; train_active runs a
+  bare 20-epoch loop with no convergence check, so the gain never
+  descends from its fabricating start. Ablations removing ALL
+  structural suspects at once still fabricate (0.65 rise); epochs
+  200/1000/2000 collapse it monotonically 0.046/0.014/0.009; at 1000
+  epochs the known-growth gain recovers 0.154 vs true 0.15. The
+  battery's no-growth twin caught a real defect the prediction
+  metrics never would -- the program's own thesis, demonstrated on
+  its own code.
+- RULING: repair, not retire. Convergence-gated stopping mirroring
+  bank.calibrate_bank's dual criterion; no design constraint
+  touched. CONSEQUENCE: ACT-P1 shares the same loop, so ALL ACT
+  cells must run on the repaired trainer; any ACT cells completed
+  under the old trainer are invalidated and rerun (idempotent
+  store). Non-ACT cells (slice/gate/tracker/battery) are unaffected.
+  Cluster swap coordinated by the orchestrator after the launcher
+  hands off.
+
+## 2026-07-18 evening: user AFK, autonomous overnight mode
+
+- User directives in force: keep the campaign running, log
+  everything; local 4060 granted for overnight campaign use where it
+  clears bottlenecks (a neural-unit worker joins alongside the
+  CPU-unit worker; every neural chain absorbed locally frees a
+  cluster slot for CPU chains, the long pole).
+- Watchdog armed: a persistent 25-minute-poll monitor alerts on
+  store stagnation with an empty cluster queue, repeated ssh
+  failures, or failed-unit accumulation.
+- In flight at hand-off: campaign launcher (timing calibration done
+  for CPU ~40-60 min/unit; driving autopilot + both local workers to
+  a running hand-off), ACT trainer repair (stationarity-based
+  convergence calibration; the tolerance choice is bound to
+  stationarity diagnostics, never to the silence bar). ACT cells run
+  last, on the repaired trainer only; stale ACT results invalidated
+  before rerun.
+- Standing overnight loop: agent reports -> ledger entries ->
+  checkpoint commits pushed at milestones -> parked agents nudged
+  (the end-turn-while-waiting failure pattern has hit four times;
+  every notification gets checked for it).
