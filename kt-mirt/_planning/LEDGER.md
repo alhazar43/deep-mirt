@@ -459,3 +459,32 @@ Acquisitions:
   legitimate, reportable posture-matrix outcome. (4) Cluster package
   swap happens BETWEEN chain generations (launcher-coordinated, no
   mid-run tree replacement), then ACT units unmask.
+
+## 2026-07-19 ~01:00 Campaign LAUNCHED (hand-off report logged)
+
+- Running: 6 GPU + 2 CPU chains under autopilot (detached on
+  hpc-head1, PID + stop/relaunch recipes in the hand-off), local CPU
+  slice worker + local 4060 neural worker (KDD-sized cells only;
+  EdNet does not fit 8 GB). 3 KDD neural cells complete and pulled
+  home within the first hour; ACT swap done in a clean window
+  (cluster suite 406/406 post-swap), both ACT variants unmasked,
+  3 stale pre-swap cells deleted for recompute.
+- Timing truth: post-repair neural unit 14.2 min (rtx-6000; syn_kg
+  ~28 min on a40); slice unit EXCEEDS 2 h at B=999/199 (CPU chains
+  resized to 1 unit / 240 min); local 4060 neural unit 47 min.
+- Launcher fixed two launch-blockers (RunConfig.run_act_p0 mask
+  mechanism; autopilot kind-position semantics that would have
+  silently skipped half the neural pool and units 48-63) plus UPT
+  drift, a walltime printf bug, a CPU-widening deadlock, and a
+  quoted-tilde bug in pull_results.sh. Suite 406/406 throughout.
+- OPEN DEFECT -> RULING: EdNet neural cells OOM on 44 GiB a40s
+  (whole-cohort backward >50 GiB). Ruled: (1) probe whether the
+  a100 pool has 80 GB cards and fits one EdNet unit as-is; (2) only
+  if that fails, thread the vendored core's existing batch_size
+  through the tracker path -- an implementation-level change (the
+  design fixes estimators, not batch sizes), tests + one verified
+  EdNet unit before unmasking the rest; profile concessions
+  rejected. No invalidation needed (no EdNet cell ever completed).
+- Projections at hand-off: KDD neural complete ~1-2 h in; slice
+  coverage 5-7 h; full reachable scope (52/64 units) by midday;
+  EdNet's 12 units follow the OOM ruling.

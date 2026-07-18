@@ -192,3 +192,25 @@ launched as a sequential five-stage workflow (generator, measurement
 layer, postures, battery and gates, harness) with tests green at
 every stage and my own end-to-end gate before the certification
 campaign starts.
+
+## 2026-07-18 night: why both ACT variants go to production certification
+
+The converged probe could have justified excluding the whole active
+posture. I ruled the other way for three reasons. First, power: the
+probe ran at half scale on CPU; pre-registered thresholds were set for
+production scale, and adjudicating them on lower-powered evidence
+repeats the exact inference error this program audits. Second,
+symmetry: P0 was excluded on "broken estimator" evidence that the
+repair dissolved; keeping P1 in while holding P0 out would encode a
+pre-fix artifact (P1's undertrained silence) as if it were a design
+property. Third, the posture matrix is the deliverable: an active
+posture that FAILS its own certification at production scale is a
+reportable outcome that strengthens the growth story's honesty, not a
+failure of the program. The deeper lesson logged for the paper: every
+pre-convergence read of a growth channel -- fabrication AND silence --
+was optimization noise, and only a stationarity-gated trainer makes
+the gates meaningful. This retroactively justifies the reviewer's
+insistence on certifying ACT on all four twins, and it is the
+strongest concrete instance yet of the program's thesis that
+prediction-adjacent training artifacts masquerade as measurement
+properties.

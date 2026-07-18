@@ -97,6 +97,14 @@ if _SCALE == "production":
         "n_reshuffles": 5,     # arm 5: "permute cross-KC interleaving (5 reshuffles)"
         "drill_repeats": 100,  # arm 4: "one KC practiced 100 times"
         "run_act_p1": True,
+        # ACT-P0 UNMASKED (orchestrator ruling superseding the same-day
+        # exclusion): the ACT trainer's stationarity-gated convergence
+        # repair (active.py note 8, commit 2dc0818) removed the
+        # under-training fabrication, and BOTH variants go to production
+        # certification with the pre-registered gates as the arbiter.
+        # run_act_p0 stays available in RunConfig as the masking switch
+        # should a future ruling re-exclude it.
+        "run_act_p0": True,
     }
 elif _SCALE == "smoke":
     PROFILES = {

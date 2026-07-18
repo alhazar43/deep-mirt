@@ -14,7 +14,9 @@
 
 set -e
 
-REMOTE_STORE="${1:-~/kt-mirt-stage/kt-mirt/outputs/a4/campaign}"
+# Home-relative on the remote side (ssh lands in $HOME): a leading ~ would
+# sit inside the quoted tar -C argument and never expand.
+REMOTE_STORE="${1:-kt-mirt-stage/kt-mirt/outputs/a4/campaign}"
 LOCAL_STORE="${2:-C:/Users/steph/documents/deep-mirt/kt-mirt/outputs/a4/campaign}"
 
 mkdir -p "${LOCAL_STORE}"

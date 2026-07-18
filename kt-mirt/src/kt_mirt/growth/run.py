@@ -254,6 +254,15 @@ class RunConfig:
     act_lr: float = 0.05
     act_epochs: int = 20
     run_act_p1: bool = True
+    # Campaign-exclusion switch for the ACT-P0 variant (default True keeps
+    # every pre-existing behavior and test unchanged). Added at A4 campaign
+    # launch under the orchestrator's binding ruling that ACT-P0 is EXCLUDED
+    # from the synthetic certification campaign (scale-persistent fabrication,
+    # ledger 2026-07-18): ACT-P0 is computed INSIDE each neural cell rather
+    # than being its own enumerable unit, so the only place it can be masked
+    # is here. slurm/enumerate_units.py's PRODUCTION_HYPERPARAMS sets this
+    # False for campaign units; ACT-P1 carries the active posture.
+    run_act_p0: bool = True
     n_reshuffles: int = 3
     drill_repeats: int = 30
     device: str = DEVICE
@@ -267,6 +276,11 @@ class RunConfig:
                 "RunConfig.device='cuda' requested but torch.cuda.is_available() is False "
                 "(no CUDA device visible to this process)"
             )
+
+
+def _act_variants(cfg: "RunConfig") -> list[str]:
+    """Which ACT variants this run computes/aggregates (see RunConfig.run_act_p0)."""
+    return (["act_p0"] if cfg.run_act_p0 else []) + (["act_p1"] if cfg.run_act_p1 else [])
 
 
 # =============================================================================
@@ -658,7 +672,7 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     silent_kcs = set(int(c) for c in np.where(silent_mask)[0])
 
     act_results = {}
-    variants = ["act_p0"] + (["act_p1"] if cfg.run_act_p1 else [])
+    variants = _act_variants(cfg)
     for variant in variants:
         acfg = active_mod.ActiveConfig(
             variant=variant, hidden_dim=cfg.act_hidden, emb_dim=cfg.act_emb, lr=cfg.act_lr,
@@ -756,7 +770,7 @@ def certify_twin(
     r0 = slice_results[0]
     n_kcs = r0["n_kcs"]
     profile_name = cfg.profile.name
-    variants = ["act_p0"] + (["act_p1"] if cfg.run_act_p1 else [])
+    variants = _act_variants(cfg)
 
     bed_pvalues = np.array([r["gate"]["bed_pvalue"] for r in slice_results])
     if all(raw is not None for raw in slice_raws):
@@ -915,7 +929,7 @@ def run_campaign(cfg: RunConfig) -> dict:
 
     cg1_family_passed = all(
         _gate("syn_ng", f"CG1[{v}]") and _gate("syn_kg", f"CG1a[{v}]") and _gate("syn_ns", f"CG1b[{v}]") and _gate("syn_sat", f"CG1c[{v}]")
-        for v in (["act_p0"] + (["act_p1"] if cfg.run_act_p1 else []))
+        for v in _act_variants(cfg)
     ) if all(t in per_twin for t in _TWIN_ORDER) else False
     cg2_passed = _gate("syn_ng", "CG2")
     cg3_passed = _gate("syn_kg", "CG3")

@@ -11,13 +11,12 @@
 # enumerate_units.py's module docstring on that routing judgment call).
 #
 # Targets up to MAX_GPU_INFLIGHT (default 6) GPU array tasks and
-# MAX_CPU_INFLIGHT (default 8) CPU array tasks in flight at once
-# (account bms-code / QOS research: MaxJobsPU 8, MaxSubmitPU 100 --
-# 6+8=14 exceeds MaxJobsPU 8, which is intentional: this degrades
-# gracefully by design, letting the scheduler run what it can and queue
-# the rest as PENDING, which is exactly the empirical-cap probe item 4
-# of the campaign-prep checklist wants to observe; the targets are an
-# ASK, not an assumption, and are never assumed to bind).
+# MAX_CPU_INFLIGHT (default 2) CPU array tasks in flight at once --
+# the campaign ruling's 8-total GPU-heavy mix under the empirically
+# confirmed shared cap (account bms-code / QOS research: MaxJobsPU 8
+# TOTAL across GPU+CPU, MaxSubmitPU 100). When the neural pool is
+# exhausted, the CPU track expands into the freed slots up to
+# TOTAL_INFLIGHT_CAP (default 8).
 #
 # usage:
 #   bash slurm/autopilot.sh [--dry-run] [--pools "l40 l40s a100"] \
@@ -35,10 +34,23 @@ QOS="research"
 GPU_JOB_NAME="kt-mirt-gpu"
 CPU_JOB_NAME="kt-mirt-cpu"
 MAX_GPU_INFLIGHT="${MAX_GPU_INFLIGHT:-6}"
-MAX_CPU_INFLIGHT="${MAX_CPU_INFLIGHT:-8}"
+MAX_CPU_INFLIGHT="${MAX_CPU_INFLIGHT:-2}"
+# Campaign ruling (ledger 2026-07-18): at most TOTAL_INFLIGHT_CAP chains in
+# flight TOTAL (MaxJobsPU=8 is a shared GPU+CPU cap), GPU-heavy mix while
+# GPU units remain; once the neural pool is exhausted the CPU track may
+# expand into the freed slots (computed per loop pass below).
+TOTAL_INFLIGHT_CAP="${TOTAL_INFLIGHT_CAP:-8}"
 POLL_SECONDS="${POLL_SECONDS:-60}"
-UNITS_PER_TASK_GPU_BUSY="${UNITS_PER_TASK_GPU_BUSY:-2}"
+UNITS_PER_TASK_GPU="${UNITS_PER_TASK_GPU:-1}"
+UNITS_PER_TASK_GPU_BUSY="${UNITS_PER_TASK_GPU_BUSY:-${UNITS_PER_TASK_GPU}}"
 UNITS_PER_TASK_CPU="${UNITS_PER_TASK_CPU:-4}"
+# Per-unit wall minutes, from the phase-0 timing calibration (single-unit
+# production-scale runs); walltime request = SETUP_MIN + PER_UNIT * upt,
+# emitted as plain minutes (sbatch -t N). Defaults are deliberately
+# generous fallbacks; the launch wrapper passes measured values.
+GPU_MIN_PER_UNIT="${GPU_MIN_PER_UNIT:-35}"
+CPU_MIN_PER_UNIT="${CPU_MIN_PER_UNIT:-35}"
+SETUP_MIN="${SETUP_MIN:-6}"
 STORE="${KT_MIRT_STORE:-outputs/a4/campaign}"
 POOLS="l40 l40s a100 a40 a4500 rtx-6000"
 DRY_RUN=0
@@ -131,50 +143,67 @@ while true; do
   fi
 
   # --- GPU track ---
+  # upt is CONSTANT for the whole run: array task i always covers unit
+  # positions [i*upt, (i+1)*upt), so a per-submission upt change would make
+  # later submissions skip or re-cover positions. (The old free-vs-busy
+  # per-pass upt switch had exactly that bug.)
+  upt="${UNITS_PER_TASK_GPU}"
   want_gpu=$(( MAX_GPU_INFLIGHT - inf_gpu ))
-  M_gpu=$(( (N_GPU + UNITS_PER_TASK_GPU_BUSY - 1) / UNITS_PER_TASK_GPU_BUSY ))
+  M_gpu=$(( (N_GPU + upt - 1) / upt ))
   if [ "${want_gpu}" -gt 0 ] && [ "${cursor_gpu}" -lt "${M_gpu}" ] && [ "${rem_gpu}" != "0" ]; then
     read -r pool free <<< "$(pick_pool)"
-    upt=1; [ "${free}" -le 0 ] && upt="${UNITS_PER_TASK_GPU_BUSY}"
     chunk=$(( want_gpu < M_gpu - cursor_gpu ? want_gpu : M_gpu - cursor_gpu ))
     lo=${cursor_gpu}; hi=$(( cursor_gpu + chunk - 1 ))
     cls=$(gres_class "${pool}")
-    wall=$(printf '00:%02d:00' $((15 + 10 * upt)))
+    wall=$(( SETUP_MIN + GPU_MIN_PER_UNIT * upt ))
     echo "[autopilot] $(date +%H:%M:%S) GPU remaining=${rem_gpu} inflight=${inf_gpu};" \
          "submitting tasks ${lo}-${hi} (units/task=${upt}) to ${pool} (${free} free)"
     if [ "${DRY_RUN}" -eq 1 ]; then
       echo "[autopilot] DRY-RUN: sbatch --job-name=${GPU_JOB_NAME} --account=${ACCOUNT} --qos=${QOS}" \
            "--partition=${GPU_PARTITION} --gres=gpu:${cls}:1 --constraint=${pool} --time=${wall}" \
-           "--array=${lo}-${hi} --export=ALL,UNIT_DEVICE=cuda,UNITS_PER_TASK=${upt},TOTAL_UNITS=${N_GPU},KT_MIRT_STORE=${STORE}" \
+           "--array=${lo}-${hi} --export=ALL,UNIT_KIND=neural,UNIT_DEVICE=cuda,UNITS_PER_TASK=${upt},TOTAL_UNITS=${N_GPU},KT_MIRT_STORE=${STORE}" \
            "slurm/chain_runner.sbatch"
     else
       sbatch --job-name="${GPU_JOB_NAME}" --account="${ACCOUNT}" --qos="${QOS}" \
              --partition="${GPU_PARTITION}" --gres="gpu:${cls}:1" --constraint="${pool}" --time="${wall}" \
              --array="${lo}-${hi}" \
-             --export=ALL,UNIT_DEVICE=cuda,"UNITS_PER_TASK=${upt}","TOTAL_UNITS=${N_GPU}","KT_MIRT_STORE=${STORE}" \
+             --export=ALL,UNIT_KIND=neural,UNIT_DEVICE=cuda,"UNITS_PER_TASK=${upt}","TOTAL_UNITS=${N_GPU}","KT_MIRT_STORE=${STORE}" \
              slurm/chain_runner.sbatch \
         && cursor_gpu=$(( cursor_gpu + chunk ))
     fi
   fi
 
   # --- CPU track ---
-  want_cpu=$(( MAX_CPU_INFLIGHT - inf_cpu ))
+  # GPU-heavy mix while GPU units remain (ruling): CPU stays at
+  # MAX_CPU_INFLIGHT until the neural pool is exhausted, then expands into
+  # whatever the draining GPU chains free up under the shared 8-job cap.
+  # "Exhausted" is EITHER rem_gpu=0 (all computed) OR the GPU cursor has
+  # submitted every chain it ever will (cursor_gpu >= M_gpu): with
+  # permanently failing GPU units (e.g. the EdNet neural OOM class),
+  # rem_gpu never reaches 0, and without the cursor clause the CPU track
+  # would idle at MAX_CPU_INFLIGHT forever while GPU slots sit unused.
+  eff_cpu="${MAX_CPU_INFLIGHT}"
+  if [ "${rem_gpu}" = "0" ] || [ "${cursor_gpu}" -ge "${M_gpu}" ]; then
+    eff_cpu=$(( TOTAL_INFLIGHT_CAP - inf_gpu ))
+    [ "${eff_cpu}" -lt "${MAX_CPU_INFLIGHT}" ] && eff_cpu="${MAX_CPU_INFLIGHT}"
+  fi
+  want_cpu=$(( eff_cpu - inf_cpu ))
   M_cpu=$(( (N_CPU + UNITS_PER_TASK_CPU - 1) / UNITS_PER_TASK_CPU ))
   if [ "${want_cpu}" -gt 0 ] && [ "${cursor_cpu}" -lt "${M_cpu}" ] && [ "${rem_cpu}" != "0" ]; then
     chunk=$(( want_cpu < M_cpu - cursor_cpu ? want_cpu : M_cpu - cursor_cpu ))
     lo=${cursor_cpu}; hi=$(( cursor_cpu + chunk - 1 ))
-    wall=$(printf '00:%02d:00' $((15 + 10 * UNITS_PER_TASK_CPU)))
+    wall=$(( SETUP_MIN + CPU_MIN_PER_UNIT * UNITS_PER_TASK_CPU ))
     echo "[autopilot] $(date +%H:%M:%S) CPU remaining=${rem_cpu} inflight=${inf_cpu};" \
          "submitting tasks ${lo}-${hi} (units/task=${UNITS_PER_TASK_CPU}) to ${CPU_PARTITION}"
     if [ "${DRY_RUN}" -eq 1 ]; then
       echo "[autopilot] DRY-RUN: sbatch --job-name=${CPU_JOB_NAME} --account=${ACCOUNT} --qos=${QOS}" \
            "--partition=${CPU_PARTITION} --time=${wall} --array=${lo}-${hi}" \
-           "--export=ALL,UNIT_DEVICE=cpu,UNITS_PER_TASK=${UNITS_PER_TASK_CPU},TOTAL_UNITS=${N_CPU},KT_MIRT_STORE=${STORE}" \
+           "--export=ALL,UNIT_KIND=slice,UNIT_DEVICE=cpu,UNITS_PER_TASK=${UNITS_PER_TASK_CPU},TOTAL_UNITS=${N_CPU},KT_MIRT_STORE=${STORE}" \
            "slurm/chain_runner.sbatch"
     else
       sbatch --job-name="${CPU_JOB_NAME}" --account="${ACCOUNT}" --qos="${QOS}" \
              --partition="${CPU_PARTITION}" --time="${wall}" --array="${lo}-${hi}" \
-             --export=ALL,UNIT_DEVICE=cpu,"UNITS_PER_TASK=${UNITS_PER_TASK_CPU}","TOTAL_UNITS=${N_CPU}","KT_MIRT_STORE=${STORE}" \
+             --export=ALL,UNIT_KIND=slice,UNIT_DEVICE=cpu,"UNITS_PER_TASK=${UNITS_PER_TASK_CPU}","TOTAL_UNITS=${N_CPU}","KT_MIRT_STORE=${STORE}" \
              slurm/chain_runner.sbatch \
         && cursor_cpu=$(( cursor_cpu + chunk ))
     fi

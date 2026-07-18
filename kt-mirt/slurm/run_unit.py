@@ -32,12 +32,26 @@ from enumerate_units import PRODUCTION_HYPERPARAMS, PROFILES, enumerate_units, i
 from kt_mirt.growth import run as run_mod
 
 
-def run_unit_by_id(unit_id: int, output_dir: Path, device: str, force: bool) -> dict:
+def run_unit_by_id(unit_id: int, output_dir: Path, device: str, force: bool,
+                   kind: str | None = None) -> dict:
+    """``kind=None``: ``unit_id`` is a GLOBAL id over the full coverage-first
+    enumeration (local_worker.sh's semantics). ``kind`` given: ``unit_id`` is
+    the POSITION within that kind's own coverage-first sublist (the cluster
+    tracks' semantics -- autopilot.sh's GPU track submits array indices
+    0..N_neural-1 and its CPU track 0..N_slice-1, which are positions per
+    kind, NOT global ids; mapping them here keeps the two tracks disjoint
+    and each track's TOTAL_UNITS bound correct)."""
     units = enumerate_units()
-    matches = [u for u in units if u.unit_id == unit_id]
-    if not matches:
-        raise SystemExit(f"no unit with id {unit_id} (total {len(units)})")
-    unit = matches[0]
+    if kind is not None:
+        sublist = [u for u in units if u.kind == kind]
+        if not (0 <= unit_id < len(sublist)):
+            raise SystemExit(f"no {kind} unit at position {unit_id} (total {len(sublist)})")
+        unit = sublist[unit_id]
+    else:
+        matches = [u for u in units if u.unit_id == unit_id]
+        if not matches:
+            raise SystemExit(f"no unit with id {unit_id} (total {len(units)})")
+        unit = matches[0]
 
     if not force and is_done(unit, output_dir):
         return {"unit_id": unit_id, "kind": unit.kind, "profile": unit.profile,
@@ -78,7 +92,10 @@ def _failed_path(output_dir: Path, unit_id: int) -> Path:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--index", type=int, required=True, help="unit id from enumerate_units.py")
+    p.add_argument("--index", type=int, required=True,
+                   help="global unit id (no --kind) or position within --kind's coverage-first sublist")
+    p.add_argument("--kind", choices=["slice", "neural"], default=None,
+                   help="interpret --index as a position within this kind's sublist (cluster-track semantics)")
     p.add_argument("--output-dir", required=True)
     p.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     p.add_argument("--skip-done", action="store_true", help="no-op flag for parity with the kt-irt CLI convention (this is the default here); see --force")
@@ -87,7 +104,7 @@ def main(argv=None) -> int:
 
     output_dir = Path(args.output_dir)
     try:
-        status = run_unit_by_id(args.index, output_dir, args.device, args.force)
+        status = run_unit_by_id(args.index, output_dir, args.device, args.force, kind=args.kind)
         print(json.dumps(status))
         return 0
     except Exception as exc:  # noqa: BLE001 -- a chain must survive one bad unit and record it

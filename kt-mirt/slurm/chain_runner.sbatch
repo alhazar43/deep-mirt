@@ -70,7 +70,11 @@ for off in $(seq 0 $(( UPT - 1 ))); do
   if [ -n "${TOTAL_UNITS:-}" ] && [ "${idx}" -ge "${TOTAL_UNITS}" ]; then
     break
   fi
-  echo "[chain] unit ${idx} (device=${DEVICE}, store=${STORE})"
-  python slurm/run_unit.py --index "${idx}" --output-dir "${STORE}" --device "${DEVICE}" --skip-done || rc=$?
+  echo "[chain] unit ${idx} (kind=${UNIT_KIND:-global}, device=${DEVICE}, store=${STORE})"
+  # UNIT_KIND set (autopilot tracks): idx is a POSITION in that kind's
+  # coverage-first sublist. UNIT_KIND unset (manual submits): idx is a
+  # global unit id. See run_unit.py --kind.
+  python slurm/run_unit.py --index "${idx}" ${UNIT_KIND:+--kind "${UNIT_KIND}"} \
+    --output-dir "${STORE}" --device "${DEVICE}" --skip-done || rc=$?
 done
 exit "${rc}"
