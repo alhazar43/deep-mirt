@@ -288,3 +288,76 @@ Acquisitions:
   stays per-avenue.
 - Stage 0 is COMPLETE. Open user item: only the optional Eedi 2024
   rules click. Build workflow (P3) still running.
+
+## 2026-07-18 Compute policy change (user directive)
+
+- The user's other work occupies the local GPU and part of the CPU.
+  Standing policy from now on: NOTHING in this program touches the
+  local 4060. The build's end-to-end dry run is patched to CPU-only
+  (CUDA_VISIBLE_DEVICES=""); the entire synthetic certification
+  campaign (bank calibration 3-9 GPU-h + tripled ACT matrix 18-36
+  GPU-h + neural trackers) moves to the UT HPC cluster under the
+  2-GPU QOS cap, using the kt-irt autopilot pattern adapted for the
+  kt-mirt harness. Local machine keeps only light CPU work (tests,
+  small verification fits), throttled.
+- Cluster prep queued for after the build gate: rsync kt-mirt/ to
+  the cluster (avoids repo-credential questions; synthetic campaign
+  needs no datasets), venv + pip -e + pytest on the login node,
+  adapt slurm array + autopilot scripts for the A4 unit grid.
+
+## 2026-07-18 Cluster probe: better than the runbook believed
+
+- Association is now account bms-code / QOS research: MaxJobsPU 8
+  (not 2), MaxSubmitPU 100, no listed TRES or wall cap. Whether a
+  separate GPU-TRES cap still binds gets probed empirically at first
+  submission (autopilot degrades gracefully either way).
+- CPU partitions main-cpu and main are open (AllowAccounts=ALL): the
+  campaign splits into GPU jobs (trackers, ACT amortizer, bank
+  calibration) and CPU jobs (existence gates, MIX ladders,
+  permutation/bootstrap farms, battery stats) that never touch GPU
+  slots. Submitter design: lean ~30-min unit chains, autopilot
+  top-up, coverage-first cell ordering, spare-core piggybacking
+  inside GPU jobs.
+- Cluster prep DONE: kt-mirt synced, venv with cu118 torch built,
+  193/193 tests green on the login node (py3.10) -- the mid-build
+  snapshot including stages 1-2 passes on the cluster.
+
+## 2026-07-18 P3 build: code complete, execution pass running
+
+- The five-stage build finished with a twist: the first stage-3
+  agent (killed by the API outage) had already implemented ALL
+  remaining modules (14 under src/kt_mirt/growth/, 11 test files);
+  stages 3 and 4 became independent design-fidelity audits of that
+  code (every cross-module call traced against frozen v1.1; no
+  stubs, no TODO markers, suite green on the cluster). Stage 5
+  returned prematurely mid-sync, so the EXECUTION deliverables
+  (generator acceptance checks, tiny end-to-end dry run, final
+  counts) are running now via a dedicated finisher agent. Local
+  compute re-permitted by the user (render done); local 4060 will
+  join the campaign as an auxiliary worker.
+
+## 2026-07-18 P3 build EXECUTED and verified
+
+- Suites: 397 passed / 0 failed locally AND on the cluster (identical
+  counts). Generator acceptance: PASS on both full-scale profiles
+  (non-KG twin "fails" are the twins' dynamics overrides working as
+  designed; gate is scoped to SYN-KG per the frozen interpretation).
+  Tiny end-to-end dry run: 16 cells, no crashes, quiet-side gates
+  behave (ACT-P1 silent on no-growth, saturation refusal fires);
+  power-hungry gates fail exactly as an underpowered wiring check
+  should. Zero fixes needed.
+- Smells logged from the dry run (not tuned away): (1) ACT-P0 shows
+  a ~0.3 implied rise on EVERY twin including no-growth at tiny
+  scale -- wrong-side failure, inverted from design expectation;
+  medium-scale probe scheduled BEFORE the campaign (1 GPU-h to
+  protect 40). (2) CG7 sign-flip and CG10 at chance -- plausibly
+  tiny-scale noise, probe covers them. (3) r_c_se floor clamp makes
+  r_c_z meaningless -- report-only field, never to be quoted. (4)
+  BH discoveries structurally impossible at dry-run replicate
+  counts -- fine, irrelevant at B=199/999. (5) RunConfig still
+  hard-pins CPU from the render ban -- to be lifted deliberately
+  with a test, not as a drive-by.
+- Next: campaign-prep agent (device-guard lift, ACT-P0 probe on the
+  4060, slurm layer with GPU/CPU job split under bms-code/research,
+  empirical concurrency probe, local worker). Full campaign waits on
+  the probe verdict and my go.
