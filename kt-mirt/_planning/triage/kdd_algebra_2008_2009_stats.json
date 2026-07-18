@@ -1,0 +1,1443 @@
+{
+  "bed": "kdd_algebra_2008_2009",
+  "source_file": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\kdd\\algebra_2008_2009_train.txt",
+  "unit_of_analysis": "step (one Cognitive Tutor problem-solving transaction; identified by Problem Hierarchy||Problem Name||Step Name). NOT one 'question' -- see module docstring.",
+  "response_field": "Correct First Attempt (1=correct on first attempt, 0=incorrect/hint-first)",
+  "sampling": "none (full file streamed)",
+  "n_rows_read": 8918054,
+  "n_rows_invalid_cfa_dropped": 0,
+  "n_kc_opp_length_mismatch_dropped_by_model": {
+    "SubSkills": 0,
+    "KTracedSkills": 0,
+    "Rules": 0
+  },
+  "decoupling_definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+  "kc_models": {
+    "SubSkills": {
+      "kc_model": "SubSkills",
+      "n_distinct_kc": 541,
+      "a_overall": {
+        "n": 6442137,
+        "n_correct": 5444505,
+        "correct_rate": 0.8451395864446845,
+        "response_category_distribution": {
+          "1": {
+            "n": 5444505,
+            "frac": 0.8451395864446845
+          },
+          "0": {
+            "n": 997632,
+            "frac": 0.15486041355531557
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 541,
+        "min": 0.0,
+        "q1": 0.7457127051447539,
+        "median": 0.8496202588531367,
+        "q3": 0.9145936031181933,
+        "max": 1.0,
+        "mean": 0.7974257666110022,
+        "frac_kc_above_0.85": 0.4953789279112754
+      },
+      "c_opportunity_counts": {
+        "n": 424530,
+        "min": 1.0,
+        "q1": 5.0,
+        "median": 11.0,
+        "q3": 27.0,
+        "max": 1504.0,
+        "mean": 30.145360751890326,
+        "n_learner_kc_pairs": 424530,
+        "frac_ge_5": 0.7944267778484442,
+        "frac_ge_10": 0.5474595434951594,
+        "frac_ge_20": 0.32804042117164867
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 444114,
+            "correct_rate": 0.7126210837757873
+          },
+          "2": {
+            "n": 421469,
+            "correct_rate": 0.7944593789816096
+          },
+          "3": {
+            "n": 392116,
+            "correct_rate": 0.8085847045262117
+          },
+          "4": {
+            "n": 363119,
+            "correct_rate": 0.8212101267077735
+          },
+          "5": {
+            "n": 336759,
+            "correct_rate": 0.825198435676552
+          },
+          "6": {
+            "n": 311681,
+            "correct_rate": 0.8310034939569624
+          },
+          "7": {
+            "n": 283549,
+            "correct_rate": 0.8294016201785229
+          },
+          "8": {
+            "n": 262799,
+            "correct_rate": 0.8295122888595466
+          },
+          "9": {
+            "n": 239854,
+            "correct_rate": 0.828203823992929
+          },
+          "10": {
+            "n": 222871,
+            "correct_rate": 0.8317277707732276
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 523,
+          "median_slope": 0.007850025006573001,
+          "mean_slope": 0.009004482011709657,
+          "frac_positive": 0.7743785850860421,
+          "frac_negative": 0.2179732313575526,
+          "frac_zero": 0.0076481835564053535,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 697,
+        "n_pairs_reported": 30,
+        "frac_reported_pairs_clearing_threshold": 0.26666666666666666,
+        "pairs": [
+          {
+            "n_a": 275079,
+            "n_b": 466428,
+            "n_both": 275073,
+            "n_a_only": 6,
+            "n_b_only": 191355,
+            "symmetric_decoupling": 0.41026383153886725,
+            "dir_a_source_only_frac": 2.181191584962865e-05,
+            "dir_b_source_only_frac": 0.41025624533690086,
+            "kc_a": "Enter given, reading words",
+            "kc_b": "Entering a given"
+          },
+          {
+            "n_a": 222300,
+            "n_b": 224468,
+            "n_both": 222300,
+            "n_a_only": 0,
+            "n_b_only": 2168,
+            "symmetric_decoupling": 0.0096583922875421,
+            "dir_a_source_only_frac": 0.0,
+            "dir_b_source_only_frac": 0.0096583922875421,
+            "kc_a": "[SkillRule: Isolate variable term in linear equation; {[var expr]+[const expr]=[const expr], positive; [var expr]+[const expr]=[const expr], negative; [var expr]+[const expr]=[const expr], all; x+a=b, negative; x+a=b, positive; ax+b=c, positive; ax+b=c, negative; ax-b=c, negative; a/x+b=c, positive; a/x+b=c, negative; a-x=b, positive}]",
+            "kc_b": "[SkillRule: Remove constant; {ax+b=c, positive; ax+b=c, negative; x+a=b, positive; x+a=b, negative; [var expr]+[const expr]=[const expr], positive; [var expr]+[const expr]=[const expr], negative; [var expr]+[const expr]=[const expr], all; Combine constants to right; Combine constants to left; a-x=b, positive; a/x+b=c, positive; a/x+b=c, negative}]"
+          },
+          {
+            "n_a": 313869,
+            "n_b": 399631,
+            "n_both": 214211,
+            "n_a_only": 99658,
+            "n_b_only": 185420,
+            "symmetric_decoupling": 0.5709679163770882,
+            "dir_a_source_only_frac": 0.31751463190057,
+            "dir_b_source_only_frac": 0.46397801972319463,
+            "kc_a": "Find Y, any form",
+            "kc_b": "Using simple numbers"
+          },
+          {
+            "n_a": 227330,
+            "n_b": 406084,
+            "n_both": 203844,
+            "n_a_only": 23486,
+            "n_b_only": 202240,
+            "symmetric_decoupling": 0.5254696557022138,
+            "dir_a_source_only_frac": 0.10331236528394845,
+            "dir_b_source_only_frac": 0.49802503915446067,
+            "kc_a": "Using difficult numbers",
+            "kc_b": "Using small numbers"
+          },
+          {
+            "n_a": 399631,
+            "n_b": 406084,
+            "n_both": 202224,
+            "n_a_only": 197407,
+            "n_b_only": 203860,
+            "symmetric_decoupling": 0.6649096672527014,
+            "dir_a_source_only_frac": 0.4939731902680223,
+            "dir_b_source_only_frac": 0.5020143615606624,
+            "kc_a": "Using simple numbers",
+            "kc_b": "Using small numbers"
+          },
+          {
+            "n_a": 197930,
+            "n_b": 241451,
+            "n_both": 197930,
+            "n_a_only": 0,
+            "n_b_only": 43521,
+            "symmetric_decoupling": 0.18024775213190253,
+            "dir_a_source_only_frac": 0.0,
+            "dir_b_source_only_frac": 0.18024775213190253,
+            "kc_a": "[SkillRule: Isolate variable in linear equation; {[var expr]/[const expr] = [const expr], multiply; ax=b}]",
+            "kc_b": "[SkillRule: Remove coefficient; {ax+b=c, divide; ax=b; [const expr]*[var fact] + [const expr] = [const expr], divide; [var expr]*[const expr] = [const expr], divide; a/b*x=c; a/b*x=c, reciprocal; ax/b=c, reciprocal; ax/b=c; x/a=b; ax=b; (+/-x +/-a)/b=c, mult; a=x*(b+c); a=x*(b-c); a=x*(b*c+d); x/a+b=c, multiply; [var expr]/[const expr] = [const expr], multiply}]"
+          },
+          {
+            "n_a": 220877,
+            "n_b": 399631,
+            "n_both": 197380,
+            "n_a_only": 23497,
+            "n_b_only": 202251,
+            "symmetric_decoupling": 0.5335217711898055,
+            "dir_a_source_only_frac": 0.10638047420057317,
+            "dir_b_source_only_frac": 0.5060943720582237,
+            "kc_a": "Using large numbers",
+            "kc_b": "Using simple numbers"
+          },
+          {
+            "n_a": 313869,
+            "n_b": 406084,
+            "n_both": 194968,
+            "n_a_only": 118901,
+            "n_b_only": 211116,
+            "symmetric_decoupling": 0.6286217701458137,
+            "dir_a_source_only_frac": 0.37882364935689733,
+            "dir_b_source_only_frac": 0.5198825858689335,
+            "kc_a": "Find Y, any form",
+            "kc_b": "Using small numbers"
+          },
+          {
+            "n_a": 191349,
+            "n_b": 466428,
+            "n_both": 191337,
+            "n_a_only": 12,
+            "n_b_only": 275091,
+            "symmetric_decoupling": 0.589792899408284,
+            "dir_a_source_only_frac": 6.27126350281423e-05,
+            "dir_b_source_only_frac": 0.589782345828295,
+            "kc_a": "Enter given, reading numerals",
+            "kc_b": "Entering a given"
+          },
+          {
+            "n_a": 241451,
+            "n_b": 154962,
+            "n_both": 154962,
+            "n_a_only": 86489,
+            "n_b_only": 0,
+            "symmetric_decoupling": 0.35820518448877825,
+            "dir_a_source_only_frac": 0.35820518448877825,
+            "dir_b_source_only_frac": 0.0,
+            "kc_a": "[SkillRule: Remove coefficient; {ax+b=c, divide; ax=b; [const expr]*[var fact] + [const expr] = [const expr], divide; [var expr]*[const expr] = [const expr], divide; a/b*x=c; a/b*x=c, reciprocal; ax/b=c, reciprocal; ax/b=c; x/a=b; ax=b; (+/-x +/-a)/b=c, mult; a=x*(b+c); a=x*(b-c); a=x*(b*c+d); x/a+b=c, multiply; [var expr]/[const expr] = [const expr], multiply}]",
+            "kc_b": "[SkillRule: Remove positive coefficient; {ax+b=c, divide; ax=b; [const expr]*[var fact] + [const expr] = [const expr], divide; [var expr]*[const expr] = [const expr], divide; a/b*x=c; a/b*x=c, reciprocal; ax/b=c, reciprocal; ax/b=c; x/a=b; ax=b; (+/-x +/-a)/b=c, mult; a=x*(b+c); a=x*(b-c); a=x*(b*c+d); x/a+b=c, multiply; [var expr]/[const expr] = [const expr], multiply}]"
+          },
+          {
+            "n_a": 313869,
+            "n_b": 150515,
+            "n_both": 150508,
+            "n_a_only": 163361,
+            "n_b_only": 7,
+            "symmetric_decoupling": 0.5204857969389185,
+            "dir_a_source_only_frac": 0.5204751026702223,
+            "dir_b_source_only_frac": 4.650699265853902e-05,
+            "kc_a": "Find Y, any form",
+            "kc_b": "Find Y, positive slope"
+          },
+          {
+            "n_a": 185942,
+            "n_b": 124575,
+            "n_both": 124570,
+            "n_a_only": 61372,
+            "n_b_only": 5,
+            "symmetric_decoupling": 0.33007792543036457,
+            "dir_a_source_only_frac": 0.33005991115509137,
+            "dir_b_source_only_frac": 4.013646397752358e-05,
+            "kc_a": "Find X, any form",
+            "kc_b": "Find X, positive slope"
+          },
+          {
+            "n_a": 143963,
+            "n_b": 123653,
+            "n_both": 123638,
+            "n_a_only": 20325,
+            "n_b_only": 15,
+            "symmetric_decoupling": 0.1412715831585381,
+            "dir_a_source_only_frac": 0.14118210929197086,
+            "dir_b_source_only_frac": 0.00012130720645677824,
+            "kc_a": "Write expression, any form",
+            "kc_b": "Write expression, positive slope"
+          },
+          {
+            "n_a": 197930,
+            "n_b": 154962,
+            "n_both": 123193,
+            "n_a_only": 74737,
+            "n_b_only": 31769,
+            "symmetric_decoupling": 0.4636763764753003,
+            "dir_a_source_only_frac": 0.3775930884656192,
+            "dir_b_source_only_frac": 0.20501155121900852,
+            "kc_a": "[SkillRule: Isolate variable in linear equation; {[var expr]/[const expr] = [const expr], multiply; ax=b}]",
+            "kc_b": "[SkillRule: Remove positive coefficient; {ax+b=c, divide; ax=b; [const expr]*[var fact] + [const expr] = [const expr], divide; [var expr]*[const expr] = [const expr], divide; a/b*x=c; a/b*x=c, reciprocal; ax/b=c, reciprocal; ax/b=c; x/a=b; ax=b; (+/-x +/-a)/b=c, mult; a=x*(b+c); a=x*(b-c); a=x*(b*c+d); x/a+b=c, multiply; [var expr]/[const expr] = [const expr], multiply}]"
+          },
+          {
+            "n_a": 185942,
+            "n_b": 406084,
+            "n_both": 122612,
+            "n_a_only": 63330,
+            "n_b_only": 283472,
+            "symmetric_decoupling": 0.7387977350483794,
+            "dir_a_source_only_frac": 0.3405900764754601,
+            "dir_b_source_only_frac": 0.6980624698338275,
+            "kc_a": "Find X, any form",
+            "kc_b": "Using small numbers"
+          },
+          {
+            "n_a": 313869,
+            "n_b": 220877,
+            "n_both": 114735,
+            "n_a_only": 199134,
+            "n_b_only": 106142,
+            "symmetric_decoupling": 0.7268285830609198,
+            "dir_a_source_only_frac": 0.6344494040507346,
+            "dir_b_source_only_frac": 0.48054799730166564,
+            "kc_a": "Find Y, any form",
+            "kc_b": "Using large numbers"
+          },
+          {
+            "n_a": 150515,
+            "n_b": 399631,
+            "n_both": 106926,
+            "n_a_only": 43589,
+            "n_b_only": 292705,
+            "symmetric_decoupling": 0.7587518613780967,
+            "dir_a_source_only_frac": 0.28959904328472247,
+            "dir_b_source_only_frac": 0.732438174215714,
+            "kc_a": "Find Y, positive slope",
+            "kc_b": "Using simple numbers"
+          },
+          {
+            "n_a": 104658,
+            "n_b": 212668,
+            "n_both": 104658,
+            "n_a_only": 0,
+            "n_b_only": 108010,
+            "symmetric_decoupling": 0.5078808283333647,
+            "dir_a_source_only_frac": 0.0,
+            "dir_b_source_only_frac": 0.5078808283333647,
+            "kc_a": "[SkillRule: Consolidate vars, no coeff; CLT]",
+            "kc_b": "[SkillRule: Select Combine Terms; {CLT; CLT 2plus terms same denom, no frac elim; CLT, no lcd}]"
+          },
+          {
+            "n_a": 101951,
+            "n_b": 313869,
+            "n_both": 101949,
+            "n_a_only": 2,
+            "n_b_only": 211920,
+            "symmetric_decoupling": 0.6751882142663705,
+            "dir_a_source_only_frac": 1.961726711851772e-05,
+            "dir_b_source_only_frac": 0.6751861445380078,
+            "kc_a": "Find Y, Simple",
+            "kc_b": "Find Y, any form"
+          },
+          {
+            "n_a": 150515,
+            "n_b": 406084,
+            "n_both": 98746,
+            "n_a_only": 51769,
+            "n_b_only": 307338,
+            "symmetric_decoupling": 0.7843281577274802,
+            "dir_a_source_only_frac": 0.34394578613427235,
+            "dir_b_source_only_frac": 0.7568335615291417,
+            "kc_a": "Find Y, positive slope",
+            "kc_b": "Using small numbers"
+          },
+          {
+            "n_a": 399631,
+            "n_b": 143963,
+            "n_both": 97096,
+            "n_a_only": 302535,
+            "n_b_only": 46867,
+            "symmetric_decoupling": 0.7825387795690014,
+            "dir_a_source_only_frac": 0.7570358655860031,
+            "dir_b_source_only_frac": 0.32554892576564814,
+            "kc_a": "Using simple numbers",
+            "kc_b": "Write expression, any form"
+          },
+          {
+            "n_a": 313869,
+            "n_b": 227330,
+            "n_both": 95492,
+            "n_a_only": 218377,
+            "n_b_only": 131838,
+            "symmetric_decoupling": 0.7857516260682467,
+            "dir_a_source_only_frac": 0.6957584215070619,
+            "dir_b_source_only_frac": 0.5799410548541768,
+            "kc_a": "Find Y, any form",
+            "kc_b": "Using difficult numbers"
+          },
+          {
+            "n_a": 89070,
+            "n_b": 143963,
+            "n_both": 89060,
+            "n_a_only": 10,
+            "n_b_only": 54903,
+            "symmetric_decoupling": 0.3814117924888694,
+            "dir_a_source_only_frac": 0.00011227124733355787,
+            "dir_b_source_only_frac": 0.38136882393392746,
+            "kc_a": "Write Expression, mx+b",
+            "kc_b": "Write expression, any form"
+          },
+          {
+            "n_a": 406084,
+            "n_b": 143963,
+            "n_both": 88488,
+            "n_a_only": 317596,
+            "n_b_only": 55475,
+            "symmetric_decoupling": 0.8082845313383554,
+            "dir_a_source_only_frac": 0.782094345012362,
+            "dir_b_source_only_frac": 0.38534206705889706,
+            "kc_a": "Using small numbers",
+            "kc_b": "Write expression, any form"
+          },
+          {
+            "n_a": 185942,
+            "n_b": 399631,
+            "n_both": 88297,
+            "n_a_only": 97645,
+            "n_b_only": 311334,
+            "symmetric_decoupling": 0.8224386457420024,
+            "dir_a_source_only_frac": 0.5251368706370804,
+            "dir_b_source_only_frac": 0.7790536770170482,
+            "kc_a": "Find X, any form",
+            "kc_b": "Using simple numbers"
+          },
+          {
+            "n_a": 185942,
+            "n_b": 227330,
+            "n_both": 86800,
+            "n_a_only": 99142,
+            "n_b_only": 140530,
+            "symmetric_decoupling": 0.7341272758460143,
+            "dir_a_source_only_frac": 0.5331877682288025,
+            "dir_b_source_only_frac": 0.6181762195926627,
+            "kc_a": "Find X, any form",
+            "kc_b": "Using difficult numbers"
+          },
+          {
+            "n_a": 241451,
+            "n_b": 85727,
+            "n_both": 85727,
+            "n_a_only": 155724,
+            "n_b_only": 0,
+            "symmetric_decoupling": 0.644950735345888,
+            "dir_a_source_only_frac": 0.644950735345888,
+            "dir_b_source_only_frac": 0.0,
+            "kc_a": "[SkillRule: Remove coefficient; {ax+b=c, divide; ax=b; [const expr]*[var fact] + [const expr] = [const expr], divide; [var expr]*[const expr] = [const expr], divide; a/b*x=c; a/b*x=c, reciprocal; ax/b=c, reciprocal; ax/b=c; x/a=b; ax=b; (+/-x +/-a)/b=c, mult; a=x*(b+c); a=x*(b-c); a=x*(b*c+d); x/a+b=c, multiply; [var expr]/[const expr] = [const expr], multiply}]",
+            "kc_b": "[SkillRule: Remove negative coefficient; {ax+b=c, divide; ax=b; [const expr]*[var fact] + [const expr] = [const expr], divide; [var expr]*[const expr] = [const expr], divide; a/b*x=c; a/b*x=c, reciprocal; ax/b=c, reciprocal; ax/b=c; x/a=b; ax=b; (+/-x +/-a)/b=c, mult; a=x*(b+c); a=x*(b-c); a=x*(b*c+d); x/a+b=c, multiply; [var expr]/[const expr] = [const expr], multiply}]"
+          },
+          {
+            "n_a": 406084,
+            "n_b": 123653,
+            "n_both": 83132,
+            "n_a_only": 322952,
+            "n_b_only": 40521,
+            "symmetric_decoupling": 0.8138578833644944,
+            "dir_a_source_only_frac": 0.7952837343997794,
+            "dir_b_source_only_frac": 0.32769928752234073,
+            "kc_a": "Using small numbers",
+            "kc_b": "Write expression, positive slope"
+          },
+          {
+            "n_a": 82590,
+            "n_b": 212668,
+            "n_both": 82590,
+            "n_a_only": 0,
+            "n_b_only": 130078,
+            "symmetric_decoupling": 0.6116482028325841,
+            "dir_a_source_only_frac": 0.0,
+            "dir_b_source_only_frac": 0.6116482028325841,
+            "kc_a": "[SkillRule: Consolidate vars with coeff; CLT]",
+            "kc_b": "[SkillRule: Select Combine Terms; {CLT; CLT 2plus terms same denom, no frac elim; CLT, no lcd}]"
+          },
+          {
+            "n_a": 399631,
+            "n_b": 123653,
+            "n_both": 79776,
+            "n_a_only": 319855,
+            "n_b_only": 43877,
+            "symmetric_decoupling": 0.8201250033821261,
+            "dir_a_source_only_frac": 0.800375846718598,
+            "dir_b_source_only_frac": 0.3548397531802706,
+            "kc_a": "Using simple numbers",
+            "kc_b": "Write expression, positive slope"
+          }
+        ]
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 819699,
+        "n_kc_in_item_bank": 541,
+        "arity_mean": 1.8101168843685305,
+        "arity_max": 8,
+        "n_pure_items_total": 371427,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 0.7245841035120147
+      }
+    },
+    "KTracedSkills": {
+      "kc_model": "KTracedSkills",
+      "n_distinct_kc": 515,
+      "a_overall": {
+        "n": 4419705,
+        "n_correct": 3641331,
+        "correct_rate": 0.8238855308216272,
+        "response_category_distribution": {
+          "1": {
+            "n": 3641331,
+            "frac": 0.8238855308216272
+          },
+          "0": {
+            "n": 778374,
+            "frac": 0.17611446917837276
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 515,
+        "min": 0.0,
+        "q1": 0.753714232149977,
+        "median": 0.8545285935085007,
+        "q3": 0.9248994403637636,
+        "max": 1.0,
+        "mean": 0.812248054041237,
+        "frac_kc_above_0.85": 0.516504854368932
+      },
+      "c_opportunity_counts": {
+        "n": 335430,
+        "min": 1.0,
+        "q1": 4.0,
+        "median": 8.0,
+        "q3": 16.0,
+        "max": 646.0,
+        "mean": 17.612530185135498,
+        "n_learner_kc_pairs": 335430,
+        "frac_ge_5": 0.7365918373431118,
+        "frac_ge_10": 0.42316131532659573,
+        "frac_ge_20": 0.20213159228453031
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 337447,
+            "correct_rate": 0.7344294066920138
+          },
+          "2": {
+            "n": 325201,
+            "correct_rate": 0.8145054904505213
+          },
+          "3": {
+            "n": 303746,
+            "correct_rate": 0.828191976190633
+          },
+          "4": {
+            "n": 271924,
+            "correct_rate": 0.8373957429281711
+          },
+          "5": {
+            "n": 244563,
+            "correct_rate": 0.8388881392524625
+          },
+          "6": {
+            "n": 220192,
+            "correct_rate": 0.8434593445720099
+          },
+          "7": {
+            "n": 192127,
+            "correct_rate": 0.8390960146153326
+          },
+          "8": {
+            "n": 172260,
+            "correct_rate": 0.8387147335423197
+          },
+          "9": {
+            "n": 151694,
+            "correct_rate": 0.8344100623623875
+          },
+          "10": {
+            "n": 136626,
+            "correct_rate": 0.8392985229751292
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 510,
+          "median_slope": 0.006154766024299782,
+          "mean_slope": 0.008199120379655533,
+          "frac_positive": 0.7313725490196078,
+          "frac_negative": 0.2647058823529412,
+          "frac_zero": 0.00392156862745098,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 246,
+        "n_pairs_reported": 30,
+        "frac_reported_pairs_clearing_threshold": 0.8,
+        "pairs": [
+          {
+            "n_a": 284727,
+            "n_b": 256704,
+            "n_both": 129877,
+            "n_a_only": 154850,
+            "n_b_only": 126827,
+            "symmetric_decoupling": 0.6844229432832629,
+            "dir_a_source_only_frac": 0.5438542884938906,
+            "dir_b_source_only_frac": 0.49405930565943657,
+            "kc_a": "Using simple numbers-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 109217,
+            "n_b": 284727,
+            "n_both": 100849,
+            "n_a_only": 8368,
+            "n_b_only": 183878,
+            "symmetric_decoupling": 0.655917023490677,
+            "dir_a_source_only_frac": 0.07661810890246024,
+            "dir_b_source_only_frac": 0.6458045777183056,
+            "kc_a": "Using large numbers-1",
+            "kc_b": "Using simple numbers-1"
+          },
+          {
+            "n_a": 104933,
+            "n_b": 256704,
+            "n_both": 87677,
+            "n_a_only": 17256,
+            "n_b_only": 169027,
+            "symmetric_decoupling": 0.6799642283545043,
+            "dir_a_source_only_frac": 0.16444779049488722,
+            "dir_b_source_only_frac": 0.6584509785589628,
+            "kc_a": "Using difficult numbers-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 76388,
+            "n_b": 284727,
+            "n_both": 76385,
+            "n_a_only": 3,
+            "n_b_only": 208342,
+            "symmetric_decoupling": 0.7317283040073052,
+            "dir_a_source_only_frac": 3.9273184269780595e-05,
+            "dir_b_source_only_frac": 0.7317254773871111,
+            "kc_a": "Find Y, positive slope-1",
+            "kc_b": "Using simple numbers-1"
+          },
+          {
+            "n_a": 76388,
+            "n_b": 256704,
+            "n_both": 49237,
+            "n_a_only": 27151,
+            "n_b_only": 207467,
+            "symmetric_decoupling": 0.826541720244491,
+            "dir_a_source_only_frac": 0.35543540870293766,
+            "dir_b_source_only_frac": 0.8081954313138868,
+            "kc_a": "Find Y, positive slope-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 39287,
+            "n_b": 284727,
+            "n_both": 39286,
+            "n_a_only": 1,
+            "n_b_only": 245441,
+            "symmetric_decoupling": 0.8620227023685764,
+            "dir_a_source_only_frac": 2.5453712423957035e-05,
+            "dir_b_source_only_frac": 0.8620222177735164,
+            "kc_a": "Find Y, Simple-1",
+            "kc_b": "Using simple numbers-1"
+          },
+          {
+            "n_a": 284727,
+            "n_b": 47691,
+            "n_both": 33162,
+            "n_a_only": 251565,
+            "n_b_only": 14529,
+            "symmetric_decoupling": 0.8891851792445264,
+            "dir_a_source_only_frac": 0.8835305397802106,
+            "dir_b_source_only_frac": 0.3046486758507895,
+            "kc_a": "Using simple numbers-1",
+            "kc_b": "Write expression, positive slope-1"
+          },
+          {
+            "n_a": 46869,
+            "n_b": 256704,
+            "n_both": 30731,
+            "n_a_only": 16138,
+            "n_b_only": 225973,
+            "symmetric_decoupling": 0.8873670475953116,
+            "dir_a_source_only_frac": 0.3443214064733619,
+            "dir_b_source_only_frac": 0.8802862440787833,
+            "kc_a": "Find X, positive slope-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 256704,
+            "n_b": 47691,
+            "n_both": 30341,
+            "n_a_only": 226363,
+            "n_b_only": 17350,
+            "symmetric_decoupling": 0.8892882424631642,
+            "dir_a_source_only_frac": 0.8818055036150586,
+            "dir_b_source_only_frac": 0.3638002977500996,
+            "kc_a": "Using small numbers-1",
+            "kc_b": "Write expression, positive slope-1"
+          },
+          {
+            "n_a": 27808,
+            "n_b": 284727,
+            "n_both": 27806,
+            "n_a_only": 2,
+            "n_b_only": 256921,
+            "symmetric_decoupling": 0.9023422271703971,
+            "dir_a_source_only_frac": 7.192174913693901e-05,
+            "dir_b_source_only_frac": 0.9023415411956014,
+            "kc_a": "Find Y, negative slope-1",
+            "kc_b": "Using simple numbers-1"
+          },
+          {
+            "n_a": 27808,
+            "n_b": 109217,
+            "n_both": 27130,
+            "n_a_only": 678,
+            "n_b_only": 82087,
+            "symmetric_decoupling": 0.7531279858046317,
+            "dir_a_source_only_frac": 0.024381472957422323,
+            "dir_b_source_only_frac": 0.7515954475951546,
+            "kc_a": "Find Y, negative slope-1",
+            "kc_b": "Using large numbers-1"
+          },
+          {
+            "n_a": 46869,
+            "n_b": 104933,
+            "n_both": 23280,
+            "n_a_only": 23589,
+            "n_b_only": 81653,
+            "symmetric_decoupling": 0.8188636964877608,
+            "dir_a_source_only_frac": 0.5032964219420086,
+            "dir_b_source_only_frac": 0.7781441491237265,
+            "kc_a": "Find X, positive slope-1",
+            "kc_b": "Using difficult numbers-1"
+          },
+          {
+            "n_a": 76388,
+            "n_b": 109217,
+            "n_both": 20873,
+            "n_a_only": 55515,
+            "n_b_only": 88344,
+            "symmetric_decoupling": 0.8732911638297356,
+            "dir_a_source_only_frac": 0.7267502749122899,
+            "dir_b_source_only_frac": 0.8088850636805626,
+            "kc_a": "Find Y, positive slope-1",
+            "kc_b": "Using large numbers-1"
+          },
+          {
+            "n_a": 39287,
+            "n_b": 109217,
+            "n_both": 20404,
+            "n_a_only": 18883,
+            "n_b_only": 88813,
+            "symmetric_decoupling": 0.8407181889149102,
+            "dir_a_source_only_frac": 0.48064245170158065,
+            "dir_b_source_only_frac": 0.8131792669639342,
+            "kc_a": "Find Y, Simple-1",
+            "kc_b": "Using large numbers-1"
+          },
+          {
+            "n_a": 40129,
+            "n_b": 51697,
+            "n_both": 20090,
+            "n_a_only": 20039,
+            "n_b_only": 31607,
+            "symmetric_decoupling": 0.7199453551912568,
+            "dir_a_source_only_frac": 0.49936454932841584,
+            "dir_b_source_only_frac": 0.6113894423274078,
+            "kc_a": "Convert integer units-1",
+            "kc_b": "Convert linear units-1"
+          },
+          {
+            "n_a": 93636,
+            "n_b": 104933,
+            "n_both": 19679,
+            "n_a_only": 73957,
+            "n_b_only": 85254,
+            "symmetric_decoupling": 0.8899938509698697,
+            "dir_a_source_only_frac": 0.789835106155752,
+            "dir_b_source_only_frac": 0.8124612848198374,
+            "kc_a": "Find X, any form-1",
+            "kc_b": "Using difficult numbers-1"
+          },
+          {
+            "n_a": 39287,
+            "n_b": 256704,
+            "n_both": 18882,
+            "n_a_only": 20405,
+            "n_b_only": 237822,
+            "symmetric_decoupling": 0.9318607479367325,
+            "dir_a_source_only_frac": 0.5193830020108433,
+            "dir_b_source_only_frac": 0.9264444652206433,
+            "kc_a": "Find Y, Simple-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 93636,
+            "n_b": 256704,
+            "n_both": 18871,
+            "n_a_only": 74765,
+            "n_b_only": 237833,
+            "symmetric_decoupling": 0.9430685825823832,
+            "dir_a_source_only_frac": 0.7984642658806442,
+            "dir_b_source_only_frac": 0.9264873161306407,
+            "kc_a": "Find X, any form-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 25889,
+            "n_b": 51697,
+            "n_both": 17500,
+            "n_a_only": 8389,
+            "n_b_only": 34197,
+            "symmetric_decoupling": 0.7087507905335686,
+            "dir_a_source_only_frac": 0.3240372358916915,
+            "dir_b_source_only_frac": 0.6614890612608082,
+            "kc_a": "Convert decimal units greater than one-1",
+            "kc_b": "Convert linear units-1"
+          },
+          {
+            "n_a": 284727,
+            "n_b": 16744,
+            "n_both": 16743,
+            "n_a_only": 267984,
+            "n_b_only": 1,
+            "symmetric_decoupling": 0.9411965103537411,
+            "dir_a_source_only_frac": 0.9411963038278772,
+            "dir_b_source_only_frac": 5.972288580984233e-05,
+            "kc_a": "Using simple numbers-1",
+            "kc_b": "Write expression, mx-1"
+          },
+          {
+            "n_a": 21945,
+            "n_b": 51697,
+            "n_both": 14102,
+            "n_a_only": 7843,
+            "n_b_only": 37595,
+            "symmetric_decoupling": 0.7631508229761504,
+            "dir_a_source_only_frac": 0.3573934837092732,
+            "dir_b_source_only_frac": 0.7272182138228523,
+            "kc_a": "Convert decimal units less than one-1",
+            "kc_b": "Convert linear units-1"
+          },
+          {
+            "n_a": 256704,
+            "n_b": 62565,
+            "n_both": 14048,
+            "n_a_only": 242656,
+            "n_b_only": 48517,
+            "symmetric_decoupling": 0.9539743333518991,
+            "dir_a_source_only_frac": 0.9452754923959112,
+            "dir_b_source_only_frac": 0.775465515863502,
+            "kc_a": "Using small numbers-1",
+            "kc_b": "Write expression, any form-1"
+          },
+          {
+            "n_a": 284727,
+            "n_b": 62565,
+            "n_both": 13311,
+            "n_a_only": 271416,
+            "n_b_only": 49254,
+            "symmetric_decoupling": 0.9601444393543346,
+            "dir_a_source_only_frac": 0.9532499552202636,
+            "dir_b_source_only_frac": 0.7872452649244785,
+            "kc_a": "Using simple numbers-1",
+            "kc_b": "Write expression, any form-1"
+          },
+          {
+            "n_a": 17001,
+            "n_b": 256704,
+            "n_both": 12336,
+            "n_a_only": 4665,
+            "n_b_only": 244368,
+            "symmetric_decoupling": 0.9528023598820059,
+            "dir_a_source_only_frac": 0.2743956237868361,
+            "dir_b_source_only_frac": 0.9519446522064323,
+            "kc_a": "Find X, any slope-1",
+            "kc_b": "Using small numbers-1"
+          },
+          {
+            "n_a": 46869,
+            "n_b": 284727,
+            "n_both": 11972,
+            "n_a_only": 34897,
+            "n_b_only": 272755,
+            "symmetric_decoupling": 0.962543488599104,
+            "dir_a_source_only_frac": 0.744564637606947,
+            "dir_b_source_only_frac": 0.9579527055741114,
+            "kc_a": "Find X, positive slope-1",
+            "kc_b": "Using simple numbers-1"
+          },
+          {
+            "n_a": 104933,
+            "n_b": 62565,
+            "n_both": 11897,
+            "n_a_only": 93036,
+            "n_b_only": 50668,
+            "symmetric_decoupling": 0.923541622483146,
+            "dir_a_source_only_frac": 0.8866228927029628,
+            "dir_b_source_only_frac": 0.8098457604091744,
+            "kc_a": "Using difficult numbers-1",
+            "kc_b": "Write expression, any form-1"
+          },
+          {
+            "n_a": 284727,
+            "n_b": 13283,
+            "n_both": 11279,
+            "n_a_only": 273448,
+            "n_b_only": 2004,
+            "symmetric_decoupling": 0.9606634790099431,
+            "dir_a_source_only_frac": 0.9603866159514202,
+            "dir_b_source_only_frac": 0.15086953248513138,
+            "kc_a": "Using simple numbers-1",
+            "kc_b": "Write expression, negative slope-1"
+          },
+          {
+            "n_a": 109217,
+            "n_b": 13283,
+            "n_both": 11055,
+            "n_a_only": 98162,
+            "n_b_only": 2228,
+            "symmetric_decoupling": 0.9008030867243932,
+            "dir_a_source_only_frac": 0.8987794940348114,
+            "dir_b_source_only_frac": 0.1677331928028307,
+            "kc_a": "Using large numbers-1",
+            "kc_b": "Write expression, negative slope-1"
+          },
+          {
+            "n_a": 40129,
+            "n_b": 19587,
+            "n_both": 10921,
+            "n_a_only": 29208,
+            "n_b_only": 8666,
+            "symmetric_decoupling": 0.7761860846398196,
+            "dir_a_source_only_frac": 0.7278526751227292,
+            "dir_b_source_only_frac": 0.4424363097973145,
+            "kc_a": "Convert integer units-1",
+            "kc_b": "Convert volume units-1"
+          },
+          {
+            "n_a": 104933,
+            "n_b": 47691,
+            "n_both": 9824,
+            "n_a_only": 95109,
+            "n_b_only": 37867,
+            "symmetric_decoupling": 0.9312044817927171,
+            "dir_a_source_only_frac": 0.9063783557126929,
+            "dir_b_source_only_frac": 0.7940072550376381,
+            "kc_a": "Using difficult numbers-1",
+            "kc_b": "Write expression, positive slope-1"
+          }
+        ]
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 291084,
+        "n_kc_in_item_bank": 515,
+        "arity_mean": 1.0218768465460142,
+        "arity_max": 3,
+        "n_pure_items_total": 285707,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 0.8524271844660194
+      }
+    },
+    "Rules": {
+      "kc_model": "Rules",
+      "n_distinct_kc": 1069,
+      "a_overall": {
+        "n": 8522374,
+        "n_correct": 7330105,
+        "correct_rate": 0.8601013051058308,
+        "response_category_distribution": {
+          "1": {
+            "n": 7330105,
+            "frac": 0.8601013051058308
+          },
+          "0": {
+            "n": 1192269,
+            "frac": 0.13989869489416917
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 1069,
+        "min": 0.0,
+        "q1": 0.4701270613679373,
+        "median": 0.7857142857142857,
+        "q3": 0.9028296849973305,
+        "max": 1.0,
+        "mean": 0.6441190366161003,
+        "frac_kc_above_0.85": 0.372310570626754
+      },
+      "c_opportunity_counts": {
+        "n": 477615,
+        "min": 1.0,
+        "q1": 3.0,
+        "median": 9.0,
+        "q3": 21.0,
+        "max": 1504.0,
+        "mean": 21.16472053850905,
+        "n_learner_kc_pairs": 477615,
+        "frac_ge_5": 0.6832155606503146,
+        "frac_ge_10": 0.49428933345895754,
+        "frac_ge_20": 0.27372674643803063
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 466779,
+            "correct_rate": 0.6710049081042635
+          },
+          "2": {
+            "n": 410226,
+            "correct_rate": 0.7735223998478887
+          },
+          "3": {
+            "n": 368782,
+            "correct_rate": 0.7953560640161396
+          },
+          "4": {
+            "n": 339590,
+            "correct_rate": 0.8211667010218204
+          },
+          "5": {
+            "n": 307260,
+            "correct_rate": 0.8272635552951897
+          },
+          "6": {
+            "n": 284735,
+            "correct_rate": 0.843008411329833
+          },
+          "7": {
+            "n": 261687,
+            "correct_rate": 0.8418186612250513
+          },
+          "8": {
+            "n": 246342,
+            "correct_rate": 0.8546370493054372
+          },
+          "9": {
+            "n": 227616,
+            "correct_rate": 0.8527695768311542
+          },
+          "10": {
+            "n": 214518,
+            "correct_rate": 0.8615360948731575
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 796,
+          "median_slope": 0.00804840383141435,
+          "mean_slope": 0.011299028530487084,
+          "frac_positive": 0.75,
+          "frac_negative": 0.19095477386934673,
+          "frac_zero": 0.059045226130653265,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 1601,
+        "n_pairs_reported": 30,
+        "frac_reported_pairs_clearing_threshold": 1.0,
+        "pairs": [
+          {
+            "n_a": 135858,
+            "n_b": 72467,
+            "n_both": 7243,
+            "n_a_only": 128615,
+            "n_b_only": 65224,
+            "symmetric_decoupling": 0.9639798689092012,
+            "dir_a_source_only_frac": 0.9466869819959075,
+            "dir_b_source_only_frac": 0.9000510577228256,
+            "kc_a": "CALCULATED-VALUE-GIVEN-Y-EXPRESSION-COMPLETED",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 146709,
+            "n_b": 72467,
+            "n_both": 3148,
+            "n_a_only": 143561,
+            "n_b_only": 69319,
+            "symmetric_decoupling": 0.9854278149128817,
+            "dir_a_source_only_frac": 0.9785425570346741,
+            "dir_b_source_only_frac": 0.95655953744463,
+            "kc_a": "ADD-GRAPHER-POINT",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 42083,
+            "n_b": 72467,
+            "n_both": 1983,
+            "n_a_only": 40100,
+            "n_b_only": 70484,
+            "symmetric_decoupling": 0.9823838247443745,
+            "dir_a_source_only_frac": 0.952878834683839,
+            "dir_b_source_only_frac": 0.9726358204424083,
+            "kc_a": "ADD-GRAPHER-LINE",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 12460,
+            "n_b": 12287,
+            "n_both": 1547,
+            "n_a_only": 10913,
+            "n_b_only": 10740,
+            "symmetric_decoupling": 0.9333189655172414,
+            "dir_a_source_only_frac": 0.8758426966292134,
+            "dir_b_source_only_frac": 0.8740945714983316,
+            "kc_a": "null, GN is direct-only or indirect-only; direct solution preferred, Indirect-only gn - must be a ray, Indirect solution decided, Absolute value of variable, Problem is absolute value > or >=",
+            "kc_b": "null, GN is direct-only or indirect-only; direct solution preferred, Indirect-only gn - must be a ray, No direct solution gns, Absolute value of variable, Problem is absolute value > or >="
+          },
+          {
+            "n_a": 138992,
+            "n_b": 72467,
+            "n_both": 1413,
+            "n_a_only": 137579,
+            "n_b_only": 71054,
+            "symmetric_decoupling": 0.9932729021262009,
+            "dir_a_source_only_frac": 0.9898339472775411,
+            "dir_b_source_only_frac": 0.9805014696344543,
+            "kc_a": "LABEL-X-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 132314,
+            "n_b": 72467,
+            "n_both": 1261,
+            "n_a_only": 131053,
+            "n_b_only": 71206,
+            "symmetric_decoupling": 0.9938040487421383,
+            "dir_a_source_only_frac": 0.9904696404008646,
+            "dir_b_source_only_frac": 0.9825989760856666,
+            "kc_a": "CALCULATED-VALUE-MX+B-GIVEN-X",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 45757,
+            "n_b": 72467,
+            "n_both": 1250,
+            "n_a_only": 44507,
+            "n_b_only": 71217,
+            "symmetric_decoupling": 0.9893138646194881,
+            "dir_a_source_only_frac": 0.972681775466049,
+            "dir_b_source_only_frac": 0.9827507693156885,
+            "kc_a": "STANDARD-MX+B-FORMULA-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 98214,
+            "n_b": 1998,
+            "n_both": 1095,
+            "n_a_only": 97119,
+            "n_b_only": 903,
+            "symmetric_decoupling": 0.9889524501346894,
+            "dir_a_source_only_frac": 0.9888508766570957,
+            "dir_b_source_only_frac": 0.4519519519519519,
+            "kc_a": "SET-MAX-BOUND",
+            "kc_b": "SET-MAX-BOUND-BOUND-HIGH"
+          },
+          {
+            "n_a": 98214,
+            "n_b": 2051,
+            "n_both": 1090,
+            "n_a_only": 97124,
+            "n_b_only": 961,
+            "symmetric_decoupling": 0.9890093269473154,
+            "dir_a_source_only_frac": 0.9889017858961044,
+            "dir_b_source_only_frac": 0.4685519258898099,
+            "kc_a": "SET-MAX-BOUND",
+            "kc_b": "SET-MAX-BOUND-BOUND-LOW"
+          },
+          {
+            "n_a": 11019,
+            "n_b": 72467,
+            "n_both": 1052,
+            "n_a_only": 9967,
+            "n_b_only": 71415,
+            "symmetric_decoupling": 0.9872382754688599,
+            "dir_a_source_only_frac": 0.9045285416099464,
+            "dir_b_source_only_frac": 0.9854830474560835,
+            "kc_a": "CALCULATED-VALUE-GIVEN-Y",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 205380,
+            "n_b": 72467,
+            "n_both": 998,
+            "n_a_only": 204382,
+            "n_b_only": 71469,
+            "symmetric_decoupling": 0.9963951468128835,
+            "dir_a_source_only_frac": 0.9951407147726166,
+            "dir_b_source_only_frac": 0.9862282142216457,
+            "kc_a": "GIVEN-HELP-NONE",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 139655,
+            "n_b": 72467,
+            "n_both": 921,
+            "n_a_only": 138734,
+            "n_b_only": 71546,
+            "symmetric_decoupling": 0.9956392251930626,
+            "dir_a_source_only_frac": 0.9934051770434285,
+            "dir_b_source_only_frac": 0.9872907668317993,
+            "kc_a": "LABEL-Y-Z-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 31226,
+            "n_b": 72467,
+            "n_both": 912,
+            "n_a_only": 30314,
+            "n_b_only": 71555,
+            "symmetric_decoupling": 0.9911267646744047,
+            "dir_a_source_only_frac": 0.9707935694613463,
+            "dir_b_source_only_frac": 0.9874149612927263,
+            "kc_a": "ADD-GRAPHER-POINT-USE-GRAPH",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 31142,
+            "n_b": 72467,
+            "n_both": 882,
+            "n_a_only": 30260,
+            "n_b_only": 71585,
+            "symmetric_decoupling": 0.9914141364977075,
+            "dir_a_source_only_frac": 0.9716781195812729,
+            "dir_b_source_only_frac": 0.9878289428291498,
+            "kc_a": "CALCULATED-VALUE-MX+B-GIVEN-X-SLOPE-NEGATIVE",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 275608,
+            "n_b": 72467,
+            "n_both": 872,
+            "n_a_only": 274736,
+            "n_b_only": 71595,
+            "symmetric_decoupling": 0.9974885009634133,
+            "dir_a_source_only_frac": 0.9968360860352384,
+            "dir_b_source_only_frac": 0.9879669366746243,
+            "kc_a": "UNIT-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 146071,
+            "n_b": 72467,
+            "n_both": 819,
+            "n_a_only": 145252,
+            "n_b_only": 71648,
+            "symmetric_decoupling": 0.9962382704311521,
+            "dir_a_source_only_frac": 0.9943931375837778,
+            "dir_b_source_only_frac": 0.9886983040556391,
+            "kc_a": "GIVEN-HELP-DONT-REPEAT-UNIT",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 11019,
+            "n_b": 135858,
+            "n_both": 716,
+            "n_a_only": 10303,
+            "n_b_only": 135142,
+            "symmetric_decoupling": 0.9951012924104241,
+            "dir_a_source_only_frac": 0.935021326799165,
+            "dir_b_source_only_frac": 0.994729791399844,
+            "kc_a": "CALCULATED-VALUE-GIVEN-Y",
+            "kc_b": "CALCULATED-VALUE-GIVEN-Y-EXPRESSION-COMPLETED"
+          },
+          {
+            "n_a": 64689,
+            "n_b": 72467,
+            "n_both": 601,
+            "n_a_only": 64088,
+            "n_b_only": 71866,
+            "symmetric_decoupling": 0.9955988429570503,
+            "dir_a_source_only_frac": 0.9907093941782993,
+            "dir_b_source_only_frac": 0.991706569886983,
+            "kc_a": "ENTER-EQUATION-HINT",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 35191,
+            "n_b": 72467,
+            "n_both": 578,
+            "n_a_only": 34613,
+            "n_b_only": 71889,
+            "symmetric_decoupling": 0.9946021666044079,
+            "dir_a_source_only_frac": 0.9835753459691399,
+            "dir_b_source_only_frac": 0.9920239557315744,
+            "kc_a": "GIVEN-HELP-STANDARD",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 41652,
+            "n_b": 60234,
+            "n_both": 534,
+            "n_a_only": 41118,
+            "n_b_only": 59700,
+            "symmetric_decoupling": 0.9947312337201042,
+            "dir_a_source_only_frac": 0.9871794871794872,
+            "dir_b_source_only_frac": 0.9911345751568882,
+            "kc_a": "[Rule: CLT nested, parens ([SolverOperation clt],)]",
+            "kc_b": "[Rule: Distribute subex ([SolverOperation distribute],)]"
+          },
+          {
+            "n_a": 99586,
+            "n_b": 72467,
+            "n_both": 526,
+            "n_a_only": 99060,
+            "n_b_only": 71941,
+            "symmetric_decoupling": 0.99693342739044,
+            "dir_a_source_only_frac": 0.9947181330709136,
+            "dir_b_source_only_frac": 0.9927415237280417,
+            "kc_a": "CALCULATED-VALUE-GIVEN-X",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 34548,
+            "n_b": 72467,
+            "n_both": 525,
+            "n_a_only": 34023,
+            "n_b_only": 71942,
+            "symmetric_decoupling": 0.9950699596206216,
+            "dir_a_source_only_frac": 0.9848037513025356,
+            "dir_b_source_only_frac": 0.9927553231125892,
+            "kc_a": "STANDARD-MX+B-DOLLARS-FORMULA-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 1468,
+            "n_b": 72467,
+            "n_both": 517,
+            "n_a_only": 951,
+            "n_b_only": 71950,
+            "symmetric_decoupling": 0.9929581301588166,
+            "dir_a_source_only_frac": 0.6478201634877384,
+            "dir_b_source_only_frac": 0.9928657181889687,
+            "kc_a": "CLT-ROW-2-COEFF-DO-ROW-1-FIRST",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 18397,
+            "n_b": 72467,
+            "n_both": 409,
+            "n_a_only": 17988,
+            "n_b_only": 72058,
+            "symmetric_decoupling": 0.9954784146813332,
+            "dir_a_source_only_frac": 0.9777681143664728,
+            "dir_b_source_only_frac": 0.9943560517200933,
+            "kc_a": "OFFSET-CONVERSION-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 6062,
+            "n_b": 2145,
+            "n_both": 377,
+            "n_a_only": 5685,
+            "n_b_only": 1768,
+            "symmetric_decoupling": 0.9518518518518518,
+            "dir_a_source_only_frac": 0.9378093038601122,
+            "dir_b_source_only_frac": 0.8242424242424242,
+            "kc_a": "[Rule: action after done, left (null,null)]",
+            "kc_b": "[Rule: doneleft, no menu ([SolverOperation donenomenu],null)]"
+          },
+          {
+            "n_a": 21488,
+            "n_b": 72467,
+            "n_both": 305,
+            "n_a_only": 21183,
+            "n_b_only": 72162,
+            "symmetric_decoupling": 0.9967431927389215,
+            "dir_a_source_only_frac": 0.9858060312732688,
+            "dir_b_source_only_frac": 0.995791187713028,
+            "kc_a": "STANDARD-MX-FORMULA-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 46096,
+            "n_b": 72467,
+            "n_both": 301,
+            "n_a_only": 45795,
+            "n_b_only": 72166,
+            "symmetric_decoupling": 0.9974548037408466,
+            "dir_a_source_only_frac": 0.9934701492537313,
+            "dir_b_source_only_frac": 0.9958463852512178,
+            "kc_a": "UNIT-CONVERSION-CONVERSION-FACTOR-GOAL-NODE-ConditionalHint46913",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 11896,
+            "n_b": 72467,
+            "n_both": 284,
+            "n_a_only": 11612,
+            "n_b_only": 72183,
+            "symmetric_decoupling": 0.9966222243366358,
+            "dir_a_source_only_frac": 0.9761264290517822,
+            "dir_b_source_only_frac": 0.9960809747885244,
+            "kc_a": "DISTRIBUTE-HELP",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 3428,
+            "n_b": 72467,
+            "n_both": 282,
+            "n_a_only": 3146,
+            "n_b_only": 72185,
+            "symmetric_decoupling": 0.9962704825889728,
+            "dir_a_source_only_frac": 0.9177362893815636,
+            "dir_b_source_only_frac": 0.9961085735576193,
+            "kc_a": "SF-FA-DO-ABOVE-PIECES-FIRST",
+            "kc_b": "unknown bug element"
+          },
+          {
+            "n_a": 147439,
+            "n_b": 72467,
+            "n_both": 268,
+            "n_a_only": 147171,
+            "n_b_only": 72199,
+            "symmetric_decoupling": 0.9987798104153197,
+            "dir_a_source_only_frac": 0.9981822991203142,
+            "dir_b_source_only_frac": 0.9963017649412836,
+            "kc_a": "GRAPHER-POINT-GOOD-TO-GO",
+            "kc_b": "unknown bug element"
+          }
+        ]
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 1112764,
+        "n_kc_in_item_bank": 950,
+        "arity_mean": 1.0058152492352377,
+        "arity_max": 5,
+        "n_pure_items_total": 1106759,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 0.9052631578947369
+      }
+    }
+  },
+  "runtime_sec": 110.2
+}

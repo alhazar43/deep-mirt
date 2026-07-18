@@ -1,0 +1,85 @@
+{
+  "bed": "timss_g8_usa",
+  "source_files": {
+    "triplets": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\timss\\timss_g8_usa_poly_triplets.csv",
+    "matrix": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\timss\\timss_g8_usa_poly_matrix.csv",
+    "gpcm_coef": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\timss\\timss_g8_usa_gpcm_coef.csv"
+  },
+  "sampling": "none (full local extract used; extract itself is already a minresp>=5 filtered subset of the raw .sav, per data/timss/_build_timss_gpcm.R)",
+  "design": "single-session assessment (TIMSS 2019 G8 USA achievement booklet); each student answers one rotated booklet, one occasion. Item set here is the 31-item genuinely polytomous (0/1/2 partial-credit) constructed-response subset identified by _classify_items.R, not the full item pool (which also includes dichotomous MC/CR items).",
+  "n_students": 5135,
+  "n_items": 31,
+  "max_score_per_item": 2,
+  "a_b_item_score_category_structure": {
+    "overall_response_category_distribution": {
+      "0": {
+        "n": 12546,
+        "frac": 0.44294591159440755
+      },
+      "2": {
+        "n": 7925,
+        "frac": 0.27979805112272277
+      },
+      "1": {
+        "n": 7853,
+        "frac": 0.2772560372828696
+      }
+    },
+    "overall_mean_score_proportion": 0.4184260697641576,
+    "per_item_mean_score_proportion_quartiles": {
+      "n": 31,
+      "min": 0.14186851211072665,
+      "q1": 0.29473375888817066,
+      "median": 0.4407783417935702,
+      "q3": 0.4851090616180757,
+      "max": 0.7288602941176471,
+      "mean": 0.4193183561841003
+    },
+    "frac_items_above_0.85_mean_score_proportion": 0.0,
+    "responses_per_item_quartiles": {
+      "n": 31,
+      "min": 543.0,
+      "q1": 590.5,
+      "median": 1092.0,
+      "q3": 1127.5,
+      "max": 1184.0,
+      "mean": 913.6774193548387
+    },
+    "responses_per_student_quartiles": {
+      "n": 5135,
+      "min": 5.0,
+      "q1": 5.0,
+      "median": 6.0,
+      "q3": 6.0,
+      "max": 6.0,
+      "mean": 5.51587147030185
+    },
+    "domain_split_bonus": {
+      "note": "coarse M/S item-id prefix only, NOT a fine-grained KC crosswalk",
+      "n_math_items": 10,
+      "n_science_items": 21
+    }
+  },
+  "c_d_growth_signal": {
+    "status": "structurally N/A",
+    "reason": "TIMSS is a single-occasion assessment: no repeated practice, no opportunity index, no learning-curve to compute. Not attempted."
+  },
+  "e_f_g_decoupling_and_anchors": {
+    "status": "structurally N/A",
+    "reason": "No item-to-KC crosswalk is available locally for these items (only the coarse Math/Science domain prefix on the item id, reported above as a bonus, not a skill-level Q-matrix). KC-pair decoupling, pure-anchor coverage, and item-KC arity all require such a crosswalk and are not computed."
+  },
+  "gpcm_bonus": {
+    "n_items_fit": 31,
+    "discrimination_a_quartiles": {
+      "n": 31,
+      "min": 0.5797,
+      "q1": 0.7898000000000001,
+      "median": 0.9461,
+      "q3": 1.0665499999999999,
+      "max": 1.6838,
+      "mean": 0.9644419354838711
+    },
+    "note": "classical GPCM (mirt, MML) already fit by data/timss/_build_timss_gpcm.R; reported as-is, not refit here."
+  },
+  "runtime_sec": 0.0
+}

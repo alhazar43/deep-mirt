@@ -1,0 +1,504 @@
+{
+  "bed": "ednet_kt1",
+  "source_dir": "C:\\Users\\steph\\Documents\\deep-mirt\\EdNet-KT1\\KT1",
+  "questions_csv": "C:\\Users\\steph\\Documents\\deep-mirt\\EdNet-Contents\\contents\\questions.csv",
+  "unit_of_analysis": "one question attempt (one row of a user's KT1 CSV)",
+  "response_field": "user_answer vs questions.csv.correct_answer (4-option multiple choice)",
+  "sampling": "4000 of 784309 per-user CSV files, random.Random(seed=42).sample() over the sorted filename list",
+  "n_users_sampled": 4000,
+  "n_users_with_data": 4000,
+  "n_users_empty_or_unreadable": 0,
+  "n_rows_total": 467806,
+  "n_rows_unmapped_question_id_dropped": 0,
+  "decoupling_definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+  "kc_models": {
+    "tags": {
+      "kc_model": "tags",
+      "n_distinct_kc": 189,
+      "a_overall": {
+        "n": 467806,
+        "n_correct": 304829,
+        "correct_rate": 0.6516141306438994,
+        "response_category_distribution": {
+          "b": {
+            "n": 132953,
+            "frac": 0.28420541848544056
+          },
+          "a": {
+            "n": 126836,
+            "frac": 0.27112948529946174
+          },
+          "c": {
+            "n": 123324,
+            "frac": 0.26362209975930195
+          },
+          "d": {
+            "n": 84575,
+            "frac": 0.1807907551420888
+          },
+          "nan": {
+            "n": 118,
+            "frac": 0.000252241313706964
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 189,
+        "min": 0.22988505747126436,
+        "q1": 0.6132532902332025,
+        "median": 0.6790598290598291,
+        "q3": 0.7155284101425134,
+        "max": 0.8709511568123394,
+        "mean": 0.6620241669503524,
+        "frac_kc_above_0.85": 0.021164021164021163
+      },
+      "c_opportunity_counts": {
+        "n": 131954,
+        "min": 1.0,
+        "q1": 1.0,
+        "median": 2.0,
+        "q3": 5.0,
+        "max": 1825.0,
+        "mean": 8.243183230519726,
+        "n_learner_kc_pairs": 131954,
+        "frac_ge_5": 0.27883201721812145,
+        "frac_ge_10": 0.14095821271049003,
+        "frac_ge_20": 0.07219182442366279
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 131954,
+            "correct_rate": 0.5685011443381784
+          },
+          "2": {
+            "n": 74755,
+            "correct_rate": 0.6146077185472544
+          },
+          "3": {
+            "n": 54534,
+            "correct_rate": 0.6408662485788682
+          },
+          "4": {
+            "n": 44789,
+            "correct_rate": 0.6615910156511643
+          },
+          "5": {
+            "n": 36793,
+            "correct_rate": 0.6639034598972631
+          },
+          "6": {
+            "n": 31542,
+            "correct_rate": 0.6534144949591022
+          },
+          "7": {
+            "n": 26899,
+            "correct_rate": 0.6611769954273393
+          },
+          "8": {
+            "n": 23187,
+            "correct_rate": 0.6768447837150128
+          },
+          "9": {
+            "n": 20517,
+            "correct_rate": 0.6966418092313691
+          },
+          "10": {
+            "n": 18600,
+            "correct_rate": 0.6966666666666667
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 187,
+          "median_slope": 0.0074565926443259534,
+          "mean_slope": 0.007329741635821315,
+          "frac_positive": 0.8181818181818182,
+          "frac_negative": 0.18181818181818182,
+          "frac_zero": 0.0,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 948,
+        "n_pairs_reported": 30,
+        "frac_reported_pairs_clearing_threshold": 0.8666666666666667,
+        "pairs": [
+          {
+            "n_a": 62006,
+            "n_b": 85939,
+            "n_both": 20487,
+            "n_a_only": 41519,
+            "n_b_only": 65452,
+            "symmetric_decoupling": 0.8392646989596573,
+            "dir_a_source_only_frac": 0.669596490662194,
+            "dir_b_source_only_frac": 0.7616099791712726,
+            "kc_a": "182",
+            "kc_b": "183"
+          },
+          {
+            "n_a": 85939,
+            "n_b": 57084,
+            "n_both": 18429,
+            "n_a_only": 67510,
+            "n_b_only": 38655,
+            "symmetric_decoupling": 0.8520875804613385,
+            "dir_a_source_only_frac": 0.7855571975470974,
+            "dir_b_source_only_frac": 0.6771599747740172,
+            "kc_a": "183",
+            "kc_b": "184"
+          },
+          {
+            "n_a": 75548,
+            "n_b": 35091,
+            "n_both": 18364,
+            "n_a_only": 57184,
+            "n_b_only": 16727,
+            "symmetric_decoupling": 0.8009861826063397,
+            "dir_a_source_only_frac": 0.7569227510986393,
+            "dir_b_source_only_frac": 0.4766749308939614,
+            "kc_a": "181",
+            "kc_b": "24"
+          },
+          {
+            "n_a": 85939,
+            "n_b": 35091,
+            "n_both": 18295,
+            "n_a_only": 67644,
+            "n_b_only": 16796,
+            "symmetric_decoupling": 0.8219204750085171,
+            "dir_a_source_only_frac": 0.7871164430584484,
+            "dir_b_source_only_frac": 0.47864124704340144,
+            "kc_a": "183",
+            "kc_b": "24"
+          },
+          {
+            "n_a": 75548,
+            "n_b": 62006,
+            "n_both": 17385,
+            "n_a_only": 58163,
+            "n_b_only": 44621,
+            "symmetric_decoupling": 0.8553287453502983,
+            "dir_a_source_only_frac": 0.7698813999046964,
+            "dir_b_source_only_frac": 0.7196239073638035,
+            "kc_a": "181",
+            "kc_b": "182"
+          },
+          {
+            "n_a": 75548,
+            "n_b": 41423,
+            "n_both": 16188,
+            "n_a_only": 59360,
+            "n_b_only": 25235,
+            "symmetric_decoupling": 0.8393776728218053,
+            "dir_a_source_only_frac": 0.7857256313866681,
+            "dir_b_source_only_frac": 0.6092026169036525,
+            "kc_a": "181",
+            "kc_b": "185"
+          },
+          {
+            "n_a": 75548,
+            "n_b": 57084,
+            "n_both": 15329,
+            "n_a_only": 60219,
+            "n_b_only": 41755,
+            "symmetric_decoupling": 0.8693213302302584,
+            "dir_a_source_only_frac": 0.7970958860591941,
+            "dir_b_source_only_frac": 0.7314659098871839,
+            "kc_a": "181",
+            "kc_b": "184"
+          },
+          {
+            "n_a": 75548,
+            "n_b": 85939,
+            "n_both": 14681,
+            "n_a_only": 60867,
+            "n_b_only": 71258,
+            "symmetric_decoupling": 0.8999972753157228,
+            "dir_a_source_only_frac": 0.8056732143802615,
+            "dir_b_source_only_frac": 0.8291695272227976,
+            "kc_a": "181",
+            "kc_b": "183"
+          },
+          {
+            "n_a": 85939,
+            "n_b": 41423,
+            "n_both": 14475,
+            "n_a_only": 71464,
+            "n_b_only": 26948,
+            "symmetric_decoupling": 0.8717744292965532,
+            "dir_a_source_only_frac": 0.8315665762924865,
+            "dir_b_source_only_frac": 0.6505564541438331,
+            "kc_a": "183",
+            "kc_b": "185"
+          },
+          {
+            "n_a": 62006,
+            "n_b": 35091,
+            "n_both": 11816,
+            "n_a_only": 50190,
+            "n_b_only": 23275,
+            "symmetric_decoupling": 0.8614462775999343,
+            "dir_a_source_only_frac": 0.8094377963422894,
+            "dir_b_source_only_frac": 0.6632754837422701,
+            "kc_a": "182",
+            "kc_b": "24"
+          },
+          {
+            "n_a": 57084,
+            "n_b": 35091,
+            "n_both": 11334,
+            "n_a_only": 45750,
+            "n_b_only": 23757,
+            "symmetric_decoupling": 0.8597988644375998,
+            "dir_a_source_only_frac": 0.8014504940088291,
+            "dir_b_source_only_frac": 0.6770111994528512,
+            "kc_a": "184",
+            "kc_b": "24"
+          },
+          {
+            "n_a": 43140,
+            "n_b": 85939,
+            "n_both": 11229,
+            "n_a_only": 31911,
+            "n_b_only": 74710,
+            "symmetric_decoupling": 0.9047178616885871,
+            "dir_a_source_only_frac": 0.7397079276773296,
+            "dir_b_source_only_frac": 0.8693375533808865,
+            "kc_a": "179",
+            "kc_b": "183"
+          },
+          {
+            "n_a": 41423,
+            "n_b": 35091,
+            "n_both": 10373,
+            "n_a_only": 31050,
+            "n_b_only": 24718,
+            "symmetric_decoupling": 0.8431683826975703,
+            "dir_a_source_only_frac": 0.7495835646862854,
+            "dir_b_source_only_frac": 0.7043971388675159,
+            "kc_a": "185",
+            "kc_b": "24"
+          },
+          {
+            "n_a": 62006,
+            "n_b": 57084,
+            "n_both": 9456,
+            "n_a_only": 52550,
+            "n_b_only": 47628,
+            "symmetric_decoupling": 0.9137493843150848,
+            "dir_a_source_only_frac": 0.8474986291649195,
+            "dir_b_source_only_frac": 0.8343493798612571,
+            "kc_a": "182",
+            "kc_b": "184"
+          },
+          {
+            "n_a": 43140,
+            "n_b": 75548,
+            "n_both": 9288,
+            "n_a_only": 33852,
+            "n_b_only": 66260,
+            "symmetric_decoupling": 0.9151005484460695,
+            "dir_a_source_only_frac": 0.7847009735744089,
+            "dir_b_source_only_frac": 0.8770582940647006,
+            "kc_a": "179",
+            "kc_b": "181"
+          },
+          {
+            "n_a": 85939,
+            "n_b": 21655,
+            "n_both": 9163,
+            "n_a_only": 76776,
+            "n_b_only": 12492,
+            "symmetric_decoupling": 0.9069094086212677,
+            "dir_a_source_only_frac": 0.8933778610409709,
+            "dir_b_source_only_frac": 0.576864465481413,
+            "kc_a": "183",
+            "kc_b": "52"
+          },
+          {
+            "n_a": 57084,
+            "n_b": 21655,
+            "n_both": 8077,
+            "n_a_only": 49007,
+            "n_b_only": 13578,
+            "symmetric_decoupling": 0.8856952817638901,
+            "dir_a_source_only_frac": 0.8585067619648238,
+            "dir_b_source_only_frac": 0.6270145462941584,
+            "kc_a": "184",
+            "kc_b": "52"
+          },
+          {
+            "n_a": 85939,
+            "n_b": 16206,
+            "n_both": 7803,
+            "n_a_only": 78136,
+            "n_b_only": 8403,
+            "symmetric_decoupling": 0.917290284284836,
+            "dir_a_source_only_frac": 0.909203039365131,
+            "dir_b_source_only_frac": 0.5185116623472787,
+            "kc_a": "183",
+            "kc_b": "30"
+          },
+          {
+            "n_a": 9215,
+            "n_b": 8381,
+            "n_both": 7764,
+            "n_a_only": 1451,
+            "n_b_only": 617,
+            "symmetric_decoupling": 0.21033360455655004,
+            "dir_a_source_only_frac": 0.15746066196418881,
+            "dir_b_source_only_frac": 0.07361889989261425,
+            "kc_a": "31",
+            "kc_b": "32"
+          },
+          {
+            "n_a": 75548,
+            "n_b": 16206,
+            "n_both": 7623,
+            "n_a_only": 67925,
+            "n_b_only": 8583,
+            "symmetric_decoupling": 0.9093913064149957,
+            "dir_a_source_only_frac": 0.8990972626674432,
+            "dir_b_source_only_frac": 0.529618659755646,
+            "kc_a": "181",
+            "kc_b": "30"
+          },
+          {
+            "n_a": 43140,
+            "n_b": 57084,
+            "n_both": 7260,
+            "n_a_only": 35880,
+            "n_b_only": 49824,
+            "symmetric_decoupling": 0.9219052536465728,
+            "dir_a_source_only_frac": 0.8317107093184979,
+            "dir_b_source_only_frac": 0.8728190035736809,
+            "kc_a": "179",
+            "kc_b": "184"
+          },
+          {
+            "n_a": 43140,
+            "n_b": 62006,
+            "n_both": 7155,
+            "n_a_only": 35985,
+            "n_b_only": 54851,
+            "symmetric_decoupling": 0.9269830902838015,
+            "dir_a_source_only_frac": 0.8341446453407511,
+            "dir_b_source_only_frac": 0.8846079411669838,
+            "kc_a": "179",
+            "kc_b": "182"
+          },
+          {
+            "n_a": 57084,
+            "n_b": 16206,
+            "n_both": 6483,
+            "n_a_only": 50601,
+            "n_b_only": 9723,
+            "symmetric_decoupling": 0.9029592707351026,
+            "dir_a_source_only_frac": 0.8864305234391423,
+            "dir_b_source_only_frac": 0.5999629766753054,
+            "kc_a": "184",
+            "kc_b": "30"
+          },
+          {
+            "n_a": 62006,
+            "n_b": 21655,
+            "n_both": 6394,
+            "n_a_only": 55612,
+            "n_b_only": 15261,
+            "symmetric_decoupling": 0.917247984262363,
+            "dir_a_source_only_frac": 0.8968809470051285,
+            "dir_b_source_only_frac": 0.7047333179404295,
+            "kc_a": "182",
+            "kc_b": "52"
+          },
+          {
+            "n_a": 10978,
+            "n_b": 6447,
+            "n_both": 6370,
+            "n_a_only": 4608,
+            "n_b_only": 77,
+            "symmetric_decoupling": 0.42379014020805067,
+            "dir_a_source_only_frac": 0.41974858808526144,
+            "dir_b_source_only_frac": 0.011943539630836048,
+            "kc_a": "34",
+            "kc_b": "35"
+          },
+          {
+            "n_a": 8321,
+            "n_b": 6330,
+            "n_both": 6330,
+            "n_a_only": 1991,
+            "n_b_only": 0,
+            "symmetric_decoupling": 0.23927412570604495,
+            "dir_a_source_only_frac": 0.23927412570604495,
+            "dir_b_source_only_frac": 0.0,
+            "kc_a": "28",
+            "kc_b": "29"
+          },
+          {
+            "n_a": 6391,
+            "n_b": 6112,
+            "n_both": 5991,
+            "n_a_only": 400,
+            "n_b_only": 121,
+            "symmetric_decoupling": 0.0800061425061425,
+            "dir_a_source_only_frac": 0.06258801439524331,
+            "dir_b_source_only_frac": 0.019797120418848166,
+            "kc_a": "38",
+            "kc_b": "39"
+          },
+          {
+            "n_a": 35091,
+            "n_b": 5977,
+            "n_both": 5977,
+            "n_a_only": 29114,
+            "n_b_only": 0,
+            "symmetric_decoupling": 0.829671425721695,
+            "dir_a_source_only_frac": 0.829671425721695,
+            "dir_b_source_only_frac": 0.0,
+            "kc_a": "24",
+            "kc_b": "33"
+          },
+          {
+            "n_a": 62006,
+            "n_b": 21279,
+            "n_both": 5901,
+            "n_a_only": 56105,
+            "n_b_only": 15378,
+            "symmetric_decoupling": 0.9237439263930528,
+            "dir_a_source_only_frac": 0.9048317904718898,
+            "dir_b_source_only_frac": 0.7226843366699562,
+            "kc_a": "182",
+            "kc_b": "2"
+          },
+          {
+            "n_a": 62006,
+            "n_b": 16206,
+            "n_both": 5851,
+            "n_a_only": 56155,
+            "n_b_only": 10355,
+            "symmetric_decoupling": 0.9191415265129006,
+            "dir_a_source_only_frac": 0.9056381640486405,
+            "dir_b_source_only_frac": 0.6389608786869061,
+            "kc_a": "182",
+            "kc_b": "30"
+          }
+        ]
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 13169,
+        "n_kc_in_item_bank": 189,
+        "arity_mean": 2.1837649024223555,
+        "arity_max": 6,
+        "n_pure_items_total": 7120,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 0.4021164021164021
+      }
+    }
+  },
+  "runtime_sec": 25.4
+}

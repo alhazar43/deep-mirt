@@ -1,0 +1,152 @@
+{
+  "bed": "junyi2020",
+  "source_files": {
+    "log_problem": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\junyi2020\\Log_Problem.csv",
+    "info_content": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\junyi2020\\Info_Content.csv"
+  },
+  "kc_level_choice": {
+    "chosen": "level4_id",
+    "hierarchy_shape_n_distinct": {
+      "level1_id": 1,
+      "level2_id": 10,
+      "level3_id": 42,
+      "level4_id": 171
+    },
+    "exercises_per_level4_kc_quartiles": {
+      "min": 1,
+      "median": 8.0,
+      "max": 18
+    },
+    "justification": "level1_id is a single value (all math), level2_id (10 groups) and level3_id (42 groups) are coarse subject/unit splits (median 108 / 23 exercises per group), level4_id (171 groups, median 8 exercises, max 18) is the finest level offered and the closest analogue to a single skill; used as the KC layer. This release has NO separate prerequisite/skill field (verified earlier), so level4_id is a repurposed topic-tree leaf, not a purpose-built KC tag -- noted explicitly, not papered over.",
+    "note_on_log_problem_level_column": "Log_Problem.csv's own `level` column is Junyi's per-exercise adaptive difficulty/mastery-ladder stage (0-based), UNRELATED to level1_id..level4_id and not used as a KC candidate here."
+  },
+  "item_grain": "ucid (exercise); Log_Problem's finer upid has no separate KC crosswalk and is not 1:1 nested in ucid in this extract, so ucid is the Q-matrix item unit.",
+  "unit_of_analysis": "one row of Log_Problem.csv (one problem attempt)",
+  "response_field": "is_correct (bool)",
+  "sampling": "none (full file streamed)",
+  "n_rows_total": 16217311,
+  "n_rows_used_after_sampling": 16217311,
+  "n_rows_kc_unmapped_dropped": 0,
+  "n_uuid_total": 72758,
+  "n_exercises_in_bank": 1330,
+  "n_exercises_attempted_in_log": 1326,
+  "decoupling_definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+  "e_decoupling_structural_note": "Structurally vacuous for this bed: every practice slot carries exactly one KC (strict level1..4 tree), so two distinct KCs never co-occur on the same slot. n_pairs_with_cross_occurrence below is 0 by construction, not an unlucky sample.",
+  "kc_models": {
+    "level4_id": {
+      "kc_model": "level4_id",
+      "n_distinct_kc": 171,
+      "a_overall": {
+        "n": 16217311,
+        "n_correct": 11412558,
+        "correct_rate": 0.7037269002240877,
+        "response_category_distribution": {
+          "1": {
+            "n": 11412558,
+            "frac": 0.7037269002240877
+          },
+          "0": {
+            "n": 4804753,
+            "frac": 0.2962730997759123
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 171,
+        "min": 0.3082486551105798,
+        "q1": 0.5457974336163043,
+        "median": 0.6498206208079863,
+        "q3": 0.7245939631477212,
+        "max": 0.908330599098707,
+        "mean": 0.6361860261478235,
+        "frac_kc_above_0.85": 0.017543859649122806
+      },
+      "c_opportunity_counts": {
+        "n": 484455,
+        "min": 1.0,
+        "q1": 7.0,
+        "median": 19.0,
+        "q3": 44.0,
+        "max": 1783.0,
+        "mean": 33.475371293515394,
+        "n_learner_kc_pairs": 484455,
+        "frac_ge_5": 0.8792189161015987,
+        "frac_ge_10": 0.7036443013282967,
+        "frac_ge_20": 0.4978212630688093
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 484455,
+            "correct_rate": 0.6764735630760339
+          },
+          "2": {
+            "n": 464077,
+            "correct_rate": 0.7187772718751414
+          },
+          "3": {
+            "n": 449388,
+            "correct_rate": 0.7309540975726989
+          },
+          "4": {
+            "n": 436692,
+            "correct_rate": 0.7395303783902614
+          },
+          "5": {
+            "n": 425942,
+            "correct_rate": 0.7464772199031793
+          },
+          "6": {
+            "n": 396133,
+            "correct_rate": 0.7228582319574486
+          },
+          "7": {
+            "n": 374135,
+            "correct_rate": 0.7183663650821228
+          },
+          "8": {
+            "n": 361241,
+            "correct_rate": 0.7207349110427664
+          },
+          "9": {
+            "n": 350465,
+            "correct_rate": 0.7232847787938881
+          },
+          "10": {
+            "n": 340884,
+            "correct_rate": 0.725830487790568
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 171,
+          "median_slope": 0.0023193761260860844,
+          "mean_slope": 0.0021876097486844288,
+          "frac_positive": 0.7076023391812866,
+          "frac_negative": 0.29239766081871343,
+          "frac_zero": 0.0,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 0,
+        "n_pairs_reported": 0,
+        "frac_reported_pairs_clearing_threshold": null,
+        "pairs": []
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 1330,
+        "n_kc_in_item_bank": 171,
+        "arity_mean": 1.0,
+        "arity_max": 1,
+        "n_pure_items_total": 1330,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 0.9415204678362573
+      }
+    }
+  },
+  "runtime_sec": 37.9
+}

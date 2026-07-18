@@ -39,8 +39,19 @@ cluster bit-reproducibility 25/25).
 - Overleaf's own git endpoint is unreachable from this environment; the
   paper syncs through the JEDM-paper GitHub repo.
 
+## Active sideline: kt-mirt (opened 2026-07-17)
+
+Multi-KC knowledge tracing with IRT readouts as the explainability
+layer; goals = signed cross-KC influence and growth-beyond-noise
+across three growth postures (active / passive / mixed). In-tree
+`kt-mirt/` package vendored from the kt-irt core (no runtime import
+from deep_irt; kt-irt untouched). Start at `kt-mirt/_planning/PLAN.md`
+(+ LEDGER.md, THINKING.md); avenue map in
+`kt-mirt/_planning/research/`; memory `kt-mirt-program`.
+
 ## Parked lines
 
 `ma-irt/` frozen Chapter 0 (IJAIED); `rl/` OrdRec; Q-MIRT transfer paper
-(memory `qmirt-learning-transfer-paper`); thesis north star in
-`docs/Thesis_overview.md` + memory `thesis-vision`.
+(memory `qmirt-learning-transfer-paper`, superseded in substance by the
+kt-mirt program); thesis north star in `docs/Thesis_overview.md` +
+memory `thesis-vision`.
