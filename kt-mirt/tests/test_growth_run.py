@@ -14,6 +14,7 @@ docstring).
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -110,19 +111,46 @@ def test_jsonable_converts_numpy_and_nan_and_roundtrips():
 
 
 # ---------------------------------------------------------------------------
-# Compute-policy enforcement
+# Device guard: config/CLI choice, defaulting to CPU, validated against
+# torch.cuda.is_available() (the render-ban guard's replacement -- LEDGER
+# 2026-07-18 "P3 build EXECUTED" smell (5): "RunConfig still hard-pins CPU
+# from the render ban -- to be lifted deliberately with a test").
 # ---------------------------------------------------------------------------
 
 
-def test_run_config_rejects_non_cpu_device(tmp_path):
+def test_run_config_defaults_to_cpu(tmp_path):
+    cfg = run.RunConfig(output_dir=tmp_path)
+    assert cfg.device == "cpu"
+
+
+def test_run_config_rejects_unknown_device_string(tmp_path):
+    with pytest.raises(ValueError):
+        run.RunConfig(output_dir=tmp_path, device="tpu")
+
+
+def test_run_config_rejects_cuda_when_unavailable(tmp_path, monkeypatch):
+    monkeypatch.setattr(run.torch.cuda, "is_available", lambda: False)
     with pytest.raises(ValueError):
         run.RunConfig(output_dir=tmp_path, device="cuda")
 
 
-def test_cuda_visible_devices_forced_empty():
-    import os
+def test_run_config_accepts_cuda_when_available(tmp_path, monkeypatch):
+    monkeypatch.setattr(run.torch.cuda, "is_available", lambda: True)
+    cfg = run.RunConfig(output_dir=tmp_path, device="cuda")
+    assert cfg.device == "cuda"
 
-    assert os.environ.get("CUDA_VISIBLE_DEVICES") == ""
+
+def test_module_does_not_set_cuda_visible_devices():
+    # This module used to hard-pin CUDA_VISIBLE_DEVICES="" at import time
+    # (a stale program-wide render-ban guard); it must no longer touch the
+    # variable at all (via os.environ or otherwise), so a caller's own
+    # environment (or lack thereof) is respected. The module docstring may
+    # still mention the variable name in prose describing this history, so
+    # this checks for the assignment mechanism, not the name.
+    import inspect
+
+    source = inspect.getsource(run)
+    assert "os.environ" not in source
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +321,34 @@ def test_build_arg_parser_defaults():
     assert args.profile == "tiny"
     assert args.generator_seeds == [0, 1]
     assert args.model_seeds == [0, 1]
+    assert args.device == "cpu"
+
+
+def test_build_arg_parser_rejects_unknown_device():
+    p = run.build_arg_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--device", "tpu"])
+
+
+def test_main_threads_device_into_run_config(tmp_path, monkeypatch):
+    # Intercept run_campaign to inspect the RunConfig it was given, rather
+    # than actually executing a (possibly cuda) campaign.
+    seen = {}
+
+    def _fake_run_campaign(cfg):
+        seen["device"] = cfg.device
+        out_dir = Path(cfg.output_dir) / cfg.profile.name
+        out_dir.mkdir(parents=True, exist_ok=True)
+        json_path = out_dir / "gate_verdict.json"
+        md_path = out_dir / "gate_report.md"
+        json_path.write_text("{}")
+        md_path.write_text("stub")
+        return {"verdict": {}, "json_path": str(json_path), "md_path": str(md_path)}
+
+    monkeypatch.setattr(run, "run_campaign", _fake_run_campaign)
+    argv = ["--output-dir", str(tmp_path), "--profile", "tiny", "--device", "cpu"]
+    run.main(argv)
+    assert seen["device"] == "cpu"
 
 
 def test_main_runs_end_to_end_tiny(tmp_path, monkeypatch):

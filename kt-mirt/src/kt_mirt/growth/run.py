@@ -92,10 +92,21 @@ Interpretation notes (recorded per the harness instructions):
    enough here to just always compute (avoids an empty rate table on
    twins/tiny configs where BH discovers nothing, which would otherwise
    make CG5's misfit-fraction clauses vacuously undefined).
-8. **CPU-only, hard-enforced.** ``CUDA_VISIBLE_DEVICES`` is forced to the
-   empty string at import time (before `torch` is imported anywhere in
-   this process), `RunConfig.device` is validated to be exactly
-   ``"cpu"``, and no line in this module calls `torch.cuda.*`.
+8. **Device is a config/CLI choice, defaulting to CPU.** ``RunConfig.
+   device`` (``--device`` on the CLI) is ``"cpu"`` (default) or ``"cuda"``;
+   ``"cuda"`` is validated against ``torch.cuda.is_available()`` at
+   ``RunConfig`` construction time so a bad request fails immediately
+   rather than silently falling back to CPU. This module no longer forces
+   ``CUDA_VISIBLE_DEVICES`` at import time (that was a standing compute-
+   policy guard from when the local GPU was off-limits program-wide,
+   LEDGER 2026-07-18 "Compute policy change"; the policy was later
+   reversed -- LEDGER 2026-07-18 "P3 build EXECUTED", "local 4060 will
+   join the campaign as an auxiliary worker" -- and this module's
+   `__post_init__` still hard-pinned CPU as a stale leftover of the old
+   guard, LEDGER 2026-07-18 "P3 build EXECUTED" smell (5)). Every internal
+   call site that used to hardcode the CPU device string now threads
+   ``cfg.device`` through instead, so a ``"cuda"`` run actually executes
+   on GPU rather than only changing a validated-but-unused field.
 9. **Population "true rise" is an unweighted mean over KCs**
    (`true_pop_rise` in `certify_twin`), used by CG1a/CG1c. The design's
    own population curves are Q-matrix-expanded and popularity-weighted
@@ -107,10 +118,6 @@ Interpretation notes (recorded per the harness instructions):
 """
 
 from __future__ import annotations
-
-import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = ""  # unconditional: this package never touches the local GPU
 
 import argparse
 import dataclasses
@@ -253,9 +260,12 @@ class RunConfig:
     force: bool = False
 
     def __post_init__(self):
-        if self.device != "cpu":
+        if self.device not in ("cpu", "cuda"):
+            raise ValueError(f"RunConfig.device must be 'cpu' or 'cuda', got {self.device!r}")
+        if self.device == "cuda" and not torch.cuda.is_available():
             raise ValueError(
-                f"RunConfig.device must be 'cpu' (compute policy: local GPU is off-limits), got {self.device!r}"
+                "RunConfig.device='cuda' requested but torch.cuda.is_available() is False "
+                "(no CUDA device visible to this process)"
             )
 
 
@@ -313,7 +323,7 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     hierarchy = bank_mod.flat_hierarchy(twin_data.item_bank.n_items)
     bank_cfg = bank_mod.BankModelConfig(
         n_epochs_max=cfg.bank_epochs, lr=0.05, batch_size=4096, patience_epochs=2,
-        seed=derive_seed("bank", twin, seed), device="cpu",
+        seed=derive_seed("bank", twin, seed), device=cfg.device,
     )
     fit = bank_mod.calibrate_bank(
         rows_all, profile.n_learners, twin_data.n_kcs, calib, hierarchy,
@@ -333,11 +343,11 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     sat_rate_analysis, sat_unsat_analysis = saturation_stats(rows_analysis, twin_data.n_kcs)
     slices = build_slices(rows_analysis)
 
-    gate_result = gate_mod.compute_gate_result(slices, frozen, twin_data.n_kcs, device="cpu")
+    gate_result = gate_mod.compute_gate_result(slices, frozen, twin_data.n_kcs, device=cfg.device)
     n_rep = max(cfg.n_perm_bed, cfg.n_perm_kc)
     null = gate_mod.permutation_null(
         analysis_learners, len(analysis_learners), twin_data.n_kcs, frozen,
-        n_replicates=n_rep, seed=derive_seed("perm", twin, seed), device="cpu",
+        n_replicates=n_rep, seed=derive_seed("perm", twin, seed), device=cfg.device,
     )
     bed_null = null["bed"][: cfg.n_perm_bed]
     kc_null = null["kc"][: cfg.n_perm_kc]
@@ -486,6 +496,7 @@ def _act_implied_rises(
     n_kcs: int,
     b_ref: float,
     kc_filter: Optional[set] = None,
+    device: str = "cpu",
 ):
     """E-A1's population/per-learner/per-KC reads (CG1/CG1a/CG1b/CG1c,
     RB-A), computed from the model's amortized recognition outputs over
@@ -502,7 +513,7 @@ def _act_implied_rises(
     in"), so as long as ``batch_full`` is built from that SAME ordered
     list (it is, below), the slice key indexes ``u_all``/``lam_all``
     directly with no id-remapping step."""
-    batch_full = tracker_mod.build_learner_batch(analysis_learners, bank=frozen, device="cpu")
+    batch_full = tracker_mod.build_learner_batch(analysis_learners, bank=frozen, device=device)
     seq_lens = active_mod.seq_lens_from_mask(batch_full.seq_mask)
     with torch.no_grad():
         u_all, lam_all = model.recognition(batch_full.item_ids, batch_full.responses, seq_lens)
@@ -555,7 +566,7 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     hierarchy = bank_mod.flat_hierarchy(twin_data.item_bank.n_items)
     bank_cfg = bank_mod.BankModelConfig(
         n_epochs_max=cfg.bank_epochs, lr=0.05, batch_size=4096, patience_epochs=2,
-        seed=derive_seed("bank", twin, seed0), device="cpu",
+        seed=derive_seed("bank", twin, seed0), device=cfg.device,
     )
     fit = bank_mod.calibrate_bank(
         rows_all, profile.n_learners, twin_data.n_kcs, calib, hierarchy,
@@ -578,10 +589,10 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     # --- PAS-N1 trained + frozen-encoder null (arm 3, CG7) ---
     tcfg = tracker_mod.TrackerConfig(
         hidden_dim=cfg.tracker_hidden, emb_dim=cfg.tracker_emb, lr=cfg.tracker_lr,
-        n_epochs=cfg.tracker_epochs, seed=model_seed, device="cpu", train_encoder=True,
+        n_epochs=cfg.tracker_epochs, seed=model_seed, device=cfg.device, train_encoder=True,
     )
-    train_batch1 = tracker_mod.build_learner_batch(train_learners, bank=frozen, device="cpu")
-    held_batch1 = tracker_mod.build_learner_batch(held_learners, bank=frozen, device="cpu")
+    train_batch1 = tracker_mod.build_learner_batch(train_learners, bank=frozen, device=cfg.device)
+    held_batch1 = tracker_mod.build_learner_batch(held_learners, bank=frozen, device=cfg.device)
 
     torch.manual_seed(_tseed("pasn1_trained"))
     pasn1_trained = tracker_mod.build_tracker("pas_n1", n_items, n_kcs, tcfg)
@@ -594,8 +605,8 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     tracker_mod.train_pas_n1(pasn1_frozen, train_batch1, fcfg)
     frozen_nll1 = tracker_mod.forecast_nll(pasn1_frozen, held_batch1, "pas_n1")
 
-    abilities_trained = battery_mod.full_ability_batch(pasn1_trained, analysis_learners)
-    abilities_frozen = battery_mod.full_ability_batch(pasn1_frozen, analysis_learners)
+    abilities_trained = battery_mod.full_ability_batch(pasn1_trained, analysis_learners, device=cfg.device)
+    abilities_frozen = battery_mod.full_ability_batch(pasn1_frozen, analysis_learners, device=cfg.device)
     trained_profile = np.array(
         [tracker_mod.displacement(battery_mod.collect_kc_trajectory(abilities_trained, analysis_learners, c)) for c in range(n_kcs)]
     )
@@ -610,8 +621,8 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     rows_held = bank_mod.build_calibration_rows(held_learners)
     slices_train = build_slices(rows_train)
     slices_held = build_slices(rows_held)
-    slice_batch_train = tracker_mod.build_slice_batch(list(slices_train.values()), bank=frozen, device="cpu")
-    slice_batch_held = tracker_mod.build_slice_batch(list(slices_held.values()), bank=frozen, device="cpu")
+    slice_batch_train = tracker_mod.build_slice_batch(list(slices_train.values()), bank=frozen, device=cfg.device)
+    slice_batch_held = tracker_mod.build_slice_batch(list(slices_held.values()), bank=frozen, device=cfg.device)
     torch.manual_seed(_tseed("pasn2_trained"))
     pasn2_trained = tracker_mod.build_tracker("pas_n2", n_items, n_kcs, tcfg)
     tracker_mod.train_pas_n2(pasn2_trained, slice_batch_train, tcfg)
@@ -621,17 +632,17 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     drilled = list(range(min(5, n_kcs)))
     item_for_kc = {c: int(twin_data.item_bank.items_by_primary[c][0]) for c in drilled}
     contamination = battery_mod.contamination_probe(
-        pasn1_trained, n_kcs, drilled, item_for_kc, n_repeats=cfg.drill_repeats,
+        pasn1_trained, n_kcs, drilled, item_for_kc, n_repeats=cfg.drill_repeats, device=cfg.device,
     )
 
     # --- CG9 order-invariance stress (trained PAS-N1) ---
     order_inv = battery_mod.order_invariance_stress(
         pasn1_trained, analysis_learners, n_kcs, n_reshuffles=cfg.n_reshuffles,
-        seed=derive_seed("order", twin, seed0, model_seed),
+        seed=derive_seed("order", twin, seed0, model_seed), device=cfg.device,
     )
 
     # --- CG10 direction audit (trained PAS-N1; certified on SYN-KG, reported elsewhere) ---
-    violation_fraction = _direction_audit_pooled(pasn1_trained, analysis_learners)
+    violation_fraction = _direction_audit_pooled(pasn1_trained, analysis_learners, device=cfg.device)
 
     # --- Saturation flags (calibration cohort), for CG1c/CG6 report-text ---
     calib_set = set(int(c) for c in calib.tolist())
@@ -651,18 +662,19 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     for variant in variants:
         acfg = active_mod.ActiveConfig(
             variant=variant, hidden_dim=cfg.act_hidden, emb_dim=cfg.act_emb, lr=cfg.act_lr,
-            n_epochs=cfg.act_epochs, seed=model_seed, device="cpu", m_fixed=False,
+            n_epochs=cfg.act_epochs, seed=model_seed, device=cfg.device, m_fixed=False,
         )
         torch.manual_seed(_tseed(f"act_{variant}"))
         model = active_mod.ActiveModel(num_items=n_items, n_kcs=n_kcs, cfg=acfg, m_init=m_init)
-        train_batch_act = tracker_mod.build_learner_batch(train_learners, bank=frozen, device="cpu")
+        model = model.to(cfg.device)  # ActiveModel does not self-place (unlike tracker.build_tracker)
+        train_batch_act = tracker_mod.build_learner_batch(train_learners, bank=frozen, device=cfg.device)
         active_mod.train_active(model, train_batch_act, acfg)
 
         pop_mean, p95_abs, kc_rise, extra = _act_implied_rises(
-            model, analysis_learners, slices_analysis, frozen, n_kcs, b_ref
+            model, analysis_learners, slices_analysis, frozen, n_kcs, b_ref, device=cfg.device,
         )
         silent_pop_mean, silent_p95, _, _ = _act_implied_rises(
-            model, analysis_learners, slices_analysis, frozen, n_kcs, b_ref, kc_filter=silent_kcs
+            model, analysis_learners, slices_analysis, frozen, n_kcs, b_ref, kc_filter=silent_kcs, device=cfg.device,
         ) if silent_kcs else (float("nan"), float("nan"), None, None)
 
         growing_kcs = set(range(n_kcs)) - silent_kcs
@@ -683,7 +695,7 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
 
         act_stability = battery_mod.act_recognition_stability(
             model, analysis_learners, n_kcs, b_ref=b_ref, n_reshuffles=cfg.n_reshuffles,
-            seed=derive_seed("act_order", twin, seed0, model_seed, variant),
+            seed=derive_seed("act_order", twin, seed0, model_seed, variant), device=cfg.device,
         )
 
         act_results[variant] = {
@@ -999,6 +1011,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--drill-repeats", type=int, default=30)
     p.add_argument("--no-act-p1", action="store_true")
     p.add_argument("--force", action="store_true")
+    p.add_argument(
+        "--device", choices=["cpu", "cuda"], default=DEVICE,
+        help="compute device for this run (default cpu); 'cuda' is validated against "
+             "torch.cuda.is_available() at RunConfig construction time",
+    )
     return p
 
 
@@ -1028,6 +1045,7 @@ def main(argv=None) -> dict:
         drill_repeats=args.drill_repeats,
         run_act_p1=not args.no_act_p1,
         force=args.force,
+        device=args.device,
     )
     result = run_campaign(cfg)
     print(json.dumps({"json_path": result["json_path"], "md_path": result["md_path"]}, indent=2))

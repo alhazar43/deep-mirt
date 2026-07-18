@@ -361,3 +361,25 @@ Acquisitions:
   4060, slurm layer with GPU/CPU job split under bms-code/research,
   empirical concurrency probe, local worker). Full campaign waits on
   the probe verdict and my go.
+
+## 2026-07-18 Probe verdict, campaign GO (rulings by orchestrator)
+
+- ACT-P0 probe (C=64, N=2000, full epochs, 2x2 seeds, 4060): the
+  fabrication is SCALE-PERSISTENT -- SYN-NG rise 0.246 (25x the
+  silence bar) and SYN-KG reads 0.20, the same amplitude as
+  no-growth, so the P0 read is fabrication-dominated. ACT-P1 is
+  silent on NG (0.00067) and jumps ~20x on KG (0.013). RULING:
+  ACT-P0 EXCLUDED from the campaign pending a code-level diagnosis
+  (parallel agent); exclusion is a pre-campaign revision (no
+  certification runs begun), reversible via the idempotent store.
+  ACT-P1 carries the active posture.
+- Smoke: 4 GPU + 2 CPU chains fully concurrent; the empirical limit
+  is MaxJobsPU=8 TOTAL (no separate GPU cap) -- the guest-era 2-GPU
+  cap is gone. Smoke also caught 4 unthreaded device call sites in
+  battery.py (fixed, 402/402 green both machines) -- the smoke
+  earning its keep.
+- Campaign launch plan: phase 0 = two production-scale single-unit
+  timing jobs (GPU + CPU, generous walltime) to size chains; then
+  autopilot with <=8 in flight, GPU-heavy mix, ACT-P0 cells masked;
+  local 4060 worker on a partitioned id space; results pulled home
+  periodically; coverage-first ordering throughout.
