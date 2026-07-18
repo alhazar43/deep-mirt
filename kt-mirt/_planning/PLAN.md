@@ -118,5 +118,9 @@ A1-A6 with gates, costs, and flagged uncertainty).
 - Loss: prediction NLL home; auxiliary terms must earn their place.
 
 Status: P0 DONE (139/0 tests green, smoke verified). P1 DONE (avenue
-map delivered, 33 agents, errata absorbed). Stage 0 RUNNING.
-Progress in LEDGER.md.
+map). Stage 0 DONE except two running triage extensions and the
+optional Eedi-2024 user click. P2 DONE: A4 design v1.1 FROZEN
+(_planning/design/a4_design.md, adversarially reviewed, four open
+rulings decided in THINKING.md 2026-07-18). P3 build RUNNING
+(five-stage sequential workflow; certification campaign follows my
+end-to-end gate). Progress in LEDGER.md.

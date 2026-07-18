@@ -1,0 +1,607 @@
+{
+  "bed": "junyi15",
+  "source_files": {
+    "problem_log": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\junyi15\\junyi_ProblemLog_original.csv",
+    "exercise_table": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\junyi15\\junyi_Exercise_table.csv"
+  },
+  "kc_layer_choice": {
+    "chosen": "topic",
+    "hierarchy_shape_n_distinct": {
+      "topic": 40,
+      "area": 8
+    },
+    "exercises_per_topic_quartiles": {
+      "min": 4,
+      "median": 16.0,
+      "max": 57
+    },
+    "n_exercises_missing_topic": 19,
+    "justification": "area (8 values) is a coarse subject split; topic (40 values, median ~20 exercises/topic) is the finest tag this release ships and is used as the KC layer, per the task spec. Prerequisites relate EXERCISES to each other, not topics, so the exercise-level grain is reported separately through the prerequisite-graph and exercise-pair-decoupling extras below rather than as a second, degenerate KC-as-item battery."
+  },
+  "item_grain": "exercise (`name`/`exercise` column, 835 distinct after dropping 2 exact-duplicate rows); one practice slot is one row of junyi_ProblemLog_original.csv.",
+  "unit_of_analysis": "one row of junyi_ProblemLog_original.csv (one problem attempt)",
+  "response_field": "correct (true/false; false if any hint requested, per README.txt)",
+  "sampling": "none (full file streamed in chunks)",
+  "n_rows_total": 25925992,
+  "n_rows_topic_unmapped_dropped": 8,
+  "n_users_total": 247606,
+  "n_exercises_in_log": 722,
+  "n_exercises_in_table_after_dedup": 835,
+  "n_exact_duplicate_exercise_rows_dropped": 2,
+  "n_log_exercises_not_in_table": 0,
+  "decoupling_definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+  "i_prerequisite_graph": {
+    "direction_convention": "edge = (prerequisite_exercise -> exercise_that_requires_it)",
+    "n_nodes": 835,
+    "n_edges_distinct": 981,
+    "n_edges_excluding_self_loops": 979,
+    "n_self_loops": 2,
+    "self_loop_exercises": [
+      "number_sense_length_l1",
+      "proportions_1"
+    ],
+    "n_prereq_references_not_found_in_exercise_table": 0,
+    "is_dag_including_self_loops": false,
+    "is_dag_excluding_self_loops": false,
+    "cycle_note_including_self_loops": "Kahn's algorithm: only 617/835 nodes topologically ordered, 218 nodes involved in >=1 cycle",
+    "cycle_note_excluding_self_loops": "Kahn's algorithm: only 623/835 nodes topologically ordered, 212 nodes involved in >=1 cycle",
+    "out_degree": {
+      "n": 835,
+      "min": 0.0,
+      "q1": 0.0,
+      "median": 1.0,
+      "q3": 2.0,
+      "max": 14.0,
+      "mean": 1.1748502994011976,
+      "note": "prerequisite-of count (this exercise unlocks N others)"
+    },
+    "in_degree": {
+      "n": 835,
+      "min": 0.0,
+      "q1": 1.0,
+      "median": 1.0,
+      "q3": 1.0,
+      "max": 7.0,
+      "mean": 1.1748502994011976,
+      "note": "prerequisite-count (this exercise requires N others first)"
+    }
+  },
+  "kc_models": {
+    "topic": {
+      "kc_model": "topic",
+      "n_distinct_kc": 39,
+      "a_overall": {
+        "n": 25925984,
+        "n_correct": 21463466,
+        "correct_rate": 0.8278746912749773,
+        "response_category_distribution": {
+          "true": {
+            "n": 21463466,
+            "frac": 0.8278746912749773
+          },
+          "false": {
+            "n": 4462518,
+            "frac": 0.17212530872502274
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 39,
+        "min": 0.473754996824448,
+        "q1": 0.6625327262832679,
+        "median": 0.7583843198157793,
+        "q3": 0.8108057770197512,
+        "max": 0.9098893498890355,
+        "mean": 0.7341731286882868,
+        "frac_kc_above_0.85": 0.1282051282051282
+      },
+      "c_opportunity_counts": {
+        "n": 721581,
+        "min": 1.0,
+        "q1": 3.0,
+        "median": 8.0,
+        "q3": 32.0,
+        "max": 15112.0,
+        "mean": 35.92941610158804,
+        "n_learner_kc_pairs": 721581,
+        "frac_ge_5": 0.696018880763213,
+        "frac_ge_10": 0.4589768854778604,
+        "frac_ge_20": 0.33243669109912816
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 721581,
+            "correct_rate": 0.6260835581868148
+          },
+          "2": {
+            "n": 603340,
+            "correct_rate": 0.6973348360791594
+          },
+          "3": {
+            "n": 549406,
+            "correct_rate": 0.7814639810995876
+          },
+          "4": {
+            "n": 520979,
+            "correct_rate": 0.7880202464974596
+          },
+          "5": {
+            "n": 502234,
+            "correct_rate": 0.816454083156457
+          },
+          "6": {
+            "n": 486817,
+            "correct_rate": 0.8160890026437039
+          },
+          "7": {
+            "n": 474112,
+            "correct_rate": 0.810576403887689
+          },
+          "8": {
+            "n": 463599,
+            "correct_rate": 0.8216928854462585
+          },
+          "9": {
+            "n": 345094,
+            "correct_rate": 0.7772404040638203
+          },
+          "10": {
+            "n": 331189,
+            "correct_rate": 0.8148911950578068
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 39,
+          "median_slope": 0.017364167114123287,
+          "mean_slope": 0.01873405207199146,
+          "frac_positive": 0.9743589743589743,
+          "frac_negative": 0.02564102564102564,
+          "frac_zero": 0.0,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 0,
+        "n_pairs_reported": 0,
+        "frac_reported_pairs_clearing_threshold": null,
+        "pairs": []
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 816,
+        "n_kc_in_item_bank": 40,
+        "arity_mean": 1.0,
+        "arity_max": 1,
+        "n_pure_items_total": 816,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 1.0
+      }
+    }
+  },
+  "ii_decoupling_both_grains": {
+    "topic_kc_pairs": {
+      "structural_note": "Structurally vacuous, exactly as Junyi2020's level4_id: one row = one exercise = one topic, so two topics never co-occur on the same slot. See kc_models.topic.e_decoupling (n_pairs_with_cross_occurrence == 0 by construction).",
+      "n_pairs_with_cross_occurrence": 0
+    },
+    "prerequisite_linked_exercise_pairs": {
+      "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+      "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+      "clean_threshold": 0.75,
+      "n_pairs_with_cross_occurrence": 898,
+      "n_pairs_reported": 30,
+      "frac_reported_pairs_clearing_threshold": 0.06666666666666667,
+      "pairs": [
+        {
+          "n_a": 73554,
+          "n_b": 37399,
+          "n_both": 35502,
+          "n_a_only": 38052,
+          "n_b_only": 1897,
+          "symmetric_decoupling": 0.5294694569985818,
+          "dir_a_source_only_frac": 0.5173342034423689,
+          "dir_b_source_only_frac": 0.050723281371159654,
+          "kc_a": "addition_1",
+          "kc_b": "subtraction_1"
+        },
+        {
+          "n_a": 31000,
+          "n_b": 53745,
+          "n_both": 30076,
+          "n_a_only": 924,
+          "n_b_only": 23669,
+          "symmetric_decoupling": 0.449852750187492,
+          "dir_a_source_only_frac": 0.029806451612903226,
+          "dir_b_source_only_frac": 0.4403944552981673,
+          "kc_a": "telling_time",
+          "kc_b": "telling_time_0.5"
+        },
+        {
+          "n_a": 45658,
+          "n_b": 32889,
+          "n_both": 29019,
+          "n_a_only": 16639,
+          "n_b_only": 3870,
+          "symmetric_decoupling": 0.4140890001615248,
+          "dir_a_source_only_frac": 0.3644268255289325,
+          "dir_b_source_only_frac": 0.11766852139013044,
+          "kc_a": "multiplication_0.5",
+          "kc_b": "multiplication_1"
+        },
+        {
+          "n_a": 37399,
+          "n_b": 34933,
+          "n_both": 27066,
+          "n_a_only": 10333,
+          "n_b_only": 7867,
+          "symmetric_decoupling": 0.402067777139575,
+          "dir_a_source_only_frac": 0.2762908099147036,
+          "dir_b_source_only_frac": 0.2252025305584977,
+          "kc_a": "subtraction_1",
+          "kc_b": "subtraction_2"
+        },
+        {
+          "n_a": 24678,
+          "n_b": 78523,
+          "n_both": 23692,
+          "n_a_only": 986,
+          "n_b_only": 54831,
+          "symmetric_decoupling": 0.7020211548378171,
+          "dir_a_source_only_frac": 0.039954615446956804,
+          "dir_b_source_only_frac": 0.6982794849916585,
+          "kc_a": "addition_2",
+          "kc_b": "number_line"
+        },
+        {
+          "n_a": 73554,
+          "n_b": 24678,
+          "n_both": 23452,
+          "n_a_only": 50102,
+          "n_b_only": 1226,
+          "symmetric_decoupling": 0.6863867344209682,
+          "dir_a_source_only_frac": 0.6811594202898551,
+          "dir_b_source_only_frac": 0.049679876813356026,
+          "kc_a": "addition_1",
+          "kc_b": "addition_2"
+        },
+        {
+          "n_a": 32889,
+          "n_b": 22882,
+          "n_both": 20895,
+          "n_a_only": 11994,
+          "n_b_only": 1987,
+          "symmetric_decoupling": 0.4008773941965822,
+          "dir_a_source_only_frac": 0.36468120040135,
+          "dir_b_source_only_frac": 0.08683681496372694,
+          "kc_a": "multiplication_1",
+          "kc_b": "multiplication_1.5"
+        },
+        {
+          "n_a": 22886,
+          "n_b": 32889,
+          "n_both": 20603,
+          "n_a_only": 2283,
+          "n_b_only": 12286,
+          "symmetric_decoupling": 0.41422153986125326,
+          "dir_a_source_only_frac": 0.09975530892248537,
+          "dir_b_source_only_frac": 0.37355954878530817,
+          "kc_a": "division_0.5",
+          "kc_b": "multiplication_1"
+        },
+        {
+          "n_a": 34933,
+          "n_b": 20222,
+          "n_both": 19576,
+          "n_a_only": 15357,
+          "n_b_only": 646,
+          "symmetric_decoupling": 0.4497877961718992,
+          "dir_a_source_only_frac": 0.4396129734062348,
+          "dir_b_source_only_frac": 0.03194540599347245,
+          "kc_a": "subtraction_2",
+          "kc_b": "subtraction_3"
+        },
+        {
+          "n_a": 24678,
+          "n_b": 45658,
+          "n_both": 17716,
+          "n_a_only": 6962,
+          "n_b_only": 27942,
+          "symmetric_decoupling": 0.6633219308247814,
+          "dir_a_source_only_frac": 0.28211362347029745,
+          "dir_b_source_only_frac": 0.6119847562311096,
+          "kc_a": "addition_2",
+          "kc_b": "multiplication_0.5"
+        },
+        {
+          "n_a": 18262,
+          "n_b": 34933,
+          "n_both": 17142,
+          "n_a_only": 1120,
+          "n_b_only": 17791,
+          "symmetric_decoupling": 0.5245333259368152,
+          "dir_a_source_only_frac": 0.06132953674296353,
+          "dir_b_source_only_frac": 0.509289210774912,
+          "kc_a": "arithmetic_word_problems_1",
+          "kc_b": "subtraction_2"
+        },
+        {
+          "n_a": 24678,
+          "n_b": 18262,
+          "n_both": 15654,
+          "n_a_only": 9024,
+          "n_b_only": 2608,
+          "symmetric_decoupling": 0.42629920105548635,
+          "dir_a_source_only_frac": 0.36566982737661075,
+          "dir_b_source_only_frac": 0.1428102069871865,
+          "kc_a": "addition_2",
+          "kc_b": "arithmetic_word_problems_1"
+        },
+        {
+          "n_a": 22882,
+          "n_b": 17725,
+          "n_both": 15340,
+          "n_a_only": 7542,
+          "n_b_only": 2385,
+          "symmetric_decoupling": 0.3928839988918352,
+          "dir_a_source_only_frac": 0.32960405558954636,
+          "dir_b_source_only_frac": 0.13455571227080396,
+          "kc_a": "multiplication_1.5",
+          "kc_b": "multiplication_2"
+        },
+        {
+          "n_a": 24678,
+          "n_b": 18358,
+          "n_both": 14819,
+          "n_a_only": 9859,
+          "n_b_only": 3539,
+          "symmetric_decoupling": 0.4748201438848921,
+          "dir_a_source_only_frac": 0.39950563254720806,
+          "dir_b_source_only_frac": 0.19277699095762066,
+          "kc_a": "addition_2",
+          "kc_b": "addition_4"
+        },
+        {
+          "n_a": 22886,
+          "n_b": 17145,
+          "n_both": 14557,
+          "n_a_only": 8329,
+          "n_b_only": 2588,
+          "symmetric_decoupling": 0.42855460469498313,
+          "dir_a_source_only_frac": 0.3639342829677532,
+          "dir_b_source_only_frac": 0.1509477981918927,
+          "kc_a": "division_0.5",
+          "kc_b": "division_0.9"
+        },
+        {
+          "n_a": 31000,
+          "n_b": 15234,
+          "n_both": 14553,
+          "n_a_only": 16447,
+          "n_b_only": 681,
+          "symmetric_decoupling": 0.5406395000157823,
+          "dir_a_source_only_frac": 0.5305483870967742,
+          "dir_b_source_only_frac": 0.04470263883418669,
+          "kc_a": "telling_time",
+          "kc_b": "telling_time_2"
+        },
+        {
+          "n_a": 22886,
+          "n_b": 17746,
+          "n_both": 14430,
+          "n_a_only": 8456,
+          "n_b_only": 3316,
+          "symmetric_decoupling": 0.4492786810167163,
+          "dir_a_source_only_frac": 0.369483527047103,
+          "dir_b_source_only_frac": 0.1868590104812352,
+          "kc_a": "division_0.5",
+          "kc_b": "division_1"
+        },
+        {
+          "n_a": 31000,
+          "n_b": 14421,
+          "n_both": 13007,
+          "n_a_only": 17993,
+          "n_b_only": 1414,
+          "symmetric_decoupling": 0.5987227741099524,
+          "dir_a_source_only_frac": 0.5804193548387097,
+          "dir_b_source_only_frac": 0.09805145274252826,
+          "kc_a": "telling_time",
+          "kc_b": "time_terminology"
+        },
+        {
+          "n_a": 78523,
+          "n_b": 12982,
+          "n_both": 12257,
+          "n_a_only": 66266,
+          "n_b_only": 725,
+          "symmetric_decoupling": 0.8453336361800928,
+          "dir_a_source_only_frac": 0.8439056072743018,
+          "dir_b_source_only_frac": 0.055846556770913575,
+          "kc_a": "number_line",
+          "kc_b": "understand_coins"
+        },
+        {
+          "n_a": 25902,
+          "n_b": 12204,
+          "n_both": 11412,
+          "n_a_only": 14490,
+          "n_b_only": 792,
+          "symmetric_decoupling": 0.5724881995954147,
+          "dir_a_source_only_frac": 0.5594162612925643,
+          "dir_b_source_only_frac": 0.06489675516224189,
+          "kc_a": "number_line_2",
+          "kc_b": "number_line_3"
+        },
+        {
+          "n_a": 20222,
+          "n_b": 13042,
+          "n_both": 11079,
+          "n_a_only": 9143,
+          "n_b_only": 1963,
+          "symmetric_decoupling": 0.5006085192697769,
+          "dir_a_source_only_frac": 0.4521313421026605,
+          "dir_b_source_only_frac": 0.15051372488882073,
+          "kc_a": "subtraction_3",
+          "kc_b": "subtraction_4"
+        },
+        {
+          "n_a": 17145,
+          "n_b": 11894,
+          "n_both": 11048,
+          "n_a_only": 6097,
+          "n_b_only": 846,
+          "symmetric_decoupling": 0.3859151798121283,
+          "dir_a_source_only_frac": 0.35561388159813356,
+          "dir_b_source_only_frac": 0.0711282999831848,
+          "kc_a": "division_0.9",
+          "kc_b": "division_1.4"
+        },
+        {
+          "n_a": 12679,
+          "n_b": 23398,
+          "n_both": 10975,
+          "n_a_only": 1704,
+          "n_b_only": 12423,
+          "symmetric_decoupling": 0.5627838419249462,
+          "dir_a_source_only_frac": 0.1343954570549728,
+          "dir_b_source_only_frac": 0.5309428156252671,
+          "kc_a": "divisibility_0.5",
+          "kc_b": "divisibility_intuition"
+        },
+        {
+          "n_a": 24678,
+          "n_b": 27598,
+          "n_both": 10742,
+          "n_a_only": 13936,
+          "n_b_only": 16856,
+          "symmetric_decoupling": 0.7413685173592719,
+          "dir_a_source_only_frac": 0.5647135100089148,
+          "dir_b_source_only_frac": 0.6107688962968331,
+          "kc_a": "addition_2",
+          "kc_b": "decimals_on_the_number_line_1"
+        },
+        {
+          "n_a": 17746,
+          "n_b": 11894,
+          "n_both": 10601,
+          "n_a_only": 7145,
+          "n_b_only": 1293,
+          "symmetric_decoupling": 0.443195545984558,
+          "dir_a_source_only_frac": 0.402625943874676,
+          "dir_b_source_only_frac": 0.10871027408777535,
+          "kc_a": "division_1",
+          "kc_b": "division_1.4"
+        },
+        {
+          "n_a": 17746,
+          "n_b": 12376,
+          "n_both": 10595,
+          "n_a_only": 7151,
+          "n_b_only": 1781,
+          "symmetric_decoupling": 0.4574179341424694,
+          "dir_a_source_only_frac": 0.4029640482362222,
+          "dir_b_source_only_frac": 0.14390756302521007,
+          "kc_a": "division_1",
+          "kc_b": "division_1.5"
+        },
+        {
+          "n_a": 34933,
+          "n_b": 14421,
+          "n_both": 10495,
+          "n_a_only": 24438,
+          "n_b_only": 3926,
+          "symmetric_decoupling": 0.729920996422965,
+          "dir_a_source_only_frac": 0.6995677439670226,
+          "dir_b_source_only_frac": 0.2722418694958741,
+          "kc_a": "subtraction_2",
+          "kc_b": "time_terminology"
+        },
+        {
+          "n_a": 23398,
+          "n_b": 10394,
+          "n_both": 9822,
+          "n_a_only": 13576,
+          "n_b_only": 572,
+          "symmetric_decoupling": 0.5902377972465582,
+          "dir_a_source_only_frac": 0.5802205316693735,
+          "dir_b_source_only_frac": 0.05503174908601116,
+          "kc_a": "divisibility_intuition",
+          "kc_b": "divisibility_tests"
+        },
+        {
+          "n_a": 17725,
+          "n_b": 11520,
+          "n_both": 9636,
+          "n_a_only": 8089,
+          "n_b_only": 1884,
+          "symmetric_decoupling": 0.5085929930134122,
+          "dir_a_source_only_frac": 0.456361071932299,
+          "dir_b_source_only_frac": 0.16354166666666667,
+          "kc_a": "multiplication_2",
+          "kc_b": "multiplication_3"
+        },
+        {
+          "n_a": 37028,
+          "n_b": 9402,
+          "n_both": 9139,
+          "n_a_only": 27889,
+          "n_b_only": 263,
+          "symmetric_decoupling": 0.7549274623903891,
+          "dir_a_source_only_frac": 0.753186777573728,
+          "dir_b_source_only_frac": 0.027972771750691343,
+          "kc_a": "count_one_by_one_1",
+          "kc_b": "separation_and_union"
+        }
+      ],
+      "slot_definition_note": "ADAPTED slot definition for this specific read: a 'slot' is one LEARNER's entire logged history (not one interaction event as elsewhere in this program). n_a/n_b = number of distinct learners who ever attempted exercise A/B; n_both = number who attempted both at any point. Restricted to the prerequisite-graph edge list (981 distinct edges minus 2 self-loops), not all C(n,2) exercise pairs -- see module docstring for why the standard per-row co-occurrence definition is vacuous (always exactly 1.0) at this grain.",
+      "n_prerequisite_edges_considered": 979,
+      "n_edges_with_log_data_both_sides": 898,
+      "n_edges_skipped_missing_log_data": 81,
+      "all_edges_with_log_data_context": {
+        "note": "NOT the required top-30-by-volume reading above -- the full population of 898 prerequisite edges with attempt data on both sides, included because the top-30-by-co-occurrence-volume selection turns out to be systematically the worst-decoupled slice of this population (see module docstring / report), not a representative one.",
+        "n": 898,
+        "min": 0.33398485218666013,
+        "q1": 0.7246790773165454,
+        "median": 0.8511362428579403,
+        "q3": 0.9328313094674867,
+        "max": 1.0,
+        "mean": 0.8135509117512391,
+        "frac_clearing_0.75": 0.7216035634743875
+      }
+    }
+  },
+  "iii_opportunity_both_grains": {
+    "per_learner_exercise": {
+      "n": 2289789,
+      "min": 1.0,
+      "q1": 2.0,
+      "median": 8.0,
+      "q3": 12.0,
+      "max": 5174.0,
+      "mean": 11.346968650823285,
+      "n_learner_exercise_pairs": 2289789,
+      "frac_ge_5": 0.6553769801496994,
+      "frac_ge_10": 0.31686369355429694,
+      "frac_ge_20": 0.13240215583182555,
+      "source": "problem_number column, used as-shipped (verified against time_done chronological order)"
+    },
+    "per_learner_topic": {
+      "n": 721581,
+      "min": 1.0,
+      "q1": 3.0,
+      "median": 8.0,
+      "q3": 32.0,
+      "max": 15112.0,
+      "mean": 35.92941610158804,
+      "n_learner_topic_pairs": 721581,
+      "frac_ge_5": 0.696018880763213,
+      "frac_ge_10": 0.4589768854778604,
+      "frac_ge_20": 0.33243669109912816,
+      "source": "derived: cumcount per (user_id, topic) after stable sort by (user_id, time_done)"
+    }
+  },
+  "runtime_sec": 84.6
+}

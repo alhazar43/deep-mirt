@@ -190,6 +190,19 @@ Acquisitions:
 - PSI-KT referee record delivered as browser-saved review.pdf;
   extraction agent rewriting psikt_reviews_read.md from it.
 - Remaining user item: ONLY the Eedi 2024 rules click on Kaggle.
+- PSI-KT referee record recovered (OCR; the saved PDF had no text
+  layer): scores 8/8/6/5, Accept spotlight. Sharpest objection:
+  self-consistency metrics are not proof of interpretability
+  ("correct by construction"); only the reactively-added behavioral
+  held-out validation satisfied reviewers. NOTHING contradicts the
+  kt-mirt design; the lesson is to FRONT-LOAD the certification
+  battery in the eventual paper. Full record + pre-emption map in
+  research/psikt_reviews_read.md.
+- User rulings (2026-07-18): git policy = COMMIT + PUSH explicit
+  kt-mirt paths at milestones (never data/, never weight blobs);
+  autonomous run approved, ultracode standing. First checkpoint
+  pushed: e95113e. Disk freed to 23 GB (redundant verified archives
+  deleted, all redownloadable).
 - Post-extraction facts: KDD bundle SHA1 MATCHES the published
   checksum; it contains bridge_to_algebra_2008_2009 (5.7 GB train),
   not the 2006-2007 development set the avenue map cited -- same
@@ -199,3 +212,79 @@ Acquisitions:
   relationship_annotation_{training,testing}.csv, the crowdsourced
   exercise-relationship judgments -- a second external reference
   beside the prerequisite graph.
+
+## 2026-07-18 A4 design v1.1 (pre-run review revision)
+
+- Two independent reviews of design/a4_design.md v1 returned 8
+  blocking, 18 important, 6 minor findings. All blocking items fixed
+  in place BEFORE any run (permitted: thresholds may change now, never
+  after runs begin; none loosened, several tightened). Headlines: ACT
+  now certified on all four twins (CG1a positive control; CG1b
+  mismatched-generator/laundering arm on SYN-NS, which gains a 20%
+  silent-KC subset; CG1c saturation no-overshoot); a pre-registered
+  ACT real-bed firing definition (RB-A); the shared existence gate's
+  structural consequence written into the disagreement matrix;
+  blockwise-growth bank calibration with hierarchical shrinkage for
+  KDD's 1.31M-step bank plus an RB0 tri-spec bank-robustness audit
+  (battery arm 10); the real-bed null rebuilt as an M0 parametric
+  bootstrap (item structure preserved) replacing the i.i.d. slice-mean
+  resample; penalized bounded Newton against separation; an Adam bank
+  calibration compute line. Important items folded (validation-regime
+  spec, CG4a/b split, cumulative truncation band, split-half tolerance
+  0.15 -> 0.10, CG7-to-RB2 bridge, ragged kc_ids, BY-sensitivity
+  reporting, XES3G5M own-density certification, build/compute/calendar
+  re-estimates). Full dispositions in a4_design.md section 10; four
+  rulings escalated to the program lead in section 11 (KDD item
+  granularity, ACT decline asymmetry, EdNet Tier-2 ambition, budget).
+- Verdict: supports (design hardened pre-registration; no run started).
+
+## 2026-07-18 Rulings closed; API outage; stage 0 data COMPLETE
+
+- The four escalated rulings decided by the orchestrator (reasoning
+  in THINKING.md): step-plus-shrinkage; ACT stays growth-only with a
+  recorded scope limit; EdNet Tier-2 cap kept; budget approved in
+  full. Design v1.1 FROZEN; build workflow launched.
+- Transient API outage killed three streams mid-flight; recovery:
+  the triage extension had FINISHED its work first (all outputs on
+  disk), the ASSISTments agent had landed the main file, the build
+  workflow died before writing anything and was resumed clean.
+- Triage extension results (report + JSONs in _planning/triage/):
+  Eedi 2020 is the new decoupling leader (96.7% of top pairs clear
+  0.75) and the A2 bed by a distance (median 49% of wrong answers
+  pile on ONE distractor vs 33% flat baseline -- the misconception
+  clustering signal is real); XES3G5M is middling (0.795 correct,
+  median 2 opportunities, weak pooled growth 0.778->0.816);
+  Junyi 2020 offers growth depth; Junyi topic-KCs never co-occur
+  (strict tree) so decoupling is structurally undefined there.
+  Verdict: no universal bed; choose per avenue, as the design does.
+- ASSISTments 2009 corrected-collapsed VERIFIED on disk (346,861
+  rows, canonical schema); stale 522 MB partial of the optional 2012
+  set deleted; acquisition debris cleaned.
+- Remaining stage-0 pieces: junyi15 + KDD Bridge 08-09 triage
+  (running); Eedi 2024 rules click (user, optional).
+
+## 2026-07-18 Stage 0 CLOSED: all nine beds triaged
+
+- junyi15 (25.9M attempts, 247k users): the STRONGEST growth
+  magnitude of all nine beds (pooled 0.626->0.815 over opp 1-10,
+  97.4% of topics positive-sloped, median slope 0.0174), deep
+  density (topic median 8, 33% reach 20+), only 12.8% of topics
+  saturated. Caveat logged: within-topic difficulty sequencing could
+  inflate the curve; the design's frozen-difficulty measurement
+  layer is the machinery that separates this. Prerequisite graph:
+  835 nodes, 981 edges, NOT a DAG (212+ nodes in cycles, 2
+  self-loops) -- A1 validation must handle cycles. KEY
+  METHODOLOGICAL CAUTION: volume-ranked prerequisite pairs are the
+  worst-decoupled (6.7% clear 0.75) while the full 898-edge
+  population clears 72.2% (median 0.851); A1 pair selection must
+  sample across the decoupling distribution, never rank by volume.
+- KDD Bridge 08-09 (20.0M steps): KTracedSkills holds arity 1.081
+  and decoupling 80%, matching Algebra 08-09 -- KTracedSkills
+  confirmed as the family-wide default; SubSkills corrupted by
+  non-content tags (arity 1.55, decoupling 50%).
+- Campaign consequence: junyi15 enters the A4 real-bed queue right
+  after KDD (subject to the same RB licensing checks as any bed)
+  and is independently the A1 external-reference bed. Bed choice
+  stays per-avenue.
+- Stage 0 is COMPLETE. Open user item: only the optional Eedi 2024
+  rules click. Build workflow (P3) still running.

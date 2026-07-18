@@ -1,0 +1,564 @@
+{
+  "bed": "eedi2020_task1_2",
+  "source_files": {
+    "train": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\eedi\\data\\train_data\\train_task_1_2.csv",
+    "answer_metadata": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\eedi\\data\\metadata\\answer_metadata_task_1_2.csv",
+    "question_metadata": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\eedi\\data\\metadata\\question_metadata_task_1_2.csv",
+    "subject_metadata": "C:\\Users\\steph\\Documents\\deep-mirt\\data\\eedi\\data\\metadata\\subject_metadata.csv"
+  },
+  "kc_level_choice": {
+    "chosen": "leaf of the per-question SubjectId ancestor chain (deepest level reached by that question's own tags, not a fixed global depth)",
+    "justification": "subject_metadata.csv is a strict tree (Level 0-3); every question's SubjectId list is verified to be a single root-to-leaf ancestor chain (chain-property holds for 1.0000 of 27613 questions), so 'the leaf' is the natural KC-equivalent rather than an arbitrary hierarchy cut. 91.3% of questions have exactly one leaf at their own max depth; 8.7% have >=2 tied-depth leaves, which is what gives this bed a genuine (if modest) multi-KC Q-matrix (arity mean 1.104, max 6) unlike Junyi's strictly single-parent tree.",
+    "n_distinct_leaf_kc_in_bank": 314
+  },
+  "unit_of_analysis": "one row of train_task_1_2.csv (one question attempt)",
+  "response_field": "IsCorrect (0/1, as shipped -- never recomputed from CorrectAnswer==AnswerValue)",
+  "opportunity_ordering": "DateAnswered joined in from answer_metadata_task_1_2.csv via AnswerId (100% join coverage); sorted as a plain string (ISO-ish fixed format, sorts correctly), stable tie-break on original file row order.",
+  "sampling": "none (full file streamed/loaded; 15.87M-row scale ran end-to-end well inside budget)",
+  "n_rows_total": 15867850,
+  "n_rows_missing_date_dropped": 0,
+  "n_rows_kc_unmapped_dropped": 0,
+  "n_users": 118971,
+  "n_questions_in_bank": 27613,
+  "n_questions_attempted_in_log": 27613,
+  "data_quality_note": {
+    "n_questions_with_inconsistent_correct_answer": 48,
+    "frac_of_bank": 0.0017383116647955673,
+    "handling": "IsCorrect used as-shipped throughout (a)-(g); only (h)'s wrong-option tally could carry a small amount of noise from this, and does not require a single canonical CorrectAnswer to compute."
+  },
+  "decoupling_definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+  "kc_models": {
+    "subject_leaf": {
+      "kc_model": "subject_leaf",
+      "n_distinct_kc": 314,
+      "a_overall": {
+        "n": 15867850,
+        "n_correct": 10202239,
+        "correct_rate": 0.6429503051768198,
+        "response_category_distribution": {
+          "1": {
+            "n": 10202239,
+            "frac": 0.6429503051768198
+          },
+          "0": {
+            "n": 5665611,
+            "frac": 0.3570496948231802
+          }
+        }
+      },
+      "b_per_kc_correct_rate": {
+        "n": 314,
+        "min": 0.2727272727272727,
+        "q1": 0.5802710453595851,
+        "median": 0.6376374118090711,
+        "q3": 0.698532380158827,
+        "max": 0.9055793991416309,
+        "mean": 0.641864383491999,
+        "frac_kc_above_0.85": 0.041401273885350316
+      },
+      "c_opportunity_counts": {
+        "n": 4051093,
+        "min": 1.0,
+        "q1": 1.0,
+        "median": 2.0,
+        "q3": 5.0,
+        "max": 185.0,
+        "mean": 4.272609885776506,
+        "n_learner_kc_pairs": 4051093,
+        "frac_ge_5": 0.28863790586886057,
+        "frac_ge_10": 0.10665417950168016,
+        "frac_ge_20": 0.018047968782745793
+      },
+      "d_growth_signal": {
+        "pooled_curve_opportunity_1_to_10": {
+          "1": {
+            "n": 4051093,
+            "correct_rate": 0.6393264731271289
+          },
+          "2": {
+            "n": 2734309,
+            "correct_rate": 0.6352932313063374
+          },
+          "3": {
+            "n": 1915382,
+            "correct_rate": 0.6328988160064154
+          },
+          "4": {
+            "n": 1486096,
+            "correct_rate": 0.633415337905492
+          },
+          "5": {
+            "n": 1169299,
+            "correct_rate": 0.6344852770762653
+          },
+          "6": {
+            "n": 962554,
+            "correct_rate": 0.6320611622828434
+          },
+          "7": {
+            "n": 793789,
+            "correct_rate": 0.6330435417976313
+          },
+          "8": {
+            "n": 656456,
+            "correct_rate": 0.6340927647854541
+          },
+          "9": {
+            "n": 531611,
+            "correct_rate": 0.6396519259383271
+          },
+          "10": {
+            "n": 432066,
+            "correct_rate": 0.6473177708961131
+          }
+        },
+        "per_kc_slopes": {
+          "n_kc_with_slope": 273,
+          "median_slope": 0.0015788148807035522,
+          "mean_slope": 0.006405683971633092,
+          "frac_positive": 0.5567765567765568,
+          "frac_negative": 0.4432234432234432,
+          "frac_zero": 0.0,
+          "min_points_required": 3,
+          "min_n_per_opportunity_point": 5
+        }
+      },
+      "e_decoupling": {
+        "definition": "decoupling(A,B) = (n_A_only + n_B_only) / (n_A_only + n_B_only + n_both), where a 'slot' is one interaction event whose tagged KC set includes A and/or B, n_both = slots tagging both simultaneously (co-scheduled practice), n_A_only/n_B_only = slots tagging exactly one. This is the real-data, direction-symmetric analogue of the qmirt-archaeology positivity condition ('fraction of source-only practice slots', >=0.75 clean / 0 unidentifiable) -- see triage_common.py module docstring for the full derivation and the two directional readings reported alongside it.",
+        "ranking": "top pairs by n_both (co-occurring practice slots), restricted to n_both > 0",
+        "clean_threshold": 0.75,
+        "n_pairs_with_cross_occurrence": 993,
+        "n_pairs_reported": 30,
+        "frac_reported_pairs_clearing_threshold": 0.9666666666666667,
+        "pairs": [
+          {
+            "n_a": 259799,
+            "n_b": 143712,
+            "n_both": 54577,
+            "n_a_only": 205222,
+            "n_b_only": 89135,
+            "symmetric_decoupling": 0.8435893320799922,
+            "dir_a_source_only_frac": 0.7899260582219331,
+            "dir_b_source_only_frac": 0.620233522600757,
+            "kc_a": "237",
+            "kc_b": "238"
+          },
+          {
+            "n_a": 408634,
+            "n_b": 399109,
+            "n_both": 49668,
+            "n_a_only": 358966,
+            "n_b_only": 349441,
+            "symmetric_decoupling": 0.9344814167463641,
+            "dir_a_source_only_frac": 0.8784535794867779,
+            "dir_b_source_only_frac": 0.8755527938482971,
+            "kc_a": "203",
+            "kc_b": "204"
+          },
+          {
+            "n_a": 250966,
+            "n_b": 262488,
+            "n_both": 44188,
+            "n_a_only": 206778,
+            "n_b_only": 218300,
+            "symmetric_decoupling": 0.9058359224831971,
+            "dir_a_source_only_frac": 0.8239283408907979,
+            "dir_b_source_only_frac": 0.8316570662277895,
+            "kc_a": "251",
+            "kc_b": "70"
+          },
+          {
+            "n_a": 143712,
+            "n_b": 119820,
+            "n_both": 40859,
+            "n_a_only": 102853,
+            "n_b_only": 78961,
+            "symmetric_decoupling": 0.8165067161263377,
+            "dir_a_source_only_frac": 0.7156883210866177,
+            "dir_b_source_only_frac": 0.6589968285761977,
+            "kc_a": "238",
+            "kc_b": "239"
+          },
+          {
+            "n_a": 259799,
+            "n_b": 119820,
+            "n_both": 33616,
+            "n_a_only": 226183,
+            "n_b_only": 86204,
+            "symmetric_decoupling": 0.9028447730221992,
+            "dir_a_source_only_frac": 0.8706076620772213,
+            "dir_b_source_only_frac": 0.7194458354197963,
+            "kc_a": "237",
+            "kc_b": "239"
+          },
+          {
+            "n_a": 432511,
+            "n_b": 262488,
+            "n_both": 32759,
+            "n_a_only": 399752,
+            "n_b_only": 229729,
+            "symmetric_decoupling": 0.9505330393814931,
+            "dir_a_source_only_frac": 0.9242585737703781,
+            "dir_b_source_only_frac": 0.8751981042942916,
+            "kc_a": "64",
+            "kc_b": "70"
+          },
+          {
+            "n_a": 228554,
+            "n_b": 102529,
+            "n_both": 32092,
+            "n_a_only": 196462,
+            "n_b_only": 70437,
+            "symmetric_decoupling": 0.8926656655217047,
+            "dir_a_source_only_frac": 0.8595867934930038,
+            "dir_b_source_only_frac": 0.6869958743379921,
+            "kc_a": "211",
+            "kc_b": "212"
+          },
+          {
+            "n_a": 63089,
+            "n_b": 63714,
+            "n_both": 24042,
+            "n_a_only": 39047,
+            "n_b_only": 39672,
+            "symmetric_decoupling": 0.7660396453907611,
+            "dir_a_source_only_frac": 0.6189193044746311,
+            "dir_b_source_only_frac": 0.6226575007062812,
+            "kc_a": "248",
+            "kc_b": "249"
+          },
+          {
+            "n_a": 282792,
+            "n_b": 70593,
+            "n_both": 23427,
+            "n_a_only": 259365,
+            "n_b_only": 47166,
+            "symmetric_decoupling": 0.9290000545523975,
+            "dir_a_source_only_frac": 0.9171581940083171,
+            "dir_b_source_only_frac": 0.6681399005567125,
+            "kc_a": "247",
+            "kc_b": "252"
+          },
+          {
+            "n_a": 22146,
+            "n_b": 48190,
+            "n_both": 22031,
+            "n_a_only": 115,
+            "n_b_only": 26159,
+            "symmetric_decoupling": 0.5439188489804369,
+            "dir_a_source_only_frac": 0.005192811342906168,
+            "dir_b_source_only_frac": 0.5428304627516082,
+            "kc_a": "1181",
+            "kc_b": "1647"
+          },
+          {
+            "n_a": 169681,
+            "n_b": 256307,
+            "n_both": 20388,
+            "n_a_only": 149293,
+            "n_b_only": 235919,
+            "symmetric_decoupling": 0.9497337278106509,
+            "dir_a_source_only_frac": 0.8798451211390786,
+            "dir_b_source_only_frac": 0.9204547671347252,
+            "kc_a": "245",
+            "kc_b": "33"
+          },
+          {
+            "n_a": 157622,
+            "n_b": 110079,
+            "n_both": 19741,
+            "n_a_only": 137881,
+            "n_b_only": 90338,
+            "symmetric_decoupling": 0.9203863526375222,
+            "dir_a_source_only_frac": 0.8747573308294527,
+            "dir_b_source_only_frac": 0.8206651586587814,
+            "kc_a": "181",
+            "kc_b": "439"
+          },
+          {
+            "n_a": 282792,
+            "n_b": 250966,
+            "n_both": 19571,
+            "n_a_only": 263221,
+            "n_b_only": 231395,
+            "symmetric_decoupling": 0.9619379719829556,
+            "dir_a_source_only_frac": 0.9307936575292087,
+            "dir_b_source_only_frac": 0.9220173250559837,
+            "kc_a": "247",
+            "kc_b": "251"
+          },
+          {
+            "n_a": 70593,
+            "n_b": 51866,
+            "n_both": 18299,
+            "n_a_only": 52294,
+            "n_b_only": 33567,
+            "symmetric_decoupling": 0.824318356374808,
+            "dir_a_source_only_frac": 0.7407816639043531,
+            "dir_b_source_only_frac": 0.6471869818378129,
+            "kc_a": "252",
+            "kc_b": "253"
+          },
+          {
+            "n_a": 250966,
+            "n_b": 159086,
+            "n_both": 16923,
+            "n_a_only": 234043,
+            "n_b_only": 142163,
+            "symmetric_decoupling": 0.9569530612089162,
+            "dir_a_source_only_frac": 0.9325685551030817,
+            "dir_b_source_only_frac": 0.8936235746703041,
+            "kc_a": "251",
+            "kc_b": "50"
+          },
+          {
+            "n_a": 316150,
+            "n_b": 102757,
+            "n_both": 15876,
+            "n_a_only": 300274,
+            "n_b_only": 86881,
+            "symmetric_decoupling": 0.9606084891732894,
+            "dir_a_source_only_frac": 0.9497833306974537,
+            "dir_b_source_only_frac": 0.8454995766711757,
+            "kc_a": "225",
+            "kc_b": "227"
+          },
+          {
+            "n_a": 197522,
+            "n_b": 215233,
+            "n_both": 15855,
+            "n_a_only": 181667,
+            "n_b_only": 199378,
+            "symmetric_decoupling": 0.96005291005291,
+            "dir_a_source_only_frac": 0.9197304604044106,
+            "dir_b_source_only_frac": 0.9263356455562112,
+            "kc_a": "219",
+            "kc_b": "220"
+          },
+          {
+            "n_a": 197522,
+            "n_b": 229196,
+            "n_both": 15391,
+            "n_a_only": 182131,
+            "n_b_only": 213805,
+            "symmetric_decoupling": 0.9625820818959125,
+            "dir_a_source_only_frac": 0.9220795658205162,
+            "dir_b_source_only_frac": 0.9328478682001431,
+            "kc_a": "219",
+            "kc_b": "221"
+          },
+          {
+            "n_a": 75002,
+            "n_b": 101395,
+            "n_both": 15033,
+            "n_a_only": 59969,
+            "n_b_only": 86362,
+            "symmetric_decoupling": 0.9068379564215067,
+            "dir_a_source_only_frac": 0.7995653449241353,
+            "dir_b_source_only_frac": 0.8517382513930667,
+            "kc_a": "205",
+            "kc_b": "206"
+          },
+          {
+            "n_a": 267404,
+            "n_b": 199941,
+            "n_both": 14269,
+            "n_a_only": 253135,
+            "n_b_only": 185672,
+            "symmetric_decoupling": 0.9685063874493463,
+            "dir_a_source_only_frac": 0.9466387937353218,
+            "dir_b_source_only_frac": 0.9286339470143692,
+            "kc_a": "75",
+            "kc_b": "86"
+          },
+          {
+            "n_a": 215233,
+            "n_b": 229196,
+            "n_both": 14033,
+            "n_a_only": 201200,
+            "n_b_only": 215163,
+            "symmetric_decoupling": 0.9673951430775379,
+            "dir_a_source_only_frac": 0.9348008901980644,
+            "dir_b_source_only_frac": 0.9387729279743102,
+            "kc_a": "220",
+            "kc_b": "221"
+          },
+          {
+            "n_a": 282792,
+            "n_b": 51866,
+            "n_both": 13462,
+            "n_a_only": 269330,
+            "n_b_only": 38404,
+            "symmetric_decoupling": 0.9580878964868803,
+            "dir_a_source_only_frac": 0.9523961073863476,
+            "dir_b_source_only_frac": 0.7404465353025104,
+            "kc_a": "247",
+            "kc_b": "253"
+          },
+          {
+            "n_a": 177196,
+            "n_b": 123818,
+            "n_both": 12746,
+            "n_a_only": 164450,
+            "n_b_only": 111072,
+            "symmetric_decoupling": 0.9557842008131322,
+            "dir_a_source_only_frac": 0.9280683536874421,
+            "dir_b_source_only_frac": 0.897058585989113,
+            "kc_a": "231",
+            "kc_b": "232"
+          },
+          {
+            "n_a": 76072,
+            "n_b": 95662,
+            "n_both": 12653,
+            "n_a_only": 63419,
+            "n_b_only": 83009,
+            "symmetric_decoupling": 0.920461903055676,
+            "dir_a_source_only_frac": 0.8336707329897991,
+            "dir_b_source_only_frac": 0.8677322238715477,
+            "kc_a": "269",
+            "kc_b": "58"
+          },
+          {
+            "n_a": 125579,
+            "n_b": 94263,
+            "n_both": 12602,
+            "n_a_only": 112977,
+            "n_b_only": 81661,
+            "symmetric_decoupling": 0.9391912758154797,
+            "dir_a_source_only_frac": 0.8996488266350265,
+            "dir_b_source_only_frac": 0.8663102171583761,
+            "kc_a": "210",
+            "kc_b": "222"
+          },
+          {
+            "n_a": 250966,
+            "n_b": 70593,
+            "n_both": 12560,
+            "n_a_only": 238406,
+            "n_b_only": 58033,
+            "symmetric_decoupling": 0.9593526192641401,
+            "dir_a_source_only_frac": 0.9499533801391423,
+            "dir_b_source_only_frac": 0.8220786763560126,
+            "kc_a": "251",
+            "kc_b": "252"
+          },
+          {
+            "n_a": 89225,
+            "n_b": 99584,
+            "n_both": 12508,
+            "n_a_only": 76717,
+            "n_b_only": 87076,
+            "symmetric_decoupling": 0.9290531534137639,
+            "dir_a_source_only_frac": 0.8598150742504903,
+            "dir_b_source_only_frac": 0.8743974935732648,
+            "kc_a": "215",
+            "kc_b": "216"
+          },
+          {
+            "n_a": 81936,
+            "n_b": 89225,
+            "n_both": 12426,
+            "n_a_only": 69510,
+            "n_b_only": 76799,
+            "symmetric_decoupling": 0.9217185875830787,
+            "dir_a_source_only_frac": 0.848345049794962,
+            "dir_b_source_only_frac": 0.8607340991874475,
+            "kc_a": "214",
+            "kc_b": "215"
+          },
+          {
+            "n_a": 36636,
+            "n_b": 199941,
+            "n_both": 11787,
+            "n_a_only": 24849,
+            "n_b_only": 188154,
+            "symmetric_decoupling": 0.9475643934338717,
+            "dir_a_source_only_frac": 0.6782672780871274,
+            "dir_b_source_only_frac": 0.9410476090446682,
+            "kc_a": "655",
+            "kc_b": "86"
+          },
+          {
+            "n_a": 524875,
+            "n_b": 123015,
+            "n_both": 11012,
+            "n_a_only": 513863,
+            "n_b_only": 112003,
+            "symmetric_decoupling": 0.982709404312914,
+            "dir_a_source_only_frac": 0.9790197666110979,
+            "dir_b_source_only_frac": 0.9104824614884364,
+            "kc_a": "202",
+            "kc_b": "224"
+          }
+        ]
+      },
+      "f_g_pure_anchors_and_arity": {
+        "n_items": 27613,
+        "n_kc_in_item_bank": 314,
+        "arity_mean": 1.1037916923188353,
+        "arity_max": 6,
+        "n_pure_items_total": 25219,
+        "min_pure_items_gate": 3,
+        "frac_kc_with_ge_min_pure_items": 0.856687898089172
+      }
+    }
+  },
+  "h_answer_option_distribution": {
+    "chosen_answer_value_distribution": {
+      "3": {
+        "n": 4196859,
+        "frac": 0.2644881946829596
+      },
+      "2": {
+        "n": 4153173,
+        "frac": 0.26173508068200796
+      },
+      "1": {
+        "n": 3824488,
+        "frac": 0.2410211843444449
+      },
+      "4": {
+        "n": 3693330,
+        "frac": 0.23275554029058756
+      }
+    },
+    "correct_answer_position_distribution": {
+      "3": {
+        "n": 4161981,
+        "frac": 0.26229016533430805
+      },
+      "2": {
+        "n": 4004091,
+        "frac": 0.2523398570064628
+      },
+      "1": {
+        "n": 3863458,
+        "frac": 0.24347709362011866
+      },
+      "4": {
+        "n": 3838320,
+        "frac": 0.24189288403911052
+      }
+    },
+    "note": "AnswerValue/CorrectAnswer in {1,2,3,4}; both reported to check whether option position is roughly balanced (no baked-in 'always pick option 3' shortcut)."
+  },
+  "h_wrong_option_concentration": {
+    "definition": "for each question, among its IsCorrect==0 rows, the fraction of those wrong answers landing on the single most-common wrong AnswerValue ('modal_wrong_share'); 1/3 ~ flat/no-concentration, 1.0 ~ every wrong answer picks the same one distractor.",
+    "min_wrong_n_gate": 10,
+    "n_questions_total_with_ge1_wrong": 27571,
+    "n_questions_passing_gate": 25862,
+    "modal_wrong_share_quartiles_unweighted": {
+      "n": 25862,
+      "min": 0.30445544554455445,
+      "q1": 0.42405891709192123,
+      "median": 0.4864864864864865,
+      "q3": 0.58,
+      "max": 1.0,
+      "mean": 0.5142342713362346
+    },
+    "modal_wrong_share_pooled_wrong_count_weighted_mean": 0.49802207097558676,
+    "frac_questions_majority_concentrated_ge_0.5": 0.470651921738458
+  },
+  "runtime_sec": 81.7
+}

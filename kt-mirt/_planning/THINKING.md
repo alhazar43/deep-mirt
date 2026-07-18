@@ -149,3 +149,46 @@ a saturated twin (the existence gate must fail, reproducing the E2
 lesson). This widening costs little because the harness is shared
 across postures; the estimator pair per posture is the A4 design
 doc's job.
+
+## 2026-07-18 A4 design v1.1 FROZEN; the four open rulings
+
+The design workflow returned v1.1 with all eight blocking review
+findings fixed (ACT now certified on all four twins including the
+mismatched-generator arm that had haunted the program since the
+qmirt days; an operational real-bed firing test for ACT; the
+passive/mixed existence-gate identity named honestly; blockwise
+growth absorption plus shrinkage in bank calibration with its own
+audit arm; a parametric-bootstrap real-bed null preserving item
+structure). My rulings on the four open items, each my call under
+the standing mandate:
+
+1. KDD item granularity: STEP PLUS SHRINKAGE (default accepted).
+   Redefining item = problem would silently change the estimand and
+   break comparability with the triage statistics and the KDD
+   literature convention that steps are practice opportunities.
+   Shrinkage solves the sparsity without touching meaning.
+2. ACT decline asymmetry: RECORDED SCOPE LIMIT (default accepted).
+   Lemma 2 is explicit that monotone beds cannot separate decay from
+   gains; a free-rho ACT reopens exactly that fabrication surface
+   for a week of extra certification on the weakest-identified
+   object. Decline stays covered by PAS/MIX in v1; a decline-capable
+   ACT variant becomes a follow-up ONLY on beds with non-monotone
+   identification content, per the archaeology's own rule.
+3. EdNet Tier-2 cap: KEEP THE CAP (default accepted). Median 2
+   opportunities per learner-KC makes individual rates structurally
+   unreachable, and the bundle confound independently bars causal
+   reads. CG4b reads as a density-floor finding, which is the honest
+   verdict.
+4. Budget: APPROVED IN FULL, no cut. The additions are precisely
+   the arms that make certification credible; the candidate cut
+   (ACT at EdNet density) is refused because EdNet-density
+   certification is what licenses reuse on thin-density beds of the
+   XES3G5M class. User has standing-approved the autonomous
+   envelope.
+
+Design v1.1 is now FROZEN pre-registration: thresholds may never be
+loosened after runs begin, per its own two-revision rule. Build
+launched as a sequential five-stage workflow (generator, measurement
+layer, postures, battery and gates, harness) with tests green at
+every stage and my own end-to-end gate before the certification
+campaign starts.
