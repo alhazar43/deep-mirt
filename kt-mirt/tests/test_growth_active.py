@@ -265,6 +265,23 @@ def test_train_active_reduces_loss_on_tiny_overfit_batch():
     assert trace[-1] < trace[0]
 
 
+def test_train_active_epoch_ceiling_is_floored_against_legacy_small_values():
+    """The ACT-P0 fabrication repair (module docstring note 8): a caller
+    still passing the pre-fix fixed count (20) must NOT get a 20-epoch
+    run -- ``n_epochs`` is a ceiling floored at ``ACT_MIN_EPOCHS_CEILING``
+    and the convergence gate governs. The earliest the windowed rule can
+    fire is ``2*window_epochs + patience_epochs`` epochs."""
+    torch.manual_seed(0)
+    n = 40
+    l0 = _log(0, [0] * n, [1, 0] * (n // 2), [[0]] * n)
+    batch = _batch_from_logs([l0], b_true=np.array([0.0]))
+    cfg = active.ActiveConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=20)
+    model = active.ActiveModel(num_items=1, n_kcs=1, cfg=cfg, m_init=3.0)
+    trace = active.train_active(model, batch, cfg)
+    assert len(trace) >= 2 * cfg.window_epochs + cfg.patience_epochs
+    assert len(trace) <= active.ACT_MIN_EPOCHS_CEILING
+
+
 def test_forecast_nll_matches_active_loss_no_grad():
     torch.manual_seed(0)
     l0 = _log(0, [0, 0], [1, 0], [[0], [0]])
@@ -373,3 +390,154 @@ def test_report_gain_withholds_saturated_kcs():
     assert out[0] == pytest.approx(0.1)
     assert np.isnan(out[1])
     assert out[2] == pytest.approx(0.3)
+
+
+# ---------------------------------------------------------------------------
+# ACT-P0 fabrication regression (the repaired train_active; module
+# docstring note 8; `_planning/research/act_p0_diagnosis.md`)
+# ---------------------------------------------------------------------------
+#
+# The diagnosis in miniature, after the convergence-gated repair. Data
+# construction follows the diagnosis's own ablation scripts
+# (`kt-mirt/scripts/probe/_diag_act_p0_mechanism.py` / `_diag_act_p0_
+# fix_check.py`): single-tag items (item id == KC id, so item difficulty
+# IS KC difficulty), z0_true = xi_i + eta_c + noise, interleaved practice
+# order; the no-growth twin draws every opportunity from the SAME flat
+# z0_true, the known-growth twin advances z through EXACTLY the recurrence
+# ACT itself uses (z <- z + g_true*(M_true - z)+, matched family).
+#
+# lr = 0.1 (not the campaign's 0.05) purely to halve epochs-to-convergence
+# and keep this section within its wall-time budget: the convergence gate
+# under test is lr-agnostic, and the OLD broken 20-epoch loop still
+# fabricates hard at lr = 0.1 (diagnosis section 3.4: no-growth
+# pop_mean_rise 0.325), so the discrimination is preserved. drift_tol is
+# raised to 0.1 alongside (the guard bounds per-epoch parameter movement,
+# whose scale is Adam's normalized step ~ lr; the default 5e-2 is
+# calibrated to the campaign's lr = 0.05).
+#
+# The assertion levels encode the estimator's TRUE CONVERGED behavior at
+# this scale, measured on this exact configuration (stationarity study,
+# 2026-07-18), with margin for cross-platform torch numerics -- they are
+# not tuned to any certification bar. For reference: the broken
+# fixed-20-epoch loop reads no-growth pop ~0.33 / p95 ~0.47 at this lr.
+
+
+def _twin_logs(n_learners: int, n_kcs: int, seed: int, g_true: float):
+    """Toy twin builder (see section comment). Returns (logs, b_c)."""
+    rng = np.random.default_rng(seed)
+    xi_i = rng.normal(0.0, 1.0, size=n_learners)
+    eta_c = rng.normal(0.0, 0.5, size=n_kcs)
+    b_c = rng.normal(0.0, 1.0, size=n_kcs)
+    m_true = float(np.percentile(b_c, 95) + 2.0)
+    # heterogeneous practice counts, KDD-like anchors (the diagnosis
+    # scripts' own values; shorter sequences weaken the flatness evidence
+    # enough that the no-growth fit no longer converges within the ceiling)
+    p_anchor = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+    v_anchor = np.array([1.0, 4.0, 8.0, 16.0, 20.0])
+
+    logs = []
+    for i in range(n_learners):
+        u = rng.uniform(0.0, 1.0, size=n_kcs)
+        Ts = np.clip(np.round(np.interp(u, p_anchor, v_anchor)).astype(int), 1, 20)
+        z_slice = xi_i[i] + eta_c + rng.normal(0.0, 0.3, size=n_kcs)
+        entries = []
+        for c in range(n_kcs):
+            for t in np.sort(rng.random(int(Ts[c]))):
+                entries.append((t, c))
+        entries.sort(key=lambda e: e[0])
+        item_ids = np.array([c for (_, c) in entries], dtype=np.int64)
+        z_running = z_slice.copy()
+        responses = np.zeros(len(item_ids), dtype=np.int8)
+        for pos, c in enumerate(item_ids):
+            p_correct = 1.0 / (1.0 + np.exp(-(z_running[c] - b_c[c])))
+            responses[pos] = int(rng.random() < p_correct)
+            if g_true > 0:
+                z_running[c] = z_running[c] + g_true * max(m_true - z_running[c], 0.0)
+        logs.append(_log(i, item_ids, responses, item_ids.reshape(-1, 1)))
+    return logs, b_c
+
+
+def _fit_act_p0(logs, b_c, seed: int = 0):
+    """One repaired-trainer ACT-P0 fit plus the closed-form population
+    read (`run.py:_act_implied_rises`'s logic, specialized to this dense
+    every-learner-practices-every-KC toy). Intra-op threads are pinned to
+    2 for the fit (restored after): the tiny per-timestep tensors make
+    the default pool's synchronization overhead dominate, roughly 2x
+    wall time at this scale."""
+    n_kcs = len(b_c)
+    batch = _batch_from_logs(logs, b_true=b_c)
+    m_init = float(np.percentile(b_c, 95) + 2.0)
+    b_ref = float(np.median(b_c))
+    cfg = active.ActiveConfig(
+        variant="act_p0", hidden_dim=16, emb_dim=8, lr=0.1, drift_tol=1e-1, seed=seed
+    )
+    torch.manual_seed(seed)
+    model = active.ActiveModel(num_items=n_kcs, n_kcs=n_kcs, cfg=cfg, m_init=m_init)
+    n_threads_before = torch.get_num_threads()
+    torch.set_num_threads(2)
+    try:
+        trace = active.train_active(model, batch, cfg)
+    finally:
+        torch.set_num_threads(n_threads_before)
+
+    with torch.no_grad():
+        seq_lens = active.seq_lens_from_mask(batch.seq_mask)
+        u_i, _ = model.recognition(batch.item_ids, batch.responses, seq_lens)
+        u_i = u_i.cpu().numpy()
+        g_c = model.g_c.detach().cpu().numpy()
+        v_c = model.v_c.detach().cpu().numpy()
+        M = float(model.M.detach().cpu().item())
+    per_learner = np.array([
+        active.implied_score_rise(
+            u_i[i] + v_c, np.ones(n_kcs), g_c, M, np.full(n_kcs, b_ref)
+        ).mean()
+        for i in range(len(logs))
+    ])
+    return {
+        "pop_mean": float(per_learner.mean()),
+        "p95_abs": float(np.percentile(np.abs(per_learner), 95)),
+        "g_c_mean": float(g_c.mean()),
+        "epochs_run": len(trace),
+    }
+
+
+@pytest.fixture(scope="module")
+def act_p0_no_growth_fit():
+    logs, b_c = _twin_logs(n_learners=80, n_kcs=6, seed=0, g_true=0.0)
+    return _fit_act_p0(logs, b_c, seed=0)
+
+
+@pytest.fixture(scope="module")
+def act_p0_known_growth_fit():
+    logs, b_c = _twin_logs(n_learners=80, n_kcs=6, seed=0, g_true=0.15)
+    return _fit_act_p0(logs, b_c, seed=0)
+
+
+def test_act_p0_repair_no_growth_twin_is_silent_at_convergence(act_p0_no_growth_fit):
+    """The fabrication regression proper: on a no-growth twin the
+    CONVERGED ACT-P0 implied population rise must sit at its measured
+    converged level (well under the CG1 KDD silence bar, 0.01/0.01, at
+    this scale), not at the untrained-init fabrication level (~0.33
+    pop / ~0.47 p95 with the old fixed 20-epoch loop at this lr)."""
+    r = act_p0_no_growth_fit
+    assert r["pop_mean"] <= 0.01
+    assert r["p95_abs"] <= 0.015
+    assert r["g_c_mean"] <= 0.05  # driven far down from softplus(0) ~ 0.69
+
+
+def test_act_p0_repair_no_growth_convergence_takes_far_beyond_legacy_epochs(act_p0_no_growth_fit):
+    """The mechanism guard: unlearning the softplus(0) init on no-growth
+    data NEEDS hundreds of epochs (diagnosis section 3.2); if this fit
+    ever stops near the legacy 20-epoch count again, the gate was lost."""
+    assert act_p0_no_growth_fit["epochs_run"] > 300
+
+
+def test_act_p0_repair_known_growth_twin_recovers_true_gain(act_p0_known_growth_fit):
+    """The positive control (diagnosis section 3.3's mirror-image trap):
+    the SAME stopping rule must still detect real growth and recover the
+    true gain (g_true = 0.15) within tolerance -- a repair that silences
+    both twins is as broken as one that fabricates on both."""
+    r = act_p0_known_growth_fit
+    assert 0.10 <= r["g_c_mean"] <= 0.20
+    assert r["pop_mean"] >= 0.30  # confidently fires on real growth
+    assert r["epochs_run"] < active.ACT_MIN_EPOCHS_CEILING  # gate, not ceiling, stopped it

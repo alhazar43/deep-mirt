@@ -427,3 +427,35 @@ Acquisitions:
   checkpoint commits pushed at milestones -> parked agents nudged
   (the end-turn-while-waiting failure pattern has hit four times;
   every notification gets checked for it).
+
+## 2026-07-18 night: ACT repair verified; converged truth splits the gates
+
+- Repair landed (stationarity-based, never bar-tuned): windowed-mean
+  NLL criterion + growth-param drift guard, floor 3000-epoch ceiling;
+  406/406 tests incl. a matched-family regression (g_c recovers
+  0.146-0.164 vs true 0.15). Epochs-to-convergence 652-1942 (~59x the
+  old 20-epoch cost; CPU 8-32 min/fit, GPU proportionally cheap).
+- The honest converged picture at half-scale probe (C=32, N=1000):
+  P0 NG mean 0.0033 PASSES the mean-silence bar but p95 ~0.022 FAILS
+  the p95 clause (real estimator property); P0 KG detection collapses
+  (0.038 vs true 0.667, RB-A fail; rank corr 0.66 survives). P1 NG
+  silence DEGRADES at convergence (0.012/0.054, both clauses fail-ish);
+  P1 KG fires at 0.055-0.058 but magnitude ratio 0.086x vs CG1a's
+  [0.5,1.5] corridor. Family-matched toy recovers gains exactly, so
+  the magnitude loss is gain-form mismatch expressing as
+  UNDER-detection (Lemma 3's other face).
+- EPISTEMIC HEADLINE: pre-fix P0 fabrication AND pre-fix P1 silence
+  were BOTH optimization artifacts -- 20-epoch reads were noise in
+  opposite directions. Paper-grade material for the certification
+  story regardless of ACT's final verdict.
+- RULINGS: (1) repair ACCEPTED and committed. (2) The P0 exclusion is
+  SUPERSEDED: BOTH ACT variants enter the campaign at production
+  scale on the repaired trainer, symmetric treatment, and the
+  pre-registered gates rule -- half-scale CPU probe evidence cannot
+  adjudicate production-scale thresholds (power differs), and the
+  design's posture matrix wants the active posture answered formally,
+  not by probe fiat. (3) G2 does not hinge on ACT: passive and mixed
+  carry detection; ACT failing its own gates at production scale is a
+  legitimate, reportable posture-matrix outcome. (4) Cluster package
+  swap happens BETWEEN chain generations (launcher-coordinated, no
+  mid-run tree replacement), then ACT units unmask.

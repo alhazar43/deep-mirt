@@ -78,6 +78,43 @@ Interpretation notes (recorded per the harness instructions):
    saturation flag `slices.saturation_stats` already computes; the report
    ASSEMBLY (deciding which KCs are saturation-flagged on a given bed,
    writing the verdict text) remains `report.py`'s job (a later stage).
+8. **`train_active` is convergence-gated, mirroring `bank.calibrate_bank`'s
+   dual criterion in structure (`bank.py:664-708`), not a bare fixed-epoch
+   loop.** The ACT-P0 fabrication defect diagnosed in
+   `_planning/research/act_p0_diagnosis.md` was a training-convergence
+   pathology, not a design or transition-logic bug: the old bare
+   ``for _ in range(cfg.n_epochs)`` loop (every real caller passing 20)
+   stopped Adam one to two orders of magnitude before ``g_c`` could move
+   from its ``softplus(0) ~ 0.69`` init down toward the near-zero region
+   no-growth data demands, while the same estimator, given enough epochs
+   from the SAME init, descends correctly on no-growth data and
+   accurately recovers the true gain on known-growth data (diagnosis
+   section 3.2). The fix touches only the OPTIMIZATION budget, never the
+   model, the pins, or the transition. One deliberate refinement over a
+   verbatim copy of `bank.calibrate_bank`'s rule, forced by a
+   stationarity study on both twins (3 seeds x 3000 epochs, 2026-07-18):
+   ACT trains FULL-batch, so at any genuine optimum Adam orbits a limit
+   cycle whose per-epoch loss change and parameter drift measure the
+   CYCLE amplitude (measured drift floor 1.5e-3 to 2.4e-2), not
+   stationarity, while on no-growth data the descent is so flat that
+   per-epoch changes are quiet long before convergence -- bank's exact
+   per-epoch rule therefore stops no-growth fits mid-descent (~300
+   epochs, with the implied rise still 2-3x its converged value) and can
+   never satisfy a tight drift tolerance on known-growth fits. The
+   relative-NLL leg is therefore computed on a WINDOWED MEAN
+   (``cfg.window_epochs``-epoch blocks): averaging cancels the limit
+   cycle but preserves a descent trend. ``cfg.rel_tol = 1e-5`` sits ~2x
+   above the measured windowed noise floor (median ~5e-6 on the stable
+   runs; late-phase cycling pushes it higher on some seeds, which only
+   delays the stop); the parameter-drift leg (over ``g_c``, ``v_c``, ``M``,
+   the exact quantities the closed-form CG1/RB-A readouts consume) is
+   kept as a macro-movement guard with ``cfg.drift_tol`` deliberately
+   ABOVE the measured cycle floor, since a tolerance below that floor is
+   unreachable at any true optimum. ``cfg.n_epochs`` keeps its name and
+   its role as an upper bound (backward-compatible signature), but is
+   floored at ``ACT_MIN_EPOCHS_CEILING`` inside `train_active` so that a
+   caller still passing the pre-fix value (20) is not silently
+   undertrained again; see `train_active`'s own docstring.
 """
 
 from __future__ import annotations
@@ -113,13 +150,28 @@ def ceiling_init(b_hat: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 
 
+#: Floor on `train_active`'s epoch ceiling (module docstring note 8;
+#: `_planning/research/act_p0_diagnosis.md` section 3.2/5). The old bare
+#: 20-epoch budget stopped training one to two orders of magnitude before
+#: `g_c` converged; this constant guarantees every caller gets a ceiling
+#: generous enough for convergence to be reachable, even one still passing
+#: a pre-fix `n_epochs` value. Convergence (see `train_active`) typically
+#: stops training long before this ceiling is hit on well-behaved fits --
+#: it exists to bound the worst case, not as a target epoch count.
+ACT_MIN_EPOCHS_CEILING = 3000
+
+
 @dataclass
 class ActiveConfig:
     variant: str = "act_p0"  # "act_p0" (lambda_i pinned at 1) | "act_p1" (amortized lambda_i)
     emb_dim: int = 8
     hidden_dim: int = 32
     lr: float = 1e-2
-    n_epochs: int = 30
+    n_epochs: int = 30  # CEILING (floored at ACT_MIN_EPOCHS_CEILING), not a fixed count -- see train_active
+    window_epochs: int = 50  # block size for the windowed-mean loss statistic (note 8)
+    patience_epochs: int = 25  # consecutive epochs the joint criterion must hold
+    rel_tol: float = 1e-5  # windowed-mean relative loss change leg (~2x the measured noise floor)
+    drift_tol: float = 5e-2  # macro guard on per-epoch [g_c, v_c, M] drift, above the cycle floor
     seed: int = 0
     device: str = "cpu"
     m_fixed: bool = False  # CG1 fallback (section 2.3): fix M at its init value
@@ -239,21 +291,86 @@ def active_loss(model: ActiveModel, batch: LearnerBatch, seq_lens: Optional[torc
     return (per_pos * mask).sum() / mask.sum().clamp(min=1.0)
 
 
+def _growth_param_snapshot(model: ActiveModel) -> np.ndarray:
+    """The drift check's tracked quantity: the population growth
+    parameters (``g_c``, ``v_c``, ``M``) concatenated into one flat
+    vector, no-grad. These are exactly the quantities `implied_z_
+    trajectory`/`implied_score_rise` read (module docstring note 4), so
+    this mirrors `bank.calibrate_bank`'s choice to track its OWN frozen
+    read-quantity (``b_hat``) for drift rather than raw nuisance
+    parameters (module docstring note 8; `bank.py` note 3)."""
+    with torch.no_grad():
+        g_c = model.g_c.detach().cpu().numpy().reshape(-1)
+        v_c = model.v_c.detach().cpu().numpy().reshape(-1)
+        m = model.M.detach().cpu().numpy().reshape(-1)
+    return np.concatenate([g_c, v_c, m]).astype(float)
+
+
 def train_active(model: ActiveModel, batch: LearnerBatch, cfg: ActiveConfig) -> list[float]:
     """Stage 2 of the design's two-stage trainer (stage 1, bank
     calibration and freezing, is `bank.calibrate_bank`/`freeze_bank`, a
     prior stage's module): fit the dynamics parameters (``g_c``, ``v_c``,
     ``M`` unless fixed) and the recognition network jointly against the
-    already-frozen bank's difficulties (carried in ``batch.b_j``)."""
+    already-frozen bank's difficulties (carried in ``batch.b_j``).
+
+    Convergence-gated (module docstring note 8), not a fixed epoch count.
+    Dual criterion, `bank.calibrate_bank`'s structure adapted to ACT's
+    single full-batch step per epoch: training stops once, for
+    ``cfg.patience_epochs`` consecutive epochs, BOTH (i) the relative
+    change between the mean loss of the last ``cfg.window_epochs`` epochs
+    and the mean of the ``cfg.window_epochs`` before that is
+    ``< cfg.rel_tol`` (the windowed mean cancels the Adam limit-cycle
+    oscillation that a per-epoch change would measure, while a genuine
+    descent trend survives the averaging -- note 8), and (ii) the
+    population growth parameters (``g_c``, ``v_c``, ``M``, module
+    function `_growth_param_snapshot`) moved ``< cfg.drift_tol`` (max
+    absolute per-epoch change; a macro-movement guard, note 8). The
+    earliest possible stop is therefore ``2*window_epochs +
+    patience_epochs`` epochs.
+
+    ``cfg.n_epochs`` is the epoch CEILING (kept under its old name for a
+    backward-compatible signature), floored at ``ACT_MIN_EPOCHS_CEILING``:
+    ``max(cfg.n_epochs, ACT_MIN_EPOCHS_CEILING)`` is the ceiling actually
+    used, so a caller still passing the pre-fix value (20, e.g. `run.py`'s
+    `RunConfig.act_epochs` default before this fix) is not silently
+    undertrained the way ACT-P0 was
+    (`_planning/research/act_p0_diagnosis.md`) -- raise ``cfg.n_epochs``
+    to push the ceiling higher still, but there is no way to force a
+    ceiling BELOW the floor, since the floor exists precisely to make
+    silent undertraining unreachable through this argument. Fits stop at
+    the convergence gate well before the ceiling in the measured cases
+    (~400-1950 epochs across the note-8 stationarity study and a
+    reduced-scale run of the real synth/bank pipeline, both twins, both
+    variants); the ceiling bounds the worst case only."""
     seq_lens = seq_lens_from_mask(batch.seq_mask)
     optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=cfg.lr)
-    trace = []
-    for _ in range(cfg.n_epochs):
+    max_epochs = max(int(cfg.n_epochs), ACT_MIN_EPOCHS_CEILING)
+    W = int(cfg.window_epochs)
+
+    trace: list[float] = []
+    prev_growth = _growth_param_snapshot(model)
+    good_epochs = 0
+    for _ in range(max_epochs):
         optimizer.zero_grad()
         loss = active_loss(model, batch, seq_lens)
         loss.backward()
         optimizer.step()
         trace.append(float(loss.item()))
+
+        cur_growth = _growth_param_snapshot(model)
+        drift = float(np.max(np.abs(cur_growth - prev_growth))) if prev_growth.size else 0.0
+        prev_growth = cur_growth
+
+        if len(trace) >= 2 * W:
+            m1 = float(np.mean(trace[-W:]))
+            m0 = float(np.mean(trace[-2 * W : -W]))
+            rel_windowed = abs(m1 - m0) / max(abs(m0), 1e-8)
+            if rel_windowed < cfg.rel_tol and drift < cfg.drift_tol:
+                good_epochs += 1
+            else:
+                good_epochs = 0
+            if good_epochs >= cfg.patience_epochs:
+                break
     return trace
 
 
@@ -408,6 +525,7 @@ def report_gain(g_c: np.ndarray, is_unsaturated: np.ndarray) -> np.ndarray:
 
 __all__ = [
     "ceiling_init",
+    "ACT_MIN_EPOCHS_CEILING",
     "ActiveConfig",
     "ActiveModel",
     "run_transition",
