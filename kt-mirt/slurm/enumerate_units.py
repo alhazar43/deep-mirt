@@ -106,6 +106,18 @@ if _SCALE == "production":
         # should a future ruling re-exclude it.
         "run_act_p0": True,
     }
+    # Per-profile overrides, merged on top of PRODUCTION_HYPERPARAMS by
+    # run_unit.py. EdNet-matched neural cells (N=6000, ~25 KCs/learner)
+    # OOM every cluster GPU under whole-cohort PAS-N2 training (>50 GiB
+    # backward vs 48 GB a40/l40 and 40 GB a100 cards -- campaign ledger,
+    # OOM ruling step 2), so they alone set the tracker mini-batch size
+    # (tracker.py module docstring note 6). 8192 rows caps the backward
+    # at ~3 GiB (~1/7 of the failing whole-cohort allocation) while
+    # keeping epochs at single-digit step counts. KDD-matched cells set
+    # nothing and train byte-identically to before this knob existed.
+    PROFILE_HYPERPARAMS: dict[str, dict] = {
+        "ednet_matched": {"tracker_batch_size": 8192},
+    }
 elif _SCALE == "smoke":
     PROFILES = {
         "kdd_matched": dataclasses.replace(synth_mod.KDD_MATCHED, name="kdd_matched", n_kcs=6, n_learners=80, kcs_per_learner=4.0),
@@ -114,6 +126,7 @@ elif _SCALE == "smoke":
     PRODUCTION_HYPERPARAMS = {
         "n_perm_bed": 9, "n_perm_kc": 5, "n_reshuffles": 1, "drill_repeats": 5, "run_act_p1": True,
     }
+    PROFILE_HYPERPARAMS = {}  # smoke-scale cohorts are tiny; no per-profile overrides
 else:
     raise ValueError(f"KT_MIRT_UNIT_SCALE must be 'production' or 'smoke', got {_SCALE!r}")
 

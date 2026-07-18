@@ -240,6 +240,141 @@ def test_forecast_nll_rejects_unknown_kind():
 
 
 # ---------------------------------------------------------------------------
+# Mini-batched training (TrackerConfig.batch_size, module docstring note 6)
+# ---------------------------------------------------------------------------
+
+
+def _make_slices(n, T=8):
+    class S:
+        pass
+
+    out = []
+    for i in range(n):
+        s = S()
+        s.item_id = np.array(([0, 1] * (T // 2 + 1))[:T])
+        s.response = np.array(([1, 0] if i % 2 else [0, 1]) * (T // 2 + 1), dtype=np.int8)[:T]
+        s.T = T
+        out.append(s)
+    return out
+
+
+def _original_whole_cohort_train(model, batch, cfg, loss_fn):
+    """Verbatim replica of the pre-batch_size training loop, kept in the
+    test as the KDD-path invariance reference: batch_size=None must stay
+    bit-identical to THIS loop forever."""
+    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=cfg.lr)
+    trace = []
+    for _ in range(cfg.n_epochs):
+        optimizer.zero_grad()
+        loss = loss_fn(model, batch)
+        loss.backward()
+        optimizer.step()
+        trace.append(float(loss.item()))
+    return trace
+
+
+def test_batch_size_none_is_bit_identical_to_original_loop_pas_n2():
+    """KDD-path invariance: the default (batch_size=None) whole-cohort path
+    must produce bit-identical parameters and loss trace to the original
+    pre-batch_size loop."""
+    cfg = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=10)
+    batch = tracker.build_slice_batch(_make_slices(6), b_true=np.zeros(2))
+
+    torch.manual_seed(7)
+    model_new = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg)
+    trace_new = tracker.train_pas_n2(model_new, batch, cfg)
+
+    torch.manual_seed(7)
+    model_ref = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg)
+    trace_ref = _original_whole_cohort_train(model_ref, batch, cfg, tracker.pas_n2_loss)
+
+    assert trace_new == trace_ref
+    for p_new, p_ref in zip(model_new.parameters(), model_ref.parameters()):
+        assert torch.equal(p_new, p_ref)
+
+
+def test_batch_size_none_is_bit_identical_to_original_loop_pas_n1():
+    cfg = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=10)
+    logs = [_log(i, [0, 1, 0, 1], [1, 0, 1, 0] if i % 2 else [0, 1, 0, 1], [[0]] * 4) for i in range(4)]
+    batch = tracker.build_learner_batch(logs, b_true=np.zeros(2))
+
+    torch.manual_seed(7)
+    model_new = tracker.build_tracker("pas_n1", num_items=2, n_kcs=1, cfg=cfg)
+    trace_new = tracker.train_pas_n1(model_new, batch, cfg)
+
+    torch.manual_seed(7)
+    model_ref = tracker.build_tracker("pas_n1", num_items=2, n_kcs=1, cfg=cfg)
+    trace_ref = _original_whole_cohort_train(model_ref, batch, cfg, tracker.pas_n1_loss)
+
+    assert trace_new == trace_ref
+    for p_new, p_ref in zip(model_new.parameters(), model_ref.parameters()):
+        assert torch.equal(p_new, p_ref)
+
+
+def test_batch_size_at_least_n_rows_is_whole_cohort():
+    """batch_size >= n_rows takes the whole-cohort path (mirrors the core
+    DeepIRTModel.fit semantics), bit-identical to batch_size=None."""
+    batch = tracker.build_slice_batch(_make_slices(6), b_true=np.zeros(2))
+    cfg_none = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=5)
+    cfg_big = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=5, batch_size=999)
+
+    torch.manual_seed(3)
+    model_a = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg_none)
+    trace_a = tracker.train_pas_n2(model_a, batch, cfg_none)
+
+    torch.manual_seed(3)
+    model_b = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg_big)
+    trace_b = tracker.train_pas_n2(model_b, batch, cfg_big)
+
+    assert trace_a == trace_b
+    for p_a, p_b in zip(model_a.parameters(), model_b.parameters()):
+        assert torch.equal(p_a, p_b)
+
+
+def test_minibatched_pas_n2_trains_and_reduces_loss():
+    """EdNet-profile smoke at test scale: many slice rows, batch_size well
+    below the row count (multiple batches per epoch), loss decreases and the
+    trace stays one MEAN entry per epoch."""
+    torch.manual_seed(0)
+    cfg = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=30, batch_size=4)
+    batch = tracker.build_slice_batch(_make_slices(10, T=12), b_true=np.zeros(2))
+    model = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg)
+    trace = tracker.train_pas_n2(model, batch, cfg)
+    assert len(trace) == cfg.n_epochs
+    assert trace[-1] < trace[0]
+
+
+def test_minibatched_pas_n1_trains_and_reduces_loss():
+    torch.manual_seed(0)
+    cfg = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=30, batch_size=2)
+    logs = [_log(i, [0, 1, 0, 1] * 3, [1, 0, 1, 0] * 3, [[0]] * 12) for i in range(6)]
+    batch = tracker.build_learner_batch(logs, b_true=np.zeros(2))
+    model = tracker.build_tracker("pas_n1", num_items=2, n_kcs=1, cfg=cfg)
+    trace = tracker.train_pas_n1(model, batch, cfg)
+    assert len(trace) == cfg.n_epochs
+    assert trace[-1] < trace[0]
+
+
+def test_minibatched_training_is_seed_deterministic():
+    """The shuffle generator is seeded from cfg.seed, never the global torch
+    RNG: two identically-configured runs must match exactly."""
+    batch = tracker.build_slice_batch(_make_slices(9), b_true=np.zeros(2))
+    cfg = tracker.TrackerConfig(hidden_dim=8, emb_dim=4, lr=0.05, n_epochs=8, batch_size=4, seed=5)
+
+    torch.manual_seed(11)
+    model_a = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg)
+    trace_a = tracker.train_pas_n2(model_a, batch, cfg)
+
+    torch.manual_seed(11)
+    model_b = tracker.build_tracker("pas_n2", num_items=2, n_kcs=1, cfg=cfg)
+    trace_b = tracker.train_pas_n2(model_b, batch, cfg)
+
+    assert trace_a == trace_b
+    for p_a, p_b in zip(model_a.parameters(), model_b.parameters()):
+        assert torch.equal(p_a, p_b)
+
+
+# ---------------------------------------------------------------------------
 # E-P3: displacement
 # ---------------------------------------------------------------------------
 

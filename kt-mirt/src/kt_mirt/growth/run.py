@@ -249,6 +249,15 @@ class RunConfig:
     tracker_emb: int = 8
     tracker_lr: float = 0.05
     tracker_epochs: int = 15
+    # Mini-batch size for BOTH tracker trainers (tracker.py module docstring
+    # note 6). None (default) = whole-cohort training, the exact pre-existing
+    # loop, so every profile that does not set it (KDD) is byte-unchanged.
+    # Set per-profile by slurm/enumerate_units.py for EdNet-matched neural
+    # cells, whose whole-cohort PAS-N2 backward (>50 GiB) OOMs every GPU in
+    # the cluster menu (a40/l40 48 GB, a100 40 GB). Implementation-level
+    # memory concession: the frozen design fixes estimators and thresholds,
+    # not batch sizes.
+    tracker_batch_size: Optional[int] = None
     act_hidden: int = 16
     act_emb: int = 8
     act_lr: float = 0.05
@@ -604,6 +613,7 @@ def run_neural_cell(cfg: RunConfig, twin: str, model_seed: int) -> dict:
     tcfg = tracker_mod.TrackerConfig(
         hidden_dim=cfg.tracker_hidden, emb_dim=cfg.tracker_emb, lr=cfg.tracker_lr,
         n_epochs=cfg.tracker_epochs, seed=model_seed, device=cfg.device, train_encoder=True,
+        batch_size=cfg.tracker_batch_size,
     )
     train_batch1 = tracker_mod.build_learner_batch(train_learners, bank=frozen, device=cfg.device)
     held_batch1 = tracker_mod.build_learner_batch(held_learners, bank=frozen, device=cfg.device)

@@ -27,7 +27,13 @@ import time
 import traceback
 from pathlib import Path
 
-from enumerate_units import PRODUCTION_HYPERPARAMS, PROFILES, enumerate_units, is_done
+from enumerate_units import (
+    PRODUCTION_HYPERPARAMS,
+    PROFILE_HYPERPARAMS,
+    PROFILES,
+    enumerate_units,
+    is_done,
+)
 
 from kt_mirt.growth import run as run_mod
 
@@ -65,12 +71,15 @@ def run_unit_by_id(unit_id: int, output_dir: Path, device: str, force: bool,
     # generator_seeds[0] IS read (a neural cell's twin is always generated at
     # that seed, design 3.2's compute concession); its class default, [0,1],
     # already starts at 0 = GEN_SEEDS[0], so it is left unset below.
+    # Per-profile overrides layered on the shared production hyperparameters
+    # (currently only ednet_matched's tracker mini-batch size, the OOM-ruling
+    # step-2 memory concession -- see enumerate_units.PROFILE_HYPERPARAMS).
     cfg = run_mod.RunConfig(
         output_dir=output_dir,
         profile=profile,
         device=device,
         force=force,
-        **PRODUCTION_HYPERPARAMS,
+        **{**PRODUCTION_HYPERPARAMS, **PROFILE_HYPERPARAMS.get(unit.profile, {})},
     )
 
     t0 = time.time()

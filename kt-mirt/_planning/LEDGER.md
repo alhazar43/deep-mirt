@@ -488,3 +488,27 @@ Acquisitions:
 - Projections at hand-off: KDD neural complete ~1-2 h in; slice
   coverage 5-7 h; full reachable scope (52/64 units) by midday;
   EdNet's 12 units follow the OOM ruling.
+
+## 2026-07-19 ~09:30 Windows-update reboot: damage and recovery
+
+- Local machine rebooted 02:41 (Windows update): both local workers,
+  the watchdog, and the EdNet-resolution agent's process died. The
+  cluster never blinked: autopilot ran ~6 h unattended, 8 CPU chains
+  alive, KDD neural grid COMPLETE (12/12 cells), one EdNet neural
+  cell complete.
+- The dead agent's work survived and validates: it went to step 2
+  (mini-batching through the tracker path; a100 probe job got
+  cancelled unrun), synced the change to the cluster (trees
+  byte-identical), and the completed EdNet syn_ng cell is production
+  proof. Local validation post-reboot: 54/54 on the modified test
+  files; full suite re-running in background. Batching committed as
+  the sanctioned implementation-level change (KDD path unchanged by
+  default-None batch_size).
+- Recovery executed: autopilot restarted (GPU track now feeds the
+  remaining 11 EdNet units), both local workers relaunched on their
+  original partitions, results pulled home, watchdog v2 armed (adds
+  autopilot-process check; failure alerts only on count increases).
+- Damage total: a few hours of local throughput and a delayed EdNet
+  unmask. The campaign spine never stopped. Diagnostic scratch
+  (_diag_*.py) removed after serving; the regression test carries
+  the evidence.

@@ -123,6 +123,14 @@ def test_run_config_defaults_to_cpu(tmp_path):
     assert cfg.device == "cpu"
 
 
+def test_run_config_tracker_batch_size_defaults_to_whole_cohort(tmp_path):
+    """KDD-path invariance at the config layer: any RunConfig that does not
+    set tracker_batch_size (every profile except EdNet-matched) keeps the
+    whole-cohort training path, byte-unchanged (tracker.py note 6)."""
+    cfg = run.RunConfig(output_dir=tmp_path)
+    assert cfg.tracker_batch_size is None
+
+
 def test_run_config_rejects_unknown_device_string(tmp_path):
     with pytest.raises(ValueError):
         run.RunConfig(output_dir=tmp_path, device="tpu")

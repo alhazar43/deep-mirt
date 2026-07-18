@@ -56,6 +56,22 @@ Interpretation notes (recorded per the harness instructions):
    either tracker is E-P3 (displacement), judged only through the
    battery" (section 2.2), i.e. `battery.py` decides which reads count,
    this module only computes the quantity.
+6. **Mini-batched training (`TrackerConfig.batch_size`), an
+   IMPLEMENTATION-LEVEL memory concession.** The frozen design fixes
+   estimators and thresholds, not batch sizes. At the EdNet-matched
+   production profile (N=6000, ~25 KCs/learner) the whole-cohort
+   `train_pas_n2` backward pass allocates >50 GiB and OOMs every 44-48
+   GiB card on the cluster (the a100 pool is 40 GB, smaller still), so
+   `batch_size` mini-batches BOTH trainers over the row dimension
+   (learners for PAS-N1, slices for PAS-N2), mirroring the vendored
+   core's own `DeepIRTModel.fit(batch_size=...)` semantics: ``None``
+   (the default) or ``batch_size >= n_rows`` is the EXACT pre-existing
+   whole-cohort loop, byte-unchanged, so every KDD-profile cell trains
+   identically to before this parameter existed; a smaller value
+   shuffles rows each epoch with a generator seeded ``cfg.seed + 1``
+   (never the global torch RNG) and records the per-epoch MEAN loss in
+   the trace. Only the EdNet-profile campaign units set it
+   (`slurm/enumerate_units.py`'s per-profile overrides).
 """
 
 from __future__ import annotations
@@ -84,6 +100,9 @@ class TrackerConfig:
     seed: int = 0
     device: str = "cpu"
     train_encoder: bool = True  # False = frozen-encoder null (arm 3 / CG7 / RB2)
+    # None = whole-cohort training, the exact pre-existing loop (module
+    # docstring note 6); an int mini-batches rows per epoch (EdNet OOM fix).
+    batch_size: Optional[int] = None
 
 
 def _build_encoder(num_items: int, cfg: TrackerConfig) -> BaseSeqEncoder:
@@ -273,28 +292,65 @@ def pas_n2_loss(model: PASN2Model, batch: SliceBatch) -> torch.Tensor:
     return (per_pos * mask).sum() / mask.sum().clamp(min=1.0)
 
 
-def train_pas_n1(model: PASN1Model, batch: LearnerBatch, cfg: TrackerConfig) -> list[float]:
+def _index_learner_batch(batch: LearnerBatch, idx: torch.Tensor) -> LearnerBatch:
+    return LearnerBatch(
+        item_ids=batch.item_ids[idx], responses=batch.responses[idx], kc_ids=batch.kc_ids[idx],
+        kc_mask=batch.kc_mask[idx], seq_mask=batch.seq_mask[idx], b_j=batch.b_j[idx],
+    )
+
+
+def _index_slice_batch(batch: SliceBatch, idx: torch.Tensor) -> SliceBatch:
+    return SliceBatch(
+        item_ids=batch.item_ids[idx], responses=batch.responses[idx],
+        mask=batch.mask[idx], b_j=batch.b_j[idx],
+    )
+
+
+def _train(model: nn.Module, batch, cfg: TrackerConfig, loss_fn, index_fn) -> list[float]:
+    """Shared training loop for both trackers. ``cfg.batch_size=None`` (or
+    ``>= n_rows``) is the exact pre-existing whole-cohort loop; a smaller
+    value mini-batches over rows (module docstring note 6)."""
     optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=cfg.lr)
-    trace = []
+    trace: list[float] = []
+    n_rows = int(batch.item_ids.size(0))
+    full_batch = cfg.batch_size is None or cfg.batch_size >= n_rows
+
+    if full_batch:
+        for _ in range(cfg.n_epochs):
+            optimizer.zero_grad()
+            loss = loss_fn(model, batch)
+            loss.backward()
+            optimizer.step()
+            trace.append(float(loss.item()))
+        return trace
+
+    # Seeded shuffle generator, separate from the global torch RNG so the
+    # whole-cohort path (and everything downstream of it) is numerically
+    # unaffected by this branch existing (mirrors core DeepIRTModel.fit).
+    rng = torch.Generator(device="cpu")
+    rng.manual_seed(cfg.seed + 1)
     for _ in range(cfg.n_epochs):
-        optimizer.zero_grad()
-        loss = pas_n1_loss(model, batch)
-        loss.backward()
-        optimizer.step()
-        trace.append(float(loss.item()))
+        perm = torch.randperm(n_rows, generator=rng)
+        epoch_loss = 0.0
+        n_batches = 0
+        for start in range(0, n_rows, cfg.batch_size):
+            idx = perm[start : start + cfg.batch_size].to(batch.item_ids.device)
+            optimizer.zero_grad()
+            loss = loss_fn(model, index_fn(batch, idx))
+            loss.backward()
+            optimizer.step()
+            epoch_loss += float(loss.item())
+            n_batches += 1
+        trace.append(epoch_loss / n_batches)
     return trace
+
+
+def train_pas_n1(model: PASN1Model, batch: LearnerBatch, cfg: TrackerConfig) -> list[float]:
+    return _train(model, batch, cfg, pas_n1_loss, _index_learner_batch)
 
 
 def train_pas_n2(model: PASN2Model, batch: SliceBatch, cfg: TrackerConfig) -> list[float]:
-    optimizer = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=cfg.lr)
-    trace = []
-    for _ in range(cfg.n_epochs):
-        optimizer.zero_grad()
-        loss = pas_n2_loss(model, batch)
-        loss.backward()
-        optimizer.step()
-        trace.append(float(loss.item()))
-    return trace
+    return _train(model, batch, cfg, pas_n2_loss, _index_slice_batch)
 
 
 @torch.no_grad()
