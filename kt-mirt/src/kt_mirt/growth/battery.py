@@ -165,16 +165,28 @@ def run_permutation_battery(
     seed: int = 0,
     q: float = 0.05,
     device: str = "cpu",
+    use_batched: bool = True,
+    replicate_chunk_size: Optional[int] = None,
 ) -> PermutationBatteryResult:
     """Arm 1: the primary reference null for PAS-C/PAS-G (and MIX-L's
     shared existence gate). See module docstring note 1 for the shared-
-    run implementation of the two pre-registered replicate counts."""
+    run implementation of the two pre-registered replicate counts.
+
+    ``use_batched`` (default True) selects `gate.permutation_null`'s
+    replicate-batched Newton path (the A4 perf-surgery fix -- see
+    `gate.permutation_null_batched`'s docstring); ``use_batched=False``
+    reaches the original per-replicate loop (`gate.permutation_null_looped`),
+    kept as the equivalence-gate reference and as an explicit fallback.
+    """
     rows = bank_mod.build_calibration_rows(learners)
     slices = build_slices(rows)
     observed = gate_mod.compute_gate_result(slices, bank, n_kcs, device=device)
 
     n_rep = max(n_replicates_bed, n_replicates_kc)
-    null = gate_mod.permutation_null(learners, n_learners, n_kcs, bank, n_rep, seed, device=device)
+    null = gate_mod.permutation_null(
+        learners, n_learners, n_kcs, bank, n_rep, seed, device=device,
+        use_batched=use_batched, replicate_chunk_size=replicate_chunk_size,
+    )
     bed_null = null["bed"][:n_replicates_bed]
     kc_null = null["kc"][:n_replicates_kc]
 

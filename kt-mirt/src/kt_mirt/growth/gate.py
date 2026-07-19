@@ -227,6 +227,60 @@ def held_out_nll(
     return (per_pos * mask.to(per_pos.dtype)).sum(dim=-1)
 
 
+def fit_batched_replicates(
+    slices_by_replicate: Sequence[Sequence[Slice]],
+    bank: Optional[FrozenBank],
+    design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    P: int,
+    time_filter: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+    prior_var: float = PRIOR_VAR,
+    device: str = "cpu",
+) -> torch.Tensor:
+    """The A4 perf-surgery fix's M0 primitive: batches `fit_batched`'s
+    per-slice-independent model across BOTH the slice axis (as
+    `fit_batched` already does) AND the permutation-replicate axis, in
+    ONE Newton call (batch = B * S), instead of one `fit_batched` call
+    per replicate repeated B times in a Python loop.
+
+    ``slices_by_replicate[b]`` must list the SAME S slices, in the SAME
+    key order, for every replicate ``b`` -- callers build this from one
+    canonical key list, since slice membership and per-slice length T are
+    permutation-invariant (`slices.permute_learner_order` only reorders
+    each learner's own rows; see `permutation_null_batched`). Returns
+    ``(B, S, P)`` fitted params.
+    """
+    B = len(slices_by_replicate)
+    S = len(slices_by_replicate[0]) if B else 0
+    if B == 0 or S == 0:
+        return torch.zeros(B, S, P)
+
+    ys, masks, logits, designs = [], [], [], []
+    for b in range(B):
+        y, mask, logit_no_theta, design = _pad_design(slices_by_replicate[b], bank, design_fn, P, time_filter, device)
+        ys.append(y)
+        masks.append(mask)
+        logits.append(logit_no_theta)
+        designs.append(design)
+    T_max = max(y.shape[1] for y in ys)
+    if any(y.shape[1] != T_max for y in ys):
+        # Defensive only: T is permutation-invariant in this design, so
+        # every replicate's T_max should already match.
+        ys = [torch.nn.functional.pad(y, (0, T_max - y.shape[1])) for y in ys]
+        masks = [torch.nn.functional.pad(m, (0, T_max - m.shape[1])) for m in masks]
+        logits = [torch.nn.functional.pad(l, (0, T_max - l.shape[1])) for l in logits]
+        designs = [torch.nn.functional.pad(d, (0, 0, 0, T_max - d.shape[1])) for d in designs]
+
+    y_all = torch.stack(ys, dim=0).reshape(B * S, T_max)
+    mask_all = torch.stack(masks, dim=0).reshape(B * S, T_max)
+    logit_all = torch.stack(logits, dim=0).reshape(B * S, T_max)
+    design_all = torch.stack(designs, dim=0).reshape(B * S, T_max, P)
+    x0 = torch.zeros(B * S, P, device=device)
+    result = penalized_bounded_newton(
+        binary_logit_nll, x0, data_args=(y_all, mask_all, logit_all, design_all), prior_var=prior_var
+    )
+    return result.params.reshape(B, S, P)
+
+
 def fit_m0(slices: Sequence[Slice], bank: Optional[FrozenBank], time_filter=None, device="cpu") -> SliceFit:
     return fit_batched(slices, bank, _m0_design, P=1, time_filter=time_filter, device=device)
 
@@ -242,6 +296,58 @@ def fit_m1b_slice(slices: Sequence[Slice], bank: Optional[FrozenBank], time_filt
 # ---------------------------------------------------------------------------
 # KC-pooled joint fits (M1a-pooled, M1b-pooled): one Newton call per KC
 # ---------------------------------------------------------------------------
+
+
+def _build_kc_joint_arrays(
+    kc_slices: Sequence[Slice],
+    bank: Optional[FrozenBank],
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    shared_dim: int,
+    time_filter: Optional[Callable[[np.ndarray], np.ndarray]],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Assembles one KC's joint (per-slice one-hot theta + shared block)
+    design as flat ``(L,)``/``(L, P)`` numpy arrays (``P = k +
+    shared_dim``, ``k = len(kc_slices)``, ``L`` the number of valid,
+    time-filtered positions across all ``k`` slices) -- pure data
+    assembly, no fitting. Factored out of `fit_kc_joint` (unchanged
+    arithmetic, a pure refactor) so the identical construction is shared
+    by the S=1 per-replicate call AND `fit_kc_joint_batched_replicates`'s
+    S=B call: the only thing that differs between the looped and batched
+    paths is how many of these per-replicate arrays go into one Newton
+    call, never how one replicate's own array is built.
+    """
+    k = len(kc_slices)
+    slice_idx_parts, y_parts, mask_parts, logit_parts, shared_parts = [], [], [], [], []
+    for local_idx, sl in enumerate(kc_slices):
+        t = sl.T
+        if t == 0:
+            continue
+        valid = _validity_mask(sl, bank)
+        if time_filter is not None:
+            valid = valid & time_filter(sl.opportunity)
+        slice_idx_parts.append(np.full(t, local_idx, dtype=np.int64))
+        y_parts.append(sl.response.astype(np.float32))
+        mask_parts.append(valid)
+        b = bank.difficulty(sl.item_id) if bank is not None else np.zeros(t)
+        logit_parts.append(-b)
+        shared_parts.append(shared_design_fn(sl.opportunity, sl.block_id))
+    if not slice_idx_parts:
+        return (
+            np.zeros(0, dtype=np.float32),
+            np.zeros(0, dtype=bool),
+            np.zeros(0, dtype=np.float32),
+            np.zeros((0, k + shared_dim), dtype=np.float32),
+        )
+    slice_idx = np.concatenate(slice_idx_parts)
+    y = np.concatenate(y_parts)
+    mask = np.concatenate(mask_parts)
+    logit_no_theta = np.concatenate(logit_parts)
+    shared_cols = np.concatenate(shared_parts, axis=0)
+    L = len(y)
+    onehot = np.zeros((L, k), dtype=np.float32)
+    onehot[np.arange(L), slice_idx] = 1.0
+    design = np.concatenate([onehot, shared_cols.astype(np.float32)], axis=1)
+    return y, mask, logit_no_theta, design
 
 
 def fit_kc_joint(
@@ -266,31 +372,11 @@ def fit_kc_joint(
     k = len(kc_slices)
     if k == 0:
         return np.zeros(0), np.zeros(shared_dim)
-    slice_idx_parts, y_parts, mask_parts, logit_parts, shared_parts = [], [], [], [], []
-    for local_idx, sl in enumerate(kc_slices):
-        t = sl.T
-        if t == 0:
-            continue
-        valid = _validity_mask(sl, bank)
-        if time_filter is not None:
-            valid = valid & time_filter(sl.opportunity)
-        slice_idx_parts.append(np.full(t, local_idx, dtype=np.int64))
-        y_parts.append(sl.response.astype(np.float32))
-        mask_parts.append(valid)
-        b = bank.difficulty(sl.item_id) if bank is not None else np.zeros(t)
-        logit_parts.append(-b)
-        shared_parts.append(shared_design_fn(sl.opportunity, sl.block_id))
-    if not slice_idx_parts:
+    y, mask, logit_no_theta, design = _build_kc_joint_arrays(
+        kc_slices, bank, shared_design_fn, shared_dim, time_filter
+    )
+    if len(y) == 0:
         return np.zeros(k), np.zeros(shared_dim)
-    slice_idx = np.concatenate(slice_idx_parts)
-    y = np.concatenate(y_parts)
-    mask = np.concatenate(mask_parts)
-    logit_no_theta = np.concatenate(logit_parts)
-    shared_cols = np.concatenate(shared_parts, axis=0)
-    L = len(y)
-    onehot = np.zeros((L, k), dtype=np.float32)
-    onehot[np.arange(L), slice_idx] = 1.0
-    design = np.concatenate([onehot, shared_cols.astype(np.float32)], axis=1)
 
     P = k + shared_dim
     y_t = torch.as_tensor(y, dtype=torch.float32, device=device).unsqueeze(0)
@@ -303,6 +389,76 @@ def fit_kc_joint(
     )
     params = result.params[0].cpu().numpy()
     return params[:k], params[k:]
+
+
+def fit_kc_joint_batched_replicates(
+    kc_slices_by_replicate: Sequence[Sequence[Slice]],
+    bank: Optional[FrozenBank],
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    shared_dim: int,
+    time_filter: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+    prior_var: float = PRIOR_VAR,
+    device: str = "cpu",
+) -> tuple[np.ndarray, np.ndarray]:
+    """The A4 perf-surgery fix's core primitive: fits the SAME KC's pooled
+    model (M1a-pooled or M1b-pooled) across ``B`` permutation replicates
+    in ONE Newton call (batch = B) instead of `fit_kc_joint`'s S=1-per-
+    replicate call repeated B times in a Python loop (`newton.py`'s
+    module docstring notes the dominant cost is eager `torch.func`
+    dispatch overhead PER CALL, not per batch element, so widening the
+    batch to include the replicate axis removes ~B-fold redundant
+    dispatch for exactly this reason).
+
+    Valid because permutation (`slices.permute_learner_order`) only
+    reorders each learner's OWN rows -- every row keeps its own (learner,
+    KC) tag and item id, so which (learner, KC) slices exist is
+    permutation-invariant. Hence every replicate's ``kc_slices_by_replicate[b]``
+    has the SAME slice count ``k`` (just different response/order
+    content within each slice), so the design width ``P = k +
+    shared_dim`` is identical across replicates -- only the number of
+    valid (time-filtered) positions ``L`` can differ slightly per
+    replicate (different items land on odd/even opportunity parity each
+    time), so replicates are padded to a shared ``L_max`` with a mask,
+    exactly `_pad_design`'s existing padding convention elsewhere in this
+    module. Returns ``(theta_ic (B, k), shared (B, shared_dim))``.
+    """
+    B = len(kc_slices_by_replicate)
+    k = len(kc_slices_by_replicate[0]) if B else 0
+    if B == 0 or k == 0:
+        return np.zeros((B, k)), np.zeros((B, shared_dim))
+
+    arrays = [
+        _build_kc_joint_arrays(kc_slices_by_replicate[b], bank, shared_design_fn, shared_dim, time_filter)
+        for b in range(B)
+    ]
+    P = k + shared_dim
+    L_max = max((a[0].shape[0] for a in arrays), default=0)
+    if L_max == 0:
+        return np.zeros((B, k)), np.zeros((B, shared_dim))
+
+    y = np.zeros((B, L_max), dtype=np.float32)
+    mask = np.zeros((B, L_max), dtype=bool)
+    logit_no_theta = np.zeros((B, L_max), dtype=np.float32)
+    design = np.zeros((B, L_max, P), dtype=np.float32)
+    for b, (y_b, mask_b, logit_b, design_b) in enumerate(arrays):
+        L_b = y_b.shape[0]
+        if L_b == 0:
+            continue
+        y[b, :L_b] = y_b
+        mask[b, :L_b] = mask_b
+        logit_no_theta[b, :L_b] = logit_b
+        design[b, :L_b] = design_b
+
+    y_t = torch.as_tensor(y, dtype=torch.float32, device=device)
+    mask_t = torch.as_tensor(mask, dtype=torch.bool, device=device)
+    logit_t = torch.as_tensor(logit_no_theta, dtype=torch.float32, device=device)
+    design_t = torch.as_tensor(design, dtype=torch.float32, device=device)
+    x0 = torch.zeros(B, P, device=device)
+    result = penalized_bounded_newton(
+        binary_logit_nll, x0, data_args=(y_t, mask_t, logit_t, design_t), prior_var=prior_var
+    )
+    params = result.params.cpu().numpy()
+    return params[:, :k], params[:, k:]
 
 
 def held_out_nll_kc_joint(
@@ -332,6 +488,36 @@ def held_out_nll_kc_joint(
         eps = 1e-12
         nll = -(y * np.log(p + eps) + (1 - y) * np.log(1 - p + eps))
         out[i] = float(nll[valid].sum())
+    return out
+
+
+def held_out_total_nll_kc_joint_batched_replicates(
+    kc_slices_by_replicate: Sequence[Sequence[Slice]],
+    bank: Optional[FrozenBank],
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    theta: np.ndarray,
+    shared: np.ndarray,
+    time_filter: Callable[[np.ndarray], np.ndarray],
+) -> np.ndarray:
+    """Per-replicate TOTAL held-out NLL of a KC-pooled fit (summed over
+    the KC's own slices), at FIXED per-replicate parameters ``theta`` (B,
+    k) / ``shared`` (B, shared_dim) from `fit_kc_joint_batched_replicates`.
+    Only the scalar-per-replicate total is needed by the permutation
+    null's `kc_stat`/`bed_stat` (never the per-slice breakdown), so this
+    reuses `held_out_nll_kc_joint` UNCHANGED, once per replicate, and
+    sums: that function is a plain, already-vectorized-per-slice numpy
+    evaluation, not a Newton/autodiff call, so looping it B times carries
+    none of the eager-`torch.func` dispatch cost this module's batching
+    targets, while guaranteeing bit-for-bit the same held-out formula as
+    the reference (looped) path.
+    """
+    B = len(kc_slices_by_replicate)
+    out = np.zeros(B)
+    for b in range(B):
+        per_slice = held_out_nll_kc_joint(
+            kc_slices_by_replicate[b], bank, shared_design_fn, theta[b], shared[b], time_filter
+        )
+        out[b] = float(per_slice.sum())
     return out
 
 
@@ -376,8 +562,8 @@ def compute_gate_result(
         m1b_s = fit_batched(d2_slices, bank, _m1b_slice_design, P=N_BLOCKS, time_filter=_time_filter_odd, device=device)
         m1b_s_nll = held_out_nll(d2_slices, bank, _m1b_slice_design, m1b_s.params, _time_filter_even, device=device)
         m0_d2_nll = np.array([m0_by_key[k] for k in slice_keys])
-        stat_a = m0_d2_nll - m1a_s_nll.numpy()
-        stat_b = m0_d2_nll - m1b_s_nll.numpy()
+        stat_a = m0_d2_nll - m1a_s_nll.cpu().numpy()
+        stat_b = m0_d2_nll - m1b_s_nll.cpu().numpy()
         slice_stat = np.maximum(stat_a, stat_b)
     else:
         slice_stat = np.zeros(0)
@@ -438,7 +624,7 @@ def gate_statistic_on_learners(
     return compute_gate_result(slices, bank, n_kcs, device=device)
 
 
-def permutation_null(
+def permutation_null_looped(
     learners: Sequence,
     n_learners: int,
     n_kcs: int,
@@ -447,14 +633,18 @@ def permutation_null(
     seed: int,
     device: str = "cpu",
 ) -> dict[str, np.ndarray]:
-    """Battery arm 1's hook: ``n_replicates`` permutation draws of the
-    bed-level and per-KC gate statistic (design: "permute each learner's
-    full interaction order, then rebuild slices and opportunity indices").
-    Returns the null distributions; p-value/BH-FDR assembly is a separate
-    step (`gate_pvalue_bed`, `bh_fdr`) so callers can mix a small-B
-    exploratory null (this module's own tests) with the pre-registered
-    B=199/999 battery run (`battery.py`, a later stage) through the same
-    interface.
+    """Battery arm 1's hook, REFERENCE implementation: ``n_replicates``
+    permutation draws of the bed-level and per-KC gate statistic (design:
+    "permute each learner's full interaction order, then rebuild slices
+    and opportunity indices"), one full `compute_gate_result`-equivalent
+    Newton-fit pass PER REPLICATE, in a Python loop. This is the
+    numerically-authoritative path (every Newton call is a fresh S=1 or
+    S=n_slices call, exactly as `compute_gate_result` itself does) kept
+    as the A4 perf-surgery equivalence-gate reference and as an explicit
+    fallback (`permutation_null(..., use_batched=False)`); `newton.py`'s
+    module docstring records why this loop's per-replicate eager
+    `torch.func` dispatch is the dominant cost `permutation_null_batched`
+    removes.
     """
     rng = np.random.default_rng(seed)
     bed_null = np.zeros(n_replicates)
@@ -465,6 +655,200 @@ def permutation_null(
         bed_null[r] = result.bed_stat
         kc_null[r] = result.kc_stat
     return {"bed": bed_null, "kc": kc_null}
+
+
+def _estimate_replicate_chunk_size(
+    n_slices_bed: int,
+    t_max_bed: int,
+    device: str,
+    target_bytes: Optional[int] = None,
+    max_chunk: int = 200,
+) -> int:
+    """Memory-aware default chunk size for `permutation_null_batched`'s
+    outer replicate loop. M0's ``(chunk, S_bed, T_max)`` data tensors
+    dominate per-chunk memory (the KC-pooled fits are far smaller per
+    replicate, since one KC's own slice count is a small fraction of the
+    bed), so the estimate is based on M0 alone: ~4 float32 data tensors
+    per (replicate, slice, position) triple, times a conservative x6
+    safety margin for the Newton solver's own gradient/Hessian
+    intermediates during the backward pass. On CUDA, targets a quarter of
+    currently-FREE device memory (leaving headroom for a co-resident
+    process, e.g. a running campaign unit sharing the same GPU); on CPU,
+    a fixed conservative default. Never exceeds ``max_chunk`` (the
+    100-200 range the perf-surgery task itself suggests) regardless of
+    how much memory is technically available, since dispatch-count
+    reduction has strongly diminishing returns well before that size.
+    """
+    if target_bytes is None:
+        if device.startswith("cuda") and torch.cuda.is_available():
+            free_bytes, _ = torch.cuda.mem_get_info()
+            target_bytes = int(0.25 * free_bytes)
+        else:
+            target_bytes = 1_500_000_000  # ~1.5 GB, conservative default for CPU RAM
+    bytes_per_replicate = max(1, n_slices_bed) * max(1, t_max_bed) * 4 * 6
+    chunk = max(1, target_bytes // bytes_per_replicate)
+    return int(min(chunk, max_chunk))
+
+
+def permutation_null_batched(
+    learners: Sequence,
+    n_learners: int,
+    n_kcs: int,
+    bank: Optional[FrozenBank],
+    n_replicates: int,
+    seed: int,
+    device: str = "cpu",
+    replicate_chunk_size: Optional[int] = None,
+) -> dict[str, np.ndarray]:
+    """Replicate-batched equivalent of `permutation_null_looped`: the SAME
+    permutation draws, in the SAME order (identical RNG consumption --
+    ``rng = np.random.default_rng(seed)`` then ``permute_learner_order``
+    called ``n_replicates`` times, exactly as the looped path does), and
+    the SAME ``bed``/``kc`` null distributions to float tolerance -- but
+    fits M0 and every KC-pooled model (M1a-pooled, M1b-pooled) in ONE
+    Newton call per chunk of replicates (batch = chunk_size * n_slices
+    for M0; batch = chunk_size for each KC's pooled fit) instead of one
+    call per replicate. This is the A4 perf-surgery fix `newton.py`'s
+    module docstring flags: `battery.run_permutation_battery`'s B=999/199
+    replicate counts otherwise re-pay `penalized_bounded_newton`'s eager
+    `torch.func` nested-vmap dispatch overhead on every one of B
+    replicates, dominated in call COUNT by the per-KC pooled fits (2
+    Newton calls per KC per replicate).
+
+    Only ``bed_stat``/``kc_stat`` are computed here (matching what
+    `permutation_null` itself has always returned) -- NOT the per-slice
+    M1a-slice/M1b-slice models, since those feed `GateResult.slice_stat`
+    alone, which no caller of the permutation null
+    (`battery.run_permutation_battery`, `run.py`'s campaign cells) reads
+    off the null distributions.
+
+    Chunked over the replicate axis (`replicate_chunk_size`, memory-aware
+    default via `_estimate_replicate_chunk_size`) to bound GPU/CPU memory
+    at real-bed scale (e.g. KDD_MATCHED: 515 KCs, ~tens of thousands of
+    slices per bed).
+    """
+    rng = np.random.default_rng(seed)
+    perm_learners_list = [permute_learner_order(learners, rng) for _ in range(n_replicates)]
+
+    # Slice membership, per-slice length T, and hence D2+/stratum status
+    # are permutation-invariant (`permute_learner_order` only reorders
+    # each learner's OWN rows; every row keeps its own (learner, KC) tags
+    # and item id, so which (learner, KC) slices exist, and how long each
+    # one is, cannot change) -- computed ONCE from the unpermuted learners.
+    base_rows = build_calibration_rows(learners)
+    base_slices = build_slices(base_rows)
+    all_keys = list(base_slices.keys())
+    t_max_bed = max((sl.T for sl in base_slices.values()), default=0)
+    by_kc_keys: list[list[tuple[int, int]]] = [[] for _ in range(n_kcs)]
+    for key, sl in base_slices.items():
+        by_kc_keys[sl.kc].append(key)
+
+    bed_null = np.zeros(n_replicates)
+    kc_null = np.zeros((n_replicates, n_kcs))
+    if not all_keys:
+        return {"bed": bed_null, "kc": kc_null}
+
+    if replicate_chunk_size is None:
+        replicate_chunk_size = _estimate_replicate_chunk_size(len(all_keys), t_max_bed, device)
+
+    key_to_col = {k: i for i, k in enumerate(all_keys)}
+
+    for chunk_start in range(0, n_replicates, replicate_chunk_size):
+        chunk_end = min(chunk_start + replicate_chunk_size, n_replicates)
+        chunk_learners = perm_learners_list[chunk_start:chunk_end]
+        chunk_slices = []
+        for lg in chunk_learners:
+            rows = build_calibration_rows(lg)
+            chunk_slices.append(build_slices(rows))
+        for sd in chunk_slices:
+            if set(sd.keys()) != set(all_keys):
+                raise ValueError(
+                    "permutation_null_batched: a permuted replicate's slice "
+                    "membership does not match the unpermuted bed; the "
+                    "batched path's permutation-invariance assumption is violated."
+                )
+
+        Bc = len(chunk_learners)
+        slices_by_replicate_all = [[sd[k] for k in all_keys] for sd in chunk_slices]
+        m0_params = fit_batched_replicates(
+            slices_by_replicate_all, bank, _m0_design, P=1, time_filter=_time_filter_odd, device=device
+        )
+        m0_nll_even = np.stack(
+            [
+                held_out_nll(
+                    slices_by_replicate_all[b], bank, _m0_design, m0_params[b], _time_filter_even, device=device
+                )
+                .cpu()
+                .numpy()
+                for b in range(Bc)
+            ]
+        )  # (Bc, S)
+
+        total_m1a = np.zeros(Bc)
+        total_m1b = np.zeros(Bc)
+        for c in range(n_kcs):
+            keys_c = by_kc_keys[c]
+            if not keys_c:
+                continue
+            kc_slices_by_replicate = [[sd[k] for k in keys_c] for sd in chunk_slices]
+            cols = [key_to_col[k] for k in keys_c]
+            m0_kc_total = m0_nll_even[:, cols].sum(axis=1)  # (Bc,)
+
+            theta_a, beta_c = fit_kc_joint_batched_replicates(
+                kc_slices_by_replicate, bank, _m1a_shared_design, 1, time_filter=_time_filter_odd, device=device
+            )
+            nll_a_total = held_out_total_nll_kc_joint_batched_replicates(
+                kc_slices_by_replicate, bank, _m1a_shared_design, theta_a, beta_c, _time_filter_even
+            )
+            theta_b, u_c = fit_kc_joint_batched_replicates(
+                kc_slices_by_replicate, bank, _m1b_shared_design, N_BLOCKS, time_filter=_time_filter_odd, device=device
+            )
+            nll_b_total = held_out_total_nll_kc_joint_batched_replicates(
+                kc_slices_by_replicate, bank, _m1b_shared_design, theta_b, u_c, _time_filter_even
+            )
+
+            stat_kc_a = m0_kc_total - nll_a_total
+            stat_kc_b = m0_kc_total - nll_b_total
+            total_m1a += stat_kc_a
+            total_m1b += stat_kc_b
+            kc_null[chunk_start:chunk_end, c] = np.maximum(stat_kc_a, stat_kc_b)
+
+        bed_null[chunk_start:chunk_end] = np.maximum(total_m1a, total_m1b)
+
+    return {"bed": bed_null, "kc": kc_null}
+
+
+def permutation_null(
+    learners: Sequence,
+    n_learners: int,
+    n_kcs: int,
+    bank: Optional[FrozenBank],
+    n_replicates: int,
+    seed: int,
+    device: str = "cpu",
+    use_batched: bool = True,
+    replicate_chunk_size: Optional[int] = None,
+) -> dict[str, np.ndarray]:
+    """Battery arm 1's hook: ``n_replicates`` permutation draws of the
+    bed-level and per-KC gate statistic (design: "permute each learner's
+    full interaction order, then rebuild slices and opportunity indices").
+    Returns the null distributions; p-value/BH-FDR assembly is a separate
+    step (`gate_pvalue_bed`, `bh_fdr`) so callers can mix a small-B
+    exploratory null (this module's own tests) with the pre-registered
+    B=199/999 battery run (`battery.py`, a later stage) through the same
+    interface.
+
+    Dispatches to the replicate-batched path (`permutation_null_batched`,
+    the A4 perf-surgery fix) by default; ``use_batched=False`` reaches the
+    original per-replicate loop (`permutation_null_looped`), kept as the
+    equivalence-gate reference and as an explicit fallback.
+    """
+    if use_batched:
+        return permutation_null_batched(
+            learners, n_learners, n_kcs, bank, n_replicates, seed,
+            device=device, replicate_chunk_size=replicate_chunk_size,
+        )
+    return permutation_null_looped(learners, n_learners, n_kcs, bank, n_replicates, seed, device=device)
 
 
 def empirical_pvalue(observed: float, null: np.ndarray) -> float:
@@ -530,16 +914,21 @@ __all__ = [
     "PRIOR_VAR",
     "SliceFit",
     "fit_batched",
+    "fit_batched_replicates",
     "held_out_nll",
     "fit_m0",
     "fit_m1a_slice",
     "fit_m1b_slice",
     "fit_kc_joint",
+    "fit_kc_joint_batched_replicates",
     "held_out_nll_kc_joint",
+    "held_out_total_nll_kc_joint_batched_replicates",
     "GateResult",
     "compute_gate_result",
     "gate_statistic_on_learners",
     "permutation_null",
+    "permutation_null_looped",
+    "permutation_null_batched",
     "empirical_pvalue",
     "bh_fdr",
     "by_correction",
