@@ -581,3 +581,82 @@ Acquisitions:
 - Consequence: the KDD real-bed pilot can start the moment synthetic
   certification licenses it -- no build gap between verdict and
   real-data work.
+
+## 2026-07-19 ~15:40 Slice-chain timeout crisis; neural pool COMPLETE
+
+- NEURAL POOL DONE: 24/24 cells (12 KDD + 12 EdNet), zero failures.
+  The local 4060 cleared the entire EdNet backlog on the batched
+  path and exited cleanly; local GPU idle again.
+- CRISIS: slice units exceed the 240-min chain walltime -- the
+  previous CPU generation died 4x TIMEOUT at 04:00 with zero banked
+  work, the current 8 will follow, and the autopilot would loop
+  forever. Root cause: the timing calibration EXTRAPOLATED (its own
+  probe hit a 2-h cap; "2h + margin" was a guess) -- the local
+  ground-truth unit is 9+ h at 6 threads and still running. B=999
+  is frozen; the fix is scheduling only. Repair agent dispatched:
+  measure live core/RSS usage, pack concurrent units per chain if
+  thread-starved, raise walltime to measured-safe, scancel the
+  doomed generation, restart autopilot, project the real ETA.
+- Consequence for the verdict timeline: slice-dependent gates slip
+  (ETA from the repair measurements); the NEURAL-based gates (ACT
+  CG1 family, tracker CG7-CG9) are computable NOW from the complete
+  pool -- partial verdict read next.
+
+## 2026-07-19 evening: user override -- cluster never waits on local
+
+- User correction (now standing policy, joins the runner-check rule):
+  the cluster must never idle while non-blocked work exists;
+  generous walltimes replace measured ones whenever a measurement
+  would serialize the pipeline (a finished job releases early; only
+  an undersized wall wastes). My error: pausing the cluster to wait
+  for the local GPU trial's sizing number.
+- Relaunch ordered: 6 GPU slice chains (--device cuda, -t 360,
+  ampere/lovelace pools; carries the gate.py device fix) + 2 CPU
+  insurance chains (-t 1440) = the full 8-slot budget; autopilot
+  restarted in this configuration; the local trial demoted to a
+  bonus data point. Monitoring is passive-only (trial completion
+  task, hang detector, cluster watchdog v5); ad-hoc probing ended.
+- Also this hour: unit-7 CPU worker killed by ruling (13 h sunk vs
+  ~2 h GPU redo); my kill sweep over-matched and took the first GPU
+  trial + watchdog with it (restarted both; precision rule saved to
+  memory: enumerate targets, never pattern-sweep).
+
+## 2026-07-19 night: login relaunch fallout; relaunch staged, ssh blocked
+
+- The user's login relaunch killed the repair agent (two 403 deaths
+  mid-checklist), the local GPU trial, and both monitors. Ruling:
+  the orchestrator executes the cluster relaunch DIRECTLY -- the
+  chain interface is now fully known (chain_runner.sbatch: UNIT_KIND
+  positions, UNITS_PER_TASK chains, CLI -t overrides the header).
+  Planned submission: 6 GPU slice chains, UNIT_KIND=slice,
+  UNITS_PER_TASK=7, -t 720, spread over l40/a40/a100 by free count
+  -- covers all 40 positions in one unattended generation; local
+  machine stays quiet (trial not restarted; generous walltimes made
+  its sizing number moot).
+- BLOCKED at the last step: ssh to hpc-head1 times out while ping
+  succeeds -- the university VPN did not survive the relogin. A
+  reachability tripwire (4-min checks, single event) fires the
+  moment port 22 opens; the relaunch then executes immediately.
+- User action needed: restore the VPN connection.
+
+## 2026-07-19 ~22:20 Campaign RELAUNCHED direct; heartbeat monitoring
+
+- VPN restored; head2 host key accepted as standing fallback (alias
+  uthpc2 -- head1 gets crowded). Source synced with the gate device
+  fix (verified present cluster-side); head-node usage kept light
+  (no suite runs, import-check only) per user note.
+- Submitted DIRECTLY (no agent): jobs 540534 (ampere, tasks 0-2) +
+  540535 (lovelace, tasks 3-5), UNIT_KIND=slice, UNITS_PER_TASK=7,
+  -t 720 -- 6 GPU chains covering all 40 slice positions in one
+  generation; 5 RUNNING within 30 s (2 ampere + 3 lovelace), 1
+  pending on Resources; cuda "available True" confirmed in 4 chain
+  logs; unit 0 computing. Minimal pool separation per user
+  directive; 2 QOS slots left free.
+- Local 4060 re-enlisted BY USER for slice units: worker on mod-8
+  remainder-3 partition (--device cuda), unit 3 started.
+- Monitoring per user spec -- active periodic, not passive: 30-min
+  heartbeat emitting a status line EVERY cycle (slices done, chain
+  states, per-chain LOG GROWTH as the hung-vs-slow discriminator,
+  local worker + GPU liveness, failure count) with explicit warns on
+  static logs and GPU-idle-while-alive. This replaces both the
+  silent watchdog and ad-hoc probing.
