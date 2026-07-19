@@ -512,3 +512,72 @@ Acquisitions:
   unmask. The campaign spine never stopped. Diagnostic scratch
   (_diag_*.py) removed after serving; the regression test carries
   the evidence.
+
+## 2026-07-19 Reboot root cause corrected; updates paused (user order)
+
+- Event-log verdict: the 02:41 reboot WAS the Windows servicing
+  stack -- MoUsoCoreWorker initiated at 02:35, TrustedInstaller
+  drove two further clean kernel-API reboots by 02:41 (a deferred
+  update cashing in its restart; history shows the install date,
+  not the reboot date). NEGATIVES that matter: no BSOD, no GPU
+  driver TDR, no WHEA, no thermal/power event -- the overnight
+  4060 worker at 7947/8188 MiB did NOT destabilize the machine.
+- Windows updates paused through 2026-07-25 at the user's order
+  (registry-verified). The campaign's reboot-recovery machinery
+  remains armed regardless.
+
+## 2026-07-19 ~06:40 Local workers restored; 4060 unblocks EdNet
+
+- Full suite post-batching: 413 passed / 0 failed.
+- Worker-restart lessons (operational, for future recoveries): MSYS
+  nohup does not survive the launching shell's teardown -- detach
+  via PowerShell Start-Process on a launcher SCRIPT (inline
+  -ArgumentList quoting mangles payloads); launcher scripts must
+  activate the research conda env themselves (a bare bash.exe
+  resolves the wrong python and the enumeration pipeline dies with
+  an empty-JSON error).
+- Bottleneck fix: cluster GPU chains for the ~10 remaining EdNet
+  units are queue-blocked behind 2.5-4 h CPU chains at the 8-job
+  cap. Pulled results home (local store synced at 13), widened the
+  local GPU worker to the full neural id space (mod 1) -- skip-done
+  makes cluster/local overlap wasteful-not-wrong, and the 4060 now
+  eats EdNet units (batched path) while cluster GPU chains wait.
+  Verified: unit 12 skipped as already_done, unit 13 training.
+- State: cluster 8 chains + autopilot + pending top-up; local CPU
+  worker on slice units, local GPU worker on EdNet neural; watchdog
+  v2 armed; updates paused through 07-25.
+
+## 2026-07-19 ~11:00 Watchdog alert triaged: stale markers, cleared
+
+- The failed-count rise (8->12) was STALE: units 20-23 OOM'd in the
+  window between the ACT swap and the later batching sync
+  (pre-batching whole-cohort attempts), pulled home afterward. Post
+  -sync the cluster has not re-attempted EdNet (GPU chain pending
+  behind CPU chains at the QOS cap) while the local 4060 grinds
+  EdNet units on the batched path (96% util inside 8 GB).
+- Cleared ALL stale EdNet failure markers on both stores (12 files)
+  so counters stay meaningful and nothing can read them as
+  terminal. Real-bed bridge workflow running in parallel (build ->
+  hostile review -> fix; three agents, token-lean).
+
+## 2026-07-19 Real-bed bridge BUILT (workflow: build -> hostile review -> fix)
+
+- New modules: qmatrix.py (expansion policy, ragged Q-matrix,
+  pure-anchor stats, circularity guard) and kc_data.py (chunked KDD
+  loader producing LearnerLogs + 3-level hierarchy), plus additive
+  run.py wiring (--profile kdd_real through the SAME measurement
+  layer; synthetic path proven byte-equivalent by result hash).
+- The hostile review earned its keep: the loader-vs-triage agreement
+  table's EXACT matches on two fields were a COINCIDENCE (different
+  row-universe scoping that happened not to overlap on this file) --
+  fixed to triage's exact scope with a fixture exercising the
+  overlap case. Also fixed: silent NaN row-number casting, missing
+  student-id/timestamp validation (a missing id could have minted a
+  bogus learner). Honest caveat retained in the notes: most of the
+  agreement table is parser self-consistency, not ground truth; the
+  independent checks are the learner count and the anchor stats.
+- pandas added to runtime deps (the packaging gap the review
+  flagged). Bridge tests 36/36; suite collects 454.
+- Consequence: the KDD real-bed pilot can start the moment synthetic
+  certification licenses it -- no build gap between verdict and
+  real-data work.

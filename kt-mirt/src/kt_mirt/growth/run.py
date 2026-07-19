@@ -1013,6 +1013,120 @@ def render_markdown(verdict: dict) -> str:
 
 
 # =============================================================================
+# Real-bed KDD wiring (additive; feature-flagged, harness task "real-bed
+# bridge"). Nothing above this section is touched: `run_slice_cell`,
+# `run_neural_cell`, `certify_twin`, `run_campaign`, and `RunConfig` are
+# byte-for-byte unmodified, so every synthetic cell this harness already
+# produces is untouched (verified by a before/after cell-hash diff,
+# `_planning/design/realbed_bridge_notes.md`). This section wires a slice
+# cell through the SAME measurement layer `run_slice_cell` uses (bank
+# calibration, saturation, slices, PAS-G), sourced from
+# `kt_mirt.growth.kc_data`'s real-bed loader instead of a synthetic twin
+# (design section 8's R3 "KDD slice-based" step, the slice-only subset of
+# it -- the heavier RB0 tri-spec refit and the full permutation battery
+# are later stages, `scripts/a4/prep_kdd.py`, out of this build stage's
+# permitted file set). `pandas` (`kc_data.py`'s own dependency, module
+# docstring note 6 there) is imported lazily inside these functions only,
+# so importing `run.py` for synthetic-only work never pays that cost.
+# =============================================================================
+
+
+class KddRealBedLoader:
+    """A concrete `RealBedLoader` (the Protocol declared above) backed by
+    `kt_mirt.growth.kc_data.load_kdd_kc_traced`. Feature-flagged and
+    purely additive: constructing or calling this class has no effect on
+    any synthetic code path above."""
+
+    def __init__(
+        self, path, kc_model: str = "KTracedSkills", chunksize: int = 500_000, nrows: Optional[int] = None,
+    ) -> None:
+        self.path = path
+        self.kc_model = kc_model
+        self.chunksize = chunksize
+        self.nrows = nrows
+        self.last_result = None  # set by `.load()`; carries hierarchy + qmatrix
+
+    def load(self, seed: int):
+        """Satisfies `RealBedLoader.load`. ``seed`` is accepted for
+        Protocol conformance and reserved for a future seeded user-
+        subsample (as EdNet's bed-table row anticipates); the current
+        full-file KDD loader is deterministic regardless of seed."""
+        from kt_mirt.growth import kc_data
+
+        result = kc_data.load_kdd_kc_traced(
+            self.path, kc_model=self.kc_model, chunksize=self.chunksize, nrows=self.nrows,
+        )
+        self.last_result = result
+        return result.learners, result.n_learners, result.n_kcs
+
+
+def run_kdd_slice_cell(cfg: RunConfig, loader: KddRealBedLoader, seed: int) -> dict:
+    """Runs the bank calibration + saturation + slices + PAS-G measurement
+    layer on a real-bed KDD draw (the same functions `run_slice_cell` above
+    calls on synthetic twins: `bank_mod.calibrate_bank`, `saturation_stats`,
+    `build_slices`, `gate_mod.compute_gate_result`). Real beds carry no
+    generator ground truth, so the synthetic-only reads `run_slice_cell`'s
+    result dict carries (`bank_recovery`, `true_rise_per_kc`,
+    `silent_kc_mask`) have no analogue here and are simply absent; this
+    function's result dict instead reports the Q-matrix pure-anchor
+    statistics (`qmatrix.pure_anchor_stats`) the design's per-KC
+    attribution claims are gated on (section 6).
+    """
+    from kt_mirt.growth import qmatrix as qmatrix_mod
+
+    path = _cell_dir(cfg, "kdd_real") / f"slice_seed{seed}.json"
+    cached = _load_if_done(path, cfg.force)
+    if cached is not None:
+        return cached
+
+    learners, n_learners, n_kcs = loader.load(seed)
+    hierarchy = loader.last_result.item_hierarchy
+
+    rows_all = bank_mod.build_calibration_rows(learners)
+    calib, analysis = bank_mod.split_learners(n_learners, seed=derive_seed("realbed_cohort", "kdd", seed))
+    bank_cfg = bank_mod.BankModelConfig(
+        n_epochs_max=cfg.bank_epochs, lr=0.05, batch_size=4096, patience_epochs=2,
+        seed=derive_seed("realbed_bank", "kdd", seed), device=cfg.device,
+    )
+    fit = bank_mod.calibrate_bank(
+        rows_all, n_learners, n_kcs, calib, hierarchy,
+        bank_mod.KDD_HIERARCHY_SPEC, growth_mode="blockwise", config=bank_cfg,
+    )
+    frozen = bank_mod.freeze_bank(fit)
+
+    calib_set = set(int(c) for c in calib.tolist())
+    calib_learner_logs = [l for l in learners if l.learner in calib_set]
+    rows_calib = bank_mod.build_calibration_rows(calib_learner_logs)
+    sat_rate_calib, sat_unsat_calib = saturation_stats(rows_calib, n_kcs)
+
+    analysis_set = set(int(a) for a in analysis.tolist())
+    analysis_learners = [l for l in learners if l.learner in analysis_set]
+    rows_analysis = bank_mod.build_calibration_rows(analysis_learners)
+    sat_rate_analysis, sat_unsat_analysis = saturation_stats(rows_analysis, n_kcs)
+    slices_analysis = build_slices(rows_analysis)
+
+    gate_result = gate_mod.compute_gate_result(slices_analysis, frozen, n_kcs, device=cfg.device)
+
+    result = {
+        "bed": "kdd_real",
+        "seed": seed,
+        "n_learners": n_learners,
+        "n_kcs": n_kcs,
+        "n_analysis_learners": len(analysis_learners),
+        "saturation": {
+            "calib_rate": sat_rate_calib, "calib_unsaturated": sat_unsat_calib,
+            "analysis_rate": sat_rate_analysis, "analysis_unsaturated": sat_unsat_analysis,
+        },
+        "gate": {"bed_stat": gate_result.bed_stat, "kc_stat": gate_result.kc_stat},
+        "pure_anchor_stats": qmatrix_mod.pure_anchor_stats(loader.last_result.qmatrix),
+        "b_hat": fit.b_hat,
+    }
+    clean_result = json.loads(json.dumps(_jsonable(result)))
+    _write_cell(path, clean_result)
+    return clean_result
+
+
+# =============================================================================
 # CLI
 # =============================================================================
 
@@ -1020,7 +1134,12 @@ def render_markdown(verdict: dict) -> str:
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="A4 synthetic certification campaign harness")
     p.add_argument("--output-dir", default="kt-mirt/outputs/a4")
-    p.add_argument("--profile", choices=["tiny", "kdd", "ednet"], default="tiny")
+    p.add_argument("--profile", choices=["tiny", "kdd", "ednet", "kdd_real"], default="tiny")
+    p.add_argument(
+        "--kdd-path", default=None,
+        help="path to the raw KDD Algebra 2008-2009 file (required with --profile kdd_real; "
+             "feature-flagged real-bed slice cell via kt_mirt.growth.kc_data, see run_kdd_slice_cell)",
+    )
     p.add_argument("--n-kcs", type=int, default=None)
     p.add_argument("--n-learners", type=int, default=None)
     p.add_argument("--twins", nargs="+", default=list(synth_mod.TWIN_NAMES))
@@ -1045,6 +1164,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> dict:
     args = build_arg_parser().parse_args(argv)
+    if args.profile == "kdd_real":
+        # Feature-flagged real-bed branch (additive; see run_kdd_slice_cell's
+        # module-section docstring). Every other --profile value takes the
+        # untouched synthetic path below, unchanged.
+        if not args.kdd_path:
+            raise ValueError("--kdd-path is required when --profile kdd_real")
+        profile = make_profile("kdd_real", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+        cfg = RunConfig(output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device)
+        loader = KddRealBedLoader(args.kdd_path)
+        result = run_kdd_slice_cell(cfg, loader, seed=0)
+        cell_path = _cell_dir(cfg, "kdd_real") / "slice_seed0.json"
+        print(json.dumps({"cell_path": str(cell_path)}, indent=2))
+        return {"result": result, "cell_path": str(cell_path)}
+
     base = {"tiny": TINY_PROFILE, "kdd": synth_mod.KDD_MATCHED, "ednet": synth_mod.EDNET_MATCHED}[args.profile]
     if args.n_kcs is not None or args.n_learners is not None:
         profile = make_profile(

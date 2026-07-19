@@ -380,3 +380,105 @@ def test_main_runs_end_to_end_tiny(tmp_path, monkeypatch):
     result = run.main(argv)
     assert run.Path(result["json_path"]).exists()
     assert run.Path(result["md_path"]).exists()
+
+
+# ---------------------------------------------------------------------------
+# Real-bed KDD wiring (additive; feature-flagged) -- KddRealBedLoader,
+# run_kdd_slice_cell, and the --profile kdd_real CLI branch. A small
+# synthetic KDD-FORMAT fixture (never real data) exercises the same
+# measurement layer (bank calibration, saturation, slices, PAS-G) the
+# synthetic cells above use, sourced through kt_mirt.growth.kc_data
+# instead of kt_mirt.growth.synth.
+# ---------------------------------------------------------------------------
+
+_KDD_FIXTURE_HEADER = (
+    "Row\tAnon Student Id\tProblem Hierarchy\tProblem Name\tStep Name\t"
+    "Step Start Time\tCorrect First Attempt\tKC(KTracedSkills)\tOpportunity(KTracedSkills)\n"
+)
+
+
+def _write_kdd_fixture(path: Path, n_students: int = 6, n_kcs: int = 3, t_per_student: int = 14) -> None:
+    """A slightly larger synthetic KDD-format fixture than
+    `test_growth_kc_data.py`'s hand-traced one, sized to give the bank/gate
+    machinery enough rows per KC to run without numerical degeneracy."""
+    rng = np.random.default_rng(0)
+    lines = [_KDD_FIXTURE_HEADER]
+    row = 0
+    for s in range(n_students):
+        for t in range(t_per_student):
+            row += 1
+            kc = int(rng.integers(0, n_kcs))
+            cfa = int(rng.integers(0, 2))
+            minute = row % 60
+            lines.append(
+                "\t".join([
+                    str(row), f"stu{s}", "H1", f"P{kc}", f"S{s}_{t}",
+                    f"2020-01-01 {row % 24:02d}:{minute:02d}:00.0",
+                    str(cfa), f"skill{kc}", str(t + 1),
+                ]) + "\n"
+            )
+    path.write_text("".join(lines), encoding="utf-8")
+
+
+def test_kdd_real_bed_loader_satisfies_protocol(tmp_path):
+    _write_kdd_fixture(tmp_path / "kdd_fixture.txt")
+    loader = run.KddRealBedLoader(tmp_path / "kdd_fixture.txt", chunksize=50)
+    learners, n_learners, n_kcs = loader.load(seed=0)
+    assert n_learners == 6
+    assert n_kcs == 3
+    assert len(learners) == n_learners
+    assert loader.last_result is not None
+    assert loader.last_result.item_hierarchy.n_items > 0
+
+
+def test_run_kdd_slice_cell_uses_same_measurement_layer(tmp_path):
+    _write_kdd_fixture(tmp_path / "kdd_fixture.txt")
+    loader = run.KddRealBedLoader(tmp_path / "kdd_fixture.txt", chunksize=50)
+    profile = run.make_profile("kdd_real_test", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+    cfg = run.RunConfig(output_dir=tmp_path / "out", profile=profile, bank_epochs=3)
+    result = run.run_kdd_slice_cell(cfg, loader, seed=0)
+
+    assert result["bed"] == "kdd_real"
+    assert result["n_learners"] == 6
+    assert result["n_kcs"] == 3
+    assert "bank_recovery" not in result  # no generator ground truth on a real bed
+    assert "true_rise_per_kc" not in result
+    assert len(result["gate"]["kc_stat"]) == 3
+    assert len(result["b_hat"]) == loader.last_result.item_hierarchy.n_items
+    assert "frac_kc_with_ge_min_pure_items" in result["pure_anchor_stats"]
+
+    cell_path = tmp_path / "out" / "kdd_real_test" / "kdd_real" / "slice_seed0.json"
+    assert cell_path.exists()
+
+
+def test_run_kdd_slice_cell_is_idempotent(tmp_path):
+    _write_kdd_fixture(tmp_path / "kdd_fixture.txt")
+    loader = run.KddRealBedLoader(tmp_path / "kdd_fixture.txt", chunksize=50)
+    profile = run.make_profile("kdd_real_idem", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+    cfg = run.RunConfig(output_dir=tmp_path / "out", profile=profile, bank_epochs=3)
+    first = run.run_kdd_slice_cell(cfg, loader, seed=0)
+
+    # A fresh loader whose `.load()` is never called proves the second
+    # call hit the cached cell file, not a recomputation.
+    unusable_loader = run.KddRealBedLoader(tmp_path / "does_not_exist.txt")
+    second = run.run_kdd_slice_cell(cfg, unusable_loader, seed=0)
+    assert first == second
+
+
+def test_main_kdd_real_profile_cli_branch(tmp_path):
+    _write_kdd_fixture(tmp_path / "kdd_fixture.txt")
+    argv = [
+        "--output-dir", str(tmp_path / "out"),
+        "--profile", "kdd_real",
+        "--kdd-path", str(tmp_path / "kdd_fixture.txt"),
+        "--bank-epochs", "3",
+    ]
+    result = run.main(argv)
+    assert Path(result["cell_path"]).exists()
+    assert result["result"]["bed"] == "kdd_real"
+
+
+def test_main_kdd_real_profile_requires_kdd_path(tmp_path):
+    argv = ["--output-dir", str(tmp_path), "--profile", "kdd_real"]
+    with pytest.raises(ValueError):
+        run.main(argv)
