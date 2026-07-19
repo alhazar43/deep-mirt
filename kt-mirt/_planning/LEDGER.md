@@ -660,3 +660,58 @@ Acquisitions:
   local worker + GPU liveness, failure count) with explicit warns on
   static logs and GPU-idle-while-alive. This replaces both the
   silent watchdog and ad-hoc probing.
+
+## 2026-07-20 ~01:00 HB-WARN investigated: slow, not hung
+
+- The damped warn fired (60 min, all logs stale, zero completions).
+  Runner-state diagnosis per contract: the local unit advances
+  (CPU-time delta 0.73 min per 45 s, GPU duty-cycling 10-98%) -- the
+  profile of the B=999 permutation battery: GPU-accelerated fits
+  inside a SERIAL replicate loop. Cluster chains share the shape.
+  Slow, not hung; no intervention tonight.
+- Revised arithmetic: GPU slice units land near 2.5-3 h, so 7-unit
+  chains hit their 12-h walls around unit 4-5. Expected by morning:
+  ~25-30 of 40 slices banked (store banks per-unit; walls lose only
+  the in-flight unit); one top-up generation finishes the pool
+  tomorrow; verdict tomorrow evening. Optimization noted for the
+  ledger, NOT tonight: parallelizing the permutation replicate
+  orchestration would collapse unit times, worth one lean pass
+  before any future campaign (junyi15 real-bed will reuse this
+  battery).
+
+## 2026-07-20 ~03:00 Root cause of slice slowness FOUND (py-spy)
+
+- Stack dump of the live unit: penalized_bounded_newton computes
+  Hessians via nested vmap/jvp/vjp in EAGER functorch -- every op
+  routes through torch._refs Python dispatch, and the permutation
+  loop re-pays that overhead per replicate (B=999). Dispatch-bound,
+  not compute-bound: explains GPU~=CPU unit times, low GPU duty
+  cycle, and the 13-h CPU unit. ~190 GPU-h at stake on the
+  remaining pool.
+- Fix ruled (design-neutral, statistics identical): batch permutation
+  replicates INTO the vmap width (one dispatch for all 999), with an
+  EQUIVALENCE GATE -- same seeds must reproduce current statistics
+  within float tolerance on small configs for every consumer of the
+  solver (PAS-G, MIX), full suite green, honest before/after timing
+  on one real-scale cell. Chains keep running meanwhile (they bank
+  per unit; zero waste from letting them grind). Swap only after
+  equivalence passes, at a chain-generation boundary.
+
+## 2026-07-20 ~03:45 Batched engine SWAPPED IN; generation 3 running
+
+- Equivalence verdict ACCEPTED: all gate-consumed quantities
+  (p-values, BH/BY flags) reproduce EXACTLY; raw-stat drift ~1e-3
+  attributed to pre-existing float32 solve kernels (proven by a
+  float64 self-recompute control), not to batching. Old loop path
+  preserved behind use_batched=False; determinism of permutation
+  draws bit-identical. Suite 471/471. Commit 6b579ac.
+- Swap executed at a clean boundary: generation-2 chains cancelled
+  (zero banked units lost -- nothing had completed), local unit
+  killed by explicit PID (18564). Synced; batched path verified
+  importable cluster-side; generation 3 submitted IDENTICAL
+  configuration (6 GPU chains, UPT=7, -t 720, now heavily oversized
+  walls) -- all 6 RUNNING within 25 s; local worker relaunched on
+  unit 3 (90% GPU).
+- The number that matters next: first post-fix unit completion time.
+  Dispatch arithmetic projects minutes-to-tens-of-minutes per unit;
+  the heartbeat's completion counter now tells the truth directly.
