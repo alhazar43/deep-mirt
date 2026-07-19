@@ -214,3 +214,39 @@ insistence on certifying ACT on all four twins, and it is the
 strongest concrete instance yet of the program's thesis that
 prediction-adjacent training artifacts masquerade as measurement
 properties.
+
+## 2026-07-19 late: the serialization error, and the overnight contract
+
+**What I got wrong today, in order.** (1) I trusted an extrapolated
+timing number ("2h + margin") and sized a whole chain generation on
+it; the truth was >13h and every chain died at its wall. (2) I let a
+total-count watchdog mask a per-kind stall for hours. (3) I throttled
+instead of checking WHY a 6-thread worker drew 19 cores. (4) I killed
+by pattern and took my own trial and watchdog with it. (5) Worst
+structurally: I paused the whole cluster to wait for a local
+measurement I did not need -- generous walltimes dominate measured
+ones whenever measuring serializes the pipeline, because an oversized
+wall costs nothing on early exit while an idle cluster costs
+everything. The user caught each of these faster than my machinery
+did. All five are now standing rules (memory:
+long-running-jobs-verify; ledger entries of today).
+
+**Why direct execution replaced agents for cluster operations.** Two
+agent deaths on auth blips at the exact moment of submission taught
+the general lesson: delegate BUILDS (bounded, verifiable, no shared
+mutable state), execute OPERATIONS myself (submissions, kills,
+syncs -- short, irreversible, state-coupled). The chain interface is
+small; owning it directly removed the failure mode entirely.
+
+**The overnight contract.** Running: 6 cluster GPU slice chains
+(covering all 40 positions, 12-h ceilings, cuda-verified) + the
+local 4060 on its partition. Monitoring: 30-min ACTIVE heartbeat --
+a status line every cycle with per-chain log growth as the
+hung-vs-slow discriminator; warns on static logs and
+GPU-idle-while-alive. Trigger conditions: slices 40/40 -> run the
+gate/verdict aggregation over the full store and write the
+certification readout to the ledger; any HB-WARN -> diagnose the
+NAMED runner before touching anything else; failures -> classify
+against known modes before rerun. Nothing else launches tonight; the
+verdict readout is the sole deliverable, and every decision it
+triggers gets reasoned here before execution.
