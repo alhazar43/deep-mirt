@@ -41,6 +41,7 @@ import dataclasses
 
 import numpy as np
 import pytest
+import torch
 
 from kt_mirt.growth import bank as bank_mod
 from kt_mirt.growth import gate, synth
@@ -223,16 +224,256 @@ def test_permutation_null_use_batched_false_reaches_looped_path():
     assert np.array_equal(dispatched["kc"], explicit["kc"])
 
 
-def test_estimate_replicate_chunk_size_bounds():
-    """Memory-aware chunk-size heuristic: always >= 1, never exceeds
-    `max_chunk`, and shrinks as the per-replicate footprint (n_slices *
-    T_max) grows."""
-    small = gate._estimate_replicate_chunk_size(n_slices_bed=10, t_max_bed=20, device="cpu", target_bytes=1_000_000)
-    large = gate._estimate_replicate_chunk_size(n_slices_bed=100_000, t_max_bed=60, device="cpu", target_bytes=1_000_000)
-    assert small >= 1
-    assert large >= 1
-    assert small >= large  # a bigger bed footprint must not get a bigger (or equal-but-not-smaller) chunk
-    capped = gate._estimate_replicate_chunk_size(
-        n_slices_bed=1, t_max_bed=1, device="cpu", target_bytes=10**15, max_chunk=200
+def test_calibrate_m0_chunk_size_empirically_cpu_fallback_is_bounded():
+    """On CPU (or no CUDA), the empirical calibrator does not attempt a
+    memory probe (no cross-platform RSS-based mechanism is implemented);
+    it returns a small, fixed, conservative chunk, always >= 1 and never
+    exceeding `max_chunk`."""
+    small_run = gate._calibrate_m0_chunk_size_empirically(
+        perm_learners_list=[object()] * 5, all_keys=[(0, 0)], bank=None, device="cpu",
     )
-    assert capped == 200
+    assert 1 <= small_run <= 20
+
+    huge_run = gate._calibrate_m0_chunk_size_empirically(
+        perm_learners_list=[object()] * 5000, all_keys=[(0, 0)], bank=None, device="cpu", max_chunk=200,
+    )
+    assert huge_run <= 200
+
+
+def test_calibrate_m0_chunk_size_empirically_uses_real_probe_on_cuda(monkeypatch):
+    """On a CUDA device, the M0 calibrator must probe `fit_batched_replicates`,
+    read the peak via `torch.cuda.max_memory_allocated`, and size the
+    chunk against `torch.cuda.mem_get_info`'s free bytes with the safety
+    factor -- verified here by stubbing the CUDA memory API (no real GPU
+    needed) so the test is fast, deterministic, and touches no device."""
+    calls = {"m0": 0}
+
+    def fake_fit_batched_replicates(slices_by_replicate, bank, design_fn, P, time_filter=None, prior_var=4.0, device="cpu"):
+        calls["m0"] += 1
+        return torch.zeros(len(slices_by_replicate), 1, P)
+
+    monkeypatch.setattr(gate, "fit_batched_replicates", fake_fit_batched_replicates)
+    monkeypatch.setattr(gate.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(gate.torch.cuda, "synchronize", lambda device=None: None)
+    monkeypatch.setattr(gate.torch.cuda, "empty_cache", lambda: None)
+    monkeypatch.setattr(gate.torch.cuda, "reset_peak_memory_stats", lambda device=None: None)
+    monkeypatch.setattr(gate.torch.cuda, "max_memory_allocated", lambda device=None: 2_000_000)
+    monkeypatch.setattr(gate.torch.cuda, "mem_get_info", lambda device=None: (1_000_000_000, 2_000_000_000))
+
+    frozen = _bank_from_b(np.zeros(3))
+    fake_learners = [object(), object()]
+    all_keys = [(0, 0), (10, 1)]
+    stub_slices = {k: object() for k in all_keys}
+    monkeypatch.setattr(gate, "build_calibration_rows", lambda learners: object())
+    monkeypatch.setattr(gate, "build_slices", lambda rows: stub_slices)
+
+    chunk = gate._calibrate_m0_chunk_size_empirically(
+        perm_learners_list=fake_learners, all_keys=all_keys,
+        bank=frozen, device="cuda", safety_factor=2.0, probe_replicates=2, max_chunk=200,
+    )
+    assert calls["m0"] == 1
+    # bytes_per_replicate = 2e6 / 2 = 1e6; free=1e9; safety=2x -> chunk = 1e9 / (2*1e6) = 500, capped at 200
+    assert chunk == 200
+
+
+def test_calibrate_m0_chunk_size_empirically_survives_probe_oom(monkeypatch):
+    """Calibration must survive an OOM in its OWN probe (a best-effort
+    STARTING chunk size, never load-bearing for correctness) and fall
+    back to a conservative chunk=1 rather than letting the OOM propagate
+    and kill the whole unit."""
+
+    def oom_fit_batched_replicates(*args, **kwargs):
+        raise torch.cuda.OutOfMemoryError("simulated: M0 probe OOM")
+
+    monkeypatch.setattr(gate, "fit_batched_replicates", oom_fit_batched_replicates)
+    monkeypatch.setattr(gate.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(gate.torch.cuda, "synchronize", lambda device=None: None)
+    monkeypatch.setattr(gate.torch.cuda, "empty_cache", lambda: None)
+    monkeypatch.setattr(gate.torch.cuda, "reset_peak_memory_stats", lambda device=None: None)
+
+    frozen = _bank_from_b(np.zeros(3))
+    all_keys = [(0, 0), (10, 1)]
+    stub_slices = {k: object() for k in all_keys}
+    monkeypatch.setattr(gate, "build_calibration_rows", lambda learners: object())
+    monkeypatch.setattr(gate, "build_slices", lambda rows: stub_slices)
+
+    chunk = gate._calibrate_m0_chunk_size_empirically(
+        perm_learners_list=[object(), object()], all_keys=all_keys,
+        bank=frozen, device="cuda", safety_factor=2.0, probe_replicates=2, max_chunk=200,
+    )
+    assert chunk == 1  # extremely conservative fallback; no exception propagated
+
+
+def test_calibrate_kc_chunk_size_empirically_survives_probe_oom(monkeypatch):
+    """INCIDENT: the calibration probe's OWN KC-joint call OOM'd in
+    production (a KC so wide that even a 2-replicate batched Hessian
+    attempt tried to allocate 287+ GiB). Per-KC calibration must survive
+    this and fall back to a conservative chunk=1 for THAT KC alone --
+    never a fatal error, and never affecting any other KC's own chunk
+    size (see `_compute_per_kc_chunk_sizes`'s incident-context docstring
+    for why a single bed-wide chunk size was the actual root cause of a
+    production non-completion)."""
+
+    def oom_fit_kc_joint_batched_replicates(*args, **kwargs):
+        raise torch.cuda.OutOfMemoryError("simulated: KC-joint probe OOM (the production signature)")
+
+    monkeypatch.setattr(gate, "fit_kc_joint_batched_replicates", oom_fit_kc_joint_batched_replicates)
+    monkeypatch.setattr(gate.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(gate.torch.cuda, "synchronize", lambda device=None: None)
+    monkeypatch.setattr(gate.torch.cuda, "empty_cache", lambda: None)
+    monkeypatch.setattr(gate.torch.cuda, "reset_peak_memory_stats", lambda device=None: None)
+
+    frozen = _bank_from_b(np.zeros(3))
+    kc_probe = [[object()], [object()]]  # 2 "replicates" of this one KC's own slices
+    chunk = gate._calibrate_kc_chunk_size_empirically(
+        kc_probe, bank=frozen, device="cuda", safety_factor=2.0, max_chunk=200,
+    )
+    assert chunk == 1  # extremely conservative fallback; no exception propagated
+
+
+def test_compute_per_kc_chunk_sizes_only_probes_kcs_above_threshold(monkeypatch):
+    """Small KCs (<= `small_kc_threshold`) must get `max_chunk` directly,
+    with NO probe -- probing overhead is paid only for the handful of
+    genuinely large KCs (the fix for the actual production root cause:
+    a real bed can have ~500 small/medium KCs and a few pathologically
+    large ones, and only the latter need individual calibration)."""
+    probed_kcs = []
+
+    def fake_calibrate_kc(kc_probe, bank, device, safety_factor=2.0, max_chunk=200):
+        probed_kcs.append(len(kc_probe[0]))
+        return 7  # a distinguishable, obviously-probed value
+
+    monkeypatch.setattr(gate, "_calibrate_kc_chunk_size_empirically", fake_calibrate_kc)
+    monkeypatch.setattr(gate.torch.cuda, "is_available", lambda: True)
+
+    small_keys = [(i, 0) for i in range(5)]  # KC 0: 5 slices, well under threshold
+    large_keys = [(i, 1) for i in range(400)]  # KC 1: 400 slices, over threshold
+    stub_slices = {k: object() for k in small_keys + large_keys}
+    monkeypatch.setattr(gate, "build_calibration_rows", lambda learners: object())
+    monkeypatch.setattr(gate, "build_slices", lambda rows: stub_slices)
+
+    sizes = gate._compute_per_kc_chunk_sizes(
+        perm_learners_list=[object(), object()], by_kc_keys=[small_keys, large_keys],
+        bank=None, device="cuda", small_kc_threshold=300, max_chunk=200,
+    )
+    assert sizes[0] == 200  # small KC: max_chunk directly, no probe
+    assert sizes[1] == 7  # large KC: actually probed
+    assert probed_kcs == [400]  # only the large KC's own probe was built (400 slices)
+
+
+def test_fit_batched_replicates_safe_falls_back_on_oom_and_matches_reference(monkeypatch):
+    """`_fit_batched_replicates_safe` must reproduce EXACTLY what the
+    looped reference (`fit_batched`, S=1 per replicate) would have
+    computed, when forced onto its OOM fallback path -- the fallback is
+    not just "doesn't crash," it must be numerically the same safe path
+    the pre-batching implementation always used."""
+    rng = np.random.default_rng(21)
+    frozen = _bank_from_b(rng.normal(0, 1, size=5))
+    slices_by_replicate = [
+        [
+            gate.Slice(
+                learner=i, kc=0, item_id=np.zeros(12, dtype=int),
+                response=(rng.random(12) < 0.6).astype(np.int8),
+                opportunity=np.arange(1, 13), block_id=gate.opportunity_block(np.arange(1, 13)),
+            )
+            for i in range(4)
+        ]
+        for _ in range(3)  # B=3 replicates, same 4 slices' worth of shape each
+    ]
+
+    def oom_once(*args, **kwargs):
+        raise torch.cuda.OutOfMemoryError("simulated production signature")
+
+    real_fit_batched = gate.fit_batched
+
+    def cpu_fit_batched(slices, bank, design_fn, P, time_filter=None, device="cpu"):
+        # The wrapper under test believes it is on "cuda" (so it takes
+        # the try/except branch); the actual Newton fitting is force-
+        # routed to CPU here so this test never issues real compute on a
+        # shared/contended GPU -- only the wrapper's own tiny (B, S, P)
+        # output-buffer zeros allocation touches a real "cuda" device,
+        # which is harmless regardless of what else is running on it.
+        return real_fit_batched(slices, bank, design_fn, P, time_filter=time_filter, device="cpu")
+
+    monkeypatch.setattr(gate, "fit_batched_replicates", oom_once)
+    monkeypatch.setattr(gate, "fit_batched", cpu_fit_batched)
+    monkeypatch.setattr(gate.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(gate.torch.cuda, "empty_cache", lambda: None)
+
+    result = gate._fit_batched_replicates_safe(
+        slices_by_replicate, frozen, gate._m0_design, P=1, time_filter=gate._time_filter_odd, device="cuda"
+    )
+    for b in range(3):
+        expected = real_fit_batched(slices_by_replicate[b], frozen, gate._m0_design, P=1, time_filter=gate._time_filter_odd, device="cpu")
+        assert torch.allclose(result[b].cpu(), expected.params)
+
+
+def test_fit_kc_joint_batched_replicates_safe_falls_back_on_oom_and_matches_reference(monkeypatch):
+    """Same guarantee as above, for the KC-joint fit -- this is the
+    wrapper that fixes the ACTUAL production root cause (a KC too wide
+    to batch its Hessian at all, regardless of chunk size)."""
+    rng = np.random.default_rng(22)
+    frozen = _bank_from_b(rng.normal(0, 1, size=5))
+
+    def make_kc_slices(seed):
+        r = np.random.default_rng(seed)
+        return [
+            gate.Slice(
+                learner=i, kc=0, item_id=r.integers(0, 5, size=10),
+                response=(r.random(10) < 0.6).astype(np.int8),
+                opportunity=np.arange(1, 11), block_id=gate.opportunity_block(np.arange(1, 11)),
+            )
+            for i in range(3)
+        ]
+
+    kc_slices_by_replicate = [make_kc_slices(seed) for seed in (100, 101, 102)]
+
+    def oom_once(*args, **kwargs):
+        raise torch.cuda.OutOfMemoryError("simulated: KC too wide to batch (the production root cause)")
+
+    real_fit_kc_joint = gate.fit_kc_joint
+
+    def cpu_fit_kc_joint(kc_slices, bank, shared_design_fn, shared_dim, time_filter=None, device="cpu"):
+        # Same rationale as the M0 test above: force the actual Newton
+        # fitting onto CPU so this test never issues real compute on a
+        # shared/contended GPU, while the wrapper under test still
+        # believes it is on "cuda" (so it exercises the try/except path).
+        return real_fit_kc_joint(kc_slices, bank, shared_design_fn, shared_dim, time_filter=time_filter, device="cpu")
+
+    monkeypatch.setattr(gate, "fit_kc_joint_batched_replicates", oom_once)
+    monkeypatch.setattr(gate, "fit_kc_joint", cpu_fit_kc_joint)
+    monkeypatch.setattr(gate.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(gate.torch.cuda, "empty_cache", lambda: None)
+
+    theta, shared = gate._fit_kc_joint_batched_replicates_safe(
+        kc_slices_by_replicate, frozen, gate._m1b_shared_design, gate.N_BLOCKS,
+        time_filter=gate._time_filter_odd, device="cuda",
+    )
+    for b in range(3):
+        exp_theta, exp_shared = real_fit_kc_joint(
+            kc_slices_by_replicate[b], frozen, gate._m1b_shared_design, gate.N_BLOCKS, time_filter=gate._time_filter_odd
+        )
+        assert np.allclose(theta[b], exp_theta)
+        assert np.allclose(shared[b], exp_shared)
+
+
+def test_assert_no_memory_growth_across_chunks_passes_on_flat_series():
+    gate._assert_no_memory_growth_across_chunks([100_000_000, 105_000_000, 98_000_000, 101_000_000])  # no raise
+
+
+def test_assert_no_memory_growth_across_chunks_passes_on_near_zero_baseline():
+    # Near-zero baseline: tiny absolute fluctuations must not trip the check
+    # (the absolute floor exists exactly for this case).
+    gate._assert_no_memory_growth_across_chunks([0, 1000, 2000])  # no raise
+
+
+def test_assert_no_memory_growth_across_chunks_raises_on_accumulation():
+    """The units-8/23 failure signature: allocations climbing chunk-to-
+    chunk until a later, modest allocation fails."""
+    climbing = [500_000_000, 5_000_000_000, 20_000_000_000, 42_000_000_000]
+    with pytest.raises(RuntimeError, match="grew from"):
+        gate._assert_no_memory_growth_across_chunks(climbing)
+
+
+def test_assert_no_memory_growth_across_chunks_single_reading_is_a_noop():
+    gate._assert_no_memory_growth_across_chunks([12_345])  # no raise, nothing to compare

@@ -135,6 +135,7 @@ from kt_mirt.growth import active as active_mod
 from kt_mirt.growth import bank as bank_mod
 from kt_mirt.growth import battery as battery_mod
 from kt_mirt.growth import gate as gate_mod
+from kt_mirt.growth import newton as newton_mod
 from kt_mirt.growth import rate as rate_mod
 from kt_mirt.growth import report as report_mod
 from kt_mirt.growth import synth as synth_mod
@@ -329,6 +330,15 @@ def _write_cell(path: Path, payload: dict) -> None:
 # =============================================================================
 
 
+def _log_stage(twin: str, seed: int, stage: str, wall_s: float) -> None:
+    """Emits one stage-timing line into the unit's own stdout (captured by
+    `slurm/chain_runner.sbatch` into `logs/chain_%A_%a.out`, the "unit
+    log"): cheap, sanctioned instrumentation so future diagnosis of a slow
+    slice unit does not require a fresh py-spy dive (the 2026-07-20
+    incident that found the `torch.func` per-iteration dispatch cost)."""
+    print(f"[slice_cell stage] twin={twin} seed={seed} stage={stage} wall_s={wall_s:.2f}", flush=True)
+
+
 def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional[dict]]:
     """Returns ``(json_result, raw_nulls)``; ``raw_nulls`` is ``None`` iff
     loaded from an existing cell file (interpretation note 3)."""
@@ -336,6 +346,9 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     cached = _load_if_done(path, cfg.force)
     if cached is not None:
         return cached, None
+
+    unit_t0 = time.perf_counter()
+    newton_mod.reset_dispatch_counts()  # scoped to this cell; read after permutation_battery below
 
     profile = cfg.profile
     twin_data = synth_mod.generate_twin(twin, profile, seed)
@@ -348,10 +361,12 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
         n_epochs_max=cfg.bank_epochs, lr=0.05, batch_size=4096, patience_epochs=2,
         seed=derive_seed("bank", twin, seed), device=cfg.device,
     )
+    t_stage = time.perf_counter()
     fit = bank_mod.calibrate_bank(
         rows_all, profile.n_learners, twin_data.n_kcs, calib, hierarchy,
         bank_mod.FLAT_HIERARCHY_SPEC, growth_mode="blockwise", config=bank_cfg,
     )
+    _log_stage(twin, seed, "bank_calibration", time.perf_counter() - t_stage)
     frozen = bank_mod.freeze_bank(fit)
     recovery = bank_mod.synthetic_bank_recovery_check(fit, twin_data.item_bank.b_true)
 
@@ -366,11 +381,27 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     sat_rate_analysis, sat_unsat_analysis = saturation_stats(rows_analysis, twin_data.n_kcs)
     slices = build_slices(rows_analysis)
 
+    t_stage = time.perf_counter()
     gate_result = gate_mod.compute_gate_result(slices, frozen, twin_data.n_kcs, device=cfg.device)
+    _log_stage(twin, seed, "slice_fits", time.perf_counter() - t_stage)
+
     n_rep = max(cfg.n_perm_bed, cfg.n_perm_kc)
+    t_stage = time.perf_counter()
     null = gate_mod.permutation_null(
         analysis_learners, len(analysis_learners), twin_data.n_kcs, frozen,
         n_replicates=n_rep, seed=derive_seed("perm", twin, seed), device=cfg.device,
+    )
+    _log_stage(twin, seed, "permutation_battery", time.perf_counter() - t_stage)
+    # Dispatch-path visibility (per the review note that a silent fallback
+    # to the generic torch.func path in this hot loop must never again be
+    # invisible): confirms the analytic fast path actually engaged for
+    # every binary_logit_nll call made so far in this cell (bank
+    # calibration's own model is a separate neural fit, not this solver).
+    _counts = newton_mod.dispatch_counts()
+    print(
+        f"[slice_cell dispatch] twin={twin} seed={seed} "
+        f"analytic_calls={_counts['analytic']} generic_calls={_counts['generic']}",
+        flush=True,
     )
     bed_null = null["bed"][: cfg.n_perm_bed]
     kc_null = null["kc"][: cfg.n_perm_kc]
@@ -460,6 +491,7 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     }
     clean_result = json.loads(json.dumps(_jsonable(result)))
     _write_cell(path, clean_result)
+    _log_stage(twin, seed, "total", time.perf_counter() - unit_t0)
     raw_nulls = {"bed_null": bed_null, "observed_bed_stat": gate_result.bed_stat}
     return clean_result, raw_nulls
 

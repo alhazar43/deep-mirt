@@ -167,6 +167,8 @@ def run_permutation_battery(
     device: str = "cpu",
     use_batched: bool = True,
     replicate_chunk_size: Optional[int] = None,
+    safety_factor: float = 2.0,
+    small_kc_threshold: int = 300,
 ) -> PermutationBatteryResult:
     """Arm 1: the primary reference null for PAS-C/PAS-G (and MIX-L's
     shared existence gate). See module docstring note 1 for the shared-
@@ -177,6 +179,16 @@ def run_permutation_battery(
     `gate.permutation_null_batched`'s docstring); ``use_batched=False``
     reaches the original per-replicate loop (`gate.permutation_null_looped`),
     kept as the equivalence-gate reference and as an explicit fallback.
+    ``replicate_chunk_size`` (default None) leaves M0's chunk sizing to
+    `gate.permutation_null_batched`'s EMPIRICAL calibration (a real probe
+    against real bed data and real free device memory, replacing an
+    earlier analytic estimator that caused a production OOM by ignoring
+    the KC-joint fit's dominant memory term); ``safety_factor`` (default
+    2x) is that calibration's headroom multiplier. ``small_kc_threshold``
+    (default 300) is the per-KC chunk-sizing cutoff (see
+    `gate.permutation_null_batched`'s incident-context docstring, fix (4)):
+    a real bed's KC sizes can be severely skewed, so chunk size is
+    calibrated PER KC above this threshold, not once for the whole bed.
     """
     rows = bank_mod.build_calibration_rows(learners)
     slices = build_slices(rows)
@@ -185,7 +197,8 @@ def run_permutation_battery(
     n_rep = max(n_replicates_bed, n_replicates_kc)
     null = gate_mod.permutation_null(
         learners, n_learners, n_kcs, bank, n_rep, seed, device=device,
-        use_batched=use_batched, replicate_chunk_size=replicate_chunk_size,
+        use_batched=use_batched, replicate_chunk_size=replicate_chunk_size, safety_factor=safety_factor,
+        small_kc_threshold=small_kc_threshold,
     )
     bed_null = null["bed"][:n_replicates_bed]
     kc_null = null["kc"][:n_replicates_kc]
