@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from kt_mirt.growth import newton as newton_mod
-from kt_mirt.growth.newton import binary_logit_nll, penalized_bounded_newton
+from kt_mirt.growth.newton import binary_logit_nll, binary_logit_nll_arrow, penalized_bounded_newton
 
 
 def _make_constant_slice_data(y_rows, b_rows=None):
@@ -322,3 +322,269 @@ def test_analytic_true_forced_on_non_binary_logit_nll_raises():
     x0 = torch.zeros(1, 1)
     with pytest.raises(ValueError):
         penalized_bounded_newton(_m0_nll_fn, x0, data_args=(y, mask, design, b), prior_var=4.0, analytic=True)
+
+
+# =============================================================================
+# KC-joint arrow-structured fast path (A4 perf-surgery, fourth pass): every
+# KC-joint pooled fit (gate.py's fit_kc_joint/fit_kc_joint_batched_replicates)
+# produces a penalized Hessian that is an ARROW matrix -- [[diag(D), B],
+# [B^T, C]] with D (k,) diagonal (per-slice intercept curvatures, exactly
+# diagonal because each row's one-hot column touches exactly one slice), B
+# (k, shared_dim) the border, C (shared_dim, shared_dim) the shared-shared
+# block. `_arrow_schur_step` solves this via exact block elimination
+# (Schur complement) instead of a dense O(k^3) `torch.linalg.solve`.
+# =============================================================================
+
+
+def _assemble_dense_arrow(D, Bmat, C, hessian_ridge):
+    """Assembles the dense (Bn, P, P) matrix [[diag(D), B], [B^T, C]] +
+    ridge*I -- the ground truth `_arrow_schur_step` is checked against
+    (ladder rung 1)."""
+    Bn, k = D.shape
+    shared_dim = C.shape[-1]
+    P = k + shared_dim
+    H = torch.zeros(Bn, P, P, dtype=D.dtype, device=D.device)
+    H[:, :k, :k] = torch.diag_embed(D)
+    H[:, :k, k:] = Bmat
+    H[:, k:, :k] = Bmat.transpose(-1, -2)
+    H[:, k:, k:] = C
+    eye = torch.eye(P, dtype=D.dtype, device=D.device)
+    return H + hessian_ridge * eye
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64], ids=["float32", "float64"])
+@pytest.mark.parametrize("shared_dim", [1, 4])
+@pytest.mark.parametrize("k", [5, 100, 2000])
+def test_arrow_schur_step_matches_dense_solve_on_random_systems(k, shared_dim, dtype):
+    """Ladder rung 1 (exactness): the Schur-complement step must match a
+    dense `torch.linalg.solve` on the SAME assembled arrow matrix, on
+    random (SPD-ish) systems, across the shapes the real KC-joint fits
+    actually hit (k up to the oversized-KC regime; shared_dim=1 for
+    M1a-pooled, 4 for M1b-pooled), in both float32 and float64. This is
+    exact linear algebra (block elimination never approximates), so the
+    tolerance is tight."""
+    g = torch.Generator().manual_seed(1000 * k + 10 * shared_dim + (0 if dtype == torch.float32 else 1))
+    Bn = 3
+    D = torch.rand(Bn, k, generator=g, dtype=dtype) * 2 + 0.5  # positive diagonal curvature
+    Bmat = torch.randn(Bn, k, shared_dim, generator=g, dtype=dtype) * 0.3
+    C_raw = torch.randn(Bn, shared_dim, shared_dim, generator=g, dtype=dtype)
+    C = C_raw @ C_raw.transpose(-1, -2) + 2.0 * torch.eye(shared_dim, dtype=dtype)  # SPD-ish
+    g_theta = torch.randn(Bn, k, generator=g, dtype=dtype)
+    g_shared = torch.randn(Bn, shared_dim, generator=g, dtype=dtype)
+    hessian_ridge = 1e-6
+
+    step = newton_mod._arrow_schur_step(g_theta, g_shared, D, Bmat, C, hessian_ridge)
+
+    H_dense = _assemble_dense_arrow(D, Bmat, C, hessian_ridge)
+    g_full = torch.cat([g_theta, g_shared], dim=-1)
+    step_dense = torch.linalg.solve(H_dense, g_full.unsqueeze(-1)).squeeze(-1)
+
+    atol = 1e-6 if dtype == torch.float64 else 1e-4
+    max_dev = (step - step_dense).abs().max().item()
+    assert torch.allclose(step, step_dense, rtol=1e-6, atol=atol), (
+        f"k={k} shared_dim={shared_dim} dtype={dtype}: max abs diff {max_dev:.3e}"
+    )
+
+
+def _make_random_kc_joint_problem(k, shared_dim, L_per_slice, seed, mask_frac=0.0):
+    """A random-but-consistent arrow-shaped problem: `k` slices, each with
+    `L_per_slice` rows (contiguous block, so `slice_idx` is a simple
+    repeat), `shared_dim` shared design columns, `y` generated from a real
+    Bernoulli model. Returns everything needed for BOTH the compact
+    (slice_idx, shared_cols) representation and the equivalent dense
+    one-hot design, so the two can be cross-checked directly."""
+    g = torch.Generator().manual_seed(seed)
+    L = k * L_per_slice
+    slice_idx = torch.arange(k).repeat_interleave(L_per_slice)
+    shared_cols = torch.randn(L, shared_dim, generator=g) * 0.4
+    true_theta = torch.randn(k, generator=g) * 0.5
+    true_shared = torch.randn(shared_dim, generator=g) * 0.3
+    logit_no_theta = torch.randn(L, generator=g) * 0.2
+    logits = true_theta[slice_idx] + shared_cols @ true_shared + logit_no_theta
+    probs = torch.sigmoid(logits)
+    y = (torch.rand(L, generator=g) < probs).float()
+    if mask_frac > 0:
+        mask = torch.rand(L, generator=g) >= mask_frac
+        # never let a whole slice go empty
+        for i in range(k):
+            sl = mask[i * L_per_slice : (i + 1) * L_per_slice]
+            if not bool(sl.any()):
+                mask[i * L_per_slice] = True
+    else:
+        mask = torch.ones(L, dtype=torch.bool)
+    onehot = torch.zeros(L, k)
+    onehot[torch.arange(L), slice_idx] = 1.0
+    design = torch.cat([onehot, shared_cols], dim=-1)
+    return y, mask, logit_no_theta, slice_idx, shared_cols, design
+
+
+@pytest.mark.parametrize("masked", [False, True], ids=["unmasked", "masked"])
+@pytest.mark.parametrize("shared_dim", [1, 4])
+@pytest.mark.parametrize("k", [3, 50])
+def test_kc_joint_arrow_grad_hess_matches_dense_onehot_reference(k, shared_dim, masked):
+    """CRITICAL CORRECTNESS CHECK: the arrow decomposition (D, B, C) must
+    reassemble into EXACTLY the same dense (grad, Hessian) that
+    `_binary_logit_grad_hess_batch` computes on the literal one-hot-
+    bordered design -- this is the direct verification that the KC-joint
+    Hessian's intercept-intercept block really is diagonal in the actual
+    construction (no design or prior term couples two different slices'
+    intercepts), not merely asserted."""
+    Bn = 2
+    y_1, mask_1, logit_1, slice_idx_1, shared_cols_1, design_1 = _make_random_kc_joint_problem(
+        k, shared_dim, L_per_slice=6, seed=10 * k + shared_dim + int(masked), mask_frac=0.3 if masked else 0.0
+    )
+    y = y_1.unsqueeze(0).repeat(Bn, 1)
+    mask = mask_1.unsqueeze(0).repeat(Bn, 1)
+    logit_no_theta = logit_1.unsqueeze(0).repeat(Bn, 1)
+    slice_idx = slice_idx_1.unsqueeze(0).repeat(Bn, 1)
+    shared_cols = shared_cols_1.unsqueeze(0).repeat(Bn, 1, 1)
+    design = design_1.unsqueeze(0).repeat(Bn, 1, 1)
+
+    P = k + shared_dim
+    prior_var_t = torch.full((P,), 4.0)
+    g = torch.Generator().manual_seed(20 * k + shared_dim)
+    params = torch.randn(Bn, P, generator=g) * 0.6
+
+    g_theta, g_shared, D, Bmat, C = newton_mod._kc_joint_arrow_grad_hess_batch(
+        params, y, mask, logit_no_theta, slice_idx, shared_cols, k, prior_var_t
+    )
+    ref_grad, ref_hess = newton_mod._binary_logit_grad_hess_batch(
+        params, y, mask, logit_no_theta, design, prior_var_t
+    )
+
+    # Reassemble the arrow pieces into a dense (Bn, P, P) Hessian / (Bn, P)
+    # gradient for direct comparison against the trusted dense reference.
+    grad_full = torch.cat([g_theta, g_shared], dim=-1)
+    H_full = torch.zeros(Bn, P, P, dtype=params.dtype)
+    H_full[:, :k, :k] = torch.diag_embed(D)
+    H_full[:, :k, k:] = Bmat
+    H_full[:, k:, :k] = Bmat.transpose(-1, -2)
+    H_full[:, k:, k:] = C
+
+    assert torch.allclose(grad_full, ref_grad, rtol=1e-5, atol=1e-6), (
+        f"k={k} shared_dim={shared_dim} masked={masked}: grad mismatch, "
+        f"max abs diff {(grad_full - ref_grad).abs().max().item():.3e}"
+    )
+    assert torch.allclose(H_full, ref_hess, rtol=1e-5, atol=1e-6), (
+        f"k={k} shared_dim={shared_dim} masked={masked}: Hessian mismatch "
+        f"(the arrow structure claim itself), max abs diff "
+        f"{(H_full - ref_hess).abs().max().item():.3e}"
+    )
+    # And explicitly: the dense reference's OWN off-diagonal intercept
+    # block really is (numerically) zero -- the arrow claim, not just the
+    # reassembly agreeing with itself.
+    offdiag = ref_hess[:, :k, :k] - torch.diag_embed(torch.diagonal(ref_hess[:, :k, :k], dim1=-2, dim2=-1))
+    assert torch.allclose(offdiag, torch.zeros_like(offdiag), atol=1e-6), (
+        f"k={k} shared_dim={shared_dim} masked={masked}: dense analytic Hessian's "
+        f"intercept-intercept block has a nonzero off-diagonal entry (max "
+        f"{offdiag.abs().max().item():.3e}) -- the arrow claim would be FALSE"
+    )
+
+
+def test_binary_logit_nll_arrow_matches_binary_logit_nll_on_equivalent_design():
+    """`binary_logit_nll_arrow`'s compact representation must be a bit-for-
+    bit-equivalent reference to `binary_logit_nll` on the corresponding
+    one-hot-bordered design (module docstring note 6)."""
+    k, shared_dim = 6, 4
+    y, mask, logit_no_theta, slice_idx, shared_cols, design = _make_random_kc_joint_problem(
+        k, shared_dim, L_per_slice=5, seed=777
+    )
+    params = torch.randn(k + shared_dim)
+    nll_arrow = binary_logit_nll_arrow(params, y, mask, logit_no_theta, slice_idx, shared_cols, k)
+    nll_dense = binary_logit_nll(params, y, mask, logit_no_theta, design)
+    assert torch.allclose(nll_arrow, nll_dense, rtol=1e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("shared_dim", [1, 4])
+@pytest.mark.parametrize("k", [3, 40])
+def test_penalized_bounded_newton_arrow_matches_dense_analytic_path_iterates(k, shared_dim):
+    """Ladder rung 2 (trajectory equivalence) at the `newton.py` level:
+    the arrow fast path's PARAMETER ITERATES must match the existing dense
+    analytic path's, replayed from the SAME x0 at every partial iteration
+    budget (mirroring `test_analytic_path_reproduces_generic_path_iterates`'s
+    method for the dense-vs-generic comparison)."""
+    y, mask, logit_no_theta, slice_idx, shared_cols, design = _make_random_kc_joint_problem(
+        k, shared_dim, L_per_slice=8, seed=5000 + 10 * k + shared_dim, mask_frac=0.2
+    )
+    P = k + shared_dim
+    y_b, mask_b, logit_b, design_b = (t.unsqueeze(0) for t in (y, mask, logit_no_theta, design))
+    slice_idx_b, shared_cols_b = slice_idx.unsqueeze(0), shared_cols.unsqueeze(0)
+
+    g = torch.Generator().manual_seed(6000 + 10 * k + shared_dim)
+    x0 = torch.randn(1, P, generator=g) * 1.5
+
+    for max_iter in range(1, 9):
+        arrow_res = penalized_bounded_newton(
+            binary_logit_nll_arrow, x0.clone(),
+            data_args=(y_b, mask_b, logit_b, slice_idx_b, shared_cols_b, k),
+            prior_var=4.0, max_iter=max_iter,
+        )
+        dense_res = penalized_bounded_newton(
+            binary_logit_nll, x0.clone(), data_args=(y_b, mask_b, logit_b, design_b),
+            prior_var=4.0, max_iter=max_iter, analytic=True,
+        )
+        assert torch.allclose(arrow_res.params, dense_res.params, rtol=2e-4, atol=5e-4), (
+            f"k={k} shared_dim={shared_dim} max_iter={max_iter}: params diverged beyond "
+            f"the float32 noise floor (max abs diff "
+            f"{(arrow_res.params - dense_res.params).abs().max().item():.3e})"
+        )
+
+    # At the production default (ample budget), params must still agree
+    # tightly. `converged`/`n_iter` are NOT asserted here for the same
+    # reason `test_analytic_path_reproduces_generic_path_iterates` doesn't
+    # assert them at partial budgets: arrow (scatter-add/gather) and dense
+    # analytic (one-hot matmul) are two DIFFERENT numerical mechanisms for
+    # the same closed form, so their float32 noise occasionally lands on
+    # opposite sides of a slice's own `tol=1e-6` convergence knife-edge
+    # without the underlying iterate having diverged at all (observed
+    # directly during development: both sides settle at the same
+    # objective value to ~1e-4, one stops at n_iter=15, the other at the
+    # iteration cap with a step norm just above tol) -- a param-closeness
+    # check is the one that actually detects a logic bug.
+    arrow_default = penalized_bounded_newton(
+        binary_logit_nll_arrow, x0.clone(), data_args=(y_b, mask_b, logit_b, slice_idx_b, shared_cols_b, k),
+        prior_var=4.0,
+    )
+    dense_default = penalized_bounded_newton(
+        binary_logit_nll, x0.clone(), data_args=(y_b, mask_b, logit_b, design_b), prior_var=4.0, analytic=True,
+    )
+    assert torch.allclose(arrow_default.params, dense_default.params, rtol=2e-4, atol=5e-4)
+
+
+def test_arrow_dispatch_counter_increments():
+    """`dispatch_counts()['arrow']` must increment on every arrow-path
+    call, mirroring the existing analytic/generic counters (the
+    "never silent again" transparency principle already established for
+    the dense fast path)."""
+    newton_mod.reset_dispatch_counts()
+    k, shared_dim = 3, 1
+    y, mask, logit_no_theta, slice_idx, shared_cols, _ = _make_random_kc_joint_problem(
+        k, shared_dim, L_per_slice=4, seed=1
+    )
+    x0 = torch.zeros(1, k + shared_dim)
+    penalized_bounded_newton(
+        binary_logit_nll_arrow, x0,
+        data_args=(y.unsqueeze(0), mask.unsqueeze(0), logit_no_theta.unsqueeze(0), slice_idx.unsqueeze(0), shared_cols.unsqueeze(0), k),
+        prior_var=4.0,
+    )
+    counts = newton_mod.dispatch_counts()
+    assert counts["arrow"] == 1
+    assert counts["analytic"] == 0
+    assert counts["generic"] == 0
+
+
+def test_arrow_analytic_false_raises():
+    """The arrow marker has no generic-`torch.func` counterpart -- forcing
+    `analytic=False` on it must fail loudly rather than silently attempt
+    (and fail, or worse, silently mis-vmap) a nonexistent code path."""
+    k, shared_dim = 3, 1
+    y, mask, logit_no_theta, slice_idx, shared_cols, _ = _make_random_kc_joint_problem(
+        k, shared_dim, L_per_slice=4, seed=2
+    )
+    x0 = torch.zeros(1, k + shared_dim)
+    with pytest.raises(ValueError):
+        penalized_bounded_newton(
+            binary_logit_nll_arrow, x0,
+            data_args=(y.unsqueeze(0), mask.unsqueeze(0), logit_no_theta.unsqueeze(0), slice_idx.unsqueeze(0), shared_cols.unsqueeze(0), k),
+            prior_var=4.0, analytic=False,
+        )

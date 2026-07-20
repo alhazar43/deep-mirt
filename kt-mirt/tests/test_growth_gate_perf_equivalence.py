@@ -45,7 +45,7 @@ import torch
 
 from kt_mirt.growth import bank as bank_mod
 from kt_mirt.growth import gate, synth
-from kt_mirt.growth.slices import build_slices
+from kt_mirt.growth.slices import build_slices, permute_learner_order
 
 # ---------------------------------------------------------------------------
 # Small-but-real configs: the pre-registered density profiles, down-scaled
@@ -477,3 +477,391 @@ def test_assert_no_memory_growth_across_chunks_raises_on_accumulation():
 
 def test_assert_no_memory_growth_across_chunks_single_reading_is_a_noop():
     gate._assert_no_memory_growth_across_chunks([12_345])  # no raise, nothing to compare
+
+
+# =============================================================================
+# KC-joint arrow-structured fast path (2026-07-20, 4th A4 perf-surgery,
+# `_planning/LEDGER.md`): `fit_kc_joint`/`fit_kc_joint_batched_replicates`'s
+# default `use_arrow=True` (exact Schur-complement block elimination) versus
+# `use_arrow=False` (the original dense one-hot-design path, kept as the
+# equivalence reference). Ladder rung 2's "dense path vs Schur path produce
+# identical iterates ... on small and MEDIUM (S~500) shapes" requirement --
+# distinct from (and much tighter than) the batched-vs-looped noise floor
+# documented at the top of this file: arrow-vs-dense is two representations
+# of the IDENTICAL Hessian (exact block elimination), not two different
+# batch-size linalg kernel calls, so agreement is expected near the float32
+# noise floor (~1e-6 relative), not the 1e-3-ish aggregate noise above.
+# =============================================================================
+
+
+def _make_kc_slices(n_slices: int, seed: int, T: int = 12, item_pool: int = 20) -> list:
+    rng = np.random.default_rng(seed)
+    out = []
+    for i in range(n_slices):
+        opp = np.arange(1, T + 1)
+        out.append(
+            gate.Slice(
+                learner=i,
+                kc=0,
+                item_id=rng.integers(0, item_pool, size=T),
+                response=(rng.random(T) < 0.55).astype(np.int8),
+                opportunity=opp,
+                block_id=gate.opportunity_block(opp),
+            )
+        )
+    return out
+
+
+@pytest.mark.parametrize(
+    "shared_design_fn,shared_dim",
+    [(gate._m1a_shared_design, 1), (gate._m1b_shared_design, gate.N_BLOCKS)],
+    ids=["m1a_pooled_shared_dim1", "m1b_pooled_shared_dim4"],
+)
+@pytest.mark.parametrize("n_slices", [5, 30, 500], ids=["small5", "small30", "medium500"])
+def test_fit_kc_joint_arrow_matches_dense_reference(n_slices, shared_design_fn, shared_dim):
+    """Ladder rung 2: `fit_kc_joint`'s arrow path (default `use_arrow=True`)
+    must reproduce the dense one-hot-design reference (`use_arrow=False`)
+    at small (5, 30) and MEDIUM (500) slice counts, for both M1a-pooled
+    (shared_dim=1) and M1b-pooled (shared_dim=N_BLOCKS=4) shapes.
+
+    Tolerance note (2026-07-20 4th A4 perf-surgery phase 3): the arrow
+    path's internal `torch.matmul` (replacing `torch.einsum`, which paid
+    `opt_einsum` contraction-path-search overhead on every Newton
+    iteration at production scale -- confirmed by direct cProfile) sums
+    the SAME quantities in a different floating-point order than the
+    dense path's own einsum/autodiff route. At n_slices=5 with
+    shared_dim=4 (5 slices' worth of data identifying a 4-wide shared
+    block -- a comparatively weakly-identified regime), this measured up
+    to ~5e-4 absolute on theta_ic (scale ~1-2); every other (n_slices,
+    shared_dim) combination in this test stays at or below ~1e-7. This is
+    the same float32-noise-floor phenomenon this file's module docstring
+    already documents for batched-vs-looped comparisons, one level down
+    (arrow-vs-dense, not batched-vs-looped) -- exactness itself is
+    verified separately and tightly in `tests/test_growth_newton.py`
+    (rtol=1e-6 against a dense `torch.linalg.solve` on the identical
+    matrix, which the matmul rewrite does not change)."""
+    kc_slices = _make_kc_slices(n_slices, seed=100 + n_slices)
+    theta_arrow, shared_arrow = gate.fit_kc_joint(
+        kc_slices, None, shared_design_fn, shared_dim, time_filter=gate._time_filter_odd, use_arrow=True
+    )
+    theta_dense, shared_dense = gate.fit_kc_joint(
+        kc_slices, None, shared_design_fn, shared_dim, time_filter=gate._time_filter_odd, use_arrow=False
+    )
+    assert np.allclose(theta_arrow, theta_dense, rtol=1e-3, atol=1e-3), (
+        f"n_slices={n_slices}: theta_ic max abs diff {np.abs(theta_arrow - theta_dense).max():.3e}"
+    )
+    assert np.allclose(shared_arrow, shared_dense, rtol=1e-3, atol=1e-3), (
+        f"n_slices={n_slices}: shared max abs diff {np.abs(shared_arrow - shared_dense).max():.3e}"
+    )
+
+
+@pytest.mark.parametrize("n_slices", [8, 200], ids=["small8", "medium200"])
+def test_fit_kc_joint_batched_replicates_arrow_matches_dense_reference(n_slices):
+    """Same equivalence, batched over replicates (the permutation
+    battery's actual call shape): B=4 replicates of the SAME ``n_slices``
+    KC, arrow vs dense. Unlike the single-replicate (S=1) test above, BOTH
+    sides here go through a batched (B>1) `torch.linalg.solve`/Schur solve,
+    which carries its own float32 batched-kernel noise regardless of
+    arrow-vs-dense (this file's module docstring already characterizes
+    that noise at up to ~2e-3 for the bed/kc aggregates it was written
+    for); the tolerance here reuses that same evidence-based bound rather
+    than the tighter single-replicate one, since the noise source is
+    identical."""
+    B = 4
+    kc_slices_by_replicate = [_make_kc_slices(n_slices, seed=200 + n_slices + b) for b in range(B)]
+    theta_arrow, shared_arrow = gate.fit_kc_joint_batched_replicates(
+        kc_slices_by_replicate, None, gate._m1b_shared_design, gate.N_BLOCKS,
+        time_filter=gate._time_filter_odd, use_arrow=True,
+    )
+    theta_dense, shared_dense = gate.fit_kc_joint_batched_replicates(
+        kc_slices_by_replicate, None, gate._m1b_shared_design, gate.N_BLOCKS,
+        time_filter=gate._time_filter_odd, use_arrow=False,
+    )
+    assert np.allclose(theta_arrow, theta_dense, rtol=_RTOL, atol=_ATOL), (
+        f"n_slices={n_slices}: theta_ic max abs diff {np.abs(theta_arrow - theta_dense).max():.3e}"
+    )
+    assert np.allclose(shared_arrow, shared_dense, rtol=_RTOL, atol=_ATOL), (
+        f"n_slices={n_slices}: shared max abs diff {np.abs(shared_arrow - shared_dense).max():.3e}"
+    )
+
+
+def test_build_kc_joint_arrow_arrays_matches_dense_design_construction():
+    """CRITICAL CORRECTNESS CHECK at the gate.py level: the compact arrow
+    representation (`slice_idx`, `shared_cols`) must encode EXACTLY the
+    same design as `_build_kc_joint_arrays`'s dense one-hot-bordered
+    matrix -- `design[:, :k] == one_hot(slice_idx, k)` and
+    `design[:, k:] == shared_cols`, row for row."""
+    kc_slices = _make_kc_slices(25, seed=55)
+    y_d, mask_d, logit_d, design = gate._build_kc_joint_arrays(
+        kc_slices, None, gate._m1b_shared_design, gate.N_BLOCKS, gate._time_filter_odd
+    )
+    y_a, mask_a, logit_a, slice_idx, shared_cols = gate._build_kc_joint_arrow_arrays(
+        kc_slices, None, gate._m1b_shared_design, gate.N_BLOCKS, gate._time_filter_odd
+    )
+    k = len(kc_slices)
+    assert np.array_equal(y_d, y_a)
+    assert np.array_equal(mask_d, mask_a)
+    assert np.array_equal(logit_d, logit_a)
+    onehot = np.zeros((len(y_d), k), dtype=np.float32)
+    onehot[np.arange(len(y_d)), slice_idx] = 1.0
+    assert np.array_equal(design[:, :k], onehot)
+    assert np.allclose(design[:, k:], shared_cols)
+
+
+# =============================================================================
+# Vectorized replicate assembly (2026-07-20, 4th A4 perf-surgery, phases 2-3,
+# `_planning/LEDGER.md`): node-level profiling of a running production proof
+# unit found the permutation battery GPU-idle and single-CPU-core-bound the
+# entire time -- the arrow fix above made the SOLVE fast, but every replicate
+# still paid several O(n_slices) PYTHON-LEVEL loops
+# (`build_slices`/`_pad_design`/`_build_kc_joint_arrow_arrays`) to rebuild its
+# data from scratch. `permutation_null_batched`'s new default
+# (`use_vectorized_assembly=True`) replaces all of that with vectorized numpy
+# scatter-assigns straight from `bank.build_calibration_rows`'s own output,
+# plus (phase 3) batching MULTIPLE KCs' pooled fits into one Newton call
+# (`_fit_kc_bucket_pooled_and_held_out_vectorized`) to remove per-KC GPU-
+# dispatch overhead. These tests check the new primitives directly against
+# the ORIGINAL Slice-based reference at the array level (not just via the
+# end-to-end permutation_null_batched-vs-looped tests above, which already
+# exercise this path by default but wouldn't localize a bug to a specific
+# function).
+# =============================================================================
+
+
+def _make_bed(n_learners, n_kcs, seed, T_range=(4, 15), A=2, n_items=25):
+    """A small-but-real multi-tag bed via `LearnerLog`-shaped objects
+    (`bank.build_calibration_rows`'s own input contract), for testing the
+    vectorized assembly primitives directly against `build_slices`."""
+
+    class _LG:
+        def __init__(self, learner, item_ids, responses, tag_ids, tag_mask):
+            self.learner = learner
+            self.item_ids = item_ids
+            self.responses = responses
+            self.tag_ids = tag_ids
+            self.tag_mask = tag_mask
+
+    r = np.random.default_rng(seed)
+    learners = []
+    for i in range(n_learners):
+        T = r.integers(*T_range)
+        item_ids = r.integers(0, n_items, size=T)
+        responses = (r.random(T) < 0.5).astype(np.int8)
+        tag_ids = r.integers(0, n_kcs, size=(T, A))
+        tag_mask = r.random((T, A)) < 0.7
+        tag_mask[:, 0] = True  # at least one real tag per row
+        learners.append(_LG(i, item_ids, responses, tag_ids, tag_mask))
+    return learners, n_items
+
+
+def _make_frozen_bank(n_items, seed):
+    rng = np.random.default_rng(seed)
+    b_hat = rng.normal(0, 1, size=n_items)
+    hier = bank_mod.flat_hierarchy(n_items)
+    fit = bank_mod.BankFitResult(
+        hierarchy=hier, growth_mode="none", b_hat=b_hat,
+        eligible_leaf=np.ones(n_items, dtype=bool), problem_seen=np.ones(n_items, dtype=bool),
+        calib_exposure_count=np.full(n_items, 100), converged=True, n_epochs_run=1, final_data_nll=0.0,
+    )
+    return bank_mod.freeze_bank(fit)
+
+
+def test_vectorized_replicate_padded_arrays_matches_build_slices():
+    """CRITICAL CORRECTNESS CHECK: the vectorized scatter must reproduce
+    `build_slices`'s per-slice (response, opportunity, block_id, item_id)
+    sequences and validity exactly -- no per-slice/per-group Python loop,
+    same data."""
+    learners, n_items = _make_bed(n_learners=8, n_kcs=5, seed=3)
+    rows = bank_mod.build_calibration_rows(learners)
+    sd = build_slices(rows)
+    all_keys = list(sd.keys())
+    T_max = max(sl.T for sl in sd.values())
+    S = len(all_keys)
+    key_to_col = gate._bed_key_scaffold(all_keys, n_kcs=5, n_learners=8)
+
+    y, valid_pos, opp, block, item = gate._vectorized_replicate_padded_arrays(rows, key_to_col, 5, S, T_max)
+
+    for col, key in enumerate(all_keys):
+        sl = sd[key]
+        t = sl.T
+        assert np.array_equal(y[col, :t], sl.response.astype(np.float32))
+        assert np.array_equal(opp[col, :t], sl.opportunity)
+        assert np.array_equal(block[col, :t], sl.block_id)
+        assert np.array_equal(item[col, :t], sl.item_id)
+        assert valid_pos[col, :t].all()
+        assert not valid_pos[col, t:].any()
+
+
+def test_fit_m0_and_held_out_vectorized_matches_reference():
+    """`_fit_m0_and_held_out_vectorized` must reproduce
+    `_fit_batched_replicates_safe` + `held_out_nll`'s held-out NLL exactly
+    (both use `binary_cross_entropy_with_logits`, same formula)."""
+    learners, n_items = _make_bed(n_learners=10, n_kcs=5, seed=42)
+    frozen = _make_frozen_bank(n_items, seed=7)
+    perm_rng = np.random.default_rng(0)
+    Bc = 6
+    chunk_learners = [permute_learner_order(learners, perm_rng) for _ in range(Bc)]
+    chunk_rows = [bank_mod.build_calibration_rows(lg) for lg in chunk_learners]
+    chunk_slices = [gate.build_slices(r) for r in chunk_rows]
+    all_keys = list(chunk_slices[0].keys())
+    for sd in chunk_slices:
+        assert set(sd.keys()) == set(all_keys)
+    S = len(all_keys)
+    T_max = max(sl.T for sd in chunk_slices for sl in sd.values())
+    key_to_col = gate._bed_key_scaffold(all_keys, n_kcs=5, n_learners=10)
+
+    y, valid_pos, opp, block, item = gate._stack_chunk_padded_arrays(chunk_rows, key_to_col, 5, S, T_max)
+
+    slices_by_replicate_all = [[sd[k] for k in all_keys] for sd in chunk_slices]
+    m0_params = gate._fit_batched_replicates_safe(
+        slices_by_replicate_all, frozen, gate._m0_design, P=1, time_filter=gate._time_filter_odd, device="cpu"
+    )
+    m0_nll_even_ref = np.stack(
+        [
+            gate.held_out_nll(
+                slices_by_replicate_all[b], frozen, gate._m0_design, m0_params[b], gate._time_filter_even,
+                device="cpu",
+            )
+            .cpu()
+            .numpy()
+            for b in range(Bc)
+        ]
+    )
+    m0_nll_even_new = gate._fit_m0_and_held_out_vectorized(y, opp, valid_pos, item, frozen, "cpu")
+    assert np.allclose(m0_nll_even_ref, m0_nll_even_new, atol=1e-5, rtol=1e-5), (
+        f"max abs dev {np.abs(m0_nll_even_ref - m0_nll_even_new).max():.3e}"
+    )
+
+
+@pytest.mark.parametrize("shared_dim", [1, gate.N_BLOCKS], ids=["m1a_shared_dim1", "m1b_shared_dim4"])
+def test_fit_kc_pooled_and_held_out_vectorized_matches_reference(shared_dim):
+    """`_fit_kc_pooled_and_held_out_vectorized` must reproduce
+    `_fit_kc_joint_batched_replicates_safe` (arrow path) +
+    `held_out_total_nll_kc_joint_batched_replicates`'s held-out NLL within
+    the established batched-linalg noise floor."""
+    shared_design_fn = gate._m1a_shared_design if shared_dim == 1 else gate._m1b_shared_design
+    learners, n_items = _make_bed(n_learners=10, n_kcs=5, seed=42)
+    frozen = _make_frozen_bank(n_items, seed=7)
+    perm_rng = np.random.default_rng(0)
+    Bc = 6
+    chunk_learners = [permute_learner_order(learners, perm_rng) for _ in range(Bc)]
+    chunk_rows = [bank_mod.build_calibration_rows(lg) for lg in chunk_learners]
+    chunk_slices = [gate.build_slices(r) for r in chunk_rows]
+    all_keys = list(chunk_slices[0].keys())
+    S = len(all_keys)
+    T_max = max(sl.T for sd in chunk_slices for sl in sd.values())
+    key_to_col = gate._bed_key_scaffold(all_keys, n_kcs=5, n_learners=10)
+    y, valid_pos, opp, block, item = gate._stack_chunk_padded_arrays(chunk_rows, key_to_col, 5, S, T_max)
+
+    by_kc_keys = [[] for _ in range(5)]
+    for key in all_keys:
+        by_kc_keys[key[1]].append(key)
+
+    for c in range(5):
+        keys_c = by_kc_keys[c]
+        if not keys_c:
+            continue
+        kc_slices_by_replicate = [[sd[k] for k in keys_c] for sd in chunk_slices]
+        theta_ref, shared_ref = gate._fit_kc_joint_batched_replicates_safe(
+            kc_slices_by_replicate, frozen, shared_design_fn, shared_dim, time_filter=gate._time_filter_odd,
+            device="cpu",
+        )
+        nll_ref = gate.held_out_total_nll_kc_joint_batched_replicates(
+            kc_slices_by_replicate, frozen, shared_design_fn, theta_ref, shared_ref, gate._time_filter_even
+        )
+        cols = np.array([key_to_col[k[0] * 5 + k[1]] for k in keys_c])
+        nll_new = gate._fit_kc_pooled_and_held_out_vectorized(
+            y, opp, block, valid_pos, item, cols, shared_design_fn, shared_dim, frozen, "cpu"
+        )
+        assert np.allclose(nll_ref, nll_new, atol=2e-3, rtol=2e-3), (
+            f"KC {c} (k={len(keys_c)}): max abs dev {np.abs(nll_ref - nll_new).max():.3e}"
+        )
+
+
+@pytest.mark.parametrize("shared_dim", [1, gate.N_BLOCKS], ids=["m1a_shared_dim1", "m1b_shared_dim4"])
+def test_fit_kc_bucket_pooled_matches_individual_per_kc_path(shared_dim):
+    """CRITICAL CORRECTNESS CHECK: batching MULTIPLE, DIFFERENTLY-SIZED KCs
+    into ONE Newton call (padding every KC to the bucket's own k_max) must
+    reproduce `_fit_kc_pooled_and_held_out_vectorized`'s per-KC results
+    exactly -- this is the padding/masking logic that must never let one
+    KC's fit see another KC's data, nor let padding rows perturb a real
+    KC's own fit."""
+    shared_design_fn = gate._m1a_shared_design if shared_dim == 1 else gate._m1b_shared_design
+    learners, n_items = _make_bed(n_learners=10, n_kcs=6, seed=42)
+    frozen = _make_frozen_bank(n_items, seed=7)
+    perm_rng = np.random.default_rng(0)
+    Bc = 6
+    chunk_learners = [permute_learner_order(learners, perm_rng) for _ in range(Bc)]
+    chunk_rows = [bank_mod.build_calibration_rows(lg) for lg in chunk_learners]
+    chunk_slices = [gate.build_slices(r) for r in chunk_rows]
+    all_keys = list(chunk_slices[0].keys())
+    S = len(all_keys)
+    T_max = max(sl.T for sd in chunk_slices for sl in sd.values())
+    key_to_col = gate._bed_key_scaffold(all_keys, n_kcs=6, n_learners=10)
+    y, valid_pos, opp, block, item = gate._stack_chunk_padded_arrays(chunk_rows, key_to_col, 6, S, T_max)
+
+    by_kc_keys = [[] for _ in range(6)]
+    for key in all_keys:
+        by_kc_keys[key[1]].append(key)
+    nonempty_kcs = [c for c in range(6) if by_kc_keys[c]]
+    cols_by_kc = {c: np.array([key_to_col[k[0] * 6 + k[1]] for k in by_kc_keys[c]]) for c in nonempty_kcs}
+
+    ref = {
+        c: gate._fit_kc_pooled_and_held_out_vectorized(
+            y, opp, block, valid_pos, item, cols_by_kc[c], shared_design_fn, shared_dim, frozen, "cpu"
+        )
+        for c in nonempty_kcs
+    }
+    bucket_results = gate._fit_kc_bucket_pooled_and_held_out_vectorized(
+        y, opp, block, valid_pos, item, [cols_by_kc[c] for c in nonempty_kcs], shared_design_fn, shared_dim,
+        frozen, "cpu",
+    )
+    for j, c in enumerate(nonempty_kcs):
+        assert np.allclose(ref[c], bucket_results[j], atol=1e-5, rtol=1e-5), (
+            f"KC {c} (k={len(by_kc_keys[c])}): max abs dev {np.abs(ref[c] - bucket_results[j]).max():.3e}"
+        )
+
+
+def test_bucket_kcs_by_size_splits_small_and_large():
+    """KCs at/below `small_kc_threshold` are grouped into `bucket_size`-
+    sized buckets (sorted ascending by k, so members are similarly
+    sized); KCs above it each get their own singleton bucket (routed by
+    the caller to the ORIGINAL per-KC path, never batched with others)."""
+    by_kc_keys = [
+        [(i, 0) for i in range(5)],     # KC 0: k=5 (small)
+        [(i, 1) for i in range(400)],   # KC 1: k=400 (large)
+        [(i, 2) for i in range(10)],    # KC 2: k=10 (small)
+        [],                              # KC 3: empty, dropped
+        [(i, 4) for i in range(500)],   # KC 4: k=500 (large)
+    ]
+    buckets = gate._bucket_kcs_by_size(by_kc_keys, small_kc_threshold=300, bucket_size=25)
+    singleton_large = {b[0] for b in buckets if len(b) == 1 and b[0] in (1, 4)}
+    assert singleton_large == {1, 4}
+    multi_member_kcs = {c for b in buckets if len(b) > 1 for c in b}
+    assert multi_member_kcs == {0, 2}
+    assert 3 not in [c for b in buckets for c in b]
+
+
+def test_permutation_null_batched_vectorized_assembly_matches_slice_based_path():
+    """End-to-end: `permutation_null_batched`'s new default
+    (`use_vectorized_assembly=True`, which now also bucket-batches
+    multiple KCs per Newton call) must reproduce
+    `use_vectorized_assembly=False` (the ORIGINAL per-replicate
+    Slice-based path) within the established batched-linalg noise floor,
+    on a real (down-scaled) synthetic bed."""
+    twin, frozen = _build_bed(_KDD_MATCHED_TINY, seed=3)
+    n_rep = 10
+    vectorized = gate.permutation_null_batched(
+        twin.learners, len(twin.learners), twin.n_kcs, frozen, n_replicates=n_rep, seed=11, device="cpu",
+        use_vectorized_assembly=True,
+    )
+    original = gate.permutation_null_batched(
+        twin.learners, len(twin.learners), twin.n_kcs, frozen, n_replicates=n_rep, seed=11, device="cpu",
+        use_vectorized_assembly=False,
+    )
+    assert np.allclose(vectorized["bed"], original["bed"], atol=_ATOL, rtol=_RTOL), (
+        f"bed_null max dev {np.abs(vectorized['bed'] - original['bed']).max():.3e}"
+    )
+    assert np.allclose(vectorized["kc"], original["kc"], atol=_ATOL, rtol=_RTOL), (
+        f"kc_null max dev {np.abs(vectorized['kc'] - original['kc']).max():.3e}"
+    )

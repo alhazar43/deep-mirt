@@ -43,13 +43,14 @@ Interpretation notes (recorded per the harness instructions):
    contract without padding every KC in the bed to the bed's max slice
    count (large, mostly-wasted memory on the real beds' skewed KC-size
    distributions). `fit_kc_joint` therefore loops over KCs in Python,
-   reusing the SAME shared Newton primitive (`penalized_bounded_newton`
-   with `binary_logit_nll`, S=1 per call) -- functionally identical
-   machinery, no duplicated calculus, just not vectorized across the KC
-   axis. A fully KC-batched variant (grouping same-slice-count KCs, or
-   padding) is a real-bed performance optimization left to whichever
-   later stage tunes battery-scale runtime; it changes wall-clock, not
-   any estimator's output.
+   reusing the SAME shared Newton primitive (`penalized_bounded_newton`,
+   by default dispatched to `newton.py`'s arrow-structured fast path --
+   see note 5 -- S=1 per call) -- functionally identical machinery, no
+   duplicated calculus, just not vectorized across the KC axis. A fully
+   KC-batched variant (grouping same-slice-count KCs, or padding) is a
+   real-bed performance optimization left to whichever later stage tunes
+   battery-scale runtime; it changes wall-clock, not any estimator's
+   output.
 3. **No explicit zero-mean-across-block centering on the gate's `u_c`**
    (unlike `bank.py`'s blockwise growth-absorption term, which needed it).
    The bank's centering fix exists because ``u_c`` there is nearly
@@ -78,6 +79,28 @@ Interpretation notes (recorded per the harness instructions):
    matrix; this module exposes the per-replicate statistic computation
    and the BH/BY correction formulas it needs, at whatever B the caller
    supplies.
+5. **`fit_kc_joint`/`fit_kc_joint_batched_replicates` default to
+   `newton.py`'s arrow-structured fast path** (2026-07-20, 4th A4
+   perf-surgery, `_planning/LEDGER.md`: the true root cause of the
+   permutation battery's production timeouts). Note 2's per-KC Newton
+   call couples every slice's free theta_ic to the KC's shared block
+   (beta_c or u_c); on oversized real KCs (k up to ~3000 slices) the
+   resulting P~k+shared_dim penalized Hessian was solved DENSELY, paying
+   O(P^3) per Newton iteration for a matrix that is provably an ARROW
+   (block-diagonal-bordered) structure -- each row's one-hot intercept
+   column touches exactly one slice, so the intercept-intercept block is
+   exactly diagonal, bordered by the small (shared_dim = 1 or 4) shared
+   block. `binary_logit_nll_arrow` (`newton.py`) solves this via exact
+   Schur-complement block elimination, O(k * shared_dim^2 + shared_dim^3)
+   per iteration and O(k * shared_dim) memory instead of O(k^2) -- EXACT
+   algebra, not an approximation, verified against the dense solve
+   directly (`tests/test_growth_newton.py`) and end-to-end against this
+   module's original dense one-hot-design path
+   (`tests/test_growth_gate_perf_equivalence.py`). Both KC-joint fit
+   functions take a ``use_arrow`` kwarg (default True); ``False`` reaches
+   the original dense path (`_build_kc_joint_arrays` +
+   `binary_logit_nll`), kept as that equivalence reference and a manual
+   escape hatch.
 """
 
 from __future__ import annotations
@@ -95,7 +118,12 @@ from kt_mirt.growth.bank import (
     build_calibration_rows,
     opportunity_block,
 )
-from kt_mirt.growth.newton import NewtonResult, binary_logit_nll, penalized_bounded_newton
+from kt_mirt.growth.newton import (
+    NewtonResult,
+    binary_logit_nll,
+    binary_logit_nll_arrow,
+    penalized_bounded_newton,
+)
 from kt_mirt.growth.slices import Slice, build_slices, permute_learner_order, select_d2_plus, slices_by_kc
 
 PRIOR_VAR = 4.0  # N(0, 2.0^2) logits, section 2.2's pre-registered slice-level prior
@@ -307,23 +335,24 @@ def fit_m1b_slice(slices: Sequence[Slice], bank: Optional[FrozenBank], time_filt
 # ---------------------------------------------------------------------------
 
 
-def _build_kc_joint_arrays(
+def _kc_joint_parts(
     kc_slices: Sequence[Slice],
     bank: Optional[FrozenBank],
     shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
     shared_dim: int,
     time_filter: Optional[Callable[[np.ndarray], np.ndarray]],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Assembles one KC's joint (per-slice one-hot theta + shared block)
-    design as flat ``(L,)``/``(L, P)`` numpy arrays (``P = k +
-    shared_dim``, ``k = len(kc_slices)``, ``L`` the number of valid,
-    time-filtered positions across all ``k`` slices) -- pure data
-    assembly, no fitting. Factored out of `fit_kc_joint` (unchanged
-    arithmetic, a pure refactor) so the identical construction is shared
-    by the S=1 per-replicate call AND `fit_kc_joint_batched_replicates`'s
-    S=B call: the only thing that differs between the looped and batched
-    paths is how many of these per-replicate arrays go into one Newton
-    call, never how one replicate's own array is built.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Shared per-slice assembly for one KC's joint fit: concatenated flat
+    ``(L,)``/``(L, shared_dim)`` numpy arrays (``L`` the number of valid,
+    time-filtered positions across all ``k = len(kc_slices)`` slices) --
+    pure data assembly, no fitting. Factored out of `_build_kc_joint_arrays`
+    (the dense one-hot-bordered design, kept as the equivalence reference)
+    and `_build_kc_joint_arrow_arrays` (the compact arrow representation,
+    the production default -- 2026-07-20 4th A4 perf-surgery,
+    `_planning/LEDGER.md`) so the SAME per-slice loop feeds both
+    representations of the identical model: they can never independently
+    drift apart. Returns ``(slice_idx (L,) int64, y (L,), mask (L,) bool,
+    logit_no_theta (L,), shared_cols (L, shared_dim))``.
     """
     k = len(kc_slices)
     slice_idx_parts, y_parts, mask_parts, logit_parts, shared_parts = [], [], [], [], []
@@ -342,21 +371,85 @@ def _build_kc_joint_arrays(
         shared_parts.append(shared_design_fn(sl.opportunity, sl.block_id))
     if not slice_idx_parts:
         return (
+            np.zeros(0, dtype=np.int64),
+            np.zeros(0, dtype=np.float32),
+            np.zeros(0, dtype=bool),
+            np.zeros(0, dtype=np.float32),
+            np.zeros((0, shared_dim), dtype=np.float32),
+        )
+    return (
+        np.concatenate(slice_idx_parts),
+        np.concatenate(y_parts),
+        np.concatenate(mask_parts),
+        np.concatenate(logit_parts),
+        np.concatenate(shared_parts, axis=0).astype(np.float32),
+    )
+
+
+def _build_kc_joint_arrays(
+    kc_slices: Sequence[Slice],
+    bank: Optional[FrozenBank],
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    shared_dim: int,
+    time_filter: Optional[Callable[[np.ndarray], np.ndarray]],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Assembles one KC's joint (per-slice one-hot theta + shared block)
+    design as flat ``(L,)``/``(L, P)`` numpy arrays (``P = k +
+    shared_dim``, ``k = len(kc_slices)``). A thin one-hot materialization
+    over `_kc_joint_parts`'s shared per-slice assembly, kept as the DENSE
+    equivalence reference for `fit_kc_joint`/`fit_kc_joint_batched_replicates`'s
+    ``use_arrow=False`` path (2026-07-20 4th A4 perf-surgery): production
+    fits no longer build this by default (see `_build_kc_joint_arrow_arrays`,
+    which skips ever materializing the ``(L, k)`` one-hot block -- real
+    memory/compute cost at oversized KCs, ``k`` up to ~3000), but any
+    caller can still request it directly.
+    """
+    k = len(kc_slices)
+    slice_idx, y, mask, logit_no_theta, shared_cols = _kc_joint_parts(
+        kc_slices, bank, shared_design_fn, shared_dim, time_filter
+    )
+    L = len(y)
+    if L == 0:
+        return (
             np.zeros(0, dtype=np.float32),
             np.zeros(0, dtype=bool),
             np.zeros(0, dtype=np.float32),
             np.zeros((0, k + shared_dim), dtype=np.float32),
         )
-    slice_idx = np.concatenate(slice_idx_parts)
-    y = np.concatenate(y_parts)
-    mask = np.concatenate(mask_parts)
-    logit_no_theta = np.concatenate(logit_parts)
-    shared_cols = np.concatenate(shared_parts, axis=0)
-    L = len(y)
     onehot = np.zeros((L, k), dtype=np.float32)
     onehot[np.arange(L), slice_idx] = 1.0
-    design = np.concatenate([onehot, shared_cols.astype(np.float32)], axis=1)
+    design = np.concatenate([onehot, shared_cols], axis=1)
     return y, mask, logit_no_theta, design
+
+
+def _build_kc_joint_arrow_arrays(
+    kc_slices: Sequence[Slice],
+    bank: Optional[FrozenBank],
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    shared_dim: int,
+    time_filter: Optional[Callable[[np.ndarray], np.ndarray]],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Compact arrow-structured representation of one KC's joint fit
+    (2026-07-20 4th A4 perf-surgery, `_planning/LEDGER.md`): instead of
+    materializing `_build_kc_joint_arrays`'s dense ``(L, k)`` one-hot
+    block, returns the per-row SLICE INDEX directly (``slice_idx``, ``(L,)``
+    int64) alongside the shared design columns (``shared_cols``, ``(L,
+    shared_dim)``) -- mathematically identical to the dense design (same
+    rows, same values: ``design[:, :k] == one_hot(slice_idx, k)``,
+    ``design[:, k:] == shared_cols``), consumed by `newton.py`'s
+    `binary_logit_nll_arrow` fast path, which exploits the resulting
+    Hessian's exact block-diagonal-bordered (arrow) structure via Schur-
+    complement elimination instead of a dense ``O(k^3)`` solve. Returns
+    ``(y, mask, logit_no_theta, slice_idx, shared_cols)``.
+    """
+    slice_idx, y, mask, logit_no_theta, shared_cols = _kc_joint_parts(
+        kc_slices, bank, shared_design_fn, shared_dim, time_filter
+    )
+    # Reordered to (y, mask, logit_no_theta, slice_idx, shared_cols) --
+    # matching `_build_kc_joint_arrays`'s own (y, mask, logit_no_theta,
+    # design) return order, with `design` split into its two
+    # arrow-structured pieces.
+    return y, mask, logit_no_theta, slice_idx, shared_cols
 
 
 def fit_kc_joint(
@@ -367,6 +460,7 @@ def fit_kc_joint(
     time_filter: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     prior_var: float = PRIOR_VAR,
     device: str = "cpu",
+    use_arrow: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Joint MAP fit of one KC's slices: free per-slice intercept theta_ic
     (one column each, one-hot-selected) plus a SHARED ``shared_dim``-length
@@ -377,17 +471,53 @@ def fit_kc_joint(
     docstring explains why this is a Python loop over KCs rather than a
     KC-batched vmap). Returns ``(theta_ic array (k,), shared array
     (shared_dim,))``.
+
+    ``use_arrow`` (default True, 2026-07-20 4th A4 perf-surgery,
+    `_planning/LEDGER.md`) selects `newton.py`'s arrow-structured Schur-
+    complement fast path (`_build_kc_joint_arrow_arrays` +
+    `binary_logit_nll_arrow`): oversized real KCs (``k`` up to ~3000)
+    previously forced a dense ``O(k^3)`` Hessian solve per Newton
+    iteration for no reason -- the true cost is ``O(k)``, exploiting the
+    provably block-diagonal-bordered Hessian this model always has. This
+    is EXACT block elimination, not an approximation, so ``use_arrow=True``
+    reproduces ``use_arrow=False``'s dense one-hot-design path
+    (`_build_kc_joint_arrays` + `binary_logit_nll`) to float tolerance
+    (`tests/test_growth_newton.py`'s exactness suite,
+    `tests/test_growth_gate_perf_equivalence.py`'s KC-joint equivalence
+    tests); ``use_arrow=False`` is kept as that equivalence reference and
+    a manual escape hatch.
     """
     k = len(kc_slices)
     if k == 0:
         return np.zeros(0), np.zeros(shared_dim)
+    P = k + shared_dim
+
+    if use_arrow:
+        y, mask, logit_no_theta, slice_idx, shared_cols = _build_kc_joint_arrow_arrays(
+            kc_slices, bank, shared_design_fn, shared_dim, time_filter
+        )
+        if len(y) == 0:
+            return np.zeros(k), np.zeros(shared_dim)
+        y_t = torch.as_tensor(y, dtype=torch.float32, device=device).unsqueeze(0)
+        mask_t = torch.as_tensor(mask, dtype=torch.bool, device=device).unsqueeze(0)
+        logit_t = torch.as_tensor(logit_no_theta, dtype=torch.float32, device=device).unsqueeze(0)
+        slice_idx_t = torch.as_tensor(slice_idx, dtype=torch.long, device=device).unsqueeze(0)
+        shared_cols_t = torch.as_tensor(shared_cols, dtype=torch.float32, device=device).unsqueeze(0)
+        x0 = torch.zeros(1, P, device=device)
+        result = penalized_bounded_newton(
+            binary_logit_nll_arrow, x0,
+            data_args=(y_t, mask_t, logit_t, slice_idx_t, shared_cols_t, k),
+            prior_var=prior_var,
+        )
+        params = result.params[0].cpu().numpy()
+        return params[:k], params[k:]
+
     y, mask, logit_no_theta, design = _build_kc_joint_arrays(
         kc_slices, bank, shared_design_fn, shared_dim, time_filter
     )
     if len(y) == 0:
         return np.zeros(k), np.zeros(shared_dim)
 
-    P = k + shared_dim
     y_t = torch.as_tensor(y, dtype=torch.float32, device=device).unsqueeze(0)
     mask_t = torch.as_tensor(mask, dtype=torch.bool, device=device).unsqueeze(0)
     logit_t = torch.as_tensor(logit_no_theta, dtype=torch.float32, device=device).unsqueeze(0)
@@ -408,6 +538,7 @@ def fit_kc_joint_batched_replicates(
     time_filter: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     prior_var: float = PRIOR_VAR,
     device: str = "cpu",
+    use_arrow: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """The A4 perf-surgery fix's core primitive: fits the SAME KC's pooled
     model (M1a-pooled or M1b-pooled) across ``B`` permutation replicates
@@ -430,17 +561,74 @@ def fit_kc_joint_batched_replicates(
     time), so replicates are padded to a shared ``L_max`` with a mask,
     exactly `_pad_design`'s existing padding convention elsewhere in this
     module. Returns ``(theta_ic (B, k), shared (B, shared_dim))``.
+
+    ``use_arrow`` (default True, 2026-07-20 4th A4 perf-surgery,
+    `_planning/LEDGER.md`): see `fit_kc_joint`'s docstring -- the SAME
+    arrow-vs-dense choice, applied per-replicate-chunk here. This is the
+    call site the production incident actually traced to (oversized real
+    KCs' dense ``O(k^3)`` Hessian solve inside the permutation battery, k
+    up to ~3000): the arrow path drops memory from ``O(B * k^2)`` to
+    ``O(B * k)`` in addition to the compute fix, which is why
+    `_calibrate_kc_chunk_size_empirically`'s empirical probe now measures
+    a much smaller footprint and recovers large chunks on the same KCs
+    that used to collapse to chunk=1.
     """
     B = len(kc_slices_by_replicate)
     k = len(kc_slices_by_replicate[0]) if B else 0
     if B == 0 or k == 0:
         return np.zeros((B, k)), np.zeros((B, shared_dim))
+    P = k + shared_dim
 
+    if use_arrow:
+        arrays = [
+            _build_kc_joint_arrow_arrays(kc_slices_by_replicate[b], bank, shared_design_fn, shared_dim, time_filter)
+            for b in range(B)
+        ]
+        L_max = max((a[0].shape[0] for a in arrays), default=0)
+        if L_max == 0:
+            return np.zeros((B, k)), np.zeros((B, shared_dim))
+
+        y = np.zeros((B, L_max), dtype=np.float32)
+        mask = np.zeros((B, L_max), dtype=bool)
+        logit_no_theta = np.zeros((B, L_max), dtype=np.float32)
+        slice_idx = np.zeros((B, L_max), dtype=np.int64)
+        shared_cols = np.zeros((B, L_max, shared_dim), dtype=np.float32)
+        for b, (y_b, mask_b, logit_b, idx_b, shared_b) in enumerate(arrays):
+            L_b = y_b.shape[0]
+            if L_b == 0:
+                continue
+            y[b, :L_b] = y_b
+            mask[b, :L_b] = mask_b
+            logit_no_theta[b, :L_b] = logit_b
+            slice_idx[b, :L_b] = idx_b
+            shared_cols[b, :L_b] = shared_b
+
+        y_t = torch.as_tensor(y, dtype=torch.float32, device=device)
+        mask_t = torch.as_tensor(mask, dtype=torch.bool, device=device)
+        logit_t = torch.as_tensor(logit_no_theta, dtype=torch.float32, device=device)
+        slice_idx_t = torch.as_tensor(slice_idx, dtype=torch.long, device=device)
+        shared_cols_t = torch.as_tensor(shared_cols, dtype=torch.float32, device=device)
+        del y, mask, logit_no_theta, slice_idx, shared_cols, arrays
+        x0 = torch.zeros(B, P, device=device)
+        result = penalized_bounded_newton(
+            binary_logit_nll_arrow, x0,
+            data_args=(y_t, mask_t, logit_t, slice_idx_t, shared_cols_t, k),
+            prior_var=prior_var,
+        )
+        # `.cpu().numpy()` makes an independent CPU copy, so every GPU
+        # tensor involved (inputs and `result`, unlike `fit_batched_replicates`
+        # whose returned params must stay on-device) can be freed
+        # immediately -- the per-chunk-cleanup half of the OOM fix.
+        params = result.params.cpu().numpy()
+        del y_t, mask_t, logit_t, slice_idx_t, shared_cols_t, x0, result
+        return params[:, :k], params[:, k:]
+
+    # `use_arrow=False`: original dense one-hot-design path (equivalence
+    # reference / manual escape hatch).
     arrays = [
         _build_kc_joint_arrays(kc_slices_by_replicate[b], bank, shared_design_fn, shared_dim, time_filter)
         for b in range(B)
     ]
-    P = k + shared_dim
     L_max = max((a[0].shape[0] for a in arrays), default=0)
     if L_max == 0:
         return np.zeros((B, k)), np.zeros((B, shared_dim))
@@ -949,26 +1137,595 @@ def _compute_per_kc_chunk_sizes(
         sizes[c] = _calibrate_kc_chunk_size_empirically(
             kc_probe, bank, device, safety_factor=safety_factor, max_chunk=max_chunk,
         )
-        # Diagnostic (2026-07-20 3rd A4 perf-surgery incident): a collapsed
-        # chunk size on a wide KC is the LEADING indicator of the slow-path
-        # this module's docstrings already document (a P > ~small_kc_threshold
-        # one-hot KC-joint fit costs real wall time PER CHUNK regardless of
-        # analytic-vs-generic derivatives, since the cost is O(L * P^2) per
-        # Newton iteration, not per-call dispatch overhead -- covering
-        # B=999 replicates in many small chunks is what actually burns the
-        # permutation battery's wall time on such a KC). Printed once per
+        # Diagnostic (2026-07-20 3rd A4 perf-surgery incident, cost model
+        # updated after the 4th surgery's arrow fix): a collapsed chunk
+        # size on a wide KC used to be the LEADING indicator of the
+        # dense-Hessian slow path this module's docstrings document (O(L *
+        # P^2) per Newton iteration, dominating wall time). Since
+        # `fit_kc_joint_batched_replicates` now defaults to the arrow-
+        # structured Schur-complement solve (module docstring note 5),
+        # whose memory is O(k) instead of O(k^2), a genuine collapse here
+        # should be rare even on the largest real KCs -- if this still
+        # fires, it means EITHER `use_arrow=False` is in effect somewhere
+        # upstream, OR the KC is wide enough that even the arrow path's
+        # O(B * k) footprint is large at this chunk's B. Printed once per
         # probed KC (never per replicate/chunk) so this is never silent
         # again without being spammy.
         if sizes[c] <= 8:
             print(
                 f"[permutation_null_batched] wide-KC chunk collapse: kc={c} "
                 f"n_slices={len(keys_c)} calibrated_chunk={sizes[c]} "
-                f"(each such chunk still pays a full penalized-Newton solve at "
-                f"P~n_slices; see newton.py's analytic fast path -- this is a "
-                f"per-iteration FLOP cost, not a dispatch problem)",
+                f"(post-arrow-fix, this chunk's own probe still measured a "
+                f"small safe batch -- see newton.py's arrow fast path and "
+                f"this function's docstring)",
                 flush=True,
             )
     return sizes
+
+
+# ---------------------------------------------------------------------------
+# Vectorized replicate assembly (2026-07-20 4th A4 perf-surgery, phase 2):
+# node-level profiling of a running production proof unit found the
+# permutation battery GPU-idle and single-CPU-core-bound the ENTIRE time --
+# the arrow-structured Newton fix above (phase 1) made the SOLVE fast, but
+# every replicate still paid FOUR independent O(n_slices) PYTHON-LEVEL loops
+# to rebuild its data from scratch: `slices.build_slices`'s per-group
+# `Slice` construction, `_pad_design`'s per-slice torch-tensor conversion
+# (used both for fitting AND, redundantly, again inside `held_out_nll`),
+# and `_build_kc_joint_arrow_arrays`'s per-slice loop (via `_kc_joint_parts`,
+# also paid twice per KC for M1a-pooled and M1b-pooled). Direct local
+# profiling at KDD_MATCHED production scale (515 KCs, 3000 learners,
+# 119,648 slices) measured, PER REPLICATE: build_slices 0.69s,
+# _build_kc_joint_arrow_arrays (all KCs, M1a+M1b) 1.55s, held_out_nll_kc_joint
+# (all KCs, M1a+M1b) 3.34s, _pad_design (bed-wide M0) 3.82s, held_out_nll
+# (bed-wide M0, which itself re-runs _pad_design) 3.94s -- roughly 13-14s of
+# PURE PYTHON LOOP overhead per replicate, which at B=999 alone accounts for
+# 3-4 HOURS of the incident's wall time, dwarfing anything the Newton solve
+# itself could cost regardless of how it is computed.
+#
+# The fix below is a from-scratch vectorized assembly path used ONLY by
+# `permutation_null_batched` (this module's B=199/999 hot loop); every OTHER
+# caller (`compute_gate_result`, `permutation_null_looped`, `rate.py`, the
+# unit tests) keeps using `build_slices`/`_pad_design`/`_build_kc_joint_arrow_arrays`
+# completely UNCHANGED -- both because those call sites run far too rarely
+# for this cost to matter, and because they remain the EQUIVALENCE
+# REFERENCE this fast path is tested against
+# (`tests/test_growth_gate_perf_equivalence.py`).
+#
+# Key facts that make the vectorization exact (not approximate):
+# 1. Slice membership (which (learner, kc) pairs exist, and each one's
+#    length T) is PERMUTATION-INVARIANT (`slices.permute_learner_order`
+#    only reorders each learner's OWN rows; `bank.CalibrationRows.learner_idx`
+#    is the learner's POSITIONAL index in the learners list, itself
+#    unchanged by permutation) -- so the (learner, kc) -> column mapping
+#    and each slice's T are computed ONCE per bed, reused for every
+#    replicate and chunk.
+# 2. `bank.build_calibration_rows`'s ``opportunity`` field is ALREADY the
+#    correct 1-based within-slice rank (its own vectorized cumcount, kept
+#    completely unchanged here) -- so ``opportunity - 1`` is directly the
+#    padded column position for that row within its slice, with no
+#    re-derivation of the opportunity/grouping logic at all: the fast path
+#    below reuses `build_calibration_rows`'s output verbatim and replaces
+#    ONLY `build_slices`'s/`_pad_design`'s/`_build_kc_joint_arrow_arrays`'s
+#    final per-slice PYTHON materialization with one vectorized
+#    scatter-assign per replicate (`_vectorized_replicate_padded_arrays`).
+# 3. Values written to PADDED (non-real) positions are never read: every
+#    downstream Newton/held-out computation masks them out before they
+#    reach a sum (see `_binary_logit_grad_hess_batch`'s masking, unchanged),
+#    so the scatter never needs to explicitly zero padding -- it is simply
+#    never touched by the scatter-assign for those positions, and
+#    pre-allocated zero-filled arrays leave it that way.
+# ---------------------------------------------------------------------------
+
+
+def _bed_key_scaffold(all_keys: Sequence[tuple[int, int]], n_kcs: int, n_learners: int) -> np.ndarray:
+    """Precomputes the ``(learner, kc) -> column-in-all_keys`` lookup as a
+    flat array (``key_to_col[learner * n_kcs + kc] = column, or -1``),
+    ONCE per bed -- reused for every replicate and chunk by the vectorized
+    assembly functions below (see module-level note above: this mapping is
+    permutation-invariant). ``learner`` is the POSITIONAL index into the
+    learners list (`bank.CalibrationRows.learner_idx`'s own convention,
+    which `slices.Slice.learner` inherits unchanged from it).
+    """
+    key_to_col = np.full(n_learners * n_kcs, -1, dtype=np.int64)
+    for col, (learner, kc) in enumerate(all_keys):
+        key_to_col[learner * n_kcs + kc] = col
+    return key_to_col
+
+
+def _vectorized_replicate_padded_arrays(
+    rows: CalibrationRows, key_to_col: np.ndarray, n_kcs: int, S: int, T_max: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """The core vectorized replacement for ``build_slices(rows)`` followed
+    by per-slice consumption (`_pad_design`'s own per-slice loop): scatters
+    ONE replicate's `CalibrationRows` directly into padded ``(S, T_max)``
+    arrays -- ``(y, valid_pos, opportunity, block_id, item_id)`` -- via a
+    single vectorized numpy scatter-assign, with NO per-slice/per-group
+    Python-level loop and no `Slice` object construction (module-level
+    note above). ``valid_pos`` marks REAL (non-padding) positions only --
+    it does not yet include bank-calibration eligibility or the odd/even
+    time filter (`_mask_and_logit_from_padded` adds those, separately,
+    since they differ between the fitting and held-out passes but the
+    underlying data does not).
+
+    Reuses the SAME (row, slot)-flattening and composite ``learner *
+    n_kcs + kc`` grouping key as `build_slices`, with `key_to_col`
+    (`_bed_key_scaffold`) taking the place of that function's dict-based
+    per-group lookup. ``opportunity - 1`` is used directly as each row's
+    column position (module-level note 2).
+    """
+    y = np.zeros((S, T_max), dtype=np.float32)
+    valid_pos = np.zeros((S, T_max), dtype=bool)
+    opp_padded = np.zeros((S, T_max), dtype=np.int32)
+    block_padded = np.zeros((S, T_max), dtype=np.int32)
+    item_padded = np.zeros((S, T_max), dtype=np.int32)
+
+    R, A = rows.kc_ids.shape
+    if R == 0 or A == 0 or S == 0 or T_max == 0:
+        return y, valid_pos, opp_padded, block_padded, item_padded
+
+    row_grid = np.repeat(np.arange(R), A)
+    slot_grid = np.tile(np.arange(A), R)
+    valid_grid = rows.kc_mask.reshape(-1)
+    rows_v = row_grid[valid_grid]
+    if len(rows_v) == 0:
+        return y, valid_pos, opp_padded, block_padded, item_padded
+    slots_v = slot_grid[valid_grid]
+    learner_v = rows.learner_idx[rows_v]
+    kc_v = rows.kc_ids[rows_v, slots_v]
+    opp_v = rows.opportunity[rows_v, slots_v]
+    block_v = rows.block_id[rows_v, slots_v]
+    item_v = rows.item_id[rows_v]
+    resp_v = rows.response[rows_v]
+
+    key_id = learner_v.astype(np.int64) * n_kcs + kc_v.astype(np.int64)
+    col_v = key_to_col[key_id]
+    keep = col_v >= 0
+    col_v = col_v[keep]
+    pos_v = (opp_v[keep] - 1).astype(np.int64)
+    # Defensive (should not trigger under normal operation: T_max is
+    # computed from the SAME slices these rows belong to): drop any
+    # position that would overflow the padded row.
+    in_range = pos_v < T_max
+    col_v = col_v[in_range]
+    pos_v = pos_v[in_range]
+    item_v = item_v[keep][in_range]
+    resp_v = resp_v[keep][in_range]
+    block_v = block_v[keep][in_range]
+    opp_v = opp_v[keep][in_range]
+
+    y[col_v, pos_v] = resp_v
+    valid_pos[col_v, pos_v] = True
+    opp_padded[col_v, pos_v] = opp_v
+    block_padded[col_v, pos_v] = block_v
+    item_padded[col_v, pos_v] = item_v
+    return y, valid_pos, opp_padded, block_padded, item_padded
+
+
+def _stack_chunk_padded_arrays(
+    chunk_rows: Sequence[CalibrationRows], key_to_col: np.ndarray, n_kcs: int, S: int, T_max: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Stacks `_vectorized_replicate_padded_arrays` over a CHUNK of ``Bc``
+    replicates into ``(Bc, S, T_max)`` arrays. Still one Python-level call
+    per replicate, but each call is now a handful of vectorized numpy ops
+    instead of an ``O(S)`` Python loop -- the entire fix (module-level
+    note above)."""
+    Bc = len(chunk_rows)
+    y = np.zeros((Bc, S, T_max), dtype=np.float32)
+    valid_pos = np.zeros((Bc, S, T_max), dtype=bool)
+    opp = np.zeros((Bc, S, T_max), dtype=np.int32)
+    block = np.zeros((Bc, S, T_max), dtype=np.int32)
+    item = np.zeros((Bc, S, T_max), dtype=np.int32)
+    for b, rows in enumerate(chunk_rows):
+        y[b], valid_pos[b], opp[b], block[b], item[b] = _vectorized_replicate_padded_arrays(
+            rows, key_to_col, n_kcs, S, T_max
+        )
+    return y, valid_pos, opp, block, item
+
+
+def _mask_and_logit_from_padded(
+    item_padded: np.ndarray,
+    valid_pos: np.ndarray,
+    opp_padded: np.ndarray,
+    bank: Optional[FrozenBank],
+    time_filter: Optional[Callable[[np.ndarray], np.ndarray]],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorized ``(mask, logit_no_theta)`` from padded arrays, matching
+    `_validity_mask` + `_pad_design`'s semantics exactly: ``mask`` ANDs
+    "real (non-pad) position" with the bank's calibration-eligibility check
+    and the odd/even ``time_filter``. `FrozenBank.is_calibrated`/`.difficulty`
+    and `_time_filter_odd`/`_time_filter_even` are plain fancy-indexing /
+    elementwise-modulo operations that already work unchanged on ANY array
+    shape, so no flatten/reshape is needed here -- this is the same
+    property that makes note 3 above hold generally."""
+    mask = valid_pos
+    if bank is not None:
+        mask = mask & bank.is_calibrated(item_padded)
+    if time_filter is not None:
+        mask = mask & time_filter(opp_padded)
+    if bank is not None:
+        logit_no_theta = (-bank.difficulty(item_padded)).astype(np.float32)
+    else:
+        logit_no_theta = np.zeros(item_padded.shape, dtype=np.float32)
+    return mask, logit_no_theta
+
+
+def _design_from_padded(
+    opp_padded: np.ndarray,
+    block_padded: np.ndarray,
+    design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    P: int,
+) -> np.ndarray:
+    """Vectorized ``design`` array from padded ``opportunity``/``block_id``:
+    flattens to 1D (the shape every ``design_fn`` in this module expects,
+    since they use ``len(opp)``), calls the EXACT SAME design_fn used
+    everywhere else (zero risk of behavioral drift), and reshapes back.
+    Padding positions get whatever value ``design_fn`` produces on their
+    zero-filled opp/block entries -- harmless, since ``mask`` (computed
+    separately) always zeroes a padded position's contribution before it
+    reaches the Newton objective (module-level note 3 above)."""
+    shape = opp_padded.shape
+    flat = design_fn(opp_padded.reshape(-1), block_padded.reshape(-1))
+    return flat.reshape(*shape, P).astype(np.float32)
+
+
+def _fit_m0_and_held_out_vectorized(
+    y: np.ndarray,
+    opp: np.ndarray,
+    valid_pos: np.ndarray,
+    item: np.ndarray,
+    bank: Optional[FrozenBank],
+    device: str,
+) -> np.ndarray:
+    """M0 (constant-ability null), fit on the odd split and evaluated
+    (held-out NLL) on the even split, batched over the WHOLE ``(Bc, S,
+    T_max)`` chunk in one Newton call -- the vectorized-assembly
+    replacement for `_fit_batched_replicates_safe` + `held_out_nll`.
+    Returns ``(Bc, S)`` held-out NLL, matching `held_out_nll`'s per-slice
+    output shape and formula (``binary_cross_entropy_with_logits``)
+    exactly. M0's design is the constant column ``1.0`` (`_m0_design`), so
+    ``logits = theta + logit_no_theta`` directly (broadcasting ``theta``
+    ``(N, 1)`` against ``logit_no_theta`` ``(N, T_max)``) without ever
+    materializing a design tensor.
+    """
+    Bc, S, T_max = y.shape
+    N = Bc * S
+    mask_odd, logit_no_theta = _mask_and_logit_from_padded(item, valid_pos, opp, bank, _time_filter_odd)
+
+    y_t = torch.as_tensor(y.reshape(N, T_max), dtype=torch.float32, device=device)
+    mask_t = torch.as_tensor(mask_odd.reshape(N, T_max), dtype=torch.bool, device=device)
+    logit_t = torch.as_tensor(logit_no_theta.reshape(N, T_max), dtype=torch.float32, device=device)
+    design_t = torch.ones(N, T_max, 1, dtype=torch.float32, device=device)
+    x0 = torch.zeros(N, 1, device=device)
+    result = penalized_bounded_newton(
+        binary_logit_nll, x0, data_args=(y_t, mask_t, logit_t, design_t), prior_var=PRIOR_VAR
+    )
+    theta = result.params  # (N, 1)
+    del y_t, mask_t, design_t, x0, result
+
+    mask_even, _ = _mask_and_logit_from_padded(item, valid_pos, opp, bank, _time_filter_even)
+    y_t2 = torch.as_tensor(y.reshape(N, T_max), dtype=torch.float32, device=device)
+    mask_t2 = torch.as_tensor(mask_even.reshape(N, T_max), dtype=torch.bool, device=device)
+    logits = theta + logit_t  # (N,1) + (N,T_max) -> (N,T_max), matches design@params+logit_no_theta for design==1
+    per_pos = torch.nn.functional.binary_cross_entropy_with_logits(logits, y_t2, reduction="none")
+    nll_even = (per_pos * mask_t2.to(per_pos.dtype)).sum(dim=-1)
+    out = nll_even.reshape(Bc, S).cpu().numpy()
+    del y_t2, mask_t2, logit_t, logits, per_pos, nll_even, theta
+    return out
+
+
+def _fit_kc_pooled_and_held_out_vectorized(
+    y: np.ndarray,
+    opp: np.ndarray,
+    block: np.ndarray,
+    valid_pos: np.ndarray,
+    item: np.ndarray,
+    cols: np.ndarray,
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    shared_dim: int,
+    bank: Optional[FrozenBank],
+    device: str,
+) -> np.ndarray:
+    """One KC's pooled fit (M1a-pooled ``shared_dim=1`` or M1b-pooled
+    ``shared_dim=N_BLOCKS``), fit on the odd split and evaluated on the
+    even split, over the chunk's ``Bc`` replicates via the arrow-structured
+    Newton fast path (`binary_logit_nll_arrow`) -- the vectorized-assembly
+    replacement for `_fit_kc_joint_batched_replicates_safe` +
+    `held_out_total_nll_kc_joint_batched_replicates`. ``cols`` are THIS
+    KC's own column indices into the bed-wide ``S`` axis (fixed,
+    permutation-invariant, computed once outside the replicate loop).
+    Returns ``(Bc,)`` total held-out NLL summed over this KC's own slices,
+    matching `held_out_total_nll_kc_joint_batched_replicates`'s output and
+    `held_out_nll_kc_joint`'s exact formula (manual sigmoid + eps-clipped
+    log, in float64) -- deliberately NOT `binary_cross_entropy_with_logits`,
+    since that reference function uses the manual form.
+    """
+    Bc, S, T_max = y.shape
+    k = len(cols)
+    y_kc = y[:, cols, :].reshape(Bc, k * T_max)
+    opp_kc = opp[:, cols, :]
+    block_kc = block[:, cols, :]
+    valid_kc = valid_pos[:, cols, :]
+    item_kc = item[:, cols, :]
+
+    mask_odd, logit_no_theta = _mask_and_logit_from_padded(item_kc, valid_kc, opp_kc, bank, _time_filter_odd)
+    mask_odd = mask_odd.reshape(Bc, k * T_max)
+    logit_no_theta = logit_no_theta.reshape(Bc, k * T_max)
+    shared_cols = _design_from_padded(opp_kc, block_kc, shared_design_fn, shared_dim).reshape(Bc, k * T_max, shared_dim)
+    slice_idx = np.repeat(np.arange(k), T_max)[None, :].repeat(Bc, axis=0)
+
+    y_t = torch.as_tensor(y_kc, dtype=torch.float32, device=device)
+    mask_t = torch.as_tensor(mask_odd, dtype=torch.bool, device=device)
+    logit_t = torch.as_tensor(logit_no_theta, dtype=torch.float32, device=device)
+    slice_idx_t = torch.as_tensor(slice_idx, dtype=torch.long, device=device)
+    shared_cols_t = torch.as_tensor(shared_cols, dtype=torch.float32, device=device)
+    x0 = torch.zeros(Bc, k + shared_dim, device=device)
+    result = penalized_bounded_newton(
+        binary_logit_nll_arrow, x0,
+        data_args=(y_t, mask_t, logit_t, slice_idx_t, shared_cols_t, k),
+        prior_var=PRIOR_VAR,
+    )
+    theta = result.params[:, :k]
+    shared = result.params[:, k:]
+    del y_t, mask_t, x0, result
+
+    mask_even, _ = _mask_and_logit_from_padded(item_kc, valid_kc, opp_kc, bank, _time_filter_even)
+    mask_even = mask_even.reshape(Bc, k * T_max)
+    y_t2 = torch.as_tensor(y_kc, dtype=torch.float64, device=device)
+    mask_t2 = torch.as_tensor(mask_even, dtype=torch.bool, device=device)
+    logit_t2 = torch.as_tensor(logit_no_theta, dtype=torch.float64, device=device)
+
+    theta_gather = torch.gather(theta.double(), 1, slice_idx_t)
+    shared_term = torch.matmul(shared_cols_t.double(), shared.double().unsqueeze(-1)).squeeze(-1)
+    logits = theta_gather + shared_term + logit_t2
+    p = torch.sigmoid(logits)
+    eps = 1e-12
+    nll = -(y_t2 * torch.log(p + eps) + (1.0 - y_t2) * torch.log(1.0 - p + eps))
+    nll_even_total = (nll * mask_t2.to(nll.dtype)).sum(dim=-1)
+    out = nll_even_total.cpu().numpy()
+    del y_t2, mask_t2, logit_t2, shared_cols_t, slice_idx_t, theta_gather, shared_term, logits, p, nll, nll_even_total
+    del theta, shared, logit_no_theta
+    return out
+
+
+def _fit_kc_bucket_pooled_and_held_out_vectorized(
+    y: np.ndarray,
+    opp: np.ndarray,
+    block: np.ndarray,
+    valid_pos: np.ndarray,
+    item: np.ndarray,
+    kc_cols_list: Sequence[np.ndarray],
+    shared_design_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    shared_dim: int,
+    bank: Optional[FrozenBank],
+    device: str,
+) -> list[np.ndarray]:
+    """Batches MULTIPLE KCs' pooled fits (same model, i.e. same
+    ``shared_dim``) into ONE Newton call by padding every KC in the
+    bucket to a common ``k_max`` (the bucket's own largest member) --
+    module-level note above `_bed_key_scaffold`'s "phase 3" fix: 515
+    separate per-KC Newton loops per model per chunk (`_fit_kc_pooled_and_held_out_vectorized`,
+    called once per KC) each pay ~25 iterations of several small GPU
+    kernel launches, and dispatch overhead from having over a thousand
+    such SEPARATE calls per chunk dominates wall time once data assembly
+    (phase 2) and per-call contraction-path search (phase 3's other fix,
+    `torch.einsum` -> `torch.matmul`) are removed -- confirmed directly at
+    production scale.
+
+    Padding rows (a KC with ``k_c < k_max``) are all-zero AND masked out
+    of both the odd (fit) and even (held-out) splits via ``real_k``, so
+    they contribute EXACTLY zero to that KC's own gradient/Hessian/NLL --
+    the same masking argument that already makes ``T_max`` padding within
+    one slice harmless (module-level note 3), just one level up (padding
+    whole SLICES within a KC's own arrow system, not just positions
+    within one slice). Every KC still gets its OWN free intercept
+    theta_ic (`slice_idx` ranges ``[0, k_max)`` per KC, independently) and
+    its OWN shared block (``shared`` is NOT shared ACROSS KCs -- each
+    KC's k_max-wide slot occupies its OWN row of the batch, and
+    `penalized_bounded_newton`'s batch axis fits every row completely
+    independently, exactly as it already does for different replicates).
+
+    Returns one ``(Bc,)`` held-out-NLL-total array PER KC in
+    ``kc_cols_list``, in the same order, matching
+    `_fit_kc_pooled_and_held_out_vectorized`'s per-KC output exactly.
+    """
+    Bc, S, T_max = y.shape
+    m = len(kc_cols_list)
+    k_max = max(len(c) for c in kc_cols_list)
+
+    y_b = np.zeros((Bc, m, k_max, T_max), dtype=np.float32)
+    opp_b = np.zeros((Bc, m, k_max, T_max), dtype=np.int32)
+    block_b = np.zeros((Bc, m, k_max, T_max), dtype=np.int32)
+    valid_b = np.zeros((Bc, m, k_max, T_max), dtype=bool)
+    item_b = np.zeros((Bc, m, k_max, T_max), dtype=np.int32)
+    real_k = np.zeros((m, k_max), dtype=bool)
+    for j, cols in enumerate(kc_cols_list):
+        kc = len(cols)
+        y_b[:, j, :kc, :] = y[:, cols, :]
+        opp_b[:, j, :kc, :] = opp[:, cols, :]
+        block_b[:, j, :kc, :] = block[:, cols, :]
+        valid_b[:, j, :kc, :] = valid_pos[:, cols, :]
+        item_b[:, j, :kc, :] = item[:, cols, :]
+        real_k[j, :kc] = True
+
+    N = Bc * m
+    L = k_max * T_max
+    y_flat = y_b.reshape(N, L)
+    opp_flat = opp_b.reshape(N, L)
+    block_flat = block_b.reshape(N, L)
+    valid_flat = valid_b.reshape(N, L)
+    item_flat = item_b.reshape(N, L)
+    real_k_positions = np.repeat(np.tile(real_k, (Bc, 1)), T_max, axis=1)  # (N, L)
+    del y_b, opp_b, block_b, valid_b, item_b
+
+    mask_odd, logit_no_theta = _mask_and_logit_from_padded(item_flat, valid_flat, opp_flat, bank, _time_filter_odd)
+    mask_odd = mask_odd & real_k_positions
+    shared_cols = _design_from_padded(opp_flat, block_flat, shared_design_fn, shared_dim)
+    slice_idx = np.tile(np.repeat(np.arange(k_max), T_max), (N, 1))
+
+    y_t = torch.as_tensor(y_flat, dtype=torch.float32, device=device)
+    mask_t = torch.as_tensor(mask_odd, dtype=torch.bool, device=device)
+    logit_t = torch.as_tensor(logit_no_theta, dtype=torch.float32, device=device)
+    slice_idx_t = torch.as_tensor(slice_idx, dtype=torch.long, device=device)
+    shared_cols_t = torch.as_tensor(shared_cols, dtype=torch.float32, device=device)
+    x0 = torch.zeros(N, k_max + shared_dim, device=device)
+    result = penalized_bounded_newton(
+        binary_logit_nll_arrow, x0,
+        data_args=(y_t, mask_t, logit_t, slice_idx_t, shared_cols_t, k_max),
+        prior_var=PRIOR_VAR,
+    )
+    theta = result.params[:, :k_max]
+    shared = result.params[:, k_max:]
+    del y_t, mask_t, x0, result
+
+    mask_even, _ = _mask_and_logit_from_padded(item_flat, valid_flat, opp_flat, bank, _time_filter_even)
+    mask_even = mask_even & real_k_positions
+    y_t2 = torch.as_tensor(y_flat, dtype=torch.float64, device=device)
+    mask_t2 = torch.as_tensor(mask_even, dtype=torch.bool, device=device)
+    logit_t2 = torch.as_tensor(logit_no_theta, dtype=torch.float64, device=device)
+
+    theta_gather = torch.gather(theta.double(), 1, slice_idx_t)
+    shared_term = torch.matmul(shared_cols_t.double(), shared.double().unsqueeze(-1)).squeeze(-1)
+    logits = theta_gather + shared_term + logit_t2
+    p = torch.sigmoid(logits)
+    eps = 1e-12
+    nll = -(y_t2 * torch.log(p + eps) + (1.0 - y_t2) * torch.log(1.0 - p + eps))
+    nll_total = (nll * mask_t2.to(nll.dtype)).sum(dim=-1)  # (N,)
+    out = nll_total.reshape(Bc, m).cpu().numpy()
+    del y_t2, mask_t2, logit_t2, shared_cols_t, slice_idx_t, theta_gather, shared_term, logits, p, nll, nll_total
+    del theta, shared, logit_no_theta
+
+    return [out[:, j] for j in range(m)]
+
+
+def _bucket_kcs_by_size(
+    by_kc_keys: Sequence[Sequence[tuple[int, int]]], small_kc_threshold: int = 300, bucket_size: int = 25,
+) -> list[list[int]]:
+    """Groups KC ids into buckets for `_fit_kc_bucket_pooled_and_held_out_vectorized`:
+    KCs at or below ``small_kc_threshold`` slices (the vast majority on a
+    real bed -- ~493 of 515 on KDD_MATCHED) are sorted by slice count
+    ascending, then split into buckets of (at most) ``bucket_size`` KCs
+    each, so each bucket's members are similarly sized (bounding the
+    padding waste smaller members pay for a shared ``k_max``). KCs ABOVE
+    the threshold each get their OWN singleton bucket -- the caller
+    recognizes a length-1 bucket and routes it to the ORIGINAL, proven
+    per-KC path (`_fit_kc_pooled_and_held_out_vectorized`) instead, exactly
+    mirroring `_compute_per_kc_chunk_sizes`'s own small/large distinction
+    (the reason it exists there applies here identically: a single
+    oversized KC must never force a huge ``k_max`` onto a bucket of
+    otherwise-small KCs). Empty KCs (no slices) are dropped entirely."""
+    small = [c for c, keys in enumerate(by_kc_keys) if keys and len(keys) <= small_kc_threshold]
+    large = [c for c, keys in enumerate(by_kc_keys) if keys and len(keys) > small_kc_threshold]
+    small.sort(key=lambda c: len(by_kc_keys[c]))
+    buckets = [small[i : i + bucket_size] for i in range(0, len(small), bucket_size)]
+    buckets.extend([c] for c in large)
+    return buckets
+
+
+def _permutation_null_batched_chunk_vectorized(
+    chunk_learners: Sequence,
+    key_to_col: np.ndarray,
+    by_kc_keys: Sequence[Sequence[tuple[int, int]]],
+    cols_by_kc: Sequence[np.ndarray],
+    n_kcs: int,
+    S: int,
+    T_max: int,
+    bank: Optional[FrozenBank],
+    device: str,
+    kc_chunk_sizes: dict[int, int],
+    kc_buckets: Sequence[Sequence[int]],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """One chunk's worth of `permutation_null_batched`'s vectorized-assembly
+    fast path (module-level note above `_bed_key_scaffold`): builds the
+    chunk's padded arrays ONCE (`_stack_chunk_padded_arrays`), fits M0
+    across the whole chunk, then processes KCs in `kc_buckets` groups
+    (`_bucket_kcs_by_size`) slicing OUT of that SAME padded array (no
+    rebuild per KC) instead of `_build_kc_joint_arrow_arrays`. A
+    multi-member bucket is fit in ONE Newton call via
+    `_fit_kc_bucket_pooled_and_held_out_vectorized` (phase 3's fix for
+    per-KC GPU-dispatch overhead); a singleton bucket (an oversized KC,
+    per `_bucket_kcs_by_size`'s small/large split) uses the ORIGINAL
+    per-KC path (`_fit_kc_pooled_and_held_out_vectorized`) unchanged.
+    Returns ``(total_m1a, total_m1b, kc_null_chunk)`` -- ``(Bc,)``, ``(Bc,)``,
+    ``(Bc, n_kcs)`` -- matching the original per-chunk loop's own local
+    variables exactly, so the caller's bed_null/kc_null assembly is
+    unchanged regardless of which path produced these.
+    """
+    Bc = len(chunk_learners)
+    chunk_rows = [build_calibration_rows(lg) for lg in chunk_learners]
+    y, valid_pos, opp, block, item = _stack_chunk_padded_arrays(chunk_rows, key_to_col, n_kcs, S, T_max)
+    del chunk_rows
+
+    m0_nll_even = _fit_m0_and_held_out_vectorized(y, opp, valid_pos, item, bank, device)  # (Bc, S)
+
+    total_m1a = np.zeros(Bc)
+    total_m1b = np.zeros(Bc)
+    kc_null_chunk = np.zeros((Bc, n_kcs))
+    is_cuda = device.startswith("cuda") and torch.cuda.is_available()
+
+    for bucket in kc_buckets:
+        if len(bucket) == 1:
+            c = bucket[0]
+            cols = cols_by_kc[c]
+            m0_kc_total = m0_nll_even[:, cols].sum(axis=1)  # (Bc,)
+
+            # Sub-chunk THIS KC's own replicate batch by ITS OWN chunk
+            # size (see `permutation_null_batched`'s incident-context
+            # docstring): even with the arrow fast path, a sufficiently
+            # wide KC's own (Bc, k*T_max, shared_dim) tensors are sized
+            # by its OWN k, not the outer chunk's M0 sizing.
+            kc_chunk = kc_chunk_sizes.get(c, 1)
+            nll_a_total = np.zeros(Bc)
+            nll_b_total = np.zeros(Bc)
+            for sub_start in range(0, Bc, kc_chunk):
+                sub_end = min(sub_start + kc_chunk, Bc)
+                sl_ = slice(sub_start, sub_end)
+                nll_a_total[sl_] = _fit_kc_pooled_and_held_out_vectorized(
+                    y[sl_], opp[sl_], block[sl_], valid_pos[sl_], item[sl_], cols, _m1a_shared_design, 1, bank, device
+                )
+                nll_b_total[sl_] = _fit_kc_pooled_and_held_out_vectorized(
+                    y[sl_], opp[sl_], block[sl_], valid_pos[sl_], item[sl_], cols, _m1b_shared_design, N_BLOCKS,
+                    bank, device,
+                )
+            stat_kc_a = m0_kc_total - nll_a_total
+            stat_kc_b = m0_kc_total - nll_b_total
+            total_m1a += stat_kc_a
+            total_m1b += stat_kc_b
+            kc_null_chunk[:, c] = np.maximum(stat_kc_a, stat_kc_b)
+        else:
+            kc_cols_list = [cols_by_kc[c] for c in bucket]
+            # Bound the replicate sub-chunk by the bucket's own most
+            # conservative member (a shared sub-chunk size across the
+            # whole bucket, never rebuilt per-KC).
+            kc_chunk = min((kc_chunk_sizes.get(c, 1) for c in bucket), default=1)
+            nll_a_by_kc = [np.zeros(Bc) for _ in bucket]
+            nll_b_by_kc = [np.zeros(Bc) for _ in bucket]
+            for sub_start in range(0, Bc, kc_chunk):
+                sub_end = min(sub_start + kc_chunk, Bc)
+                sl_ = slice(sub_start, sub_end)
+                a_results = _fit_kc_bucket_pooled_and_held_out_vectorized(
+                    y[sl_], opp[sl_], block[sl_], valid_pos[sl_], item[sl_], kc_cols_list,
+                    _m1a_shared_design, 1, bank, device,
+                )
+                b_results = _fit_kc_bucket_pooled_and_held_out_vectorized(
+                    y[sl_], opp[sl_], block[sl_], valid_pos[sl_], item[sl_], kc_cols_list,
+                    _m1b_shared_design, N_BLOCKS, bank, device,
+                )
+                for j in range(len(bucket)):
+                    nll_a_by_kc[j][sl_] = a_results[j]
+                    nll_b_by_kc[j][sl_] = b_results[j]
+            for j, c in enumerate(bucket):
+                m0_kc_total = m0_nll_even[:, cols_by_kc[c]].sum(axis=1)
+                stat_kc_a = m0_kc_total - nll_a_by_kc[j]
+                stat_kc_b = m0_kc_total - nll_b_by_kc[j]
+                total_m1a += stat_kc_a
+                total_m1b += stat_kc_b
+                kc_null_chunk[:, c] = np.maximum(stat_kc_a, stat_kc_b)
+
+        if is_cuda:
+            torch.cuda.empty_cache()
+
+    return total_m1a, total_m1b, kc_null_chunk
 
 
 def permutation_null_batched(
@@ -982,6 +1739,7 @@ def permutation_null_batched(
     replicate_chunk_size: Optional[int] = None,
     safety_factor: float = 2.0,
     small_kc_threshold: int = 300,
+    use_vectorized_assembly: bool = True,
 ) -> dict[str, np.ndarray]:
     """Replicate-batched equivalent of `permutation_null_looped`: the SAME
     permutation draws, in the SAME order (identical RNG consumption --
@@ -1055,6 +1813,32 @@ def permutation_null_batched(
     sized KCs batch at full speed while only the genuinely oversized ones
     fall back to a small chunk or per-replicate looping -- for themselves
     alone, not for the whole bed.
+
+    ``use_vectorized_assembly`` (default True, 2026-07-20 4th A4 perf-
+    surgery phase 2, `_planning/LEDGER.md`): the incident-context notes
+    above describe the SOLVE-side fixes; a SEPARATE root cause, found
+    only after those held, is that every replicate paid several O(n_slices)
+    PYTHON-LEVEL loops (`build_slices`'s per-group `Slice` construction,
+    `_pad_design`'s per-slice torch conversion -- run twice, once for
+    fitting and once inside `held_out_nll` -- and `_build_kc_joint_arrow_arrays`'s
+    per-slice loop, paid twice per KC) to rebuild its data from scratch --
+    node-level profiling of a live production unit found the permutation
+    battery GPU-IDLE and single-CPU-core-bound the ENTIRE time, and local
+    production-scale profiling measured ~13-14s of PURE PYTHON LOOP
+    overhead per replicate this way (`_bed_key_scaffold` and friends'
+    module-level docstring above has the exact breakdown), which at
+    B=999 alone accounts for 3-4 hours of the incident's wall time --
+    dwarfing anything the Newton solve itself could cost. The default
+    path (`_permutation_null_batched_chunk_vectorized`) replaces ALL of
+    that with vectorized numpy scatter-assigns straight from
+    `bank.build_calibration_rows`'s own (unchanged, already-vectorized)
+    output into padded ``(Bc, S, T_max)`` arrays, reused directly by
+    every KC's pooled fit (sliced out of the SAME array, never rebuilt) --
+    no `Slice` object, and no per-slice/per-group Python loop, anywhere in
+    the hot path. ``use_vectorized_assembly=False`` reaches the ORIGINAL
+    per-replicate Slice-based path, kept as the equivalence reference
+    (`tests/test_growth_gate_perf_equivalence.py`) and as the automatic
+    per-chunk fallback on `torch.cuda.OutOfMemoryError`/`MemoryError`.
     """
     rng = np.random.default_rng(seed)
     perm_learners_list = [permute_learner_order(learners, rng) for _ in range(n_replicates)]
@@ -1089,9 +1873,48 @@ def permutation_null_batched(
     is_cuda = device.startswith("cuda") and torch.cuda.is_available()
     post_chunk_allocated: list[int] = []
 
+    S = len(all_keys)
+    T_max = max((sl.T for sl in base_slices.values()), default=0)
+    key_to_col_arr = _bed_key_scaffold(all_keys, n_kcs, n_learners) if use_vectorized_assembly else None
+    cols_by_kc = (
+        [np.array([key_to_col[k] for k in keys_c], dtype=np.int64) for keys_c in by_kc_keys]
+        if use_vectorized_assembly
+        else None
+    )
+    kc_buckets = (
+        _bucket_kcs_by_size(by_kc_keys, small_kc_threshold=small_kc_threshold)
+        if use_vectorized_assembly
+        else None
+    )
+
     for chunk_start in range(0, n_replicates, replicate_chunk_size):
         chunk_end = min(chunk_start + replicate_chunk_size, n_replicates)
         chunk_learners = perm_learners_list[chunk_start:chunk_end]
+        Bc = len(chunk_learners)
+
+        if use_vectorized_assembly:
+            try:
+                total_m1a, total_m1b, kc_null_chunk = _permutation_null_batched_chunk_vectorized(
+                    chunk_learners, key_to_col_arr, by_kc_keys, cols_by_kc, n_kcs, S, T_max,
+                    bank, device, kc_chunk_sizes, kc_buckets,
+                )
+                kc_null[chunk_start:chunk_end, :] = kc_null_chunk
+                bed_null[chunk_start:chunk_end] = np.maximum(total_m1a, total_m1b)
+                if is_cuda:
+                    torch.cuda.synchronize(device)
+                    torch.cuda.empty_cache()
+                    post_chunk_allocated.append(int(torch.cuda.memory_allocated(device)))
+                continue
+            except (torch.cuda.OutOfMemoryError, MemoryError):
+                # Fall through to the original per-replicate Slice-based
+                # path for THIS chunk only (module-level note above): the
+                # vectorized path's (Bc, S, T_max) arrays are a different
+                # memory shape than the original per-slice construction,
+                # so a chunk that OOMs under one may still fit under the
+                # other. Every OTHER chunk keeps trying the fast path.
+                if is_cuda:
+                    torch.cuda.empty_cache()
+
         chunk_slices = []
         for lg in chunk_learners:
             rows = build_calibration_rows(lg)
@@ -1104,7 +1927,6 @@ def permutation_null_batched(
                     "batched path's permutation-invariance assumption is violated."
                 )
 
-        Bc = len(chunk_learners)
         slices_by_replicate_all = [[sd[k] for k in all_keys] for sd in chunk_slices]
         m0_params = _fit_batched_replicates_safe(
             slices_by_replicate_all, bank, _m0_design, P=1, time_filter=_time_filter_odd, device=device
