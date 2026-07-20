@@ -845,3 +845,25 @@ Acquisitions:
   refinement (idempotent store; optimized units fill gaps). Ultracode
   reserved for the verdict synthesis, where fan-out + adversarial
   verification actually add value -- not burned on non-blocking perf.
+
+## 2026-07-20 ~13:00 FIRST G2 SIGNAL (KDD existence gate, seed0)
+
+- The model-free existence gate (PAS-G, passive posture) at KDD seed0:
+  NG p=0.268 (correctly SILENT), KG p=0.001 (DETECTS, true rise
+  0.673), NS p=0.001 + 65/515 KCs individually reject (DETECTS
+  non-standard, true 0.560), SAT p=0.001 bed_stat 11039 (FIRES -
+  anomaly, design expects null under saturation).
+- READ: the core G2-positive capability WORKS -- silent on no-growth,
+  detects real growth of both shapes. This is the per-KC escape from
+  the saturation wall the trajectory program failed on aggregate,
+  now demonstrated at the KC level on a certified detector. The
+  constructive half of G2, first evidence.
+- FINDING to confirm/diagnose: SAT fires hard where it should be null
+  (stat 5x the others). Either a genuine saturation false-positive (a
+  real method limit, matters because real KDD is partly saturated) or
+  a numerical pathology in near-ceiling fits. Needs the seed cluster
+  + synthesis; NOT over-read from one seed. split_half came back None
+  on these cells -- also for the synthesis to check.
+- SCOPE: seed0/5, KDD only, EdNet coverage still landing. Verdict is
+  seed-clustered. Shape is indicative, not final. Pool banking
+  healthy (~3-4 cells/30min, 0 fails).
