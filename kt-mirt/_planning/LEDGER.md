@@ -890,3 +890,38 @@ Acquisitions:
   on optimizing-vs-grinding EdNet deferred until the KDD verdict is
   in hand. Honest correction logged; the cheap-profile bet failed,
   which is itself information.
+
+## 2026-07-20 ~15:30 FIRST CERTIFICATION VERDICT: G2 PARTIALLY certified (KDD, seed-clustered, adversarially verified)
+
+- The 6-agent verdict workflow (aggregate -> 4 adversarial verifiers ->
+  finalize) delivered the first real A4 verdict. Full text
+  _planning/verdict_kdd_g2.md; working table verdict_kdd_working.md.
+- POSITIVE (HIGH confidence, verified HOLDS): the passive existence
+  gate robustly discriminates no-growth (NG null, p .128-.973 all 5
+  seeds) from growth (KG + NS detect, p=0.001 all seeds), clean
+  non-overlapping bed_stat (ng<=915, kg/ns>=2375). The per-KC escape
+  from the saturation wall, demonstrated at the POOLED/twin level --
+  the thing the trajectory program failed on aggregate.
+- LIMIT (verified): it is a COARSE (twin-level) detector, NOT a per-KC
+  instrument. CG3 fails on the positive control (0/515 KC BH
+  discoveries; bank recovery 0.73 vs 0.90 bar at KDD per-KC sparsity).
+  "Growth exists in this population" certifies; "which KCs grew" does
+  not.
+- SATURATION (verifier FAILS): CG6 inverts (SAT fires, all 5 seeds,
+  stat ~4x KG despite identical true growth) -- a REAL model-
+  misspecification limit under near-ceiling data (independent
+  SE-floor degeneracy corroborates), not a fluke/bug. Needs a
+  saturation-aware null. Matters for real KDD (mastered KCs).
+- ACT: direction not magnitude (rank corr 0.27-0.38 < 0.5 bar); act_p0
+  leaks on null, act_p1 disciplined. Neural audits fail (scope to
+  PAS-N1, field-representative; PAS-N2 immunity unmeasured).
+- CORRECTION to my earlier reads: split_half is NOT None (present,
+  finite, all 20 cells -- the None I saw was a dead KC-level leg RB4
+  never wired into run.py, a fixable harness gap). The single-seed
+  optimism was tempered by the seed cluster + adversarial checks --
+  exactly their job.
+- NET: G2 partially certified on KDD. A validated coarse growth
+  detector with a correct null; per-KC resolution, active ranking,
+  saturation robustness, and neural faithfulness each not earned. Two
+  failures (saturation null, RB4 wiring) are fixable. EdNet
+  corroboration still grinding.
