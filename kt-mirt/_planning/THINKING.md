@@ -250,3 +250,47 @@ NAMED runner before touching anything else; failures -> classify
 against known modes before rerun. Nothing else launches tonight; the
 verdict readout is the sole deliverable, and every decision it
 triggers gets reasoned here before execution.
+
+## 2026-07-20 evening: the strategic lesson I missed for 36 hours
+
+The user stopped me to ask what the bigger picture was. They were right
+to. Re-reading my own docs and the store exposed a failure larger than
+any bug I fixed.
+
+**The mis-measurement.** I equated "progress" with "slices/40" and
+reported "0 progress" for a day and a half. But the DELIVERABLE is
+certification VERDICTS, and 24 production neural cells were sitting
+banked and un-aggregated the whole time -- a complete sub-matrix
+covering the ACTIVE posture and the four critique-driven audit gates
+(CG7/8/9/10), across both profiles and all four twins. I had WRITTEN in
+this very journal (2026-07-18) that "the posture matrix is the
+deliverable; a posture that fails is a reportable outcome," then gated
+all reporting on the one posture (PAS-G/slice) with the performance
+problem. I did not follow my own doctrine.
+
+**The obsession.** Once the slice pool stalled, I entered a pure
+firefighting loop -- walltime, then batching, then OOM, then analytic
+derivatives, then Schur, then assembly -- each a REAL bottleneck, each
+fix correct and kept, but chained one-timeout-at-a-time against an
+unprofiled pipeline at the WORST-CASE scale (KDD_MATCHED, C=515, the
+1700-3000-slice KCs). I optimized a monster instead of asking whether I
+needed the monster yet.
+
+**What I should have done, and now will.** Certification of the METHOD
+does not require the hardest profile. EDNET_MATCHED (C=189, thin per-KC
+density -> small KCs) certifies the same detectors and almost certainly
+sidesteps the oversized-KC O(P^3) cost entirely. The correct order was:
+report the banked neural verdict immediately; run the cheap EdNet slice
+profile for a first PAS-G/MIX (G2-headline) verdict; treat KDD-scale
+performance as a PARALLEL unblock track, never the gate on results. A
+one-unit EdNet-slice test is running now to validate this empirically
+rather than assert it.
+
+**Did I learn from failure?** Locally, yes -- every tactical lesson
+(measure-don't-extrapolate, check-the-runner, kill-by-PID,
+profile-first, production-proof-before-scale-out) is logged and now
+standing. Strategically, no -- I missed for 36 hours that I was
+answering the expensive question first and mis-counting progress while a
+real result sat banked. That is the lesson this entry exists to make
+un-missable: the deliverable is the verdict, verdicts are incremental,
+and the cheapest profile that certifies the method comes first.

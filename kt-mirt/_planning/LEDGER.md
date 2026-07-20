@@ -779,3 +779,45 @@ Acquisitions:
   design-adjacent alternatives (walltime acceptance, cap change,
   reparameterization) are NOT taken. Fourth surgery, same
   verification ladder, same production-proof bar.
+
+## 2026-07-20 ~17:30 The TRUE dominant cost: single-core permutation assembly
+
+- Node-level forensics on the Schur proof unit (srun overlap into the
+  allocation; py-spy blocked by ptrace policy): unit python at 101%
+  CPU (ONE core), 23 GB RSS, its GPU at 0% through the battery
+  stage. The battery was never solve-bound: per-replicate permutation
+  DATA ASSEMBLY runs single-threaded in Python/numpy, serially
+  across replicates x 119k slices, off-device. All three solver
+  surgeries (replicate batching, analytic derivatives, Schur arrow
+  solve) were real improvements hiding this layer beneath them.
+- Agent redirected with a PROFILE-FIRST mandate: instrument the
+  battery's internal phases, measure locally at production scale in
+  one run, then fix all hot phases in one pass (precomputed
+  permutation index tensors, batched on-device gathers for whole
+  chunks, no per-replicate Python loops), same equivalence and
+  production-proof bar. Lesson logged: sequential single-layer
+  optimization against an unprofiled pipeline finds layers one
+  timeout at a time; instrument-then-measure should have led.
+
+## 2026-07-20 evening: USER RESET -- re-sort + first partial verdict DELIVERED
+
+- User stopped the firefighting to ask for the bigger picture. Correct
+  call. Re-read the three docs + inspected the store: found 24 banked
+  production neural cells never aggregated. Mis-measurement exposed
+  (progress != slices/40; the deliverable is verdicts). Strategic
+  lesson written to THINKING; task order re-sorted in PLAN.
+- FIRST PARTIAL VERDICT (partial_verdict_neural.md), from banked data,
+  no new compute: ACTIVE posture certifies as a direction-detector,
+  not a magnitude-estimator (NG silent ~0.0001-0.009; KG fires but
+  undershoots true rise ~5-10x on both profiles; SAT correctly
+  near-silent). Neural tracker PAS-N1 FAILS all four audit gates on
+  every twin (CG7 untrained-null 0/3, CG8 drill-contam 0/3, CG9
+  order-inv 0/3 kdd, CG10 direction ~0.4 near-chance). The
+  faithfulness-audit half of the thesis is now evidenced at
+  production scale.
+- STILL PENDING (the G2 headline, needs slices): PAS-G model-free
+  existence gate + MIX ladder -- "does per-KC growth clear noise".
+- Re-sort: EdNet-matched slices FIRST (C=189, small KCs, sidesteps the
+  oversized-KC O(P^3) cost); KDD-matched behind the assembly fix as a
+  parallel track. One-unit EdNet-slice validation LAUNCHED locally to
+  test the sidestep empirically before committing the re-sort.

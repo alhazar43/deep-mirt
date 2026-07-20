@@ -117,13 +117,40 @@ A1-A6 with gates, costs, and flagged uncertainty).
   claimed; exact expansion policy stated per run).
 - Loss: prediction NLL home; auxiliary terms must earn their place.
 
-Status (2026-07-19 night): P0-P2 DONE; P3 harness BUILT and
-EXECUTED (454-test suite); synthetic campaign RUNNING -- neural pool
-COMPLETE (24/24), slice pool on 6 cluster GPU chains + local 4060
-(all 40 positions covered, 12-h ceilings); real-bed KDD bridge BUILT
-and hostile-reviewed. Overnight trigger: slices 40/40 -> gate
-aggregation -> certification readout to LEDGER.md. Operating rules
-hardened today: cluster never idles on a measurement; generous
-walltimes over serializing probes; active periodic heartbeat with
-log-growth liveness; runner-state checks over count inference.
-Progress in LEDGER.md; reasoning in THINKING.md.
+## RE-SORT (2026-07-20, after user reset): verdict is the deliverable
+
+The deliverable is CERTIFICATION VERDICTS, reportable incrementally per
+posture and profile -- NOT "campaign 100% complete". Corrected task
+order:
+
+1. DONE -- neural sub-matrix verdict. The 24 banked production neural
+   cells aggregated to `_planning/partial_verdict_neural.md`: the
+   ACTIVE posture (ACT) certifies as a DIRECTION detector (silent on
+   no-growth, fires on growth) but a poor MAGNITUDE estimator (~5-10x
+   undershoot); the field-standard neural tracker (PAS-N1) FAILS all
+   four faithfulness audits (CG7 does not beat a random encoder, CG8
+   cross-KC contamination, CG9 order-sensitive, CG10 moves against the
+   data ~40%). This is the program's thesis shown on its own code.
+2. NEXT -- EdNet-matched slice pool (PAS-G / MIX, the G2 HEADLINE:
+   does per-KC growth clear noise on a model-free read). Cheap profile
+   (C=189, small KCs) that certifies the method and sidesteps the
+   oversized-KC cost. One-unit validation RUNNING
+   (outputs/a4/ednet_slice_validation.log); if it completes fast, run
+   the 12 EdNet slice cells and report the EdNet G2 verdict.
+3. PARALLEL TRACK (not a gate) -- the battery assembly fix (single-core
+   permutation-assembly bottleneck) that unblocks KDD-matched slices,
+   the density-matched-to-real-KDD certification. Ships behind a
+   production-proof unit; does not block steps 1-2.
+4. THEN -- real-bed KDD pilot (bridge already built + hostile-reviewed)
+   once the method is certified synthetically.
+
+Engine improvements banked en route (all kept, all with exact-decision
+equivalence): replicate batching (6b579ac), analytic Newton derivatives
+(06ff3ed, 10.7x), Schur arrow solve (685bed6). The slowness saga's
+tactical lessons are standing rules; the strategic lesson is in
+THINKING (2026-07-20).
+
+Status: P0-P2 DONE; P3 harness BUILT + EXECUTED (504-test suite);
+NEURAL certification verdict DELIVERED (partial_verdict_neural.md);
+slice-pool G2 headline PENDING (EdNet-first). Progress in LEDGER.md;
+reasoning in THINKING.md.
