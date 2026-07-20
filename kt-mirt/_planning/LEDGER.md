@@ -867,3 +867,26 @@ Acquisitions:
 - SCOPE: seed0/5, KDD only, EdNet coverage still landing. Verdict is
   seed-clustered. Shape is indicative, not final. Pool banking
   healthy (~3-4 cells/30min, 0 fails).
+
+## 2026-07-20 ~14:30 CORRECTION: EdNet is the EXPENSIVE profile, not the cheap one
+
+- My 2026-07-20 re-sort premise ("EdNet-matched is the cheap profile,
+  sidesteps the oversized-KC cost") was WRONG. Measured: EdNet battery
+  = 80-105 min/unit vs KDD's 27 min. Mechanism: the deferred
+  single-core assembly cost scales with SLICE COUNT; EdNet's thin
+  density (median 2 opp/learner-KC) means MORE, shorter slices, so
+  EdNet hits the assembly bottleneck HARDER than KDD's oversized KCs.
+  The two profiles have DIFFERENT dominant costs (KDD: few huge KCs
+  -> Schur fixed it; EdNet: many small slices -> assembly, unfixed).
+- Symptom: interleaved UPT=8 chains mixed fast KDD + slow EdNet units;
+  EdNet units timed out (540808_2) and blocked KDD units behind them.
+- FIX (targeted reconfig, not panic restart): cancelled interleaved
+  chains, resubmitted array 0-39%8 UPT=1 -t 600 (skip-done preserves
+  20 banked). No unit blocks another; 10h walls >> 2.5h EdNet units.
+- REVISED plan: KDD (19/20, ~1h to complete) is the HEADLINE G2
+  verdict -- deliver it first. EdNet (~6h to grind) is corroboration;
+  its cost makes the assembly-tail optimization now GENUINELY
+  load-bearing for EdNet (was correctly deferred for KDD). Decision
+  on optimizing-vs-grinding EdNet deferred until the KDD verdict is
+  in hand. Honest correction logged; the cheap-profile bet failed,
+  which is itself information.
