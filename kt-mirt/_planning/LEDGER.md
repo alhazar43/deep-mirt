@@ -715,3 +715,44 @@ Acquisitions:
 - The number that matters next: first post-fix unit completion time.
   Dispatch arithmetic projects minutes-to-tens-of-minutes per unit;
   the heartbeat's completion counter now tells the truth directly.
+
+## 2026-07-20 ~04:45 Generation 3 FAILED at scale: two memory bugs
+
+- 11 units OOM'd on 44 GiB a40s with two signatures: one absurd
+  313 GiB single allocation (chunk estimator ignores the dominant
+  data-tensor/autodiff term) and death-by-accumulation (42+ GiB
+  retained across chunks -- missing per-chunk cleanup). Small-config
+  equivalence was necessary but NOT sufficient; lesson absorbed into
+  the bar: no engine change ships again without ONE real
+  production-scale unit completing on cluster hardware.
+- Generation cancelled (nothing banked, nothing lost but queue
+  time); local 4060 unit left running as a data point (smaller
+  auto-chunks may survive there). Fix agent resumed with both
+  diagnoses, empirical chunk calibration + per-chunk cleanup
+  required, and the raised verification bar; full-generation
+  resubmit is gated on its production-unit proof.
+
+## 2026-07-20 ~09:15 Morning state: analytic-derivative surgery commissioned
+
+- Overnight verdict on the batched engine: NECESSARY BUT INSUFFICIENT.
+  py-spy on the live local unit pins the remaining cost inside the
+  Newton ITERATION loop -- eager functorch jvp/vjp Hessians pay
+  Python dispatch per iteration; batching only amortized per-call
+  overhead. Both cluster verification attempts died at their 2 h
+  walls (sacct: TIMEOUT/CANCELLED); the local batched unit ran 6.5 h
+  unfinished. The optimization agent went silent inside a multi-hour
+  tool call and was formally stopped after its queued messages could
+  never deliver.
+- Cleanup: verification job cancelled; local worker killed properly
+  this time (wrapper + child, enumerated PIDs -- several stale
+  wrappers from successive relaunches were found and removed);
+  local machine and cluster both idle by intent.
+- THIRD surgery commissioned (fresh agent): ANALYTIC gradient +
+  Hessian for the penalized-logistic objectives (closed-form
+  einsums, no functorch in the hot path; generic path kept as
+  reference), stage-timing instrumentation in unit logs, and the
+  full verification ladder ending in the raised bar -- one
+  production unit COMPLETING on an a40 before any resubmission.
+  Every failure mode from tonight is baked into the brief.
+- Slice pool remains 0/40. Neural pool (24/24) and all
+  non-slice-dependent verdict inputs stay banked and safe.
