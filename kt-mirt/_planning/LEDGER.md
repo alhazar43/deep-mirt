@@ -821,3 +821,27 @@ Acquisitions:
   oversized-KC O(P^3) cost); KDD-matched behind the assembly fix as a
   parallel track. One-unit EdNet-slice validation LAUNCHED locally to
   test the sidestep empirically before committing the re-sort.
+
+## 2026-07-20 ~10:30 Assembly fix WORKS; cluster fanned out; tail deferred
+
+- Info-first (per the lesson) before acting: the assembly agent had
+  ALREADY synced a working fix to the cluster. Proof: KDD slice unit
+  540782 ran bank(30s)+slice_fits(56s)+permutation_battery(27min,
+  analytic path 12/12 no fallback) -- the battery that was UNBOUNDED
+  now completes. Fix committed locally cd725e0 (99 targeted tests
+  green), preserving the agent's work; agent stopped cleanly.
+- NEW tail found, NOT chased: a post-battery CPU stage (~356% CPU,
+  14GB, GPU idle) grinds ~15-40min before banking. DECISION per the
+  strategic lesson: do NOT rabbit-hole it. KDD units still complete
+  (~1h total); EdNet faster. Get the VERDICT, not the last 2x.
+- ACTED on user's "cluster = outsourced workers, spare the laptop":
+  local canary killed (laptop freed); fanned out the SLICE COVERAGE
+  PASS (positions 0-7 = seed0 of all 8 profile x twin cells) to
+  cluster GPU (jobs 540807/540808, 4 chains, -t 240) alongside the
+  proof unit. 5 cluster jobs busy, zero laptop load.
+- Watchers: proof-unit bank (end-to-end confirm) + coverage-complete
+  (-> triggers first FULL A4 verdict: neural + slice sub-matrices
+  combined across all postures). Tail-optimization DEFERRED as a
+  refinement (idempotent store; optimized units fill gaps). Ultracode
+  reserved for the verdict synthesis, where fan-out + adversarial
+  verification actually add value -- not burned on non-blocking perf.
