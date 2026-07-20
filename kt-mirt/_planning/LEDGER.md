@@ -756,3 +756,26 @@ Acquisitions:
   Every failure mode from tonight is baked into the brief.
 - Slice pool remains 0/40. Neural pool (24/24) and all
   non-slice-dependent verdict inputs stay banked and safe.
+
+## 2026-07-20 ~13:30 Analytic surgery verified; TRUE bottleneck: oversized KCs
+
+- The analytic path is correct and fast (10.7x on its scope; full
+  suite 504/504; trajectory equivalence exact at the production
+  iteration cap). My dispatch-fallback hypothesis was REFUTED by the
+  agent with direct instrumentation (3/3 identity checks engage) --
+  recorded as the night's second lesson in hypothesis humility.
+- Real cause, profiled: KC-joint pooled fits give each slice a free
+  intercept, so 1700-3000-slice KCs yield P~2000 parameter vectors;
+  the dense Newton solve pays O(P^3) per iteration, hits the 25-iter
+  cap, forces replicate chunks down to ~4, and costs 50-90 min PER
+  oversized KC in the battery. Orthogonal to derivative computation;
+  explains every timeout of the last 36 hours.
+- RULING: the KC-joint Hessian is an ARROW matrix (block-diagonal
+  per-slice intercepts + small shared border). Commissioning an
+  exact Schur-complement block solve: identical iterates and
+  statistics BY CONSTRUCTION (block elimination is exact algebra),
+  ~1000x on the giants, memory drops from S^2 to S*k so chunks
+  recover. Execution strategy, not design change; the genuinely
+  design-adjacent alternatives (walltime acceptance, cap change,
+  reparameterization) are NOT taken. Fourth surgery, same
+  verification ladder, same production-proof bar.
