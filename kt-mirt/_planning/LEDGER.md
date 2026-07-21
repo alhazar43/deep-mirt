@@ -925,3 +925,23 @@ Acquisitions:
   saturation robustness, and neural faithfulness each not earned. Two
   failures (saturation null, RB4 wiring) are fixable. EdNet
   corroboration still grinding.
+
+## 2026-07-21 EdNet RAM-OOM diagnosed; monitoring gap fixed
+
+- KDD headline verdict delivered. EdNet corroboration: COVERAGE
+  (seed0, all 4 twins) COMPLETE; seed-deepening grinding.
+- 2 EdNet deepening units (ns seed1, kg seed2) FAILED with host-RAM
+  OOM ("Killed" signature, not CUDA; one ran 194min into the battery
+  before OOM). Cause: EdNet's many-slice single-core assembly builds
+  large HOST tensors exceeding the 16G chain default -- the assembly
+  bottleneck's RAM face. Resubmitted at --mem=64G.
+- MONITORING GAP (caught, fixed): OOM-killed jobs do NOT write
+  _failed markers, so the marker-counting heartbeat read fails:0
+  while sacct showed FAILED. Only the banked-vs-running ACCOUNTING
+  discrepancy (33 banked, 5 running, 0 pending -> 2 missing) exposed
+  it. Heartbeat v3 now counts sacct FAILED/TIMEOUT/OUT_OF_ME states
+  directly (runner state = truth, marker files = proxy). The
+  check-the-runner lesson, again.
+- 5 EdNet deepening units still on 16G (at OOM risk); left running to
+  preserve 3-5h progress; heartbeat v3 will flag any OOM for 64G
+  resubmit. EdNet corroboration verdict deferred until pool completes.
