@@ -945,3 +945,37 @@ Acquisitions:
 - 5 EdNet deepening units still on 16G (at OOM risk); left running to
   preserve 3-5h progress; heartbeat v3 will flag any OOM for 64G
   resubmit. EdNet corroboration verdict deferred until pool completes.
+
+## 2026-07-21 SYNTHETIC CERTIFICATION COMPLETE -- both profiles, cross-profile verified
+
+- EdNet corroboration (19/20, seed-clustered) + cross-profile checks
+  vs KDD delivered the COMPLETE synthetic G2 verdict
+  (_planning/verdict_synthetic_complete.md). The density inversion
+  (KDD few-huge-KCs vs EdNet many-tiny-slices) made the findings
+  decisive:
+  1. COARSE DETECTOR: CERTIFIED + PROFILE-ROBUST. Silent on no-growth,
+     detects both growth shapes, every seed, BOTH beds, zero p-value
+     overlap. Survives full density inversion. The strongest G2
+     result. Caveat: KDD's clean raw-STAT separation is a density
+     artifact; the gate works on the calibrated p-value (fine), but
+     don't claim stat-magnitude separation as general.
+  2. SATURATION FALSE-FIRE: GENERAL limit (replicates on both, same
+     numerical-degeneracy fingerprint), severity density-modulated
+     (3.7x KDD vs 1.3x EdNet). Needs a saturation-aware null before
+     any real-bed near-ceiling claim.
+  3. PER-KC RESOLUTION: FUNDAMENTAL limit, NOT sparsity-fixable. The
+     sparsity hypothesis is REJECTED -- bank recovery 0.70-0.80 on
+     BOTH profiles (EdNet marginally higher despite thinner density),
+     0 BH discoveries on both. A gauge/identifiability floor, not a
+     data problem. Per-KC certification will not come from more data.
+  4. ACT direction-not-magnitude (rank improves on EdNet, silence
+     degrades); neural PAS-N1 fails audits largely by design.
+- G2 NET: PARTIALLY CERTIFIED. Certified = the profile-robust coarse
+  twin-level growth detector (the per-KC escape from the saturation
+  wall, at population level). Not earned = per-KC resolution (now
+  shown fundamental), active per-KC rank, saturation robustness,
+  neural faithfulness, Tier-2 reliability.
+- Synthetic phase CLOSED. Straggler cell (ns seed1) cancelled --
+  verdict complete at 19/20; pool monitor retired. The two strategic
+  decisions (pursue-gaps vs real-data-pilot) now have full evidence,
+  laid out in the verdict doc, awaiting the user.
