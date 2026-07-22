@@ -979,3 +979,18 @@ Acquisitions:
   verdict complete at 19/20; pool monitor retired. The two strategic
   decisions (pursue-gaps vs real-data-pilot) now have full evidence,
   laid out in the verdict doc, awaiting the user.
+
+## 2026-07-21 B preconditions DONE -- saturation fix PROVEN, Junyi loader ready
+
+- Saturation-aware bed null (verify_sat_fix.py, SYN_DEV): syn_sat
+  false-fire ELIMINATED (p 0.01->1.00, all KCs saturated->excluded->
+  bed_stat 0), growth STILL detects (kg/ns p=0.01 both), null control
+  holds (ng non-sig), per-KC stats byte-identical (mask changes only
+  bed inclusion). Default-None = frozen behavior; real-bed cells opt
+  in (design RB3). The B precondition is met.
+- Junyi15 loader: EXACT agreement on all 14 triage rows (247,606
+  learners, 40 topic-KCs, 0.828 correct, opp median 8, over the real
+  26M-row log), 22+5 tests, +prerequisite-graph reader for later G1.
+- NEXT: sync + full-suite on cluster (spare laptop), then the REAL
+  KDD + Junyi coarse-detector pilots on the cluster -- the first time
+  the method touches real learners, closing the validity cycle.
