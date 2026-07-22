@@ -101,6 +101,39 @@ Interpretation notes (recorded per the harness instructions):
    the original dense path (`_build_kc_joint_arrays` +
    `binary_logit_nll`), kept as that equivalence reference and a manual
    escape hatch.
+6. **Saturation-aware bed statistic (`bed_kc_mask`).** The passive
+   existence gate FALSE-FIRES on near-ceiling (saturated) data: the
+   constant-ability null M0 approximates a saturating success curve worse
+   than the dynamic M1, so M1 wins a held-out NLL edge with no real
+   growth present (the synthetic certification's CG6 inversion on the
+   syn_sat twin -- gate fires p=0.001 where it must stay silent;
+   `_planning/verdict_synthetic_complete.md` CHECK 2 / section 2). A
+   saturated KC carries no observable growth information, so it must not
+   vote in the BED-LEVEL existence decision. `compute_gate_result` and
+   every permutation-null path therefore accept an optional ``(n_kcs,)``
+   boolean ``bed_kc_mask``: only KCs with ``bed_kc_mask[c] == True`` are
+   summed into ``bed_stat`` (and into each null replicate's bed
+   statistic). ``None`` (default) sums every KC -- the frozen behavior,
+   preserved for all existing callers and tests. The mask this fix relies
+   on is the RAW, model-free calibration-cohort saturation flag
+   (`slices.saturation_stats`'s ``is_unsaturated``: per-KC calib correct
+   rate <= 0.85, design section 2.1/5.2's "unsaturated subset"), which is
+   permutation-invariant (a calibration-cohort property, computed once
+   and disjoint from the permuted analysis cohort), so the SAME mask is
+   passed to the observed gate and to the null and both bed statistics are
+   summed over an identical KC set -- the permutation calibration is
+   preserved exactly. Two properties the fix guarantees: (i) the per-KC
+   ``kc_stat``/``kc_selected_family`` are NEVER altered for any KC,
+   saturated or not -- only bed-level inclusion changes, so the frozen
+   per-KC statistic and its BH/BY discovery control are untouched; (ii)
+   when EVERY KC is saturated (the syn_sat limit) the bed statistic sums
+   to 0 for observed and null alike, and `empirical_pvalue` returns 1.0
+   (correctly NULL). `run.py`'s `run_slice_cell` sources the mask from
+   the calibration-cohort ``calib_unsaturated`` flag and passes it to both
+   `compute_gate_result` and `permutation_null`. THIS FIX HAS A HARD
+   DEPENDENCY ON THE SATURATION FLAG: without a trustworthy per-KC
+   saturation flag the bed statistic reverts (mask=None) to the
+   false-firing frozen behavior on near-ceiling data.
 """
 
 from __future__ import annotations
@@ -743,12 +776,28 @@ class GateResult:
 
 
 def compute_gate_result(
-    slices: dict[tuple[int, int], Slice], bank: Optional[FrozenBank], n_kcs: int, device: str = "cpu"
+    slices: dict[tuple[int, int], Slice],
+    bank: Optional[FrozenBank],
+    n_kcs: int,
+    device: str = "cpu",
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> GateResult:
     """Fit M0 once (batched over every slice in the bed) and both M1
     families at both pooling levels, on the interpolative odd/even split,
     and assemble the max-selected gate statistic at every pooling level
-    (module docstring note 1)."""
+    (module docstring note 1).
+
+    ``bed_kc_mask`` (module docstring note 6, the saturation-aware null
+    fix): an optional ``(n_kcs,)`` boolean array selecting which KCs
+    CONTRIBUTE to the bed-level pooled statistic. ``None`` (default) sums
+    every KC, the frozen behavior. A KC with ``bed_kc_mask[c] == False``
+    (e.g. a saturation-flagged near-ceiling KC) is dropped from
+    ``bed_stat`` but keeps its own UNCHANGED ``kc_stat[c]`` /
+    ``kc_selected_family[c]`` -- the per-KC statistic is never altered,
+    only its inclusion in the bed decision. Callers MUST pass the identical
+    mask to the permutation null so observed and null bed statistics are
+    computed over the same KC set (the mask is a calibration-cohort
+    property, permutation-invariant; see note 6)."""
     all_slices = list(slices.values())
     d2_slices = [sl for sl in all_slices if sl.is_d2_plus]
 
@@ -789,8 +838,9 @@ def compute_gate_result(
         m0_kc_nll = np.array([m0_by_key[(sl.learner, sl.kc)] for sl in kc_slices])
         stat_kc_a = float((m0_kc_nll - nll_a).sum())
         stat_kc_b = float((m0_kc_nll - nll_b).sum())
-        total_m1a += stat_kc_a
-        total_m1b += stat_kc_b
+        if bed_kc_mask is None or bed_kc_mask[c]:
+            total_m1a += stat_kc_a
+            total_m1b += stat_kc_b
         if stat_kc_a >= stat_kc_b:
             kc_stat[c] = stat_kc_a
             kc_family[c] = "m1a"
@@ -817,14 +867,17 @@ def compute_gate_result(
 
 
 def gate_statistic_on_learners(
-    learners: Sequence, n_learners: int, n_kcs: int, bank: Optional[FrozenBank], device: str = "cpu"
+    learners: Sequence, n_learners: int, n_kcs: int, bank: Optional[FrozenBank], device: str = "cpu",
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> GateResult:
     """Rebuild rows and slices from a (possibly permuted) learner log list
     and compute the gate result -- the one operation the permutation null
-    repeats B times."""
+    repeats B times. ``bed_kc_mask`` is forwarded to `compute_gate_result`
+    (the saturation-aware bed-statistic restriction, module docstring note
+    6)."""
     rows = build_calibration_rows(learners)
     slices = build_slices(rows)
-    return compute_gate_result(slices, bank, n_kcs, device=device)
+    return compute_gate_result(slices, bank, n_kcs, device=device, bed_kc_mask=bed_kc_mask)
 
 
 def permutation_null_looped(
@@ -835,6 +888,7 @@ def permutation_null_looped(
     n_replicates: int,
     seed: int,
     device: str = "cpu",
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> dict[str, np.ndarray]:
     """Battery arm 1's hook, REFERENCE implementation: ``n_replicates``
     permutation draws of the bed-level and per-KC gate statistic (design:
@@ -847,14 +901,17 @@ def permutation_null_looped(
     fallback (`permutation_null(..., use_batched=False)`); `newton.py`'s
     module docstring records why this loop's per-replicate eager
     `torch.func` dispatch is the dominant cost `permutation_null_batched`
-    removes.
+    removes. ``bed_kc_mask`` restricts the bed statistic to the same KC
+    subset as the observed read (module docstring note 6).
     """
     rng = np.random.default_rng(seed)
     bed_null = np.zeros(n_replicates)
     kc_null = np.zeros((n_replicates, n_kcs))
     for r in range(n_replicates):
         perm_learners = permute_learner_order(learners, rng)
-        result = gate_statistic_on_learners(perm_learners, n_learners, n_kcs, bank, device=device)
+        result = gate_statistic_on_learners(
+            perm_learners, n_learners, n_kcs, bank, device=device, bed_kc_mask=bed_kc_mask
+        )
         bed_null[r] = result.bed_stat
         kc_null[r] = result.kc_stat
     return {"bed": bed_null, "kc": kc_null}
@@ -1634,6 +1691,7 @@ def _permutation_null_batched_chunk_vectorized(
     device: str,
     kc_chunk_sizes: dict[int, int],
     kc_buckets: Sequence[Sequence[int]],
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """One chunk's worth of `permutation_null_batched`'s vectorized-assembly
     fast path (module-level note above `_bed_key_scaffold`): builds the
@@ -1689,8 +1747,9 @@ def _permutation_null_batched_chunk_vectorized(
                 )
             stat_kc_a = m0_kc_total - nll_a_total
             stat_kc_b = m0_kc_total - nll_b_total
-            total_m1a += stat_kc_a
-            total_m1b += stat_kc_b
+            if bed_kc_mask is None or bed_kc_mask[c]:
+                total_m1a += stat_kc_a
+                total_m1b += stat_kc_b
             kc_null_chunk[:, c] = np.maximum(stat_kc_a, stat_kc_b)
         else:
             kc_cols_list = [cols_by_kc[c] for c in bucket]
@@ -1718,8 +1777,9 @@ def _permutation_null_batched_chunk_vectorized(
                 m0_kc_total = m0_nll_even[:, cols_by_kc[c]].sum(axis=1)
                 stat_kc_a = m0_kc_total - nll_a_by_kc[j]
                 stat_kc_b = m0_kc_total - nll_b_by_kc[j]
-                total_m1a += stat_kc_a
-                total_m1b += stat_kc_b
+                if bed_kc_mask is None or bed_kc_mask[c]:
+                    total_m1a += stat_kc_a
+                    total_m1b += stat_kc_b
                 kc_null_chunk[:, c] = np.maximum(stat_kc_a, stat_kc_b)
 
         if is_cuda:
@@ -1740,6 +1800,7 @@ def permutation_null_batched(
     safety_factor: float = 2.0,
     small_kc_threshold: int = 300,
     use_vectorized_assembly: bool = True,
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> dict[str, np.ndarray]:
     """Replicate-batched equivalent of `permutation_null_looped`: the SAME
     permutation draws, in the SAME order (identical RNG consumption --
@@ -1896,7 +1957,7 @@ def permutation_null_batched(
             try:
                 total_m1a, total_m1b, kc_null_chunk = _permutation_null_batched_chunk_vectorized(
                     chunk_learners, key_to_col_arr, by_kc_keys, cols_by_kc, n_kcs, S, T_max,
-                    bank, device, kc_chunk_sizes, kc_buckets,
+                    bank, device, kc_chunk_sizes, kc_buckets, bed_kc_mask=bed_kc_mask,
                 )
                 kc_null[chunk_start:chunk_end, :] = kc_null_chunk
                 bed_null[chunk_start:chunk_end] = np.maximum(total_m1a, total_m1b)
@@ -1988,8 +2049,9 @@ def permutation_null_batched(
 
             stat_kc_a = m0_kc_total - nll_a_total
             stat_kc_b = m0_kc_total - nll_b_total
-            total_m1a += stat_kc_a
-            total_m1b += stat_kc_b
+            if bed_kc_mask is None or bed_kc_mask[c]:
+                total_m1a += stat_kc_a
+                total_m1b += stat_kc_b
             kc_null[chunk_start:chunk_end, c] = np.maximum(stat_kc_a, stat_kc_b)
             del kc_slices_by_replicate, theta_a, beta_c, theta_b, u_c
 
@@ -2028,6 +2090,7 @@ def permutation_null(
     replicate_chunk_size: Optional[int] = None,
     safety_factor: float = 2.0,
     small_kc_threshold: int = 300,
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> dict[str, np.ndarray]:
     """Battery arm 1's hook: ``n_replicates`` permutation draws of the
     bed-level and per-KC gate statistic (design: "permute each learner's
@@ -2041,15 +2104,20 @@ def permutation_null(
     Dispatches to the replicate-batched path (`permutation_null_batched`,
     the A4 perf-surgery fix) by default; ``use_batched=False`` reaches the
     original per-replicate loop (`permutation_null_looped`), kept as the
-    equivalence-gate reference and as an explicit fallback.
+    equivalence-gate reference and as an explicit fallback. ``bed_kc_mask``
+    (the saturation-aware bed-statistic restriction, module docstring note
+    6) is forwarded to whichever path runs, so the null's bed statistic is
+    summed over exactly the KC subset the observed read used.
     """
     if use_batched:
         return permutation_null_batched(
             learners, n_learners, n_kcs, bank, n_replicates, seed,
             device=device, replicate_chunk_size=replicate_chunk_size, safety_factor=safety_factor,
-            small_kc_threshold=small_kc_threshold,
+            small_kc_threshold=small_kc_threshold, bed_kc_mask=bed_kc_mask,
         )
-    return permutation_null_looped(learners, n_learners, n_kcs, bank, n_replicates, seed, device=device)
+    return permutation_null_looped(
+        learners, n_learners, n_kcs, bank, n_replicates, seed, device=device, bed_kc_mask=bed_kc_mask
+    )
 
 
 def empirical_pvalue(observed: float, null: np.ndarray) -> float:

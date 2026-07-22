@@ -169,10 +169,21 @@ def run_permutation_battery(
     replicate_chunk_size: Optional[int] = None,
     safety_factor: float = 2.0,
     small_kc_threshold: int = 300,
+    bed_kc_mask: Optional[np.ndarray] = None,
 ) -> PermutationBatteryResult:
     """Arm 1: the primary reference null for PAS-C/PAS-G (and MIX-L's
     shared existence gate). See module docstring note 1 for the shared-
     run implementation of the two pre-registered replicate counts.
+
+    ``bed_kc_mask`` (the saturation-aware bed-statistic restriction, see
+    `gate.compute_gate_result`'s docstring / gate module docstring note 6):
+    an optional ``(n_kcs,)`` boolean array restricting the BED-LEVEL
+    existence statistic (observed and null alike) to the flagged KCs
+    (typically the calibration-cohort unsaturated subset), so near-ceiling
+    KCs cannot spuriously fire the bed gate. ``None`` (default) sums every
+    KC. Per-KC statistics (``kc_stat``, BH/BY) are never affected. The
+    real-bed pilot passes the calibration-cohort unsaturated flag here; the
+    same value must be used for both the observed gate and this null.
 
     ``use_batched`` (default True) selects `gate.permutation_null`'s
     replicate-batched Newton path (the A4 perf-surgery fix -- see
@@ -192,13 +203,13 @@ def run_permutation_battery(
     """
     rows = bank_mod.build_calibration_rows(learners)
     slices = build_slices(rows)
-    observed = gate_mod.compute_gate_result(slices, bank, n_kcs, device=device)
+    observed = gate_mod.compute_gate_result(slices, bank, n_kcs, device=device, bed_kc_mask=bed_kc_mask)
 
     n_rep = max(n_replicates_bed, n_replicates_kc)
     null = gate_mod.permutation_null(
         learners, n_learners, n_kcs, bank, n_rep, seed, device=device,
         use_batched=use_batched, replicate_chunk_size=replicate_chunk_size, safety_factor=safety_factor,
-        small_kc_threshold=small_kc_threshold,
+        small_kc_threshold=small_kc_threshold, bed_kc_mask=bed_kc_mask,
     )
     bed_null = null["bed"][:n_replicates_bed]
     kc_null = null["kc"][:n_replicates_kc]

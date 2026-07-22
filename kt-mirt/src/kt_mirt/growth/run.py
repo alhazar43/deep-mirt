@@ -381,8 +381,21 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     sat_rate_analysis, sat_unsat_analysis = saturation_stats(rows_analysis, twin_data.n_kcs)
     slices = build_slices(rows_analysis)
 
+    # Saturation-aware bed statistic (gate.py module docstring note 6, the
+    # certified fix for the syn_sat CG6 inversion): the bed-level existence
+    # decision sums only over UNSATURATED KCs (the raw, model-free
+    # calibration-cohort flag), since a near-ceiling KC carries no
+    # observable growth information and otherwise spuriously fires the gate.
+    # The SAME mask goes to the observed gate and the permutation null so
+    # both bed statistics are summed over an identical KC set (the mask is a
+    # calibration-cohort property, permutation-invariant). Per-KC statistics
+    # (kc_stat/BH/BY) are unaffected.
+    bed_kc_mask = np.asarray(sat_unsat_calib, dtype=bool)
+
     t_stage = time.perf_counter()
-    gate_result = gate_mod.compute_gate_result(slices, frozen, twin_data.n_kcs, device=cfg.device)
+    gate_result = gate_mod.compute_gate_result(
+        slices, frozen, twin_data.n_kcs, device=cfg.device, bed_kc_mask=bed_kc_mask
+    )
     _log_stage(twin, seed, "slice_fits", time.perf_counter() - t_stage)
 
     n_rep = max(cfg.n_perm_bed, cfg.n_perm_kc)
@@ -390,6 +403,7 @@ def run_slice_cell(cfg: RunConfig, twin: str, seed: int) -> tuple[dict, Optional
     null = gate_mod.permutation_null(
         analysis_learners, len(analysis_learners), twin_data.n_kcs, frozen,
         n_replicates=n_rep, seed=derive_seed("perm", twin, seed), device=cfg.device,
+        bed_kc_mask=bed_kc_mask,
     )
     _log_stage(twin, seed, "permutation_battery", time.perf_counter() - t_stage)
     # Dispatch-path visibility (per the review note that a silent fallback
@@ -1137,13 +1151,141 @@ def run_kdd_slice_cell(cfg: RunConfig, loader: KddRealBedLoader, seed: int) -> d
     sat_rate_analysis, sat_unsat_analysis = saturation_stats(rows_analysis, n_kcs)
     slices_analysis = build_slices(rows_analysis)
 
-    gate_result = gate_mod.compute_gate_result(slices_analysis, frozen, n_kcs, device=cfg.device)
+    # Saturation-aware bed statistic (gate.py module docstring note 6): on
+    # the real bed the bed-level existence read is restricted to the
+    # calibration-cohort unsaturated subset (design RB3: "bed-level pooled
+    # gate p < 0.01 on the unsaturated subset"), so near-ceiling / mastered
+    # KCs cannot spuriously fire the gate where there is no ground truth to
+    # catch it. Whichever later stage computes this bed's permutation null
+    # (e.g. via battery.run_permutation_battery) MUST pass this same
+    # bed_kc_mask so observed and null bed statistics share one KC set.
+    bed_kc_mask = np.asarray(sat_unsat_calib, dtype=bool)
+    gate_result = gate_mod.compute_gate_result(
+        slices_analysis, frozen, n_kcs, device=cfg.device, bed_kc_mask=bed_kc_mask
+    )
 
     result = {
         "bed": "kdd_real",
         "seed": seed,
         "n_learners": n_learners,
         "n_kcs": n_kcs,
+        "n_analysis_learners": len(analysis_learners),
+        "saturation": {
+            "calib_rate": sat_rate_calib, "calib_unsaturated": sat_unsat_calib,
+            "analysis_rate": sat_rate_analysis, "analysis_unsaturated": sat_unsat_analysis,
+        },
+        "gate": {"bed_stat": gate_result.bed_stat, "kc_stat": gate_result.kc_stat},
+        "pure_anchor_stats": qmatrix_mod.pure_anchor_stats(loader.last_result.qmatrix),
+        "b_hat": fit.b_hat,
+    }
+    clean_result = json.loads(json.dumps(_jsonable(result)))
+    _write_cell(path, clean_result)
+    return clean_result
+
+
+# =============================================================================
+# Real-bed Junyi15 wiring (additive; feature-flagged, mirrors the KDD
+# section immediately above). Nothing above this section (including the
+# KDD real-bed wiring) is touched. This section wires a slice cell through
+# the SAME measurement layer, sourced from `kt_mirt.growth.junyi_data`'s
+# real-bed loader instead of a synthetic twin or the KDD bridge. Two
+# differences from the KDD wiring, both `junyi_data.py` module docstring
+# notes: (a) the item/KC vocabularies are the FULL exercise-table catalog,
+# fixed before the log is streamed, not interned from the log itself; (b)
+# the item hierarchy is FLAT (`bank.flat_hierarchy`/`FLAT_HIERARCHY_SPEC`,
+# the EdNet/synthetic code path), since an exercise has no natural
+# multi-level ancestry the way a KDD step does.
+# =============================================================================
+
+
+class JunyiRealBedLoader:
+    """A concrete `RealBedLoader` (the Protocol declared above) backed by
+    `kt_mirt.growth.junyi_data.load_junyi_kc_traced`. Feature-flagged and
+    purely additive: constructing or calling this class has no effect on
+    any other code path above."""
+
+    def __init__(
+        self, problem_log_path, exercise_table_path, chunksize: int = 2_000_000, nrows: Optional[int] = None,
+    ) -> None:
+        self.problem_log_path = problem_log_path
+        self.exercise_table_path = exercise_table_path
+        self.chunksize = chunksize
+        self.nrows = nrows
+        self.last_result = None  # set by `.load()`; carries hierarchy + qmatrix
+
+    def load(self, seed: int):
+        """Satisfies `RealBedLoader.load`. ``seed`` is accepted for
+        Protocol conformance and reserved for a future seeded user-
+        subsample; the current full-file Junyi15 loader is deterministic
+        regardless of seed."""
+        from kt_mirt.growth import junyi_data
+
+        result = junyi_data.load_junyi_kc_traced(
+            self.problem_log_path, self.exercise_table_path,
+            chunksize=self.chunksize, nrows=self.nrows,
+        )
+        self.last_result = result
+        return result.learners, result.n_learners, result.n_kcs
+
+
+def run_junyi_slice_cell(cfg: RunConfig, loader: JunyiRealBedLoader, seed: int) -> dict:
+    """Runs the bank calibration + saturation + slices + PAS-G measurement
+    layer on a real-bed Junyi15 draw -- the Junyi analogue of
+    `run_kdd_slice_cell` above (same functions, same result-dict shape),
+    using a flat item hierarchy (`bank_mod.flat_hierarchy`/
+    `FLAT_HIERARCHY_SPEC`) rather than KDD's 3-level one."""
+    from kt_mirt.growth import qmatrix as qmatrix_mod
+
+    path = _cell_dir(cfg, "junyi_real") / f"slice_seed{seed}.json"
+    cached = _load_if_done(path, cfg.force)
+    if cached is not None:
+        return cached
+
+    learners, n_learners, n_kcs = loader.load(seed)
+    hierarchy = loader.last_result.item_hierarchy
+
+    rows_all = bank_mod.build_calibration_rows(learners)
+    calib, analysis = bank_mod.split_learners(n_learners, seed=derive_seed("realbed_cohort", "junyi", seed))
+    bank_cfg = bank_mod.BankModelConfig(
+        n_epochs_max=cfg.bank_epochs, lr=0.05, batch_size=4096, patience_epochs=2,
+        seed=derive_seed("realbed_bank", "junyi", seed), device=cfg.device,
+    )
+    fit = bank_mod.calibrate_bank(
+        rows_all, n_learners, n_kcs, calib, hierarchy,
+        bank_mod.FLAT_HIERARCHY_SPEC, growth_mode="blockwise", config=bank_cfg,
+    )
+    frozen = bank_mod.freeze_bank(fit)
+
+    calib_set = set(int(c) for c in calib.tolist())
+    calib_learner_logs = [l for l in learners if l.learner in calib_set]
+    rows_calib = bank_mod.build_calibration_rows(calib_learner_logs)
+    sat_rate_calib, sat_unsat_calib = saturation_stats(rows_calib, n_kcs)
+
+    analysis_set = set(int(a) for a in analysis.tolist())
+    analysis_learners = [l for l in learners if l.learner in analysis_set]
+    rows_analysis = bank_mod.build_calibration_rows(analysis_learners)
+    sat_rate_analysis, sat_unsat_analysis = saturation_stats(rows_analysis, n_kcs)
+    slices_analysis = build_slices(rows_analysis)
+
+    # Saturation-aware bed statistic (gate.py module docstring note 6): on
+    # the real bed the bed-level existence read is restricted to the
+    # calibration-cohort unsaturated subset (design RB3: "bed-level pooled
+    # gate p < 0.01 on the unsaturated subset"), so near-ceiling / mastered
+    # KCs cannot spuriously fire the gate where there is no ground truth to
+    # catch it. Whichever later stage computes this bed's permutation null
+    # (e.g. via battery.run_permutation_battery) MUST pass this same
+    # bed_kc_mask so observed and null bed statistics share one KC set.
+    bed_kc_mask = np.asarray(sat_unsat_calib, dtype=bool)
+    gate_result = gate_mod.compute_gate_result(
+        slices_analysis, frozen, n_kcs, device=cfg.device, bed_kc_mask=bed_kc_mask
+    )
+
+    result = {
+        "bed": "junyi_real",
+        "seed": seed,
+        "n_learners": n_learners,
+        "n_kcs": n_kcs,
+        "n_kcs_attempted": loader.last_result.n_kcs_attempted,
         "n_analysis_learners": len(analysis_learners),
         "saturation": {
             "calib_rate": sat_rate_calib, "calib_unsaturated": sat_unsat_calib,
@@ -1166,11 +1308,20 @@ def run_kdd_slice_cell(cfg: RunConfig, loader: KddRealBedLoader, seed: int) -> d
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="A4 synthetic certification campaign harness")
     p.add_argument("--output-dir", default="kt-mirt/outputs/a4")
-    p.add_argument("--profile", choices=["tiny", "kdd", "ednet", "kdd_real"], default="tiny")
+    p.add_argument("--profile", choices=["tiny", "kdd", "ednet", "kdd_real", "junyi_real"], default="tiny")
     p.add_argument(
         "--kdd-path", default=None,
         help="path to the raw KDD Algebra 2008-2009 file (required with --profile kdd_real; "
              "feature-flagged real-bed slice cell via kt_mirt.growth.kc_data, see run_kdd_slice_cell)",
+    )
+    p.add_argument(
+        "--junyi-log-path", default=None,
+        help="path to junyi_ProblemLog_original.csv (required with --profile junyi_real; "
+             "feature-flagged real-bed slice cell via kt_mirt.growth.junyi_data, see run_junyi_slice_cell)",
+    )
+    p.add_argument(
+        "--junyi-exercise-path", default=None,
+        help="path to junyi_Exercise_table.csv (required with --profile junyi_real)",
     )
     p.add_argument("--n-kcs", type=int, default=None)
     p.add_argument("--n-learners", type=int, default=None)
@@ -1207,6 +1358,22 @@ def main(argv=None) -> dict:
         loader = KddRealBedLoader(args.kdd_path)
         result = run_kdd_slice_cell(cfg, loader, seed=0)
         cell_path = _cell_dir(cfg, "kdd_real") / "slice_seed0.json"
+        print(json.dumps({"cell_path": str(cell_path)}, indent=2))
+        return {"result": result, "cell_path": str(cell_path)}
+
+    if args.profile == "junyi_real":
+        # Feature-flagged real-bed branch (additive; see run_junyi_slice_cell's
+        # module-section docstring). Every other --profile value takes the
+        # untouched path above/below, unchanged.
+        if not args.junyi_log_path or not args.junyi_exercise_path:
+            raise ValueError(
+                "--junyi-log-path and --junyi-exercise-path are both required with --profile junyi_real"
+            )
+        profile = make_profile("junyi_real", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+        cfg = RunConfig(output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device)
+        loader = JunyiRealBedLoader(args.junyi_log_path, args.junyi_exercise_path)
+        result = run_junyi_slice_cell(cfg, loader, seed=0)
+        cell_path = _cell_dir(cfg, "junyi_real") / "slice_seed0.json"
         print(json.dumps({"cell_path": str(cell_path)}, indent=2))
         return {"result": result, "cell_path": str(cell_path)}
 

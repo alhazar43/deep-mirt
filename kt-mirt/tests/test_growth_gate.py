@@ -163,6 +163,53 @@ def test_compute_gate_result_sub_d2_slices_excluded_from_slice_stat():
 
 
 # ---------------------------------------------------------------------------
+# Saturation-aware bed statistic (bed_kc_mask, module docstring note 6)
+# ---------------------------------------------------------------------------
+
+
+def _two_kc_growth_and_flat(rng):
+    """A 2-KC bed: KC 0 strong linear growth (unsaturated-like signal), KC 1
+    flat no-trend. Distinct learner ids per KC so slice keys never collide."""
+    frozen = _bank_from_b(np.array([0.0]))
+    growth = _make_linear_growth_slices(rng, n_slices=60, T=20, theta0=-3.0, slope=0.6, kc=0)
+    flat = _make_no_growth_slices(rng, n_slices=60, T=20, theta=0.3, kc=1)
+    combined = {}
+    combined.update(growth)
+    combined.update({(1000 + learner, kc): sl for (learner, kc), sl in flat.items()})
+    return frozen, combined
+
+
+def test_bed_kc_mask_none_matches_all_true_mask():
+    rng = np.random.default_rng(10)
+    frozen, slices = _two_kc_growth_and_flat(rng)
+    unmasked = gate.compute_gate_result(slices, frozen, n_kcs=2)
+    all_true = gate.compute_gate_result(slices, frozen, n_kcs=2, bed_kc_mask=np.array([True, True]))
+    assert unmasked.bed_stat == pytest.approx(all_true.bed_stat)
+
+
+def test_bed_kc_mask_excludes_kc_from_bed_but_not_per_kc_stat():
+    rng = np.random.default_rng(11)
+    frozen, slices = _two_kc_growth_and_flat(rng)
+    full = gate.compute_gate_result(slices, frozen, n_kcs=2)
+    # Include only KC 0 in the bed statistic: bed_stat then equals KC 0's own
+    # per-KC statistic (single-KC bed reduces to that KC's max-family stat).
+    only0 = gate.compute_gate_result(slices, frozen, n_kcs=2, bed_kc_mask=np.array([True, False]))
+    assert only0.bed_stat == pytest.approx(full.kc_stat[0])
+    # Per-KC statistics are UNCHANGED by masking (only bed inclusion changes).
+    assert np.allclose(only0.kc_stat, full.kc_stat)
+    assert only0.kc_selected_family.tolist() == full.kc_selected_family.tolist()
+
+
+def test_bed_kc_mask_all_false_gives_zero_bed_stat():
+    rng = np.random.default_rng(12)
+    frozen, slices = _two_kc_growth_and_flat(rng)
+    none_incl = gate.compute_gate_result(slices, frozen, n_kcs=2, bed_kc_mask=np.array([False, False]))
+    assert none_incl.bed_stat == 0.0
+    # The all-saturated limit: observed 0 against an all-0 null -> p = 1.0.
+    assert gate.empirical_pvalue(none_incl.bed_stat, np.zeros(19)) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
 # Permutation-null hook + empirical p-value
 # ---------------------------------------------------------------------------
 
@@ -194,6 +241,44 @@ def test_permutation_null_runs_and_produces_finite_null_distribution():
     assert null["bed"].shape == (5,)
     assert null["kc"].shape == (5, 1)
     assert np.isfinite(null["bed"]).all()
+
+
+def test_permutation_null_batched_matches_looped_under_bed_kc_mask():
+    """The batched and looped null paths must agree bit-for-bit whether or
+    not a bed_kc_mask is supplied (the mask only changes which per-KC
+    contributions are summed, identically in both paths)."""
+    class Log:
+        pass
+
+    def make_log(learner, T, rng):
+        log = Log()
+        log.learner = learner
+        log.item_ids = np.zeros(T, dtype=int)
+        log.responses = (rng.random(T) < 0.6).astype(np.int8)
+        # Alternate the single tag between KC 0 and KC 1 so both KCs carry slices.
+        tags = (np.arange(T) % 2).reshape(T, 1)
+        log.tag_ids = tags
+        log.tag_mask = np.ones((T, 1), dtype=bool)
+        return log
+
+    rng = np.random.default_rng(7)
+    learners = [make_log(i, 14, rng) for i in range(16)]
+    frozen = _bank_from_b(np.array([0.0]))
+    mask = np.array([True, False])
+    looped = gate.permutation_null(
+        learners, n_learners=16, n_kcs=2, bank=frozen, n_replicates=6, seed=1,
+        use_batched=False, bed_kc_mask=mask,
+    )
+    batched = gate.permutation_null(
+        learners, n_learners=16, n_kcs=2, bank=frozen, n_replicates=6, seed=1,
+        use_batched=True, bed_kc_mask=mask,
+    )
+    # Arrow-batched vs dense-looped float drift is O(1e-4..2e-3) on the raw
+    # statistic (see test_growth_gate_perf_equivalence.py's tolerance note);
+    # the point of THIS test is that the mask is applied identically in both
+    # paths, not to re-verify the perf-surgery equivalence at strict rtol.
+    assert np.allclose(looped["bed"], batched["bed"], atol=2e-3, rtol=2e-3)
+    assert np.allclose(looped["kc"], batched["kc"], atol=2e-3, rtol=2e-3)
 
 
 def test_gate_statistic_on_learners_matches_direct_slice_construction():

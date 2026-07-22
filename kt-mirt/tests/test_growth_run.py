@@ -482,3 +482,112 @@ def test_main_kdd_real_profile_requires_kdd_path(tmp_path):
     argv = ["--output-dir", str(tmp_path), "--profile", "kdd_real"]
     with pytest.raises(ValueError):
         run.main(argv)
+
+
+# ---------------------------------------------------------------------------
+# Real-bed Junyi15 wiring (additive; feature-flagged) -- JunyiRealBedLoader,
+# run_junyi_slice_cell, and the --profile junyi_real CLI branch. Mirrors the
+# KDD block immediately above, sourced through kt_mirt.growth.junyi_data
+# instead of kt_mirt.growth.kc_data, with a flat item hierarchy.
+# ---------------------------------------------------------------------------
+
+import csv as _csv  # noqa: E402
+
+
+def _write_junyi_fixture(
+    ex_path: Path, log_path: Path, n_students: int = 6, n_topics: int = 3,
+    exercises_per_topic: int = 4, t_per_student: int = 14,
+) -> None:
+    """A small synthetic Junyi15-format fixture pair, sized to give the
+    bank/gate machinery enough rows per KC to run without numerical
+    degeneracy (mirrors `_write_kdd_fixture`'s sizing rationale)."""
+    rng = np.random.default_rng(0)
+    exercises = [f"ex{t}_{e}" for t in range(n_topics) for e in range(exercises_per_topic)]
+    topic_of = {name: f"topic{t}" for t in range(n_topics) for e in range(exercises_per_topic)
+                for name in [f"ex{t}_{e}"]}
+
+    with ex_path.open("w", newline="", encoding="utf-8") as f:
+        w = _csv.writer(f)
+        w.writerow(["name", "prerequisites", "topic"])
+        for name in exercises:
+            w.writerow([name, "", topic_of[name]])
+
+    with log_path.open("w", newline="", encoding="utf-8") as f:
+        w = _csv.writer(f)
+        w.writerow(["user_id", "exercise", "correct", "time_done"])
+        row = 0
+        for s in range(n_students):
+            for t in range(t_per_student):
+                row += 1
+                ex = exercises[int(rng.integers(0, len(exercises)))]
+                correct = "true" if rng.integers(0, 2) else "false"
+                w.writerow([f"stu{s}", ex, correct, str(1_000_000 + row)])
+
+
+def test_junyi_real_bed_loader_satisfies_protocol(tmp_path):
+    ex_path, log_path = tmp_path / "junyi_ex.csv", tmp_path / "junyi_log.csv"
+    _write_junyi_fixture(ex_path, log_path)
+    loader = run.JunyiRealBedLoader(log_path, ex_path, chunksize=50)
+    learners, n_learners, n_kcs = loader.load(seed=0)
+    assert n_learners == 6
+    assert n_kcs == 3
+    assert len(learners) == n_learners
+    assert loader.last_result is not None
+    assert loader.last_result.item_hierarchy.n_items == 12  # 3 topics x 4 exercises
+
+
+def test_run_junyi_slice_cell_uses_same_measurement_layer(tmp_path):
+    ex_path, log_path = tmp_path / "junyi_ex.csv", tmp_path / "junyi_log.csv"
+    _write_junyi_fixture(ex_path, log_path)
+    loader = run.JunyiRealBedLoader(log_path, ex_path, chunksize=50)
+    profile = run.make_profile("junyi_real_test", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+    cfg = run.RunConfig(output_dir=tmp_path / "out", profile=profile, bank_epochs=3)
+    result = run.run_junyi_slice_cell(cfg, loader, seed=0)
+
+    assert result["bed"] == "junyi_real"
+    assert result["n_learners"] == 6
+    assert result["n_kcs"] == 3
+    assert "bank_recovery" not in result  # no generator ground truth on a real bed
+    assert "true_rise_per_kc" not in result
+    assert len(result["gate"]["kc_stat"]) == 3
+    assert len(result["b_hat"]) == loader.last_result.item_hierarchy.n_items
+    assert "frac_kc_with_ge_min_pure_items" in result["pure_anchor_stats"]
+
+    cell_path = tmp_path / "out" / "junyi_real_test" / "junyi_real" / "slice_seed0.json"
+    assert cell_path.exists()
+
+
+def test_run_junyi_slice_cell_is_idempotent(tmp_path):
+    ex_path, log_path = tmp_path / "junyi_ex.csv", tmp_path / "junyi_log.csv"
+    _write_junyi_fixture(ex_path, log_path)
+    loader = run.JunyiRealBedLoader(log_path, ex_path, chunksize=50)
+    profile = run.make_profile("junyi_real_idem", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+    cfg = run.RunConfig(output_dir=tmp_path / "out", profile=profile, bank_epochs=3)
+    first = run.run_junyi_slice_cell(cfg, loader, seed=0)
+
+    # A fresh loader whose `.load()` is never called proves the second
+    # call hit the cached cell file, not a recomputation.
+    unusable_loader = run.JunyiRealBedLoader(tmp_path / "does_not_exist.csv", tmp_path / "does_not_exist2.csv")
+    second = run.run_junyi_slice_cell(cfg, unusable_loader, seed=0)
+    assert first == second
+
+
+def test_main_junyi_real_profile_cli_branch(tmp_path):
+    ex_path, log_path = tmp_path / "junyi_ex.csv", tmp_path / "junyi_log.csv"
+    _write_junyi_fixture(ex_path, log_path)
+    argv = [
+        "--output-dir", str(tmp_path / "out"),
+        "--profile", "junyi_real",
+        "--junyi-log-path", str(log_path),
+        "--junyi-exercise-path", str(ex_path),
+        "--bank-epochs", "3",
+    ]
+    result = run.main(argv)
+    assert Path(result["cell_path"]).exists()
+    assert result["result"]["bed"] == "junyi_real"
+
+
+def test_main_junyi_real_profile_requires_paths(tmp_path):
+    argv = ["--output-dir", str(tmp_path), "--profile", "junyi_real"]
+    with pytest.raises(ValueError):
+        run.main(argv)
