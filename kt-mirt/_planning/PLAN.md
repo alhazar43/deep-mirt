@@ -106,6 +106,43 @@ A1-A6 with gates, costs, and flagged uncertainty).
   failure.
 - 6. A6 portable certification battery write-up once battle-tested.
 
+## ALIGNED BLUEPRINT (2026-07-21) -- B-then-A on the original phases
+
+Reconciliation of the user's B-then-A correction with the original
+P0-P5 / A1-A6 plan. NOT a new plan; it makes the original
+synthetic-then-real discipline explicit.
+
+- P0-P3 DONE. A4 growth (G2) SYNTHETIC certification complete: the
+  coarse population-level growth detector is certified and
+  profile-robust; per-KC resolution, saturation robustness, and
+  magnitude are characterized limits (verdict_synthetic_complete.md).
+- **B = P4 real-data pilot for A4/G2** (NEXT, now). Run the certified
+  COARSE detector on real KDD (bridge built + reviewed) and real
+  Junyi (loader to build). Scoped to the population-level claim only.
+  PRECONDITION: a saturation-aware null fix -- real KCs sit near
+  ceiling, and the synthetic verdict proved the gate false-fires
+  there, so an unfixed real fire is untrustworthy. B closes the
+  validity-gate cycle (synthetic -> real) the plan always mandated.
+- **A = per-KC method refinement** (a revisit of A4/P3), DEFERRED
+  until B shows which gaps actually bind. The synthetic evidence says
+  per-KC resolution is a FUNDAMENTAL (gauge-floor) limit, not a data
+  problem, so A is open-ended research to enter with real-data eyes,
+  not blind. This is why it is B THEN A, not A-or-B.
+- **Then G1 / transference** = A1 (signed per-KC influence) -> A2
+  (Eedi negative transfer) -> A3 (readout audit), original avenue
+  order. NOT started. Reuses the certified per-KC substrate. The
+  item-KC mapping gates identifiability: influence needs cross-KC
+  structure (1-to-many multi-tag items OR prerequisite chains); pure
+  1-to-1 disjoint practice cannot identify it (H4). Junyi is the key
+  bed -- its prerequisite graph is both the identifying structure and
+  the external answer-key.
+- A5 (trustworthy-scale measurement leg) folds into B where the real
+  pilot needs an anchored scale for any magnitude read.
+
+Compute (user-authorized): cluster = heavy duty (real-data
+batteries); laptop = periodical light work (fix dev, small verifies).
+Both GPUs in play.
+
 ## Open design questions (P2; each closes in its avenue design doc)
 
 - A4 estimator pair for the existence gate at per-KC granularity

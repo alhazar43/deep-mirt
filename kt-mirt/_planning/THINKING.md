@@ -294,3 +294,47 @@ answering the expensive question first and mis-counting progress while a
 real result sat banked. That is the lesson this entry exists to make
 un-missable: the deliverable is the verdict, verdicts are incremental,
 and the cheapest profile that certifies the method comes first.
+
+## 2026-07-21 User correction: B-THEN-A, and a naming-honesty fix
+
+**Sequencing corrected by the user.** My "A vs B" framing was wrong.
+It is B THEN A. Reason (the user's, and correct): the synthetic
+certification is only HALF the validity-gate cycle the original plan
+mandates (certify on synthetic where truth is known, THEN test on
+real). We have done the synthetic half only. Committing effort now to
+fixing per-KC detection ON SYNTHETIC (path A) before seeing real data
+is optimizing in the dark -- real data (esp. real KDD, heavy with
+near-mastered KCs) may surface a bigger or different gap that
+dominates, making a synthetic per-KC fix effort on the wrong problem.
+So: B (real-data pilot) to learn where real data actually stands, THEN
+A to fix the gaps that actually bind. The saturation false-alarm fix
+is a B-PRECONDITION (real data has no answer key to catch a spurious
+fire), NOT "starting A". This is the original P3->P4 plan, honored.
+
+**Naming honesty (my error caused user confusion).** I have been
+calling the two synthetic profiles "KDD" and "EdNet", which sound like
+real-data results. They are SYNTHETIC generators shaped to match those
+beds' triage statistics. ZERO real dataset has been run for a growth
+claim. Going forward call them "KDD-shaped synthetic" / "EdNet-shaped
+synthetic" to avoid implying real results. The real-bed KDD loader is
+BUILT + hostile-reviewed but never RUN.
+
+**Epistemic point the user raised (assumed growth model).** The
+certified detector is the PASSIVE existence gate, which is MODEL-FREE
+(no assumed growth shape). Circularity guards that already passed: the
+no-growth twin (detector stays silent -> not manufacturing growth) and
+the non-standard-shape twin (detector still detects -> not tied to one
+curve). What synthetic cert canNOT establish: whether real-learner
+growth resembles our generator enough for the detector to fire on it.
+Only real data (B) closes that -- reinforcing B-then-A.
+
+**Transference (G1) status: NOT STARTED.** This entire run was G2
+(growth) only. Transfer = the next major block (avenues A1 signed
+per-KC influence, A2 Eedi negative transfer, A3 readout audit). The
+item-KC mapping GATES identifiability: influence needs cross-KC
+observation structure -- multi-tag items (1-to-many, EdNet arity 2.2)
+or prerequisite chains (Junyi's curated graph). Pure 1-to-1 with
+disjoint practice blocks cannot identify influence (hypothesis H4).
+Junyi is the key bed for G1: its prerequisite map is both the
+identifying structure AND the external answer-key. G1 sequences AFTER
+the B real-data pilot, reusing the certified per-KC state substrate.
