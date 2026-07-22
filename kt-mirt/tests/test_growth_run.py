@@ -465,6 +465,24 @@ def test_run_kdd_slice_cell_is_idempotent(tmp_path):
     assert first == second
 
 
+def test_run_kdd_slice_cell_emits_permutation_verdict(tmp_path):
+    # The real-bed cell used to stop at the OBSERVED existence statistic
+    # (bed_stat/kc_stat) with no null to compare it to. This locks in the
+    # permutation-null addition that mirrors run_slice_cell's synthetic
+    # path: a bed_pvalue and a per-KC bh_reject verdict.
+    _write_kdd_fixture(tmp_path / "kdd_fixture.txt")
+    loader = run.KddRealBedLoader(tmp_path / "kdd_fixture.txt", chunksize=50)
+    profile = run.make_profile("kdd_real_perm", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+    cfg = run.RunConfig(
+        output_dir=tmp_path / "out", profile=profile, bank_epochs=3, n_perm_bed=4, n_perm_kc=3,
+    )
+    result = run.run_kdd_slice_cell(cfg, loader, seed=0)
+
+    assert isinstance(result["gate"]["bed_pvalue"], float)
+    assert 0.0 <= result["gate"]["bed_pvalue"] <= 1.0
+    assert len(result["gate"]["bh_reject"]) == result["n_kcs"]
+
+
 def test_main_kdd_real_profile_cli_branch(tmp_path):
     _write_kdd_fixture(tmp_path / "kdd_fixture.txt")
     argv = [
@@ -570,6 +588,24 @@ def test_run_junyi_slice_cell_is_idempotent(tmp_path):
     unusable_loader = run.JunyiRealBedLoader(tmp_path / "does_not_exist.csv", tmp_path / "does_not_exist2.csv")
     second = run.run_junyi_slice_cell(cfg, unusable_loader, seed=0)
     assert first == second
+
+
+def test_run_junyi_slice_cell_emits_permutation_verdict(tmp_path):
+    # Junyi analogue of test_run_kdd_slice_cell_emits_permutation_verdict:
+    # the real-bed cell must emit a permutation-null verdict, not just the
+    # observed existence statistic.
+    ex_path, log_path = tmp_path / "junyi_ex.csv", tmp_path / "junyi_log.csv"
+    _write_junyi_fixture(ex_path, log_path)
+    loader = run.JunyiRealBedLoader(log_path, ex_path, chunksize=50)
+    profile = run.make_profile("junyi_real_perm", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
+    cfg = run.RunConfig(
+        output_dir=tmp_path / "out", profile=profile, bank_epochs=3, n_perm_bed=4, n_perm_kc=3,
+    )
+    result = run.run_junyi_slice_cell(cfg, loader, seed=0)
+
+    assert isinstance(result["gate"]["bed_pvalue"], float)
+    assert 0.0 <= result["gate"]["bed_pvalue"] <= 1.0
+    assert len(result["gate"]["bh_reject"]) == result["n_kcs"]
 
 
 def test_main_junyi_real_profile_cli_branch(tmp_path):

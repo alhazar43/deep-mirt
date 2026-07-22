@@ -1164,6 +1164,25 @@ def run_kdd_slice_cell(cfg: RunConfig, loader: KddRealBedLoader, seed: int) -> d
         slices_analysis, frozen, n_kcs, device=cfg.device, bed_kc_mask=bed_kc_mask
     )
 
+    # Permutation null (mirrors run_slice_cell's synthetic-path block, gate.py
+    # module docstring note 6): the observed existence statistic above is not
+    # itself a verdict without a null to compare it to. Same bed_kc_mask goes
+    # to both so the observed and null bed statistics sum over an identical
+    # (calibration-cohort, permutation-invariant) KC subset.
+    n_rep = max(cfg.n_perm_bed, cfg.n_perm_kc)
+    null = gate_mod.permutation_null(
+        analysis_learners, len(analysis_learners), n_kcs, frozen,
+        n_replicates=n_rep, seed=derive_seed("realbed_perm", "kdd", seed), device=cfg.device,
+        bed_kc_mask=bed_kc_mask,
+    )
+    bed_null = null["bed"][: cfg.n_perm_bed]
+    kc_null = null["kc"][: cfg.n_perm_kc]
+    bed_pvalue = gate_mod.empirical_pvalue(gate_result.bed_stat, bed_null)
+    kc_pvalue = np.array(
+        [gate_mod.empirical_pvalue(gate_result.kc_stat[c], kc_null[:, c]) for c in range(n_kcs)]
+    )
+    bh_reject = gate_mod.bh_fdr(kc_pvalue)
+
     result = {
         "bed": "kdd_real",
         "seed": seed,
@@ -1174,7 +1193,10 @@ def run_kdd_slice_cell(cfg: RunConfig, loader: KddRealBedLoader, seed: int) -> d
             "calib_rate": sat_rate_calib, "calib_unsaturated": sat_unsat_calib,
             "analysis_rate": sat_rate_analysis, "analysis_unsaturated": sat_unsat_analysis,
         },
-        "gate": {"bed_stat": gate_result.bed_stat, "kc_stat": gate_result.kc_stat},
+        "gate": {
+            "bed_stat": gate_result.bed_stat, "kc_stat": gate_result.kc_stat,
+            "bed_pvalue": bed_pvalue, "bh_reject": bh_reject,
+        },
         "pure_anchor_stats": qmatrix_mod.pure_anchor_stats(loader.last_result.qmatrix),
         "b_hat": fit.b_hat,
     }
@@ -1280,6 +1302,25 @@ def run_junyi_slice_cell(cfg: RunConfig, loader: JunyiRealBedLoader, seed: int) 
         slices_analysis, frozen, n_kcs, device=cfg.device, bed_kc_mask=bed_kc_mask
     )
 
+    # Permutation null (mirrors run_slice_cell's synthetic-path block, gate.py
+    # module docstring note 6): the observed existence statistic above is not
+    # itself a verdict without a null to compare it to. Same bed_kc_mask goes
+    # to both so the observed and null bed statistics sum over an identical
+    # (calibration-cohort, permutation-invariant) KC subset.
+    n_rep = max(cfg.n_perm_bed, cfg.n_perm_kc)
+    null = gate_mod.permutation_null(
+        analysis_learners, len(analysis_learners), n_kcs, frozen,
+        n_replicates=n_rep, seed=derive_seed("realbed_perm", "junyi", seed), device=cfg.device,
+        bed_kc_mask=bed_kc_mask,
+    )
+    bed_null = null["bed"][: cfg.n_perm_bed]
+    kc_null = null["kc"][: cfg.n_perm_kc]
+    bed_pvalue = gate_mod.empirical_pvalue(gate_result.bed_stat, bed_null)
+    kc_pvalue = np.array(
+        [gate_mod.empirical_pvalue(gate_result.kc_stat[c], kc_null[:, c]) for c in range(n_kcs)]
+    )
+    bh_reject = gate_mod.bh_fdr(kc_pvalue)
+
     result = {
         "bed": "junyi_real",
         "seed": seed,
@@ -1291,7 +1332,10 @@ def run_junyi_slice_cell(cfg: RunConfig, loader: JunyiRealBedLoader, seed: int) 
             "calib_rate": sat_rate_calib, "calib_unsaturated": sat_unsat_calib,
             "analysis_rate": sat_rate_analysis, "analysis_unsaturated": sat_unsat_analysis,
         },
-        "gate": {"bed_stat": gate_result.bed_stat, "kc_stat": gate_result.kc_stat},
+        "gate": {
+            "bed_stat": gate_result.bed_stat, "kc_stat": gate_result.kc_stat,
+            "bed_pvalue": bed_pvalue, "bh_reject": bh_reject,
+        },
         "pure_anchor_stats": qmatrix_mod.pure_anchor_stats(loader.last_result.qmatrix),
         "b_hat": fit.b_hat,
     }
@@ -1354,7 +1398,10 @@ def main(argv=None) -> dict:
         if not args.kdd_path:
             raise ValueError("--kdd-path is required when --profile kdd_real")
         profile = make_profile("kdd_real", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
-        cfg = RunConfig(output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device)
+        cfg = RunConfig(
+            output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device,
+            n_perm_bed=args.n_perm_bed, n_perm_kc=args.n_perm_kc,
+        )
         loader = KddRealBedLoader(args.kdd_path)
         result = run_kdd_slice_cell(cfg, loader, seed=0)
         cell_path = _cell_dir(cfg, "kdd_real") / "slice_seed0.json"
@@ -1370,7 +1417,10 @@ def main(argv=None) -> dict:
                 "--junyi-log-path and --junyi-exercise-path are both required with --profile junyi_real"
             )
         profile = make_profile("junyi_real", n_kcs=0, n_learners=0, kcs_per_learner=0.0)
-        cfg = RunConfig(output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device)
+        cfg = RunConfig(
+            output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device,
+            n_perm_bed=args.n_perm_bed, n_perm_kc=args.n_perm_kc,
+        )
         loader = JunyiRealBedLoader(args.junyi_log_path, args.junyi_exercise_path)
         result = run_junyi_slice_cell(cfg, loader, seed=0)
         cell_path = _cell_dir(cfg, "junyi_real") / "slice_seed0.json"
