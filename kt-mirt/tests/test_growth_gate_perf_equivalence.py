@@ -259,6 +259,12 @@ def test_calibrate_m0_chunk_size_empirically_uses_real_probe_on_cuda(monkeypatch
     monkeypatch.setattr(gate.torch.cuda, "reset_peak_memory_stats", lambda device=None: None)
     monkeypatch.setattr(gate.torch.cuda, "max_memory_allocated", lambda device=None: 2_000_000)
     monkeypatch.setattr(gate.torch.cuda, "mem_get_info", lambda device=None: (1_000_000_000, 2_000_000_000))
+    # Pin the memory-budget precedence to "unavailable" so this test's exact
+    # chunk arithmetic (below) is independent of whatever KT_MIRT_MEM_BUDGET_GB
+    # or cgroup limit happens to be in effect on the machine running the
+    # suite (e.g. inside a memory-capped CI container) -- see
+    # `_host_memory_budget_bytes`/`_budget_capped_free_bytes` in gate.py.
+    monkeypatch.setattr(gate, "_host_memory_budget_bytes", lambda: (None, "unavailable"))
 
     frozen = _bank_from_b(np.zeros(3))
     fake_learners = [object(), object()]
@@ -359,6 +365,138 @@ def test_compute_per_kc_chunk_sizes_only_probes_kcs_above_threshold(monkeypatch)
     assert sizes[0] == 200  # small KC: max_chunk directly, no probe
     assert sizes[1] == 7  # large KC: actually probed
     assert probed_kcs == [400]  # only the large KC's own probe was built (400 slices)
+
+
+# ---------------------------------------------------------------------------
+# Memory budget precedence (2026-07-22 real-data permutation-null OOM fix):
+# `KT_MIRT_MEM_BUDGET_GB` env var, then this process's cgroup memory limit,
+# then the pre-existing budget-agnostic fallback -- see gate.py's
+# module-level precedence note above `_calibrate_m0_chunk_size_empirically`.
+# ---------------------------------------------------------------------------
+
+
+def test_env_memory_budget_bytes_parses_gb_and_rejects_garbage(monkeypatch):
+    monkeypatch.delenv("KT_MIRT_MEM_BUDGET_GB", raising=False)
+    assert gate._env_memory_budget_bytes() is None  # unset
+
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "4.0")
+    assert gate._env_memory_budget_bytes() == int(4.0 * 1024**3)
+
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "not-a-number")
+    assert gate._env_memory_budget_bytes() is None  # unparseable -> ignored, not fatal
+
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "-5")
+    assert gate._env_memory_budget_bytes() is None  # non-positive -> ignored
+
+
+def test_cgroup_memory_budget_bytes_prefers_v2_and_ignores_unlimited_sentinels(monkeypatch, tmp_path):
+    v2_path = tmp_path / "memory.max"
+    v1_path = tmp_path / "memory.limit_in_bytes"
+    monkeypatch.setattr(gate, "_CGROUP_V2_MEM_MAX_PATH", str(v2_path))
+    monkeypatch.setattr(gate, "_CGROUP_V1_MEM_LIMIT_PATH", str(v1_path))
+
+    # Neither file exists: unavailable, not an exception.
+    assert gate._cgroup_memory_budget_bytes() is None
+
+    # v2 present and a real cap: wins outright.
+    v2_path.write_text("8589934592")  # 8 GiB
+    v1_path.write_text("4294967296")  # 4 GiB (would win if v2 were absent)
+    assert gate._cgroup_memory_budget_bytes() == 8589934592
+
+    # v2 says "max" (cgroup v2's literal unlimited marker): falls through to v1.
+    v2_path.write_text("max")
+    assert gate._cgroup_memory_budget_bytes() == 4294967296
+
+    # v1's classic near-INT64_MAX "no limit" sentinel: ignored, overall unavailable.
+    v1_path.write_text("9223372036854771712")
+    assert gate._cgroup_memory_budget_bytes() is None
+
+
+def test_host_memory_budget_bytes_env_takes_precedence_over_cgroup(monkeypatch, tmp_path):
+    v2_path = tmp_path / "memory.max"
+    v2_path.write_text("8589934592")  # 8 GiB
+    monkeypatch.setattr(gate, "_CGROUP_V2_MEM_MAX_PATH", str(v2_path))
+    monkeypatch.setattr(gate, "_CGROUP_V1_MEM_LIMIT_PATH", str(tmp_path / "absent"))
+
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "4.0")
+    budget_bytes, source = gate._host_memory_budget_bytes()
+    assert (budget_bytes, source) == (int(4.0 * 1024**3), "env")  # env wins even though cgroup is readable
+
+    monkeypatch.delenv("KT_MIRT_MEM_BUDGET_GB", raising=False)
+    budget_bytes, source = gate._host_memory_budget_bytes()
+    assert (budget_bytes, source) == (8589934592, "cgroup")  # falls through to cgroup once env is gone
+
+
+def test_calibrate_m0_chunk_size_empirically_cpu_small_env_budget_yields_small_chunk(monkeypatch):
+    """The task's exact scenario: a small explicit KT_MIRT_MEM_BUDGET_GB
+    must shrink the CPU chunk well below the budget-agnostic default (20),
+    and the chosen chunk must never imply a footprint above the budget."""
+    monkeypatch.setattr(gate, "_CGROUP_V2_MEM_MAX_PATH", "/nonexistent/memory.max")
+    monkeypatch.setattr(gate, "_CGROUP_V1_MEM_LIMIT_PATH", "/nonexistent/memory.limit_in_bytes")
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "4.0")
+
+    chunk = gate._calibrate_m0_chunk_size_empirically(
+        perm_learners_list=[object()] * 100, all_keys=[(0, 0)], bank=None, device="cpu",
+        safety_factor=2.0, max_chunk=200,
+    )
+    budget_bytes = int(4.0 * 1024**3)
+    assert 1 <= chunk < 20  # strictly smaller than the budget-agnostic default
+    assert chunk * 2.0 * gate._CPU_FALLBACK_BYTES_PER_REPLICATE <= budget_bytes  # never exceeds the budget
+
+
+def test_calibrate_m0_chunk_size_empirically_cpu_cgroup_file_yields_cgroup_based_chunk(monkeypatch, tmp_path):
+    """Same scenario with no env var: a mocked/monkeypatched cgroup file
+    (tier 2) must drive the chunk instead, to a DIFFERENT, cgroup-derived
+    size -- not just the pre-existing fixed fallback."""
+    monkeypatch.delenv("KT_MIRT_MEM_BUDGET_GB", raising=False)
+    v2_path = tmp_path / "memory.max"
+    v2_path.write_text(str(2 * 1024**3))  # 2 GiB cgroup cap
+    monkeypatch.setattr(gate, "_CGROUP_V2_MEM_MAX_PATH", str(v2_path))
+    monkeypatch.setattr(gate, "_CGROUP_V1_MEM_LIMIT_PATH", str(tmp_path / "absent"))
+
+    chunk = gate._calibrate_m0_chunk_size_empirically(
+        perm_learners_list=[object()] * 100, all_keys=[(0, 0)], bank=None, device="cpu",
+        safety_factor=2.0, max_chunk=200,
+    )
+    budget_bytes = 2 * 1024**3
+    assert 1 <= chunk < 20
+    assert chunk * 2.0 * gate._CPU_FALLBACK_BYTES_PER_REPLICATE <= budget_bytes
+    # The 2 GiB cgroup cap and the 4 GiB env case above must NOT collapse to
+    # the same number by coincidence of both merely being "small": confirm
+    # this is really reading the cgroup value, by comparing against the
+    # formula applied to a DIFFERENT (4 GiB) budget.
+    four_gib_chunk = max(1, int((4 * 1024**3) / (2.0 * gate._CPU_FALLBACK_BYTES_PER_REPLICATE)))
+    assert chunk != four_gib_chunk
+
+
+def test_cpu_chunk_from_budget_never_exceeds_the_budget_agnostic_default(monkeypatch):
+    """A generous budget must never INCREASE the chunk past what today's
+    budget-agnostic default would already have picked -- the budget can
+    only make sizing more conservative, never less, regardless of how the
+    (unmeasured) per-replicate byte assumption compares to reality."""
+    monkeypatch.setattr(gate, "_CGROUP_V2_MEM_MAX_PATH", "/nonexistent/memory.max")
+    monkeypatch.setattr(gate, "_CGROUP_V1_MEM_LIMIT_PATH", "/nonexistent/memory.limit_in_bytes")
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "1000")  # far larger than any real job
+
+    chunk = gate._cpu_chunk_from_budget(default_chunk=20, max_chunk=200, safety_factor=2.0)
+    assert chunk == 20  # unchanged from the pre-existing default, not blown up toward max_chunk
+
+
+def test_budget_capped_free_bytes_env_caps_cuda_free_bytes(monkeypatch):
+    monkeypatch.setattr(gate, "_CGROUP_V2_MEM_MAX_PATH", "/nonexistent/memory.max")
+    monkeypatch.setattr(gate, "_CGROUP_V1_MEM_LIMIT_PATH", "/nonexistent/memory.limit_in_bytes")
+    monkeypatch.delenv("KT_MIRT_MEM_BUDGET_GB", raising=False)
+
+    # No override: the device's own reading passes through untouched.
+    assert gate._budget_capped_free_bytes(1_000_000_000) == 1_000_000_000
+
+    # A small override caps it down.
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "0.5")
+    assert gate._budget_capped_free_bytes(1_000_000_000) == int(0.5 * 1024**3)
+
+    # A generous override never enlarges the device's own (smaller) reading.
+    monkeypatch.setenv("KT_MIRT_MEM_BUDGET_GB", "1000")
+    assert gate._budget_capped_free_bytes(1_000_000_000) == 1_000_000_000
 
 
 def test_fit_batched_replicates_safe_falls_back_on_oom_and_matches_reference(monkeypatch):

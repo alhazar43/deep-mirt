@@ -138,6 +138,7 @@ Interpretation notes (recorded per the harness instructions):
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
@@ -917,6 +918,149 @@ def permutation_null_looped(
     return {"bed": bed_null, "kc": kc_null}
 
 
+# ---------------------------------------------------------------------------
+# Memory budget precedence (2026-07-22 real-data permutation-null OOM fix):
+# a chunk-size heuristic that reads the whole NODE's total/free RAM sizes
+# chunks toward that number even when the running job is capped far below
+# it by a SLURM `--mem` cgroup (a shared 250G node running a 96G-capped job
+# gets OOM-killed the moment usage crosses 96G, long before "free node RAM"
+# would suggest trouble). The functions below give every chunk-size
+# calibration in this module ONE authoritative memory budget, in strict
+# precedence order:
+#   1. `KT_MIRT_MEM_BUDGET_GB` env var -- an operator's explicit,
+#      authoritative override (e.g. set to a job's `--mem` cap, minus
+#      headroom for the run's fixed baseline outside the chunked-fit math:
+#      data loading, the frozen bank, OS/page cache).
+#   2. This process's cgroup memory limit -- v2's `memory.max`, then v1's
+#      `memory.limit_in_bytes` -- i.e. the job's REAL allocation, as
+#      opposed to the physical node's full RAM.
+#   3. Unavailable: neither an override nor a readable cgroup limit exists
+#      (e.g. a bare, non-containerized workstation). Callers fall back to
+#      their OWN pre-existing, budget-agnostic sizing in this case --
+#      deliberately NOT to a total/free node-RAM read, since that read is
+#      exactly the bug this precedence exists to close.
+# Every use of this budget (CPU or CUDA) logs one line naming the budget,
+# its source, and the resulting chunk size, so a bad size is never silently
+# wrong again.
+# ---------------------------------------------------------------------------
+
+_MEM_BUDGET_ENV_VAR = "KT_MIRT_MEM_BUDGET_GB"
+_CGROUP_V2_MEM_MAX_PATH = "/sys/fs/cgroup/memory.max"
+_CGROUP_V1_MEM_LIMIT_PATH = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+# A v1 "no limit" cgroup reads back as a huge near-INT64_MAX byte count
+# (implementation detail of the kernel's default), not a real allocation;
+# treated the same as v2's literal "max" sentinel string.
+_CGROUP_UNLIMITED_SENTINEL_BYTES = 10 * (1024 ** 4)  # 10 TB
+# No cross-platform RSS-based per-replicate probe exists for the CPU path
+# (unlike CUDA's real `torch.cuda.max_memory_allocated` measurement below);
+# this is a deliberately conservative, UNMEASURED placeholder used ONLY to
+# translate a KNOWN budget (tiers 1-2 above) into a chunk count, and only
+# ever applied as a ceiling via `min()` against the pre-existing
+# budget-agnostic default (`_cpu_chunk_from_budget`) -- so an imprecise
+# assumption here can only shrink a chunk (safer), never grow one past
+# what today's behavior would already have picked.
+_CPU_FALLBACK_BYTES_PER_REPLICATE = 512 * 1024 * 1024  # 512 MiB
+
+
+def _env_memory_budget_bytes() -> Optional[int]:
+    """Tier 1: `KT_MIRT_MEM_BUDGET_GB`, parsed as float GiB (matching
+    SLURM's own `--mem=` convention). None if unset, blank, or unparseable
+    as a positive number."""
+    raw = os.environ.get(_MEM_BUDGET_ENV_VAR)
+    if not raw:
+        return None
+    try:
+        gb = float(raw)
+    except ValueError:
+        return None
+    if not (gb > 0):
+        return None
+    return int(gb * (1024 ** 3))
+
+
+def _cgroup_memory_budget_bytes() -> Optional[int]:
+    """Tier 2: this process's cgroup memory cap, v2 first then v1 (see the
+    module-level precedence note above). None if neither file is readable
+    or parseable, or the value found is an "unlimited" sentinel."""
+    for path in (_CGROUP_V2_MEM_MAX_PATH, _CGROUP_V1_MEM_LIMIT_PATH):
+        try:
+            with open(path, "r") as f:
+                raw = f.read().strip()
+        except OSError:
+            continue
+        if not raw or raw == "max":
+            continue
+        try:
+            value = int(raw)
+        except ValueError:
+            continue
+        if value <= 0 or value >= _CGROUP_UNLIMITED_SENTINEL_BYTES:
+            continue
+        return value
+    return None
+
+
+def _host_memory_budget_bytes() -> tuple[Optional[int], str]:
+    """The authoritative memory budget for THIS job, in bytes, with the
+    source that produced it -- `_env_memory_budget_bytes` (tier 1), else
+    `_cgroup_memory_budget_bytes` (tier 2), else `(None, "unavailable")`.
+    See the module-level precedence note above for why tier 3 is a bare
+    "unavailable" rather than a total/free node-RAM read."""
+    env_bytes = _env_memory_budget_bytes()
+    if env_bytes is not None:
+        return env_bytes, "env"
+    cgroup_bytes = _cgroup_memory_budget_bytes()
+    if cgroup_bytes is not None:
+        return cgroup_bytes, "cgroup"
+    return None, "unavailable"
+
+
+def _cpu_chunk_from_budget(default_chunk: int, max_chunk: int, safety_factor: float) -> int:
+    """Caps `default_chunk` (the pre-existing, budget-agnostic CPU
+    heuristic) by this job's real memory budget (`_host_memory_budget_bytes`),
+    translated to a replicate count via `_CPU_FALLBACK_BYTES_PER_REPLICATE`.
+    With no budget signal (tier 3), returns `min(default_chunk, max_chunk)`
+    unchanged -- exactly today's behavior. Always logs one line naming the
+    resolved budget/source and the resulting chunk."""
+    budget_bytes, source = _host_memory_budget_bytes()
+    if budget_bytes is None:
+        chunk = max(1, min(default_chunk, max_chunk))
+        print(
+            f"[permutation_null_batched] memory budget: unavailable (no {_MEM_BUDGET_ENV_VAR}, "
+            f"no readable cgroup limit) -- CPU chunk={chunk} (default, budget-agnostic)",
+            flush=True,
+        )
+        return chunk
+    budget_chunk = max(1, int(budget_bytes / (safety_factor * _CPU_FALLBACK_BYTES_PER_REPLICATE)))
+    chunk = max(1, min(default_chunk, budget_chunk, max_chunk))
+    print(
+        f"[permutation_null_batched] memory budget: {budget_bytes / (1024 ** 3):.2f} GiB "
+        f"(source={source}) safety_factor={safety_factor} -> CPU chunk={chunk}",
+        flush=True,
+    )
+    return chunk
+
+
+def _budget_capped_free_bytes(free_bytes: int) -> int:
+    """Caps a device's own reported free bytes (e.g.
+    `torch.cuda.mem_get_info`) by this job's real memory budget
+    (`_host_memory_budget_bytes`), applying the SAME env-var/cgroup
+    precedence used for the CPU path on top of -- never instead of -- the
+    device's own accurate reading (tier 3 there IS this reading, per the
+    module-level precedence note above). Logs only when the budget
+    actually binds (is smaller than what the device itself reports), so
+    the ordinary case (no override, or a generous one) stays silent."""
+    budget_bytes, source = _host_memory_budget_bytes()
+    if budget_bytes is None or budget_bytes >= free_bytes:
+        return free_bytes
+    print(
+        f"[permutation_null_batched] memory budget: {budget_bytes / (1024 ** 3):.2f} GiB "
+        f"(source={source}) caps device free_bytes from {free_bytes} to {budget_bytes}",
+        flush=True,
+    )
+    return budget_bytes
+
+
 def _calibrate_m0_chunk_size_empirically(
     perm_learners_list: Sequence[Sequence],
     all_keys: Sequence[tuple[int, int]],
@@ -935,11 +1079,20 @@ def _calibrate_m0_chunk_size_empirically(
     a single shared chunk size across every KC was the root cause of a
     production non-completion: a chunk sized safe for the bed's largest
     KC starves every smaller KC of any batching benefit at all).
+
+    On CPU (or no CUDA), no per-replicate memory probe is attempted (no
+    cross-platform RSS-based mechanism is implemented); the chunk is a
+    small, fixed, conservative default, further capped by this job's real
+    memory budget when one is known (`_cpu_chunk_from_budget` -- see the
+    module-level precedence note above). On CUDA, the empirically-measured
+    free bytes are themselves capped by the same budget precedence
+    (`_budget_capped_free_bytes`) before being divided by the measured
+    per-replicate footprint.
     """
     is_cuda = device.startswith("cuda") and torch.cuda.is_available()
     n_replicates = len(perm_learners_list)
     if not is_cuda:
-        return min(max_chunk, max(1, min(20, n_replicates)))
+        return _cpu_chunk_from_budget(max(1, min(20, n_replicates)), max_chunk, safety_factor)
 
     probe_n = min(probe_replicates, n_replicates)
     if probe_n == 0 or not all_keys:
@@ -968,6 +1121,7 @@ def _calibrate_m0_chunk_size_empirically(
 
     bytes_per_replicate = max(m0_peak, 1) / probe_n
     free_bytes, _ = torch.cuda.mem_get_info(device)
+    free_bytes = _budget_capped_free_bytes(free_bytes)
     safe_chunk = max(1, int(free_bytes / (safety_factor * bytes_per_replicate)))
     return int(min(safe_chunk, max_chunk))
 
@@ -1011,11 +1165,18 @@ def _calibrate_kc_chunk_size_empirically(
     couldn't measure this," never a fatal error, since
     `_fit_kc_joint_batched_replicates_safe`'s OOM fallback is the actual
     safety net regardless of what chunk size calibration returns.
+
+    Like `_calibrate_m0_chunk_size_empirically`, the CPU fallback and the
+    CUDA free-bytes reading are both capped by this job's real memory
+    budget when one is known (see the module-level precedence note above
+    `_calibrate_m0_chunk_size_empirically`).
     """
     is_cuda = device.startswith("cuda") and torch.cuda.is_available()
     probe_n = len(kc_slices_by_replicate_probe)
-    if not is_cuda or probe_n == 0:
-        return min(max_chunk, max(1, probe_n)) if probe_n else 1
+    if probe_n == 0:
+        return 1
+    if not is_cuda:
+        return _cpu_chunk_from_budget(max(1, probe_n), max_chunk, safety_factor)
 
     kc_peak: Optional[int] = None
     try:
@@ -1036,6 +1197,7 @@ def _calibrate_kc_chunk_size_empirically(
 
     bytes_per_replicate = max(kc_peak, 1) / probe_n
     free_bytes, _ = torch.cuda.mem_get_info(device)
+    free_bytes = _budget_capped_free_bytes(free_bytes)
     safe_chunk = max(1, int(free_bytes / (safety_factor * bytes_per_replicate)))
     return int(min(safe_chunk, max_chunk))
 
@@ -1173,19 +1335,27 @@ def _compute_per_kc_chunk_sizes(
     enough to matter -- on the KDD_MATCHED bed that motivated this fix,
     that was single digits out of 515 KCs (median slice count ~103, but a
     few KCs had ~1700-3000).
+
+    On CPU, every KC shares one budget-capped default chunk (resolved
+    ONCE, not per KC, so a bed with hundreds of KCs logs its memory
+    budget one time, not hundreds -- see `_cpu_chunk_from_budget` and the
+    module-level precedence note above `_calibrate_m0_chunk_size_empirically`).
     """
     is_cuda = device.startswith("cuda") and torch.cuda.is_available()
     n_replicates = len(perm_learners_list)
     probe_n = min(probe_replicates, n_replicates)
     probe_learners = perm_learners_list[:probe_n] if probe_n else []
     probe_slices = [build_slices(build_calibration_rows(lg)) for lg in probe_learners] if probe_n else []
+    cpu_chunk = (
+        None if is_cuda else _cpu_chunk_from_budget(max(1, min(20, n_replicates)), max_chunk, safety_factor)
+    )
 
     sizes: dict[int, int] = {}
     for c, keys_c in enumerate(by_kc_keys):
         if not keys_c:
             continue
         if not is_cuda:
-            sizes[c] = min(max_chunk, max(1, min(20, n_replicates)))
+            sizes[c] = cpu_chunk
             continue
         if len(keys_c) <= small_kc_threshold:
             sizes[c] = max_chunk
@@ -2205,6 +2375,11 @@ __all__ = [
     "_m1b_shared_design",
     "_time_filter_odd",
     "_time_filter_even",
+    "_env_memory_budget_bytes",
+    "_cgroup_memory_budget_bytes",
+    "_host_memory_budget_bytes",
+    "_cpu_chunk_from_budget",
+    "_budget_capped_free_bytes",
     "_calibrate_m0_chunk_size_empirically",
     "_calibrate_kc_chunk_size_empirically",
     "_compute_per_kc_chunk_sizes",
