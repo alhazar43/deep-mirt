@@ -1086,3 +1086,29 @@ Acquisitions:
   pre-pass, commit 959a25e). Junyi-40k (40000 learners) running
   memory-safe (RSS fluctuating 38-94G under a 200G cap). Awaiting its
   verdict for the second-bed corroboration.
+
+## 2026-07-23 Junyi corroboration: INCONCLUSIVE (negative stat, confounded)
+
+- Junyi-40k (40000 of 247k learners, B=39, exit clean): observed
+  bed_stat = -11038.9 (NEGATIVE -> the no-growth model M0 fits better
+  than the growth model M1 = NO growth detected), 35/40 topic-skills
+  unsaturated, 0/40 per-skill. p=0.025 is the B=39 floor but with a
+  strongly-negative observed it is a degenerate-fit artifact, not a
+  clean detection.
+- READ: Junyi does NOT corroborate KDD's positive. But it is CONFOUNDED,
+  not a clean "no learning" finding:
+  (1) the subsample is NON-RANDOM (first 40k learner-ids in sort order,
+      the streaming pre-pass rule) -> likely an unrepresentative cohort;
+  (2) Junyi per-learner data is very thin (median ~8 opps, many far
+      fewer) -> weak/degenerate growth fit, exactly where the negative
+      statistic and floor-p artifact appear.
+- HONEST STATE: ONE solid real-data positive (KDD, p<=0.01, growth
+  detected on deep-practice real students); the second bed is
+  UNCONFIRMED (confounded inconclusive), NOT a contradiction. A proper
+  Junyi test needs a RANDOM subsample (not first-N-by-id) and likely a
+  larger/denser cohort. The subsample rule (deterministic first-N) was
+  chosen for memory-streaming simplicity, not representativeness -- a
+  known tradeoff now biting.
+- Decision open for the user: pursue Junyi properly (random subsample
+  re-run) vs bank the KDD real-data positive and move to the influence
+  goal.
