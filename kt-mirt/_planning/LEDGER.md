@@ -1112,3 +1112,35 @@ Acquisitions:
 - Decision open for the user: pursue Junyi properly (random subsample
   re-run) vs bank the KDD real-data positive and move to the influence
   goal.
+
+## 2026-07-23 CT0 (G1 make-or-break) verdict: FEASIBLE-but-uncertified
+
+- Built minimal signed-influence machinery (src/kt_mirt/transfer/:
+  model/synth/ct0, 41 tests) reusing the A4 substrate. Ran the CT0
+  D=3 power precondition (the fail-fast test).
+- VERDICT: INCONCLUSIVE = feasible, not dead (K-T1 does NOT fire). The
+  model RECOVERS both signed coefficients to truth on chain-density
+  (KDD-shaped): +0.05 and -0.02 at every N -> per-edge SIGN is
+  recoverable in principle (max sign-F1 0.889, nowhere near the 0.5
+  chance line). BUT no cell clears the strict CT1 bar; the failure is
+  DISCRIMINATION on the NEGATIVE half:
+  - POSITIVE/facilitation half (A helps B): separates cleanly at all
+    N (posF1 0.889 small-N -> 1.000 by N=500). Works now.
+  - NEGATIVE/interference half (A hurts B -- the NOVEL claim vs
+    LTKT/HawkesKT): true-zero cells LEAK to ~0.02 |G| under the
+    default weak-L1 trainer, overlapping the -0.02 dose -> can't
+    separate interference from null. The leak GROWS with epochs at
+    flat NLL -> a TRAINER-REGULARIZATION ARTIFACT (same class as the
+    A4 ACT convergence bug), addressable by the owed R0-A1
+    stationarity re-study + held-out L1 tuning -- NOT a fundamental
+    floor. Agent correctly did NOT tune to force a pass.
+  - EdNet-shaped (multi-tag): raw recovery COLLAPSES under co-tagging
+    collinearity (Gpos 0.05->~0.01) -- a genuine per-density limit
+    (EdNet's secondary role, as expected).
+  - Bank error at the A4 floor (rank_corr~0.76) costs sign-F1
+    0.13-0.24 but the positive half survives -- secondary caveat.
+- READ: the influence goal is FEASIBLE; facilitation is recoverable
+  now; the interesting interference half is blocked by a fixable
+  trainer artifact, not a wall. Next (per design, not yet run): the
+  R0-A1 stationarity/L1 re-study, then re-run CT0 at 5 seeds + a
+  dose-response. Full table: _planning/ct0_power_result.md.
