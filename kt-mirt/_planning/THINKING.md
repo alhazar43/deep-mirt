@@ -338,3 +338,42 @@ disjoint practice blocks cannot identify influence (hypothesis H4).
 Junyi is the key bed for G1: its prerequisite map is both the
 identifying structure AND the external answer-key. G1 sequences AFTER
 the B real-data pilot, reusing the certified per-KC state substrate.
+
+## 2026-07-23 A1 (influence/G1) design frozen v1.1; the fundamental risk
+
+The A1 signed-influence design (design → hostile review → revise)
+returned v1.1 with 7 blocking + 13 important findings fixed BEFORE any
+run. The review's deepest catch (B1) is the strategic headline and
+must shape expectations:
+
+**G1 needs FINER resolution than G2, which already hit a fundamental
+floor.** The A4/G2 verdict proved per-KC resolution is a fundamental
+identifiability floor (0 per-KC discoveries, invariant across a full
+density inversion) -- the coarse POOLED detector worked, per-KC did
+not. G1 (influence) must resolve WHICH edge A->B, strictly FINER than
+the per-KC object that failed. So G1 is at genuine risk of being
+unachievable with this method. The design's response is correct: a
+per-edge POWER PRECONDITION (CT0) is the make-or-break FIRST gate --
+it decides K-T1 (kill G1 on this design space) on the power curve
+BEFORE any expensive campaign. Fail-fast on the fundamental question.
+
+**Five open rulings -- all defaults ACCEPTED (honest-science posture):**
+1. Compute envelope: APPROVE, gate on the R-A1p probe (quantify
+   before committing the SLURM budget).
+2. Dense full-K CT9 reference: ACCEPT the L1-sparse fallback if the
+   dense fit OOMs/too costly (logged weaker guarantee, non-consuming).
+3. Junyi as sole external key: CONTINGENT promise on the stage-0
+   decoupling measurement; K-T5 (self-certified-only) is the honest
+   fallback if Junyi's exercise-grain decoupling fails.
+4. Clean-negative verdict: KEEP -- A1 may report the signed claim
+   itself UNSUPPORTED, not always a defensible remnant. This is the
+   validity-gate/honesty posture; refusing it would bias toward
+   manufacturing a positive.
+5. Causal framing: association-framing FALLBACK if the endogenous-
+   schedule warrant fails (still novel vs LTKT/HawkesKT's uncertified
+   signs); a failed causal warrant scopes the CLAIM, not the avenue.
+
+**Recommended next step (fail-fast):** build only enough to run CT0
+(the power precondition) on synthetic, and let it decide whether G1
+is feasible BEFORE committing the full campaign. Do not sink a
+multi-hour campaign into a goal the power gate may kill cheaply.
