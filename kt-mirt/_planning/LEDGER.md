@@ -1071,3 +1071,18 @@ Acquisitions:
   (fixed) + a subsample-capable mode + its own exclusive node +
   small B for a first read. The grind is the finding: the battery
   needs a real-bed deployment mode.
+
+## 2026-07-23 KDD real verdict STRENGTHENED (B=99); Junyi-40k running
+
+- KDD heavier null (B=99, memory-safe via KT_MIRT_MEM_BUDGET_GB=12,
+  exclusive, exit 0): observed stat 6113.8, bed_pvalue = 0.01 (the
+  observed beat ALL 99 permutations -> at the B=99 floor). Firmer
+  than the B=39 read (0.025). Coarse detector fires at p<=0.01 on
+  real KDD; per-KC still 0/515. A solid, non-borderline real-data
+  positive for the coarse growth detector.
+- Junyi corroboration: the full 247k-learner bed OOMs even with the
+  null memory budget (per-replicate footprint over all learners too
+  big) -> added --junyi-max-learners (memory-bounded streaming
+  pre-pass, commit 959a25e). Junyi-40k (40000 learners) running
+  memory-safe (RSS fluctuating 38-94G under a 200G cap). Awaiting its
+  verdict for the second-bed corroboration.
