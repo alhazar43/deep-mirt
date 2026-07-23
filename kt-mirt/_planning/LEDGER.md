@@ -1144,3 +1144,29 @@ Acquisitions:
   trainer artifact, not a wall. Next (per design, not yet run): the
   R0-A1 stationarity/L1 re-study, then re-run CT0 at 5 seeds + a
   dose-response. Full table: _planning/ct0_power_result.md.
+
+## 2026-07-23 Junyi proper (random 40k) verdict: NO growth -- NOT a bias artifact
+
+- Junyi random-40k (subsample_seed=0, B=39, clean exit): observed
+  bed_stat = -11763.8 (NEGATIVE = no-growth model wins), p=0.025
+  (degenerate floor artifact on thin data), 0/40 per-skill. Random
+  vs the earlier biased-first-40k (-11038.9): SAME sign & magnitude
+  -> the negative result is NOT a sampling-bias artifact. A proper
+  random cohort confirms Junyi shows no model-detectable growth.
+- INTERPRETATION (honest): Junyi's per-student practice is very thin
+  (median ~8 opps, 40k random cohort thinner still), vs KDD's deep
+  ~2688 interactions/student. The per-KC model-based existence gate
+  needs per-student DEPTH; Junyi's thin data does not supply it, even
+  though RAW aggregate growth exists (triage: 19-pt rise, 97%
+  positive slopes). This is the method's DATA-DENSITY boundary,
+  consistent across the synthetic thin (EdNet-matched) profile, the
+  parked trajectory program (rate unrecoverable on thin/saturated),
+  and now two real beds. NOT a clean "Junyi has no growth" and NOT a
+  bias -- a density-limit of the detector.
+- COMBINED GROWTH (G2) REAL-DATA VERDICT: ONE solid positive on
+  DEEP-practice real data (KDD, p<=0.01); the detector correctly does
+  NOT fire on THIN-practice real data (Junyi) -- arguably honest (no
+  manufactured growth) and a mapped boundary, not a failure. Caveat:
+  a Junyi run restricted to its DEEP students (not a random cohort)
+  would test the density hypothesis directly; not run (thin random
+  cohort was the fix for the bias, not the depth question).
