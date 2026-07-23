@@ -135,10 +135,27 @@ Interpretation notes (recorded per the harness instructions):
     exercise table before the log is streamed, independent of which
     learners are kept. ``None`` (default) skips the pre-pass entirely and
     is byte-identical to this parameter not existing.
+11. **`subsample_seed` switches the kept-id SELECTION RULE from
+    deterministic first-N to a seeded random draw** (added because
+    first-N-by-sort is a non-random, potentially biased cohort: e.g. if
+    ``user_id`` correlates with signup order, the first N ids in sort
+    order are the earliest-signup students, not a representative sample).
+    ``subsample_seed=None`` (default) keeps note 10's existing rule
+    exactly (the first `max_learners` distinct ids in sorted order) --
+    byte-identical to this parameter not existing. When `subsample_seed`
+    is an int, `_collect_kept_user_ids` instead sorts the full distinct-id
+    set (so the draw is insensitive to chunk size or set/dict iteration
+    order, matching note 10's own reproducibility discipline) and draws
+    `max_learners` of them via ``random.Random(subsample_seed).sample``,
+    still fully deterministic for a fixed seed but no longer biased
+    toward the lexicographically-first ids. Everything else about note
+    10 (memory bound, the excluded-row accounting, the untouched item/KC
+    catalog) is unaffected by which selection rule is in force.
 """
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -369,6 +386,7 @@ def _chronological_order(student_id: np.ndarray, timestamp: np.ndarray, row_pos:
 
 def _collect_kept_user_ids(
     problem_log_path, max_learners: int, chunksize: int, nrows: Optional[int] = None,
+    subsample_seed: Optional[int] = None,
 ) -> set:
     """Pre-pass for `max_learners` subsampling. Streams ONLY the
     ``user_id`` column of the ProblemLog file in chunks (same chunk size
@@ -376,9 +394,19 @@ def _collect_kept_user_ids(
     identical view of the file), accumulating the set of distinct,
     non-missing raw ids -- memory bounded by the number of DISTINCT
     learners (247,606 short strings for the full Junyi15 file), never by
-    the row count (26M), unlike holding every row would be. Returns the
-    first `max_learners` of those ids in lexicographic (string) sort
-    order, as a set for O(1) membership testing in the main pass below.
+    the row count (26M), unlike holding every row would be.
+
+    ``subsample_seed=None`` (default, module docstring note 10) returns
+    the first `max_learners` of those ids in lexicographic (string) sort
+    order, as a set for O(1) membership testing in the main pass below --
+    byte-identical to this parameter not existing. When `subsample_seed`
+    is an int (module docstring note 11), a SEEDED RANDOM sample of
+    `max_learners` ids is returned instead: the full distinct-id set is
+    sorted first (so the draw does not depend on chunk size or set/dict
+    iteration order), then ``random.Random(subsample_seed).sample`` draws
+    from that fixed sequence -- a representative cohort rather than a
+    lexicographically-first one, still fully reproducible for a given
+    seed (same seed -> identical returned set).
     """
     seen: set = set()
     reader = pd.read_csv(
@@ -389,7 +417,10 @@ def _collect_kept_user_ids(
         valid = (user_raw.notna() & (user_raw.astype(str) != "")).to_numpy()
         if valid.any():
             seen.update(user_raw.astype(str).to_numpy()[valid].tolist())
-    return set(sorted(seen)[:max_learners])
+    sorted_ids = sorted(seen)
+    if subsample_seed is None:
+        return set(sorted_ids[:max_learners])
+    return set(random.Random(subsample_seed).sample(sorted_ids, min(max_learners, len(sorted_ids))))
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +434,7 @@ def load_junyi_kc_traced(
     chunksize: int = 2_000_000,
     nrows: Optional[int] = None,
     max_learners: Optional[int] = None,
+    subsample_seed: Optional[int] = None,
 ) -> JunyiLoadResult:
     """Streams the Junyi15 problem-attempt log
     (`_planning/design/a4_design.md` v1.1) in chunks and builds the
@@ -425,6 +457,15 @@ def load_junyi_kc_traced(
     (fixed from the exercise table, note 2). ``None`` (default) keeps
     every learner in the file, byte-identical to the pre-existing
     behavior.
+
+    ``subsample_seed`` (module docstring note 11) chooses which
+    `max_learners` ids that pre-pass keeps: ``None`` (default) keeps
+    `max_learners`'s own first-N-by-sort rule unchanged; an int instead
+    draws a SEEDED RANDOM sample of `max_learners` ids from the full
+    distinct-id set, for a representative (rather than lexicographically-
+    first, potentially biased) cohort, deterministically reproducible for
+    a given seed. Has no effect when `max_learners` is ``None`` (no
+    subsampling pre-pass runs at all).
     """
     ex_info = _load_exercise_table(exercise_table_path)
     n_items = len(ex_info.item_names)
@@ -432,7 +473,9 @@ def load_junyi_kc_traced(
 
     kept_user_ids: Optional[set] = None
     if max_learners is not None:
-        kept_user_ids = _collect_kept_user_ids(problem_log_path, max_learners, chunksize, nrows=nrows)
+        kept_user_ids = _collect_kept_user_ids(
+            problem_log_path, max_learners, chunksize, nrows=nrows, subsample_seed=subsample_seed,
+        )
 
     student_vocab_to_id: dict = {}
     student_vocab_names: list = []

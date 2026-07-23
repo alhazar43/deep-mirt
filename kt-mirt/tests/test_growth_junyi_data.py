@@ -160,6 +160,61 @@ def test_max_learners_caps_learners_but_not_kc_catalog(ex_path, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# `subsample_seed`: SEEDED RANDOM cohort draw (module docstring note 11),
+# additive to `max_learners`'s pre-existing first-N-by-sort rule (note 10).
+# A 4th distinct user is added on top of the 3-user fixture above so
+# max_learners=2 has room to draw a genuinely different 2-subset per seed
+# (with only 2 distinct users, every subsample mode would trivially agree).
+# ---------------------------------------------------------------------------
+
+
+def test_subsample_seed_draws_seeded_random_cohort(ex_path, tmp_path):
+    rows = list(_LOG_ROWS) + [
+        ("u3", "exC", "true", "200"),
+        ("u4", "exA", "true", "300"),
+    ]
+    log_path_4users = tmp_path / "junyi_log_4users.csv"
+    _write_log(log_path_4users, rows)
+    full_ids = {"u1", "u2", "u3", "u4"}
+
+    # (c) subsample_seed=None: unchanged first-2-by-sort behavior.
+    kept_none = junyi_data._collect_kept_user_ids(log_path_4users, max_learners=2, chunksize=100)
+    assert kept_none == set(sorted(full_ids)[:2])
+
+    # (a) seeded draws: exactly 2 ids each, both valid subsets of the full id set.
+    kept_seed0 = junyi_data._collect_kept_user_ids(
+        log_path_4users, max_learners=2, chunksize=100, subsample_seed=0,
+    )
+    kept_seed1 = junyi_data._collect_kept_user_ids(
+        log_path_4users, max_learners=2, chunksize=100, subsample_seed=1,
+    )
+    assert len(kept_seed0) == 2 and kept_seed0.issubset(full_ids)
+    assert len(kept_seed1) == 2 and kept_seed1.issubset(full_ids)
+
+    # (b) same seed twice -> identical set (reproducibility); different
+    # seeds generally draw different subsets (verified true for this
+    # fixture/seed pair, not asserted as a universal RNG property).
+    kept_seed0_again = junyi_data._collect_kept_user_ids(
+        log_path_4users, max_learners=2, chunksize=100, subsample_seed=0,
+    )
+    assert kept_seed0 == kept_seed0_again
+    assert kept_seed0 != kept_seed1
+
+    # End-to-end via load_junyi_kc_traced: subsample_seed threads through,
+    # n_learners is capped at 2 either way, and the full exercise-table KC
+    # catalog (n_kcs) is untouched by which subsample mode is in force.
+    result_seed0 = junyi_data.load_junyi_kc_traced(
+        log_path_4users, ex_path, chunksize=100, max_learners=2, subsample_seed=0,
+    )
+    result_none = junyi_data.load_junyi_kc_traced(
+        log_path_4users, ex_path, chunksize=100, max_learners=2,
+    )
+    assert result_seed0.n_learners == 2
+    assert result_none.n_learners == 2
+    assert result_seed0.n_kcs == result_none.n_kcs == 3
+
+
+# ---------------------------------------------------------------------------
 # Chronological ordering: timestamp primary, file row-order tie-break
 # ---------------------------------------------------------------------------
 

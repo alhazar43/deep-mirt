@@ -1228,7 +1228,7 @@ class JunyiRealBedLoader:
 
     def __init__(
         self, problem_log_path, exercise_table_path, chunksize: int = 2_000_000, nrows: Optional[int] = None,
-        max_learners: Optional[int] = None,
+        max_learners: Optional[int] = None, subsample_seed: Optional[int] = None,
     ) -> None:
         self.problem_log_path = problem_log_path
         self.exercise_table_path = exercise_table_path
@@ -1241,19 +1241,28 @@ class JunyiRealBedLoader:
         # place. ``None`` (default) loads every learner, byte-identical to
         # this parameter not existing.
         self.max_learners = max_learners
+        # Selection rule for which `max_learners` ids that cap keeps
+        # (junyi_data.py module docstring note 11): ``None`` (default)
+        # keeps the pre-existing first-N-by-sort rule; an int instead
+        # draws a seeded random, representative cohort. No effect when
+        # `max_learners` is ``None``.
+        self.subsample_seed = subsample_seed
         self.last_result = None  # set by `.load()`; carries hierarchy + qmatrix
 
     def load(self, seed: int):
         """Satisfies `RealBedLoader.load`. ``seed`` is accepted for
-        Protocol conformance and reserved for a future seeded user-
-        subsample; the current full-file Junyi15 loader is deterministic
-        regardless of seed (the `max_learners` cap, when set, is itself a
-        fixed sorted-order rule, not seed-dependent)."""
+        Protocol conformance and is NOT the same knob as `subsample_seed`
+        above: this ``seed`` argument remains reserved/unused (the
+        Junyi15 loader is otherwise deterministic regardless of it), while
+        `subsample_seed` (an `__init__`-time, explicitly-opted-into
+        setting) is what actually randomizes the kept-learner cohort when
+        `max_learners` is set."""
         from kt_mirt.growth import junyi_data
 
         result = junyi_data.load_junyi_kc_traced(
             self.problem_log_path, self.exercise_table_path,
             chunksize=self.chunksize, nrows=self.nrows, max_learners=self.max_learners,
+            subsample_seed=self.subsample_seed,
         )
         self.last_result = result
         return result.learners, result.n_learners, result.n_kcs
@@ -1385,6 +1394,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
              "pilot run's per-replicate memory scales with N rather than the full "
              "247,606-learner file; None (default) loads every learner",
     )
+    p.add_argument(
+        "--junyi-subsample-seed", type=int, default=None,
+        help="switch --junyi-max-learners' selection rule from deterministic "
+             "first-N-by-sort to a SEEDED RANDOM sample of N distinct learners "
+             "(--profile junyi_real only; JunyiRealBedLoader's subsample_seed, see "
+             "kt_mirt.growth.junyi_data.load_junyi_kc_traced/_collect_kept_user_ids): "
+             "draws a representative cohort instead of the earliest-sorting ids, "
+             "deterministically reproducible for a given seed; None (default) keeps "
+             "the first-N-by-sort rule. Has no effect without --junyi-max-learners",
+    )
     p.add_argument("--n-kcs", type=int, default=None)
     p.add_argument("--n-learners", type=int, default=None)
     p.add_argument("--twins", nargs="+", default=list(synth_mod.TWIN_NAMES))
@@ -1441,6 +1460,7 @@ def main(argv=None) -> dict:
         )
         loader = JunyiRealBedLoader(
             args.junyi_log_path, args.junyi_exercise_path, max_learners=args.junyi_max_learners,
+            subsample_seed=args.junyi_subsample_seed,
         )
         result = run_junyi_slice_cell(cfg, loader, seed=0)
         cell_path = _cell_dir(cfg, "junyi_real") / "slice_seed0.json"
