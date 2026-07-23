@@ -994,3 +994,80 @@ Acquisitions:
 - NEXT: sync + full-suite on cluster (spare laptop), then the REAL
   KDD + Junyi coarse-detector pilots on the cluster -- the first time
   the method touches real learners, closing the validity cycle.
+
+## 2026-07-23 Real-data pilots: verdict fix + a bumpy null run
+
+- First real KDD run (35 min) computed the OBSERVED existence stat
+  (bed_stat 6114 on 257/515 unsaturated real KTracedSkills KCs, 3310
+  real students) but the real-bed cell DEFERRED the permutation null
+  -> no p-value verdict. Fixed: both real-bed cells now run the same
+  learner-permutation null that certified the detector synthetically
+  (commit 65b8bc9, 40+2 tests). --n-perm-bed threaded to the CLI.
+- Re-run (B=199) hit two operational snags, both now handled:
+  (1) node contention -- both pilots backfilled onto ONE node
+  (caserta, load 185), halving throughput; the null ran 4.5h+ and
+  didn't finish. (2) walltime mismatch -- my resubmit sed edited only
+  the python line, so KDD kept its original 6h wall (Junyi got 8h);
+  KDD would TIMEOUT. Users cannot extend TimeLimit (admin-only).
+- FIX: cancelled KDD (freeing caserta -> Junyi, 8h wall, now speeds
+  up and should finish); resubmitted KDD --exclusive (whole node, no
+  contention, ~3-5x faster) with B=99 (p-floor 0.01, ~2x faster) and
+  8h wall. LESSON (durable): real-data permutation nulls are
+  expensive; give each pilot its OWN node (--exclusive) and set the
+  wall explicitly per script; never co-locate two heavy nulls.
+
+## 2026-07-23 Real pilot blocked on a null MEMORY bug (root cause found)
+
+- Cascade of compute walls on the real-data null, now root-caused:
+  the batched permutation null's chunk-size estimator targets ~25% of
+  the NODE's total RAM, ignoring the SLURM --mem cgroup cap. On big
+  exclusive nodes (250G) it allocates chunks toward the cap and OOMs.
+  Killed Junyi (200G, 64min, "Killed") and is about to kill KDD
+  (RSS 87.7/96G climbing).
+- The real KDD OBSERVED statistic DID compute (bed_stat 6114 on
+  257/515 unsaturated real KTracedSkills KCs, 3310 learners) -- a
+  partial real result -- but the p-value verdict is blocked by the
+  null OOM/slowness.
+- ACTION: stopped resubmitting into the wall. Dispatched a root fix
+  (chunk budget respects KT_MIRT_MEM_BUDGET_GB / cgroup limit, not
+  node RAM). After it lands: clean memory-safe re-run at SMALL B
+  (39) for a fast first verdict; Junyi needs learner subsampling
+  (26M rows too big for the bank-calibration footprint even at 200G).
+- HONEST STATE: synthetic certification is the solid deliverable; the
+  real-data VERDICT is proving expensive due to the null's poor
+  real-scale memory/time behavior -- itself a methodological finding
+  (the permutation battery needs a memory-bounded, subsample-capable
+  real-bed mode).
+
+## 2026-07-23 FIRST REAL-DATA VERDICT: coarse detector FIRES on real KDD
+
+- Real KDD (3310 students, 515 KTracedSkills KCs, 1655 analysis
+  learners), memory-safe re-run (KT_MIRT_MEM_BUDGET_GB=12, B=39,
+  exclusive), exit 0:
+  - Saturation fix worked on real near-ceiling data: 258/515 KCs
+    flagged near-mastered and EXCLUDED from the bed decision, gate
+    applied to the 257 unsaturated KCs (real KDD is ~50% saturated,
+    exactly the case the fix protects).
+  - EXISTENCE GATE: observed bed_stat 6113.8, bed_pvalue = 0.025.
+    B=39 -> p-floor = 1/40 = 0.025, so the observed statistic
+    exceeded ALL 39 null permutations -> the gate FIRES at the
+    maximum confidence B=39 allows. The per-KC growth signal on real
+    KDD learners beats chance.
+  - per-KC BH discoveries 0/515 -- coarse detector fires, per-KC
+    resolution fails, IDENTICAL character to the synthetic verdict.
+- SIGNIFICANCE: the synthetic-certified coarse growth detector
+  TRANSFERS to real learners. The validity-gate cycle
+  (synthetic-certify -> real-confirm) CLOSES for the coarse detector
+  on KDD. First real evidence that the per-KC decomposition detects
+  real learning at the population level, on a trustworthy (saturation
+  -aware) read.
+- HONEST CAVEATS: (1) p=0.025 is the B=39 FLOOR; a stronger p<0.01
+  claim needs B>=99 (now feasible with the memory fix). (2) One seed
+  (one cohort split); seed-robustness untested on real data. (3)
+  Junyi corroboration DEFERRED (26M rows overflow the bank-calibration
+  footprint; needs learner subsampling). (4) per-KC resolution fails
+  on real data too -- consistent, not new.
+- Compute lessons banked: real-data null needs a memory budget
+  (fixed) + a subsample-capable mode + its own exclusive node +
+  small B for a first read. The grind is the finding: the battery
+  needs a real-bed deployment mode.
