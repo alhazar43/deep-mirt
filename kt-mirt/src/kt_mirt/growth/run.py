@@ -1228,23 +1228,32 @@ class JunyiRealBedLoader:
 
     def __init__(
         self, problem_log_path, exercise_table_path, chunksize: int = 2_000_000, nrows: Optional[int] = None,
+        max_learners: Optional[int] = None,
     ) -> None:
         self.problem_log_path = problem_log_path
         self.exercise_table_path = exercise_table_path
         self.chunksize = chunksize
         self.nrows = nrows
+        # Deterministic learner cap (junyi_data.py module docstring note
+        # 10): the pilot-scale OOM fix for Junyi15's 247,606-learner cohort,
+        # where a permutation-null replicate rebuilding every learner's
+        # slices exceeds memory even with the null-chunk budget already in
+        # place. ``None`` (default) loads every learner, byte-identical to
+        # this parameter not existing.
+        self.max_learners = max_learners
         self.last_result = None  # set by `.load()`; carries hierarchy + qmatrix
 
     def load(self, seed: int):
         """Satisfies `RealBedLoader.load`. ``seed`` is accepted for
         Protocol conformance and reserved for a future seeded user-
         subsample; the current full-file Junyi15 loader is deterministic
-        regardless of seed."""
+        regardless of seed (the `max_learners` cap, when set, is itself a
+        fixed sorted-order rule, not seed-dependent)."""
         from kt_mirt.growth import junyi_data
 
         result = junyi_data.load_junyi_kc_traced(
             self.problem_log_path, self.exercise_table_path,
-            chunksize=self.chunksize, nrows=self.nrows,
+            chunksize=self.chunksize, nrows=self.nrows, max_learners=self.max_learners,
         )
         self.last_result = result
         return result.learners, result.n_learners, result.n_kcs
@@ -1367,6 +1376,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--junyi-exercise-path", default=None,
         help="path to junyi_Exercise_table.csv (required with --profile junyi_real)",
     )
+    p.add_argument(
+        "--junyi-max-learners", type=int, default=None,
+        help="deterministically cap the number of distinct Junyi15 learners loaded "
+             "(--profile junyi_real only; JunyiRealBedLoader's max_learners, see "
+             "kt_mirt.growth.junyi_data.load_junyi_kc_traced): keeps the first N "
+             "distinct user ids in sorted order via a memory-bounded pre-pass, so a "
+             "pilot run's per-replicate memory scales with N rather than the full "
+             "247,606-learner file; None (default) loads every learner",
+    )
     p.add_argument("--n-kcs", type=int, default=None)
     p.add_argument("--n-learners", type=int, default=None)
     p.add_argument("--twins", nargs="+", default=list(synth_mod.TWIN_NAMES))
@@ -1421,7 +1439,9 @@ def main(argv=None) -> dict:
             output_dir=Path(args.output_dir), profile=profile, force=args.force, device=args.device,
             n_perm_bed=args.n_perm_bed, n_perm_kc=args.n_perm_kc,
         )
-        loader = JunyiRealBedLoader(args.junyi_log_path, args.junyi_exercise_path)
+        loader = JunyiRealBedLoader(
+            args.junyi_log_path, args.junyi_exercise_path, max_learners=args.junyi_max_learners,
+        )
         result = run_junyi_slice_cell(cfg, loader, seed=0)
         cell_path = _cell_dir(cfg, "junyi_real") / "slice_seed0.json"
         print(json.dumps({"cell_path": str(cell_path)}, indent=2))

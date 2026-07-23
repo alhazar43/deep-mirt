@@ -113,6 +113,28 @@ Interpretation notes (recorded per the harness instructions):
    curated prerequisite graph is this bed's distinguishing asset per the
    triage). It is independent of `load_junyi_kc_traced` -- call order does
    not matter -- and never affects the LearnerLog/QMatrix outputs.
+10. **`max_learners` deterministically subsamples LEARNERS, never KCs**
+    (added for the Junyi real-bed pilot: 247,606 students is too many for
+    a permutation-null replicate to rebuild every learner's slices in
+    memory). When set, a memory-bounded pre-pass streams ONLY the
+    ProblemLog's ``user_id`` column, in the same chunk size as the main
+    pass, to collect the file's distinct raw ids (247,606 short strings,
+    never the full 26M rows); it then keeps the first `max_learners` of
+    those ids in lexicographic (string) sort order -- never cast to
+    numeric, matching note 7's own treatment of ``user_id`` as an opaque
+    string key. The main pass skips every row whose learner is not in
+    that kept set exactly like any other excluded row (note 8's
+    discipline: counted, not silently absorbed, under `LoadStats.
+    n_rows_excluded_by_subsample`), so its row-array memory scales with
+    the kept learners' share of the log, not the full cohort. `n_learners`
+    /`LoadStats.n_learners_kept` are re-derived from the post-subsample
+    interned vocabulary (learners actually surviving into the output,
+    which can be fewer than `max_learners` if a kept id's own rows are all
+    otherwise invalid); the item/KC catalog (`n_items`, `n_kcs`,
+    `kc_names`) is untouched, since note 2 already fixes it from the
+    exercise table before the log is streamed, independent of which
+    learners are kept. ``None`` (default) skips the pre-pass entirely and
+    is byte-identical to this parameter not existing.
 """
 
 from __future__ import annotations
@@ -199,6 +221,8 @@ class LoadStats:
     n_rows_missing_timestamp: int = 0
     n_rows_used: int = 0  # kept as an interaction (note 8)
     n_rows_topic_unmapped: int = 0  # used rows whose item carries no topic (note 2)
+    n_rows_excluded_by_subsample: int = 0  # has a learner, but dropped by max_learners (note 10)
+    n_learners_kept: int = 0  # distinct learners actually in the output (note 10; == n_learners)
 
 
 @dataclass
@@ -231,9 +255,23 @@ class _ChunkArrays:
 
 def _process_chunk(
     chunk: pd.DataFrame, item_name_to_id: dict, row_offset: int,
+    kept_user_ids: Optional[set] = None,
 ) -> tuple[Optional[_ChunkArrays], dict]:
     user_raw = chunk["user_id"]
     has_user = (user_raw.notna() & (user_raw.astype(str) != "")).to_numpy()
+
+    # `max_learners` subsampling (module docstring note 10). ``None`` (the
+    # default, no cap) makes `in_subsample` all-True, so `keep_mask` below
+    # is untouched and this function is byte-identical to its pre-cap
+    # behavior. Restricted to rows that already `has_user`, so a row with
+    # no attributable learner at all is never double-counted as "excluded
+    # by subsample" on top of "missing user id".
+    if kept_user_ids is None:
+        in_subsample = np.ones(len(chunk), dtype=bool)
+        n_excluded_by_subsample = 0
+    else:
+        in_subsample = has_user & user_raw.astype(str).isin(kept_user_ids).to_numpy()
+        n_excluded_by_subsample = int((has_user & ~in_subsample).sum())
 
     exercise_raw = chunk["exercise"].astype(str)
     item_id = exercise_raw.map(item_name_to_id)
@@ -247,7 +285,7 @@ def _process_chunk(
     missing_ts = ts_num.isna().to_numpy()
     ts_all = ts_num.fillna(0).to_numpy(dtype=np.int64)
 
-    keep_mask = has_user & has_item & valid_correct
+    keep_mask = has_user & has_item & valid_correct & in_subsample
     n_used = int(keep_mask.sum())
     stats = {
         "n_rows": len(chunk),
@@ -256,6 +294,7 @@ def _process_chunk(
         "n_invalid_correct": int((~valid_correct).sum()),
         "n_used": n_used,
         "n_missing_timestamp": 0,
+        "n_excluded_by_subsample": n_excluded_by_subsample,
     }
     if n_used == 0:
         return None, stats
@@ -324,6 +363,36 @@ def _chronological_order(student_id: np.ndarray, timestamp: np.ndarray, row_pos:
 
 
 # ---------------------------------------------------------------------------
+# Learner subsampling pre-pass (module docstring note 10)
+# ---------------------------------------------------------------------------
+
+
+def _collect_kept_user_ids(
+    problem_log_path, max_learners: int, chunksize: int, nrows: Optional[int] = None,
+) -> set:
+    """Pre-pass for `max_learners` subsampling. Streams ONLY the
+    ``user_id`` column of the ProblemLog file in chunks (same chunk size
+    and ``nrows`` truncation as the main pass, so both passes see an
+    identical view of the file), accumulating the set of distinct,
+    non-missing raw ids -- memory bounded by the number of DISTINCT
+    learners (247,606 short strings for the full Junyi15 file), never by
+    the row count (26M), unlike holding every row would be. Returns the
+    first `max_learners` of those ids in lexicographic (string) sort
+    order, as a set for O(1) membership testing in the main pass below.
+    """
+    seen: set = set()
+    reader = pd.read_csv(
+        problem_log_path, usecols=["user_id"], dtype=str, chunksize=chunksize, nrows=nrows,
+    )
+    for chunk in reader:
+        user_raw = chunk["user_id"]
+        valid = (user_raw.notna() & (user_raw.astype(str) != "")).to_numpy()
+        if valid.any():
+            seen.update(user_raw.astype(str).to_numpy()[valid].tolist())
+    return set(sorted(seen)[:max_learners])
+
+
+# ---------------------------------------------------------------------------
 # Main loader
 # ---------------------------------------------------------------------------
 
@@ -333,6 +402,7 @@ def load_junyi_kc_traced(
     exercise_table_path,
     chunksize: int = 2_000_000,
     nrows: Optional[int] = None,
+    max_learners: Optional[int] = None,
 ) -> JunyiLoadResult:
     """Streams the Junyi15 problem-attempt log
     (`_planning/design/a4_design.md` v1.1) in chunks and builds the
@@ -344,10 +414,25 @@ def load_junyi_kc_traced(
     ``nrows`` limits the total ProblemLog rows read (debug/test only,
     matching `kc_data.load_kdd_kc_traced`'s own convention); ``None``
     streams the full file.
+
+    ``max_learners`` deterministically caps the number of DISTINCT
+    learners the returned bed contains (module docstring note 10): a
+    memory-bounded pre-pass over the ``user_id`` column alone picks the
+    first `max_learners` distinct ids in sorted order, and the main pass
+    then skips every row belonging to any other learner, so the pilot's
+    per-replicate memory scales with the kept cohort, not the full
+    247,606-student file. The KC/item catalog is unaffected either way
+    (fixed from the exercise table, note 2). ``None`` (default) keeps
+    every learner in the file, byte-identical to the pre-existing
+    behavior.
     """
     ex_info = _load_exercise_table(exercise_table_path)
     n_items = len(ex_info.item_names)
     n_kcs = len(ex_info.kc_names)
+
+    kept_user_ids: Optional[set] = None
+    if max_learners is not None:
+        kept_user_ids = _collect_kept_user_ids(problem_log_path, max_learners, chunksize, nrows=nrows)
 
     student_vocab_to_id: dict = {}
     student_vocab_names: list = []
@@ -367,7 +452,9 @@ def load_junyi_kc_traced(
         chunksize=chunksize, nrows=nrows,
     )
     for chunk in reader:
-        arrays, chunk_stats = _process_chunk(chunk, ex_info.item_name_to_id, row_offset)
+        arrays, chunk_stats = _process_chunk(
+            chunk, ex_info.item_name_to_id, row_offset, kept_user_ids=kept_user_ids,
+        )
         row_offset += len(chunk)
         stats.n_rows_read += chunk_stats["n_rows"]
         stats.n_rows_missing_user_id += chunk_stats["n_missing_user"]
@@ -375,6 +462,7 @@ def load_junyi_kc_traced(
         stats.n_rows_invalid_correct += chunk_stats["n_invalid_correct"]
         stats.n_rows_used += chunk_stats["n_used"]
         stats.n_rows_missing_timestamp += chunk_stats["n_missing_timestamp"]
+        stats.n_rows_excluded_by_subsample += chunk_stats["n_excluded_by_subsample"]
         if arrays is None:
             continue
 
@@ -389,6 +477,8 @@ def load_junyi_kc_traced(
         chunk_responses.append(arrays.response)
         chunk_row_pos.append(arrays.row_pos)
         chunk_timestamps.append(arrays.timestamp)
+
+    stats.n_learners_kept = len(student_vocab_names)
 
     hierarchy = bank_mod.flat_hierarchy(n_items)
     item_kc_id_lists = [([int(k)] if k >= 0 else []) for k in ex_info.item_kc_id.tolist()]

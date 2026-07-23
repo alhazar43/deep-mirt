@@ -132,6 +132,34 @@ def test_n_learners(ex_path, log_path):
 
 
 # ---------------------------------------------------------------------------
+# `max_learners`: deterministic learner subsample (module docstring note
+# 10), the Junyi real-bed pilot's OOM fix. `log_path`/`ex_path` above only
+# carry 2 distinct users (u1, u2), which cannot distinguish "capped" from
+# "uncapped" -- both u3 and a 3rd distinct user are added here so
+# max_learners=2 actually has someone to exclude.
+# ---------------------------------------------------------------------------
+
+
+def test_max_learners_caps_learners_but_not_kc_catalog(ex_path, tmp_path):
+    rows = list(_LOG_ROWS) + [("u3", "exC", "true", "200")]
+    log_path_3users = tmp_path / "junyi_log_3users.csv"
+    _write_log(log_path_3users, rows)
+
+    uncapped = junyi_data.load_junyi_kc_traced(log_path_3users, ex_path, chunksize=100)
+    capped = junyi_data.load_junyi_kc_traced(log_path_3users, ex_path, chunksize=100, max_learners=2)
+
+    assert uncapped.n_learners == 3  # u1, u2, u3
+    assert capped.n_learners == 2  # u3 sorts last, dropped by the cap
+    assert len(capped.learners) == 2
+    assert capped.stats.n_learners_kept == 2
+    assert capped.stats.n_rows_excluded_by_subsample == 1  # u3's one row
+
+    # The full exercise-table catalog is unaffected by dropping a learner.
+    assert capped.n_kcs == uncapped.n_kcs == 3
+    assert capped.item_hierarchy.n_items == uncapped.item_hierarchy.n_items == 6
+
+
+# ---------------------------------------------------------------------------
 # Chronological ordering: timestamp primary, file row-order tie-break
 # ---------------------------------------------------------------------------
 
