@@ -1189,3 +1189,42 @@ Acquisitions:
   measured detectable-dose floor; (B) deep-Junyi fires (density
   mechanism demonstrated on real data) OR stays silent (boundary
   story weakened -- logged honestly either way).
+
+## 2026-07-30 overnight: both threads EXECUTING (direct-drive mode)
+
+- CONTEXT: the subagent/workflow API path was unstable (spawns dying
+  on connection resets; a workflow resume stalled at 0 tokens). The
+  night's adaptation: execute both threads directly in the main loop
+  (hand-written code, local background compute, ssh to the cluster).
+  Durability discipline: commit early, detach compute so it survives
+  connection drops.
+- Thread B SHIPPED: --junyi-selection deepest (commit 38bec66; the
+  interrupted agent had left only docstring note 12 + LoadStats
+  fields; helper/CLI/loader/tests finished by hand). Top-N by raw
+  row count, ties by ascending id; seed keeps precedence ("random");
+  LoadStats.selection_used + depth_cutoff report what ran. 65 tests.
+- REAL-FILE SMOKE (load-bearing numbers): 247,606 students, 25.9M
+  rows. Top-40k-by-depth cohort holds 22.27M rows = 85.9% OF ALL
+  DATA (random-40k: ~4.19M). Depth cutoff 108 rows/student, max
+  22,067; population median 10, p75 50. The dataset is a thin-tail
+  extreme: 16% of students carry 86% of the rows.
+- The pilot now BRACKETS the detector's real-data firing threshold
+  by mean rows/student: random-Junyi 105 (silent) -> deep-Junyi 557
+  (this run) -> KDD 2688 (fires). Fires: density mechanism shown on
+  real data. Silent: the boundary interval narrows to (557, 2688)
+  -- quantitative either way.
+- Job 552852 SUBMITTED (main-cpu exclusive 200G, B=39, output-dir
+  realpilot_deep so the random-40k result stays intact). Walltime
+  1440min: 5.3x the random cohort's rows, and the banked lesson is
+  measure-don't-extrapolate. State-based monitor attached (10-min
+  squeue+log-size polls; sacct on exit; ~2h-static warning).
+- Thread A LAUNCHED locally: scripts/r0a1_study.py on held-out seeds
+  100-102. Phase 1: L1 {1e-3,3e-3,1e-2,3e-2} x ceiling {500,1500} at
+  the CT0 reference cell (KDD-shaped N=500 d=0.90); the ceiling axis
+  tests whether each L1 holds the true-zero leak as an EQUILIBRIUM
+  (epoch-robust), not a tuned stopping time. Winner rule
+  pre-registered in code (sign-correct all seeds at both ceilings,
+  |Gneg| in [0.5x,2x] truth, FER<=0.05; max min-ceiling
+  |Gneg|/band; ties -> smaller L1). Phase 2: negative dose ladder
+  {0.01,0.02,0.04,0.08} at reference + winner. Plumbing
+  micro-smoked; full run in background.

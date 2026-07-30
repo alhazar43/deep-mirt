@@ -408,3 +408,29 @@ memory-budgeted, B=39 first -- all the banked lessons).
 **Guardrails in force:** no tuning on certification seeds; runner-
 state monitoring; kill by enumerated PID only; memory budget env on
 every cluster job; small-B-first; verdicts logged win or lose.
+
+## 2026-07-30 overnight: direct-drive execution notes
+
+**Why epoch-robustness, not tuned stopping (Thread A).** The CT0 leak
+grows with epochs at flat NLL. Two candidate fixes: stop earlier
+(tune rel_tol/ceiling so training halts before the leak crosses the
+dose) or strengthen L1 until true zeros are HELD at an equilibrium.
+The first tunes a stopping time to a leak rate -- fragile, seed- and
+N-specific (CT0's band was unstable across N for exactly this
+reason). The second makes the leak a property of the objective, not
+the schedule. So the grid's ceiling axis (500 vs 1500) is not a knob
+to pick -- it is the ROBUSTNESS TEST: a qualifying L1 must show the
+same clean read at both ceilings. Winner rule frozen in the script
+before results exist; qualification caps |Gneg| at 2x truth so a
+config cannot win by inflating the negative edge either.
+**The deepest-cohort A/B is cleaner than I expected.** Same N=40k as
+the random cohort, only density differs, and the smoke puts the deep
+cohort's mean depth (557) between silent-random-Junyi (105) and
+firing-KDD (2688). Whatever the verdict, the detector's real-data
+depth threshold gets a bracket. Caveat held from the plan: deep
+students are self-selected; the claim stays about the DETECTOR's
+boundary, never the population.
+**Ops.** The one failure tonight so far was self-inflicted: a
+relative `cd` after the session cwd had already moved (the
+micro-smoke's cd persisted). Absolute paths in every background
+launch from here on.
