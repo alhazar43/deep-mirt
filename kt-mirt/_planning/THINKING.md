@@ -434,3 +434,27 @@ boundary, never the population.
 relative `cd` after the session cwd had already moved (the
 micro-smoke's cd persisted). Absolute paths in every background
 launch from here on.
+
+## 2026-07-30 late: what the shuffle kill actually says
+
+The shuffle preserves per-KC counts and per-KC internal order,
+randomizing only the cross-KC interleaving. A uniform re-interleave
+preserves the EXPECTED number of source practices before a typical
+target attempt -- so any estimator that reads accumulated DOSE
+survives it, and only lag-readers die. Ours survived at ~75-80%.
+So the model's G is (mostly) a dose-association readout. This is not
+a bug in the arm or the model; it is the honest resolution of what
+"influence" means at this grain: with practice-gated bumps and no
+per-event timestamps in the transition, dose is the primary channel.
+The ~20-26% shuffle-sensitive remainder is the most the lag channel
+can claim tonight, unseparated from noise. Revival path (logged, not
+promised): make the matched-minus-shuffled contrast itself the
+statistic with its own permutation null. Association is still enough
+for G1's practical reading (what to practice to help/hurt what), and
+it is what the design's fallback ruling anticipated.
+
+Also closed tonight: the R0-A1 stationarity half. No stopping-time
+tune can rescue 1x-dose discrimination when the same grid shows the
+L1-and-stop family has no operating point separating 0.02 from the
+zero-cell background; the default numbers stand, and the honest lever
+was always the dose floor, now measured instead of hoped about.

@@ -1228,3 +1228,38 @@ Acquisitions:
   |Gneg|/band; ties -> smaller L1). Phase 2: negative dose ladder
   {0.01,0.02,0.04,0.08} at reference + winner. Plumbing
   micro-smoked; full run in background.
+
+## 2026-07-30 overnight: Thread A COMPLETE -- verdict in r0a1_interference_verdict.md
+
+- EXPECTATION vs REALITY: expected the L1 ladder to hold true zeros
+  and unlock the 1x negative dose; REALITY refuted it (no qualifying
+  config -- L1 shrinks true edges faster than zeros, band grows with
+  strong L1). The leak is small-signal identifiability, not a
+  regularization artifact. Study on held-out seeds 100-102, so the
+  default config stayed untuned and seeds 0-4 stayed clean.
+- CERTIFIED (seeds 0-4, default trainer): negative detectable-dose
+  floor |g|=0.04 (2x reference). Coefficient near-truth from 0.02 up,
+  negF1 1.000 from 0.02 up; the binding constraint is the ~5-15%
+  true-zero false-edge background -> BH-FDR (or stricter band) owed
+  before any full-K real-data edge claim.
+- KILL-ARM FIRED (expectation was survive; reality: fail): CT3-iii
+  shuffle-order left 74%/82% of the signed magnitudes intact (bar
+  <=10%). The read is signed DOSE-ASSOCIATION, not temporal-causal
+  transfer; the design's association-framing fallback is now IN
+  FORCE for all A1 claims. CT6 phantom control: 5/5 fabricate as
+  pre-registered (metric sensitive, gamma pin retained).
+- Net G1 status: signed per-edge association CERTIFIED at D=3
+  KDD-density with a measured floor; causal framing dead at this
+  grain (lag component <= ~20-26%, not separated from noise);
+  EdNet-density limit stands. Consequences frozen in the verdict
+  (re-baseline dose to floor, FDR, association wording, optional
+  future lag-contrast arm).
+- Thread B: first deep-Junyi attempt (job 552852) OOM-KILLED at
+  2h19 inside the permutation battery -- MaxRSS ~248G vs 200G ask;
+  sacct said COMPLETED 0:0 (wrapper swallowed the kill; the banked
+  OOM-masking lesson, now mitigated with an explicit "python exit"
+  echo in the sbatch). The chunk estimator undercounts the deep
+  cohort's shape (22.27M rows, sequences to 22k). Fix: budget env
+  12 -> 3 GiB, resubmitted as job 553056 (monitor with
+  sacct-confirmed exit; the first monitor false-exited on one empty
+  squeue reply -- fixed to require terminal-state confirmation).

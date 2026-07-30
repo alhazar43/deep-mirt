@@ -180,3 +180,58 @@ certify growth skill by skill (which the evidence suggests may be
 fundamentally out of reach with this method), or fix the one false-alarm
 bug and take the working population-level detector to real data. The
 evidence leans toward B, but that is your call.
+
+---
+
+## Addendum, 2026-07-30 overnight: the influence question got its first real answers
+
+This addendum covers the overnight run on the program's SECOND goal,
+skill-to-skill influence (does practicing skill A help or hurt skill
+B), plus the growth follow-up on Junyi. Plain terms, no prior context.
+
+**What we asked.** Earlier testing (the "cheap test") showed the model
+recovers the direction of influence between skills, but a small
+HARMFUL influence (interference) could not be told apart from noise,
+because fake tiny influences leak onto skill pairs that truly have
+none. The hypothesis on file was that a stronger penalty against
+small values would squash the fakes and rescue the real one.
+
+**Answer 1: the penalty idea is wrong.** Tested honestly on seeds
+reserved for tuning, a stronger penalty squashes the REAL influences
+faster than the fake ones. There is no setting that keeps the fakes
+at zero while sparing a small real effect. This closes that door.
+
+**Answer 2: the method has a measured sensitivity floor.** On clean
+test seeds never used for tuning, harmful influence becomes reliably
+detectable once it is at least twice the size we had originally
+guessed at. Below that, the fake-influence background (roughly one in
+ten empty pairs lights up) drowns it. Knowing the floor is a result:
+it says what size of effect any real-data claim can honestly be about,
+and it says real-data claims will need a correction for testing many
+pairs at once.
+
+**Answer 3 (the big one): what the model reads is "how much you
+practiced", not "what happened after what".** A pre-registered
+sabotage test re-shuffled the ORDER of each student's practice while
+keeping the amounts. If the model were truly reading cause and effect
+over time, its influence estimates should collapse. They barely
+moved. So the estimates mean: students who practice A a lot tend to do
+better (or worse) on B -- a signed association with a dose-response,
+which is still useful for deciding what to practice. But the stronger
+claim, that practicing A CAUSES the later change in B, did not survive
+its own test, and our write-ups now say association, not causation. A
+companion check confirmed the safeguards work as designed (a model
+deliberately given a known loophole fabricated influence out of
+nothing on 5 out of 5 tries, which is exactly why that loophole stays
+closed in ours).
+
+**The Junyi growth follow-up (still running).** Junyi previously
+showed no detectable growth, which we attributed to most students
+practicing very little (half have 10 or fewer answers). The direct
+test is running: same cohort size, but the 40,000 DEEPEST students,
+who hold 86% of all the data. The first attempt crashed by exhausting
+the compute node's memory (fixed and resubmitted). Whichever way it
+lands, we learn something: detection means the thin-data explanation
+is right; silence narrows down how much practice per student the
+detector needs, since a dataset with 5x more practice per student than
+the silent run sits between it and the dataset where detection works.

@@ -114,13 +114,13 @@ def config_metrics(G_hats_kg, G_hats_ng, G_true, epochs_kg, band_quantile=0.95) 
     }
 
 
-def run_config(l1: float, ceiling: int, g_neg: float, kg_only: bool = False):
-    """Fit the 3 tuning seeds at one config; returns (G_hats_kg,
-    G_hats_ng, G_true, epochs_kg). With ``kg_only`` the NG fits are skipped
-    (phase 2 reuses phase 1's dose-invariant band)."""
+def run_config(l1: float, ceiling: int, g_neg: float, kg_only: bool = False, seeds=None):
+    """Fit one config on ``seeds`` (default: the tuning seeds); returns
+    (G_hats_kg, G_hats_ng, G_true, epochs_kg). With ``kg_only`` the NG fits
+    are skipped (phase 2 reuses phase 1's dose-invariant band)."""
     cfg = TransferConfig(l1_weight=l1, n_epochs=ceiling, device="cpu")
     G_hats_kg, G_hats_ng, epochs_kg, G_true = [], [], [], None
-    for s in TUNING_SEEDS:
+    for s in (TUNING_SEEDS if seeds is None else seeds):
         kg = generate_signed_twin("syn_t_kg", DENSITY, seed=s, n_learners=N_LEARNERS,
                                   decoupling=DECOUPLING, g_pos=G_POS, g_neg=g_neg)
         G_true = kg.truth.G_true
