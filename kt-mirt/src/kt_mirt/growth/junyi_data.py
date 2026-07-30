@@ -151,11 +151,34 @@ Interpretation notes (recorded per the harness instructions):
     toward the lexicographically-first ids. Everything else about note
     10 (memory bound, the excluded-row accounting, the untouched item/KC
     catalog) is unaffected by which selection rule is in force.
+12. **`selection` generalizes the kept-id rule to a third mode, "deepest"**
+    (added for the density-boundary pilot: whether Junyi's growth silence
+    is a data-density artifact rather than a genuine absence of learning,
+    testable by restricting to the students with the most practice).
+    ``selection`` accepts ``"first"`` (note 10's rule, the default),
+    ``"random"`` (note 11's rule), or ``"deepest"``: the pre-pass instead
+    accumulates a ``collections.Counter`` of each distinct id's raw row
+    count (same streamed ``user_id`` column, same memory bound --
+    247,606 counter keys, never the 26M rows), then keeps the
+    `max_learners` ids with the highest counts, ties broken by sorted id
+    (ascending) for determinism. `subsample_seed` retains PRECEDENCE over
+    `selection` for backward compatibility: the effective mode is
+    ``"random"`` whenever `subsample_seed` is not ``None``, regardless of
+    `selection` (the derivation `effective_mode = "random" if
+    subsample_seed is not None else selection`) -- callers that only ever
+    set `subsample_seed` (never `selection`) are therefore byte-identical.
+    `LoadStats.selection_used` reports the effective mode actually
+    applied, and `LoadStats.depth_cutoff` reports "deepest" mode's own
+    kept-cohort minimum row count (the density floor of the kept cohort,
+    ``None`` for the other two modes); both fields stay at their neutral
+    defaults (``"first"``, ``None``) when `max_learners` is ``None`` (no
+    pre-pass runs, note 10).
 """
 
 from __future__ import annotations
 
 import random
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -240,6 +263,8 @@ class LoadStats:
     n_rows_topic_unmapped: int = 0  # used rows whose item carries no topic (note 2)
     n_rows_excluded_by_subsample: int = 0  # has a learner, but dropped by max_learners (note 10)
     n_learners_kept: int = 0  # distinct learners actually in the output (note 10; == n_learners)
+    selection_used: str = "first"  # effective kept-id rule applied (note 12); default when max_learners is None
+    depth_cutoff: Optional[int] = None  # "deepest" mode only: min raw row count among kept learners (note 12)
 
 
 @dataclass
@@ -386,29 +411,41 @@ def _chronological_order(student_id: np.ndarray, timestamp: np.ndarray, row_pos:
 
 def _collect_kept_user_ids(
     problem_log_path, max_learners: int, chunksize: int, nrows: Optional[int] = None,
-    subsample_seed: Optional[int] = None,
-) -> set:
+    subsample_seed: Optional[int] = None, selection: str = "first",
+) -> tuple:
     """Pre-pass for `max_learners` subsampling. Streams ONLY the
     ``user_id`` column of the ProblemLog file in chunks (same chunk size
     and ``nrows`` truncation as the main pass, so both passes see an
-    identical view of the file), accumulating the set of distinct,
-    non-missing raw ids -- memory bounded by the number of DISTINCT
-    learners (247,606 short strings for the full Junyi15 file), never by
-    the row count (26M), unlike holding every row would be.
+    identical view of the file), accumulating a `Counter` of each
+    distinct, non-missing raw id's row count -- memory bounded by the
+    number of DISTINCT learners (247,606 keys for the full Junyi15 file),
+    never by the row count (26M), unlike holding every row would be.
 
-    ``subsample_seed=None`` (default, module docstring note 10) returns
-    the first `max_learners` of those ids in lexicographic (string) sort
-    order, as a set for O(1) membership testing in the main pass below --
-    byte-identical to this parameter not existing. When `subsample_seed`
-    is an int (module docstring note 11), a SEEDED RANDOM sample of
-    `max_learners` ids is returned instead: the full distinct-id set is
-    sorted first (so the draw does not depend on chunk size or set/dict
-    iteration order), then ``random.Random(subsample_seed).sample`` draws
-    from that fixed sequence -- a representative cohort rather than a
-    lexicographically-first one, still fully reproducible for a given
-    seed (same seed -> identical returned set).
+    Returns ``(kept_ids, effective_mode, depth_cutoff)`` where
+    ``effective_mode`` is the kept-id rule actually applied (module
+    docstring note 12: ``"random"`` whenever `subsample_seed` is not
+    ``None``, else `selection`) and ``depth_cutoff`` is "deepest" mode's
+    kept-cohort minimum raw row count (``None`` for the other modes).
+
+    ``"first"`` (default, module docstring note 10) keeps the first
+    `max_learners` ids in lexicographic (string) sort order -- kept-set
+    byte-identical to `selection` not existing. ``"random"`` (module
+    docstring note 11) keeps a SEEDED RANDOM sample of `max_learners`
+    ids instead: the full distinct-id set is sorted first (so the draw
+    does not depend on chunk size or Counter iteration order), then
+    ``random.Random(subsample_seed).sample`` draws from that fixed
+    sequence -- a representative cohort rather than a lexicographically-
+    first one, still fully reproducible for a given seed. ``"deepest"``
+    (module docstring note 12) keeps the `max_learners` ids with the
+    HIGHEST raw row counts, ties broken by ascending id -- the maximum-
+    practice-density cohort, fully deterministic.
     """
-    seen: set = set()
+    if selection not in ("first", "random", "deepest"):
+        raise ValueError(
+            f"selection must be 'first', 'random', or 'deepest', got {selection!r}"
+        )
+    effective_mode = "random" if subsample_seed is not None else selection
+    counts: Counter = Counter()
     reader = pd.read_csv(
         problem_log_path, usecols=["user_id"], dtype=str, chunksize=chunksize, nrows=nrows,
     )
@@ -416,11 +453,21 @@ def _collect_kept_user_ids(
         user_raw = chunk["user_id"]
         valid = (user_raw.notna() & (user_raw.astype(str) != "")).to_numpy()
         if valid.any():
-            seen.update(user_raw.astype(str).to_numpy()[valid].tolist())
-    sorted_ids = sorted(seen)
-    if subsample_seed is None:
-        return set(sorted_ids[:max_learners])
-    return set(random.Random(subsample_seed).sample(sorted_ids, min(max_learners, len(sorted_ids))))
+            uniq, cnt = np.unique(user_raw.astype(str).to_numpy()[valid], return_counts=True)
+            for uid, c in zip(uniq.tolist(), cnt.tolist()):
+                counts[uid] += int(c)
+    sorted_ids = sorted(counts)
+    if effective_mode == "random":
+        kept = set(random.Random(subsample_seed).sample(
+            sorted_ids, min(max_learners, len(sorted_ids))
+        ))
+        return kept, effective_mode, None
+    if effective_mode == "deepest":
+        ranked = sorted(sorted_ids, key=lambda uid: (-counts[uid], uid))
+        kept_list = ranked[:max_learners]
+        depth_cutoff = min((counts[uid] for uid in kept_list), default=None)
+        return set(kept_list), effective_mode, depth_cutoff
+    return set(sorted_ids[:max_learners]), effective_mode, None
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +482,7 @@ def load_junyi_kc_traced(
     nrows: Optional[int] = None,
     max_learners: Optional[int] = None,
     subsample_seed: Optional[int] = None,
+    selection: str = "first",
 ) -> JunyiLoadResult:
     """Streams the Junyi15 problem-attempt log
     (`_planning/design/a4_design.md` v1.1) in chunks and builds the
@@ -466,15 +514,28 @@ def load_junyi_kc_traced(
     first, potentially biased) cohort, deterministically reproducible for
     a given seed. Has no effect when `max_learners` is ``None`` (no
     subsampling pre-pass runs at all).
+
+    ``selection`` (module docstring note 12) generalizes that choice to a
+    named rule: ``"first"`` (default), ``"random"``, or ``"deepest"``
+    (keep the `max_learners` ids with the most raw rows -- the maximum-
+    practice-density cohort for the density-boundary pilot). A non-None
+    `subsample_seed` takes precedence (effective mode ``"random"``), so
+    existing seed-only callers are unchanged. The effective mode and
+    "deepest" mode's kept-cohort minimum row count are reported in
+    `LoadStats.selection_used` / `LoadStats.depth_cutoff`. Like
+    `subsample_seed`, no effect when `max_learners` is ``None``.
     """
     ex_info = _load_exercise_table(exercise_table_path)
     n_items = len(ex_info.item_names)
     n_kcs = len(ex_info.kc_names)
 
     kept_user_ids: Optional[set] = None
+    selection_used = "first"  # LoadStats neutral default (note 12)
+    depth_cutoff: Optional[int] = None
     if max_learners is not None:
-        kept_user_ids = _collect_kept_user_ids(
-            problem_log_path, max_learners, chunksize, nrows=nrows, subsample_seed=subsample_seed,
+        kept_user_ids, selection_used, depth_cutoff = _collect_kept_user_ids(
+            problem_log_path, max_learners, chunksize, nrows=nrows,
+            subsample_seed=subsample_seed, selection=selection,
         )
 
     student_vocab_to_id: dict = {}
@@ -487,6 +548,8 @@ def load_junyi_kc_traced(
     chunk_timestamps: list = []
 
     stats = LoadStats()
+    stats.selection_used = selection_used
+    stats.depth_cutoff = depth_cutoff
     row_offset = 0
     topics_attempted: set = set()
 

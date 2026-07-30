@@ -178,23 +178,27 @@ def test_subsample_seed_draws_seeded_random_cohort(ex_path, tmp_path):
     full_ids = {"u1", "u2", "u3", "u4"}
 
     # (c) subsample_seed=None: unchanged first-2-by-sort behavior.
-    kept_none = junyi_data._collect_kept_user_ids(log_path_4users, max_learners=2, chunksize=100)
+    kept_none, mode_none, depth_none = junyi_data._collect_kept_user_ids(
+        log_path_4users, max_learners=2, chunksize=100,
+    )
     assert kept_none == set(sorted(full_ids)[:2])
+    assert mode_none == "first" and depth_none is None
 
     # (a) seeded draws: exactly 2 ids each, both valid subsets of the full id set.
-    kept_seed0 = junyi_data._collect_kept_user_ids(
+    kept_seed0, mode_seed0, depth_seed0 = junyi_data._collect_kept_user_ids(
         log_path_4users, max_learners=2, chunksize=100, subsample_seed=0,
     )
-    kept_seed1 = junyi_data._collect_kept_user_ids(
+    kept_seed1, _, _ = junyi_data._collect_kept_user_ids(
         log_path_4users, max_learners=2, chunksize=100, subsample_seed=1,
     )
+    assert mode_seed0 == "random" and depth_seed0 is None
     assert len(kept_seed0) == 2 and kept_seed0.issubset(full_ids)
     assert len(kept_seed1) == 2 and kept_seed1.issubset(full_ids)
 
     # (b) same seed twice -> identical set (reproducibility); different
     # seeds generally draw different subsets (verified true for this
     # fixture/seed pair, not asserted as a universal RNG property).
-    kept_seed0_again = junyi_data._collect_kept_user_ids(
+    kept_seed0_again, _, _ = junyi_data._collect_kept_user_ids(
         log_path_4users, max_learners=2, chunksize=100, subsample_seed=0,
     )
     assert kept_seed0 == kept_seed0_again
@@ -212,6 +216,68 @@ def test_subsample_seed_draws_seeded_random_cohort(ex_path, tmp_path):
     assert result_seed0.n_learners == 2
     assert result_none.n_learners == 2
     assert result_seed0.n_kcs == result_none.n_kcs == 3
+
+
+# ---------------------------------------------------------------------------
+# `selection="deepest"`: top-N-by-raw-row-count cohort (module docstring
+# note 12), the density-boundary pilot's kept-id rule. Raw counts below:
+# u1=4 (rows 0,1,2,5 -- the pre-pass counts RAW rows incl. ones the main
+# pass later drops), u2=3 (rows 3,6,7), u3=5, u4=3 (tie with u2).
+# ---------------------------------------------------------------------------
+
+
+def test_selection_deepest_keeps_top_n_by_row_count(ex_path, tmp_path):
+    rows = list(_LOG_ROWS) + [
+        ("u3", "exA", "true", str(t)) for t in (300, 310, 320, 330, 340)
+    ] + [
+        ("u4", "exB", "true", str(t)) for t in (400, 410, 420)
+    ]
+    log_path_deep = tmp_path / "junyi_log_deep.csv"
+    _write_log(log_path_deep, rows)
+
+    # (a) top-2 by raw count: u3 (5) and u1 (4); cutoff = kept minimum = 4.
+    kept2, mode2, depth2 = junyi_data._collect_kept_user_ids(
+        log_path_deep, max_learners=2, chunksize=100, selection="deepest",
+    )
+    assert kept2 == {"u3", "u1"}
+    assert mode2 == "deepest" and depth2 == 4
+
+    # (b) tie-break at count 3 (u2 vs u4): ascending id keeps u2.
+    kept3, _, depth3 = junyi_data._collect_kept_user_ids(
+        log_path_deep, max_learners=3, chunksize=100, selection="deepest",
+    )
+    assert kept3 == {"u3", "u1", "u2"}
+    assert depth3 == 3
+
+    # (c) subsample_seed PRECEDENCE (note 12): a non-None seed forces the
+    # effective mode to "random" regardless of selection.
+    _, mode_prec, depth_prec = junyi_data._collect_kept_user_ids(
+        log_path_deep, max_learners=2, chunksize=100, subsample_seed=0, selection="deepest",
+    )
+    assert mode_prec == "random" and depth_prec is None
+
+    # (d) unknown selection rejected.
+    with pytest.raises(ValueError, match="selection"):
+        junyi_data._collect_kept_user_ids(
+            log_path_deep, max_learners=2, chunksize=100, selection="shallowest",
+        )
+
+    # (e) end-to-end: selection threads through load_junyi_kc_traced, the
+    # stats report the effective mode + depth cutoff, and the kept cohort
+    # is {u1, u3} (valid-event total 3 + 5 = 8; u2/u4 rows excluded).
+    result_deep = junyi_data.load_junyi_kc_traced(
+        log_path_deep, ex_path, chunksize=100, max_learners=2, selection="deepest",
+    )
+    assert result_deep.n_learners == 2
+    assert result_deep.stats.selection_used == "deepest"
+    assert result_deep.stats.depth_cutoff == 4
+    assert sum(l.item_ids.shape[0] for l in result_deep.learners) == 8
+
+    # (f) default selection (no flag) on an uncapped load: stats stay at
+    # their neutral defaults (no pre-pass runs at all).
+    result_uncapped = junyi_data.load_junyi_kc_traced(log_path_deep, ex_path, chunksize=100)
+    assert result_uncapped.stats.selection_used == "first"
+    assert result_uncapped.stats.depth_cutoff is None
 
 
 # ---------------------------------------------------------------------------

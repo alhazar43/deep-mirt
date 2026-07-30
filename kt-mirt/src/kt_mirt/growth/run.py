@@ -1229,6 +1229,7 @@ class JunyiRealBedLoader:
     def __init__(
         self, problem_log_path, exercise_table_path, chunksize: int = 2_000_000, nrows: Optional[int] = None,
         max_learners: Optional[int] = None, subsample_seed: Optional[int] = None,
+        selection: str = "first",
     ) -> None:
         self.problem_log_path = problem_log_path
         self.exercise_table_path = exercise_table_path
@@ -1247,6 +1248,11 @@ class JunyiRealBedLoader:
         # draws a seeded random, representative cohort. No effect when
         # `max_learners` is ``None``.
         self.subsample_seed = subsample_seed
+        # Named kept-id rule (junyi_data.py module docstring note 12):
+        # "first" (default), "random", or "deepest" (top-N by raw row
+        # count -- the density-boundary pilot's maximum-practice cohort).
+        # A non-None `subsample_seed` takes precedence ("random").
+        self.selection = selection
         self.last_result = None  # set by `.load()`; carries hierarchy + qmatrix
 
     def load(self, seed: int):
@@ -1262,7 +1268,7 @@ class JunyiRealBedLoader:
         result = junyi_data.load_junyi_kc_traced(
             self.problem_log_path, self.exercise_table_path,
             chunksize=self.chunksize, nrows=self.nrows, max_learners=self.max_learners,
-            subsample_seed=self.subsample_seed,
+            subsample_seed=self.subsample_seed, selection=self.selection,
         )
         self.last_result = result
         return result.learners, result.n_learners, result.n_kcs
@@ -1404,6 +1410,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
              "deterministically reproducible for a given seed; None (default) keeps "
              "the first-N-by-sort rule. Has no effect without --junyi-max-learners",
     )
+    p.add_argument(
+        "--junyi-selection", choices=["first", "random", "deepest"], default="first",
+        help="named kept-id rule for --junyi-max-learners (--profile junyi_real "
+             "only; JunyiRealBedLoader's selection, junyi_data module docstring "
+             "note 12): 'first' = first-N-by-sort (default), 'random' = seeded "
+             "random (requires --junyi-subsample-seed, which also takes precedence "
+             "over this flag), 'deepest' = the N learners with the MOST raw rows "
+             "(maximum-practice-density cohort, ties by ascending id) for the "
+             "density-boundary pilot. Has no effect without --junyi-max-learners",
+    )
     p.add_argument("--n-kcs", type=int, default=None)
     p.add_argument("--n-learners", type=int, default=None)
     p.add_argument("--twins", nargs="+", default=list(synth_mod.TWIN_NAMES))
@@ -1460,7 +1476,7 @@ def main(argv=None) -> dict:
         )
         loader = JunyiRealBedLoader(
             args.junyi_log_path, args.junyi_exercise_path, max_learners=args.junyi_max_learners,
-            subsample_seed=args.junyi_subsample_seed,
+            subsample_seed=args.junyi_subsample_seed, selection=args.junyi_selection,
         )
         result = run_junyi_slice_cell(cfg, loader, seed=0)
         cell_path = _cell_dir(cfg, "junyi_real") / "slice_seed0.json"
