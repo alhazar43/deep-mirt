@@ -1170,3 +1170,22 @@ Acquisitions:
   a Junyi run restricted to its DEEP students (not a random cohort)
   would test the density hypothesis directly; not run (thin random
   cohort was the fix for the bias, not the depth question).
+
+## 2026-07-23 night: overnight autonomous run OPENED (two threads)
+
+- Thread A (influence/interference unlock) LAUNCHED as a 3-stage
+  workflow: R0-A1 stationarity/L1 trainer study on HELD-OUT tuning
+  seeds 100-102 -> config FROZEN into code -> CT0 re-certification
+  fresh on seeds 0-4 + negative dose-response ({0.5,1,2,4}x -0.02)
+  -> IF the negative half clears the full CT1 bar, the two cheapest
+  kill-arms run (phantom-transfer null with freed gamma MUST
+  fabricate; shuffle-order must collapse G). Local compute.
+- Thread B (growth density-boundary test) IN PREP: depth-based Junyi
+  selection (--junyi-selection deepest) being built; then deep-40k
+  Junyi runs on the cluster (exclusive, KT_MIRT_MEM_BUDGET_GB, B=39).
+  Claim scoped to the DETECTOR boundary (deep students are
+  self-selected; not a population claim).
+- Morning deliverables: (A) interference cleared-with-mini-cert OR a
+  measured detectable-dose floor; (B) deep-Junyi fires (density
+  mechanism demonstrated on real data) OR stays silent (boundary
+  story weakened -- logged honestly either way).

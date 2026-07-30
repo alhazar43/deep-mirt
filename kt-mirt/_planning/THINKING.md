@@ -377,3 +377,34 @@ BEFORE any expensive campaign. Fail-fast on the fundamental question.
 (the power precondition) on synthetic, and let it decide whether G1
 is feasible BEFORE committing the full campaign. Do not sink a
 multi-hour campaign into a goal the power gate may kill cheaply.
+
+## 2026-07-23 night: overnight plan -- two threads, and the honesty rules
+
+**Thread A (influence: unlock the interference half).** CT0 said the
+negative-transfer read is blocked by a trainer artifact (true-zero
+leak grows with epochs at flat NLL -- the ACT convergence bug's
+sibling), not a floor. The owed R0-A1 study is the fix. DISCIPLINE
+THAT MUST HOLD: tune the trainer (L1 ladder x stationarity-gated
+stopping) on HELD-OUT tuning seeds (100+), FREEZE the config, then
+re-run CT0 fresh on certification seeds 0-4 plus a dose-response
+({0.5,1,2,4}x the negative dose) so the interference detectable-dose
+floor is measured, not asserted. If the bar clears, run the two
+cheapest kill-arms (phantom-transfer null: the free-gamma variant
+MUST fail; shuffle-order confound) so morning has a mini-certification.
+If it does not clear, the dose floor is the honest deliverable.
+Local GPU (granted) carries this; D=3 is small.
+
+**Thread B (growth: test the density boundary directly).** Junyi's
+no-growth read is interpreted as a per-student-depth limit. Test it:
+run deep-Junyi (top students by interaction count). CLAIM SCOPE: this
+tests the DETECTOR's boundary ("given depth, does the gate fire on
+Junyi?"), NOT a population claim -- deep students are self-selected,
+and the ledger must say so. Fires -> the density mechanism is
+demonstrated on real data (the boundary story is proven, strong for
+the paper). Silent -> the boundary story weakens and Junyi becomes a
+real puzzle; logged either way. Cluster carries this (exclusive,
+memory-budgeted, B=39 first -- all the banked lessons).
+
+**Guardrails in force:** no tuning on certification seeds; runner-
+state monitoring; kill by enumerated PID only; memory budget env on
+every cluster job; small-B-first; verdicts logged win or lose.
