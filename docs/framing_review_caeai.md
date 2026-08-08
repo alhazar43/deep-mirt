@@ -166,3 +166,49 @@ Coordinator recommendation going into the panel: **F2**, with F3 presented
 as the author's conscious fork (the draft abandoned plan-A by default;
 that abandonment should be a decision, not an accident).
 
+---
+
+## C. Judged selection (three-judge panel, 2026-07-17 night)
+
+Scores (0-10): original-critic F1 7 / **F2 9** / F3 6; CAEAI-editor F1 5 /
+**F2 8** / F3 6; constraints-guardian F1 8 / **F2 8.5** / F3 4. Unanimous
+pick: **F2** -- the ladder + stratified-readout spine with the banked
+adaptive-testing invoice restored by fulfillment.
+
+Why F3 died: beyond the methods-primary desk risk, the guardian surfaced
+that "slack" was personally ordered out of the prose by the author
+(replacement: refit discrepancy) -- the branding F3 sells is the exact
+vocabulary the ruling forbids. Why F1 is only the floor: deleting the CAT
+promise makes the front matter honest but ends the paper on a
+descriptive map, under-serving the venue's decision-cost beat.
+
+Three amendments adopted into the recommendation ("F2+"):
+
+1. **The axis sentence (critic).** State prediction-vs-measurement as the
+   paper's axis once in the abstract/intro, and scope the invoice section
+   to the measurement use in one bridge sentence. Then the capstone's
+   honest boundary (SH edges SK on EdNet-NRM prediction by .002-.012) and
+   the invoice (SK halves the measurement cost) become two coordinates of
+   one finding: prediction is not the decision. Name the same
+   discrimination parameter in both places (the a whose fragility the
+   ladder establishes is the a-error driving ~85% of the length
+   inflation).
+2. **The staging + fence (guardian).** The author drafts the F1 spine as a
+   complete paper first, then adds the invoice as ONE additive section
+   written strictly from the banked artifacts (outputs/p2_cluster/
+   cat_clustered.json + outputs/p2_cat*/ fold JSONs). Committed fence: the
+   lost simulator is NOT rebuilt inside the paper's scope; the manuscript
+   is never again in a half-pivoted state; if the invoice section stalls,
+   the paper degrades gracefully to F1, not to a broken pivot.
+3. **The real-bank defensibility check (editor), executed dossier-side
+   tonight.** The invoice's headline rests on a simulation whose driver
+   was never tracked. Tonight's run: a small tracked harness replaying the
+   comparison on the REAL EdNet 250-item 2PL bank under a textbook
+   protocol (maximum-Fisher selection, SE stopping; examinees simulated
+   from the mirt reference; arms = mirt / neural SH / neural SK, raw and
+   mean-sigma-linked). No model training -- frozen fitted parameters only.
+   Outcome lands as exhibit E2; the author decides whether it enters the
+   paper. This satisfies the editor's reproducibility demand without
+   violating the guardian's fence (the harness is post-campaign tooling,
+   not the lost simulator).
+
