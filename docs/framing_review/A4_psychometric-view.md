@@ -1,0 +1,52 @@
+# Lens A4: psychometric-view (framing review, 2026-07-17)
+
+# Psychometric-view report on main_caeai.tex
+
+## 1. Principled-pairing verdict: PRINCIPLED, but the draft never claims the principle
+
+2PL / GPCM / NRM is not an arbitrary pair-plus-one. It is the complete classical taxonomy of unidimensional parametric response models by response format (dichotomous, ordered polytomous, nominal polytomous), and the three are formally nested: GPCM = NRM with the scoring function constrained to equal spacing, 2PL = the K=2 case. The draft half-knows this:
+
+- Line 181 states the taxonomy in one buried sentence of the Problem Formulation: "binary correctness, ordered partial credit, and nominal options correspond to different choices of response alphabet and response head." That is the organizing principle of the whole paper, spent as a passing remark.
+- Line 251 repeats it transitionally: "The 2PL, GPCM, and NRM therefore differ in response geometry, but they share the same architectural question."
+- Lines 342-344 already implement the 2PL as "the case K=2" of the ordered head, so half the nesting chain is in the draft's own math.
+- Decisive detail: the draft cites `thissen_steinberg_1986` (line 240) as its NRM source. That bib entry is literally titled "A Taxonomy of Item Response Models" (Psychometrika 51) — the paper that derives 2PL/GPCM-family models as constrained NRMs. The citation that unifies the decoder family is already in the manuscript, attached to the wrong sentence. Meanwhile Bock (1972), the actual NRM origin whose stated motivation is extracting information from wrong answers, is absent from boost_refs.bib (only bock_aitkin_1981 is there).
+- The draft's own gradient section is already ladder-shaped: "the vulnerable parameter group depends on response geometry. Ordered heads have weak discrimination-like directions... the NRM additionally has an item-specific distractor-plane pathway into ability" (lines 794-797). The theory section climbs the ladder; the experiment section is a 3x3 grid; the real-data section is dataset-by-dataset. The glued feeling is the shift of organizing axis between sections, not a defect of the design.
+
+So the fix is framing, not experiments. One taxonomy paragraph (correctness -> partial credit -> option choice, each rung retaining strictly more of the raw response; 2PL/GPCM/NRM as the one decoder family at three constraint levels, cite Thissen & Steinberg 1986 for the taxonomy and Bock 1972 for the NRM/wrong-answer motivation) makes the pairing self-evident and converts "three glued decoders" into "one family, one question asked once." This is established vocabulary, no invented labels, no new theory.
+
+Supporting misalignment: the intro's first paragraph motivates with "attempts, feedback, hint use, revisions" (line 61) — none of which the paper studies. The paper's actual richer-than-binary signals are partial credit and option choice. The opening primes the reader for a paper that never arrives, which is exactly the reviewer's "a point that was never there."
+
+## 2. Archetype framing assessment: one sentence each away from canonical
+
+TIMSS and EdNet ARE the two canonical archetypes of educational response data; the draft just never says why.
+
+- TIMSS = the designed-assessment archetype. Its constructed-response items are rubric-scored 0/1/2, and TIMSS's own operational scaling uses partial-credit IRT models — the GPCM head is the platform-native model, not an imposed choice. The draft says only "TIMSS 2019 grade-8 constructed-response items" (line 885). One sentence with a TIMSS technical-report citation locks the archetype.
+- EdNet = the platform-log archetype. The raw log records the selected MCQ option; binary correctness is an analyst's reduction. The NRM head undoes that reduction — Bock's original use case. The draft's Section 4.5 ("EdNet permits the same item bank to be examined at two representations", line 1181) enacts this without anchoring it. One sentence stating that dichotomization is a convention the log does not force, and that the nominal head reads what the convention discards, locks the second archetype.
+- The contrast then writes itself: a designed instrument whose ordered structure is built in by rubric (and where the draft finds SH~SK stability, 31/31 ordered thresholds under both paths, Table app_timss) versus a found log whose option structure is unmodeled by convention (and where the draft finds the path-sensitive quantities). KDD Cup is the odd dataset out — it is an archetype of nothing, and should be presented explicitly as the binary control cell, nothing more.
+- Bonus coherence: the EdNet two-resolution study (binary vs nominal reading of the same items) is literally a rung-to-rung move on the ladder with items held fixed. It is the capstone exhibit of the ladder framing and currently reads as an unmotivated correlation table (tab:ednet_two_resolution).
+
+## 3. What the results genuinely support (and the buried "aha")
+
+Inventory of what is actually on the page: (a) 18/18 cells recover better under SK at ~tied accuracy (fig:dd, line 985); (b) the gap does not close with N (appendix: SH 2PL alpha at N=5000 still .416-.837 vs SK .911-.956); (c) SH compresses discrimination-family parameters toward the center (fig:scatter, line 1001); (d) structured heads cost nothing on binary/ordered real data (Table real_prediction); (e) the NRM head beats direct option predictors by +.08 to +.12 accuracy on EdNet under all three encoders (.526->.648, .554->.647, .565->.647, lines 1093-1095); (f) real path-sensitivity concentrates on the person side (ability vs raw score .35 SH / .54 SK; vs EAP .41/.64) and on nominal option structure (slopes vs distractor point-biserial .60/.75; c_k stability .45/.83), while location-family item maps are path-robust everywhere (beta SH-vs-SK .998, beta vs p-value -.975; TIMSS everything).
+
+The buried "aha" is (e). Wrong answers carry predictive signal that unconstrained deep heads fail to extract from the same histories, and a fifty-year-old measurement model is what unlocks it. For a KT/prediction audience this is the wow element — the measurement head wins at prediction, on the richest format — and it is currently the second clause of "two baseline facts" (line 1092). It is also the Bock (1972) promise realized inside a KT model, which gives the paper a one-line hook a psychometrician and a DKT reader both recognize.
+
+The joint synthetic-real storyline the draft never states: the fragility map is the same in all three evidence types. The gradient analysis predicts discrimination-like directions are weakest; the synthetic grid shows exactly those parameters corrupted under SH; the real data show path-sensitivity exactly and only in discrimination-family and person-side quantities, while location-family maps are robust. Fidelity risk climbs the ladder with information content: the correctness rung is safe, the option rung pays in the parameters that carry the added information. TIMSS (designed, benign) and EdNet (log, fragile) are then the two poles of one prediction, not two unrelated case studies.
+
+### Storyline skeletons
+
+**A. The response-format ladder (recommended; framing-only, zero new experiments).** KT convention reduces every response to correctness; the classical taxonomy defines the three canonical formats and their decoders. Arc: (1) climbing the ladder costs nothing in prediction and pays at the top (+.08-.12, EdNet NRM); (2) but the parameters carrying the added information are exactly the ones the standard shared readout corrupts (synthetic grid + gradient analysis, one mechanism per rung); (3) a one-line architectural change (SK) restores them at unchanged accuracy; (4) the two real archetypes bracket the risk — designed assessment stable, platform log fragile — and the two-resolution study shows what survives a move between rungs (locations yes, slopes weakly, ability partially). Every existing exhibit slots in; the cost is the taxonomy paragraph, two archetype sentences, a rewritten intro paragraph, and section reordering.
+
+**B. Prediction pays for the head, fidelity pays for the readout (the frozen plan's audit arc, ladder-scoped).** Keeps paper_plan_v2's disease/cause/invoice spine (rituals pass, readout wrong; refit ladder locates the loss in amortization; CAT pays the invoice) and uses the ladder as the answer to "why these three heads": ordered heads pay the readout price in discrimination, the nominal head pays in option slopes and leaks into ability through the incidental-parameter route (Eq. nrm_theta_grad, lines 754-762). GPCM and NRM stop being glued because they are the two poles of where the same price is paid. Requires restoring the missing middle (see 4).
+
+**C. Two readings of one learner (EdNet two-resolution as spine).** Weakest option: makes TIMSS an appendage and discards the synthetic grid's breadth. Not recommended; noted for completeness.
+
+A psychometrician would endorse A or B; A is the cheapest route to the reviewer's "main storyline" and subsumes the pairing and archetype fixes above.
+
+## 4. Structural facts feeding the "glued" reading (for the coordinator)
+
+- The draft's connective tissue is missing, not merely unframed. `\ref{sec:diagnostics}` (estimator ladder, lines 811, 851) and `\ref{sec:downstream}` (CAT, line 1382) are dangling references; the CAT design paragraph is commented out (lines 872-880); "slack" and "ritual" appear nowhere. The abstract and contributions promise the refit decomposition and the CAT cost (lines 49-53, 91-93) that no body section delivers. The frozen plan's cause (S5 ladder) and invoice (S6 CAT) — the two strongest narrative elements — are absent from the body, so what remains is benchmark grid + two case studies, which is precisely what "glued math and random datasets" describes.
+- Discussion and Conclusion carry [FULL-REWORK] tags and discuss results the body does not contain.
+- Title is TBD; the header comment's working title differs from the plan's frozen slate (author picks; flag only).
+
+Key paths: draft C:/Users/steph/documents/deep-mirt/overleaf-sync/main_caeai.tex (taxonomy sentence line 181; ladder-shaped theory lines 794-797; buried aha lines 1092-1096; dangling refs lines 811, 851, 1382); plan C:/Users/steph/documents/deep-mirt/docs/paper_plan_v2.md; taxonomy citation already in C:/Users/steph/documents/deep-mirt/overleaf-sync/boost_refs.bib (`thissen_steinberg_1986`, "A Taxonomy of Item Response Models"); Bock 1972 missing from that bib.
