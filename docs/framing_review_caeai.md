@@ -212,3 +212,142 @@ Three amendments adopted into the recommendation ("F2+"):
    violating the guardian's fence (the harness is post-campaign tooling,
    not the lost simulator).
 
+---
+
+## D. Findings package (2026-07-18 early; program complete)
+
+### D.1 Exhibit E2 -- real-bank adaptive-testing replication (run tonight)
+
+Tracked harness `kt-irt/src/deep_irt/bench/_p2_cat_realbank.py`; results
+`kt-irt/results/p2_cat_realbank/realbank_cat.{json,md}`. Textbook
+protocol (mirt-reference generator, max-Fisher selection, EAP, 4000
+simulees, per-seed neural parameters, raw and mean-sigma-linked arms) on
+the real EdNet 250-item 2PL bank (207 kept).
+
+| arm | rmse@20 | miscls@20 | stop len | claimed SE | true RMSE at stop |
+|---|---|---|---|---|---|
+| mirt | .412 | .120 | 49.9 | .318 | .317 |
+| SH raw | .603 | .187 | 7.9 | .290 | .693 |
+| SH linked | .484 | .158 | 46.8 | .307 | .382 |
+| SK raw | .567 | .195 | 25.8 | .298 | .547 |
+| SK linked | .482 | .152 | 50.0 | .378 | .393 |
+
+Reading, honest and citable: the real EdNet bank is information-poor, so
+the synthetic invoice's LENGTH RATIOS do not transport. The harm changes
+form instead of disappearing: the shared head's raw parameters stop the
+adaptive test at 8 items while certifying SE .29 against a true error of
+.69 -- the test is confidently wrong; the separated key is three times
+more conservative at the same claimed precision with a materially
+smaller calibration gap; after honest scale linking, SK is modestly
+better at every fixed length and essentially calibrated (+.015 vs SH's
++.075), and the mirt arm is well-calibrated throughout (claimed .318 vs
+true .317 -- the harness's internal-consistency check passes). The
+synthetic finding's ORDER (SK over SH for measurement use) transports;
+its magnitude and form are bank-dependent. This is the defensibility
+answer the editor-judge demanded, produced without touching the frozen
+campaign or rebuilding the lost simulator.
+
+### D.2 The recommended frame, beat by beat (for the author's own prose)
+
+F2+ in ten beats, each with its exhibit. This is a skeleton, not prose.
+
+1. **Setup + the axis.** Platforms log more than right/wrong -- partial
+   credit, option choice (the signals this paper actually studies; fix
+   the intro's current attempts/hints/revisions list). Systems read
+   named parameters off prediction-trained models. Axis sentence:
+   prediction quality and measurement fidelity are different objects,
+   and this paper prices the difference.
+2. **One family, not three decoders.** The nested response-format
+   taxonomy 2PL -> GPCM -> NRM; each rung keeps strictly more of the raw
+   response. Move Thissen & Steinberg 1986 to this sentence; add Bock
+   1972. [fig:arch]
+3. **Climbing pays.** Prediction never loses across the family, and wins
+   at the top: the NRM head beats unconstrained option predictors by
+   +.08-.12 on EdNet, all three encoders. Promote from subordinate
+   clause to a named result. [tab:real_prediction]
+4. **The catch, with truth in hand.** Synthetically, the information the
+   upper rungs add rides in exactly the parameters the shared readout
+   corrupts (one mechanism per rung; compress the gradient section per
+   the A2 orphan list); the separated key repairs recovery at unchanged
+   accuracy, 18/18 cells. [tab:mass, fig:dd, fig:scatter]
+5. **The finding is a stratification.** Item locations port; the
+   discrimination family is fragile-under-SH / repairable-under-SK;
+   persons recover synthetically (exhibit E1: SK better in all nine
+   N=2000 cells) yet are the weakest tier on real data -- the tier where
+   the synthetic-to-real gap is largest. [tab:mass + E1 column]
+6. **Real data, real instruments.** No truth exists, so the checks
+   become stability, design-agreement, and the offline mirt reference.
+   Archetype sentences: TIMSS is the designed-assessment archetype
+   (rubric-built ordinal structure; GPCM platform-native); EdNet is the
+   platform-log archetype (dichotomization is an analyst convention);
+   KDD is the binary control, named as such. [transition prose]
+7. **The benign pole.** TIMSS: ordered structure holds under both
+   designs, 31/31 items, SH ~ SK -- design barely matters where
+   structure is built in by the instrument. [fig:timss_case_shsk +
+   threshold appendix]
+8. **The fragile pole and the capstone.** EdNet: design matters exactly
+   where the theory says (slopes, persons). Two-resolution study: same
+   learners read at binary and nominal grain -- item locations port
+   (.95/.97), slopes transfer weakly (.21 -> .46 under SK), persons
+   partially (.18/.33 raw; .59/.63 disattenuated, fingerprint-matched).
+   [fig:ednet_2pl_shsk, tab:ednet_two_resolution, fig:reversal_bridge,
+   fig:ednet_case_shsk]
+9. **The invoice, measurement-scoped.** Bridge sentence scoping to
+   measurement reuse. Banked synthetic costs: shared 196.8% [190,204] of
+   oracle test length vs separated 157.2% [151,163]; +2.3pp vs +0.6-0.8pp
+   misclassification; repairing difficulty alone is the WORST arm at its
+   own stop. Optional E2 sentence: on the real information-poor bank the
+   harm surfaces as miscalibrated confidence (SH certifies SE .29 at
+   true error .69; SK three times more conservative; order transports).
+   [restored CAT exhibit from outputs/p2_cluster/cat_clustered.json +
+   fold JSONs; E2 optional appendix]
+10. **Practice guidance + the boundary.** Read parameters off a KT model
+    only through the stratification; use the separated key wherever
+    parameters are reused; prediction alone can prefer the shared head
+    (EdNet-NRM edge, .002-.012) -- which is the axis sentence again:
+    prediction is not the decision. The person tier stays the standing
+    caution.
+
+### D.3 Decision menu (author rulings requested)
+
+- **R-A. Adopt F2+ staged per the guardian:** draft the F1 spine as a
+  complete paper first; add the invoice as one additive section written
+  strictly from the banked artifacts; committed fence -- the lost
+  simulator is not rebuilt inside the paper's scope. [recommended]
+- **R-B. E2 placement:** appendix/footnote in the paper, or dossier-only
+  evidence. Either is safe; the harness is tracked and reproducible.
+- **R-C. KDD:** keep as the named binary control (one sentence) or drop
+  the column. [keep-with-sentence recommended]
+- **R-D. Orphan-theory pruning (A2 list):** compress `sec:gradient`;
+  either delete the refit-ladder promise or fulfill it from the archived
+  oracle rungs; soften the Fisher operating-point claim to the marginal
+  statement or add the conditional binning exhibit (computable from
+  stored arrays). [author picks per item]
+- **R-E. Dangling promises:** under F2+ all three resolve by fulfillment
+  (invoice) or deletion (refit sentence in the abstract if R-D deletes
+  the ladder). Must be resolved either way -- they compile as "??" today.
+- **R-F. Disclosure sentences:** every real-data figure is LSTM-only
+  (breadth lives in tab:real_prediction) -- one sentence; the Methods
+  NxQ grid overclaim -- delete the Q clause or surface one archived
+  Q-robustness line. [delete recommended]
+- **R-G. New cells (EdNet-GPCM / KDD-GPCM / TIMSS-2PL):** NOT
+  recommended -- the ladder is already complete with TIMSS as the
+  ordinal rung, and the EdNet speed-ordinalization carries a construct
+  caveat. Costed menu in A5 if ever wanted.
+- **R-H. Title:** re-rank the plan-v2 slate under F2+ (author picks; the
+  slate's truth-free noun is F3 vocabulary -- avoid).
+
+### D.4 What was produced tonight (all committed)
+
+- Dossier: this file + seven lens reports (`docs/framing_review/A1-A7`).
+- Exhibits: E1 synthetic person-tier table
+  (`docs/framing_review/E1_synthetic_theta_recovery.md`); E2 real-bank
+  CAT replication (`kt-irt/results/p2_cat_realbank/` + tracked harness).
+- Verifications: CAT artifacts banked and located (driver lost -- scaffold
+  only in git; exhibit writable from `outputs/p2_cluster/
+  cat_clustered.json`); the invoice numbers' source confirmed
+  (`docs/exposure_rerun_results.md`); ancestor draft with the full
+  plan-A arc confirmed at `overleaf-sync/submission/`.
+- No paper files were edited. The campaign remains frozen; no model was
+  trained.
+
