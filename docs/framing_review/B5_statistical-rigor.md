@@ -1,0 +1,56 @@
+# Board B5: statistical-rigor (results critique, 2026-08-09)
+
+I have enough grounded evidence. One verification: my per-seed recompute of the toggle `shared_static`/`decoupled_static` cells reproduces the paper's tab:mass numbers exactly (LSTM-2PL SH a=.5536→.553, SK=.897→.898; acc .7117→.712), confirming I am reading the exact data that feeds the headline table with its true seed/fold structure.
+
+---
+
+# STATISTICAL-RIGOR AUDIT — measurement-audit paper, results as they stand
+
+Bottom line up front: the central synthetic claim (recovery gap SK>SH at near-equal accuracy) is real and actually gets *stronger* under a correct paired seed-level test, so no defect below is cleanly FATAL to the flagship result. The damage is concentrated in (a) the reported interval *widths*, which are not valid 95% intervals, and (b) the real-data table, where several exhibits have no usable replication or no uncertainty at all.
+
+## PART 1 — DEFECTS (ranked)
+
+**[MAJOR] D1. The "seed-clustered 95% intervals" are anticonservative; G=5 clusters cannot support a percentile bootstrap.**
+`_p2_cluster_bootstrap.py:81,111-131` resamples 5 seed ids then folds-within; `_p2_mass_table.py:183` feeds every tab:mass / tab:massfull cell through it (`summarize_pair`), and tex captions (main_caeai.tex:946, 1540) call these "seed-clustered 95% intervals." A percentile cluster bootstrap with 5 clusters is a known undercoverage case (Cameron-Gelbach-Miller: needs ~30-40 clusters, or a t/wild-cluster correction). Demonstrated on the LSTM-2PL reference cell (my recompute from the raw folds): SH discrimination seed-means = [.645,.414,.558,.654,.497], seed SD .10. The correct small-sample interval (df=4 t) on the mean is ≈ [.43,.68]; the paper reports clustered [.470,.630] and naive [.517,.590]. So clustering widened the naive interval but still undercovers the honest t-interval by ~40%. *Reviewer:* "With five independent units a percentile bootstrap is not a 95% interval. Report G−1=4 df t or wild-cluster-t intervals; every width in Tables 2 and A1 will grow."
+
+**[MAJOR; FATAL to the DKVMN real-data subclaim] D2. DKVMN real-data rows have zero seed replication.**
+Every DKVMN real cell on disk is a single data seed: `p2_realstudy/dkvmn_2pl_ednet_separate` = d0_f0..f4; `dkvmn_gpcm_timss_{shared,separate}` = d0 only; `dkvmn_2pl_ednet_shared` = d0_f0..f4 + d1_f0. The ledger confirms it (v3_results_record.md, job G5: "extend DKVMN realstudy cells from 1 to 5 folds"). Under the paper's *own* stated inference unit ("the independent unit is the generated dataset, folds nested within," main_caeai.tex:866-867) these cells are n=1. Yet they are printed to three decimals beside 25-fold cells and drive comparative sentences: "DKVMN-SK reaches 0.645 on EdNet-2PL, matching the offline MML reference" (main_caeai.tex:1090). The table note (1081-1084) discloses reduced folds but not that all folds come from one seed. *Reviewer:* "The DKVMN row is a single draw. Either run the missing four seeds or delete DKVMN from Table 3; no comparison can rest on it."
+
+**[MAJOR] D3. The design is paired but the pairing is discarded in every reported interval.**
+SH and SK share the dataset draw, the fold split (`np.random.default_rng(2000 + data_seed)`), and the init seed (`init_seed = data_seed`); only `item_key_dim` differs (`_p2_toggle_sweep.py:556-559,613-616`; exposure sweep identical at its :613-616). This is a clean paired design. But tab:mass reports two independent per-arm level CIs, and fig_dd's error bars explicitly add variances as if independent: `sd(SK−SH)=sqrt(sd_SK²+sd_SH²)` with the comment "SH and SK are separate training runs, not paired resamples" (`_p2_v3_deltadelta.py:116-121`). That statement is factually wrong given the shared seeds, and it is internally inconsistent: the paper invokes pairing for the "18/18 positive" sign count but not for any interval. The correct paired object is *stronger* (my recompute: LSTM-2PL diff +.344, 5/5 seeds, paired-t(4)≈8.7; Transformer-GPCM +.463, t≈47; LSTM-GPCM +.223, t≈8.2), so this error is conservative for the headline, but it means no valid interval for the actual estimand (SK−SH) is reported anywhere. *Reviewer:* "You built a paired experiment and then threw the pairing away. Report the within-seed paired difference."
+
+**[MAJOR] D4. The real-data "beyond accuracy" contrasts have no uncertainty and collapse the replication unit.**
+tab:ednet_two_resolution reports α–a_k = .21 SH vs .46 SK, β–c_k .82/.83, p-value rank .95/.97, and the 2PL SH-SK maps .998/.978 (main_caeai.tex:1191, 1238-1252) as single Spearman correlations. Source: `_p2_v3_ednet_2in1.py:651-655` (`_pair_corr`) and `_p2_v3_ednet2pl_shsk.py:197-199`, both `L.safe_spearman(...)` over 25-fold **seed-mean** item vectors, returning only (spearman, pearson, n) — no CI, no bootstrap. Two problems: (i) averaging to one vector per design discards the 5-seed replication that the whole paper claims is the independent unit, so the reported ρ carries only unstated item-level error; (ii) the SH-vs-SK contrast (.21 vs .46) is a difference of *dependent* correlations on the same 242 items and is never tested (Steiger/Williams). The narrative claim "slope orderings transfer weakly, more so under SH" rests entirely on this untested, uncertainty-free gap. *Reviewer:* "Give me the per-seed distribution of each correlation and a test for the .21-vs-.46 difference, or drop the numeric claim."
+
+**[MAJOR] D5. Sub-1pp accuracy edges are interpreted as findings, inside seed noise, and the "tie" rule is applied selectively.**
+The paper sets "differences below one percentage point are treated as ties" (main_caeai.tex:870), then elevates a .002-.012 EdNet-NRM edge to "SH retains a top-1 advantage of 0.012" and "SH gives better calibrated held-out option probabilities" (1099, 1268-1273, 1332). My measured synthetic seed-level SD of accuracy is ≈.006-.009 (LSTM-2PL level seed SD .008), i.e., the .002-.012 edges are at or below one seed SD. The only CI attached to any NRM accuracy edge (flip forensics, `_p2_v3_ednet_2in1.py:326-346`) clusters **learners within fold-0**, not seeds, so it cannot see the seed/init variance that dominates here. If the SH-predicts / SK-recovers trade-off is to be claimed it must be on seed-clustered NLL, which I did not find computed. *Reviewer:* "Either honor your own 1pp tie rule or defend the .012 with a seed-level interval."
+
+**[MINOR] D6. Multiplicity: 72 contrasts, "18/18 positive," no joint statement.**
+18 main + 54 appendix cells (tab:mass + tab:massfull), all SK>SH by point estimate, reported as "All eighteen recovery shows positive gap" (985) with no correction and the narrative repeatedly quoting the largest jumps (.553→.898, .373→.806, .438→.900). The discrimination family survives any correction (per-cell paired-t 8-47), so this is minor for the slope claim; it bites only the location-family and accuracy sign claims and the habit of quoting extremes. A single honest joint statement is missing (per-cell sign test is only p=.0625 at 5/5 seeds, so "18/18" needs the effect sizes, not the sign count, to carry it).
+
+**[MINOR→MAJOR as science] D7. Zero misspecification-robustness evidence.**
+Every recovery number is under a generator matched to the head family (lognormal slopes, ordered thresholds, θ∼N(0,1)). The 7-violation probe (local dependence, noisy/disordered thresholds, response style, DIF, exposure imbalance, drifting θ) was built and never run. The claim "prediction accuracy does not determine parameter quality" is therefore shown only where the DGP already matches the decoder. Author-known; flagged so it is not mistaken for covered ground.
+
+**[MINOR] D8. Secondary uncertainty gaps.** TIMSS threshold SDs (tab:app_timss_item_thresholds) are cross-*fold* (25), not seed-clustered, so they understate item uncertainty; the "median trajectory correlation ≈0.84" (1160) and the .998/.978 maps carry no interval.
+
+## PART 2 — WHAT SURVIVES (as I would accept it)
+
+- **The discrimination / option-slope recovery gap is real and large, under a correct paired seed-level test.** LSTM-2PL Spearman .55→.90 (paired within-seed diff +.34, 5/5 seeds positive, t(4)≈8.7); Transformer-GPCM .44→.90 (+.46, t≈47); LSTM-GPCM .72→.94 (+.22, t≈8.2). Direction holds in all 18 main and 54 appendix cells by point estimate. This does not depend on the flawed bootstrap.
+- **Honest effect size:** state it as rank recovery, not accuracy. Spearman .55 preserves ~30% of discrimination rank variance (r²≈.31) — a materially corrupted item map, unusable for Fisher-information item selection; .90 (r²≈.81) is usable. The qualitative thesis (a shared item embedding adequate for prediction can badly mis-rank discriminations; a separated key largely repairs it) is defensible.
+- **Prediction parity for the structured head is real on binary/ordered data for LSTM and transformer (25-fold):** EdNet-2PL, KDD-2PL, TIMSS-GPCM differences ≤~1pp, within seed noise — correctly read as ties by the paper's own rule. Not DKVMN (D2).
+- **The separability claim** (accuracy ≈ tied while recovery differs sharply) survives, because the accuracy deltas are ≤~1pp and the recovery deltas are .2-.5 in Spearman.
+- **TIMSS ordinal structure** as a qualitative case study: all 31 items retain ordered thresholds under both paths. Fine as illustration, not as an SH-vs-SK quantitative contrast.
+
+Does **not** survive as stated: any DKVMN real-data comparison; the .21/.46 and .82/.83/.95/.97 two-resolution contrasts as evidence of an SH/SK difference; the .002-.012 NRM prediction edges as substantive; and the reported interval *widths* in Tables 2 and A1.
+
+## PART 3 — THE ONE DEMAND
+
+**Replace the per-arm bootstrap CIs with a paired, seed-level difference analysis of SK−SH, reported as the primary recovery statistic, with a small-sample-valid interval and one multiplicity-honest joint statement.**
+
+Concrete design (all inputs already on disk; no retraining):
+1. For each cell, using the already-paired folds, form the per-seed paired difference d_s = ρ_SK,s − ρ_SH,s for s=0..4 (ρ_·,s = that seed's 5-fold mean, the exact quantity I recomputed).
+2. Report mean d, a **df=4 t interval** (or wild-cluster-t / studentized bootstrap — not the 5-cluster percentile bootstrap), and the 5/5 sign, per cell.
+3. One joint statement across the 72 cells: a mixed model with cell as a factor, or a stratified sign test using the honest per-cell p, instead of "18/18."
+4. Give the real-data exhibits the same unit: finish the DKVMN cells to 5 seeds × 5 folds, and recompute the two-resolution .21/.46 as a per-seed paired difference with a seed interval (and a dependent-correlation test) — or remove the numeric contrast.
+
+Why this and not the misspecification probe: it simultaneously (i) determines whether any interval-based reading in the paper is valid, (ii) is the correct estimand for the flagship claim, and (iii) subsumes the multiplicity fix — and I have shown it *strengthens* the discrimination headline (t≈8-47), so it costs the author nothing there while making every borderline location-family, accuracy, and real-data claim honest. It is the single analysis that most changes my verdict, because it converts "suggestive tables with invalid error bars" into "a paired result with defensible intervals."
