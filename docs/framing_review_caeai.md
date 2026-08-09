@@ -351,3 +351,100 @@ F2+ in ten beats, each with its exhibit. This is a skeleton, not prose.
 - No paper files were edited. The campaign remains frozen; no model was
   trained.
 
+---
+
+## E. Re-think under corrected premises (2026-08-09, after author feedback)
+
+**The correction.** The author: the draft has only had its experimental
+results updated -- nothing else -- so the staleness diagnosis is true but
+trivial, and the front matter still describes the INTENDED paper. Two
+consequences for the analysis above: (1) the "three incompatible
+conceptions" story over-reads editorial lag as architectural conflict --
+there is one intended conception (the plan-v2 arc) with modernized
+results and unwritten connective tissue; (2) the useful question is not
+"finish the pivot" but: assume the mechanical repair done -- does the
+glue criticism still bite against the best-completed version, and what
+substantive (not editorial) unification does the rewrite need?
+
+**Two seams survive any front-matter repair.**
+
+1. *The inferential contract.* The synthetic half answers recovery
+   against truth; the real half answers stability and cross-design
+   agreement. Different questions. The completed paper must state the
+   contract in one place: synthetic data establishes the causal
+   mechanism (the shared path corrupts specific parameter groups; the
+   separated key repairs them -- truth in hand); real data cannot show
+   truth, so it is examined for the mechanism's fingerprint --
+   design-sensitivity concentrated exactly where the mechanism predicts.
+   Without that sentence pair, "two case studies" stays glued no matter
+   how good the archetype prose is.
+2. *Why the fragility lives where it lives.* The archetype framing
+   (designed assessment vs platform log) is venue-friendly narrative but
+   post hoc as an explanation. The mechanistic axis is the amortization
+   load: responses per item parameter.
+
+**A claim in section D falsified by the paper's own numbers.** The
+ladder wording "fidelity risk climbs with information content" is wrong
+synthetically: SH hard-parameter recovery IMPROVES up the rungs (LSTM
+.553 -> .719 -> .812; the SH-SK gap shrinks +.344 -> +.223 -> +.148;
+same direction for dkvmn; transformer peaks mid-ladder). Do not write
+the monotone claim; a reviewer falsifies it from Table 1. The honest
+statement: with ample data per parameter (the synthetic bed), richer
+formats are BENIGN -- option-level data identifies its own parameters --
+and prediction even improves; the price appears when the richer head
+meets thin per-item data.
+
+**The load axis (exhibit E3, computed tonight from stored records).**
+Responses-per-parameter across the four real cells: kdd-2pl 533,
+ednet-2pl 488, timss-gpcm 305, ednet-nrm 8 -- a sixty-fold starvation
+drop at exactly the cell where the paper's fragility lives. Cross-design
+agreement (SH vs SK, lstm, seed-mean item parameters, 25 folds):
+
+| cell | resp/param | discrimination SH~SK | location SH~SK |
+|---|---|---|---|
+| kdd-2pl | 533 | .948 | .961 |
+| ednet-2pl | 488 | .978 | .998 |
+| timss-gpcm | 305 | .976 | .994 |
+| ednet-nrm | 8 | .772 | .919 |
+
+One table, four cells, both findings: at high load both parameter
+families are design-invariant; under starvation, discrimination
+agreement breaks (.77) while location degrades far less (.92) -- the
+stratification and its mechanism together. This upgrades the paper's
+structure from "a benchmark plus two case studies plus a control" to
+"four points on one curve": TIMSS is benign not because it is designed
+but because 305 responses/parameter is a safe regime; EdNet-NRM is
+fragile because 8 is starvation; KDD stops being an orphan and becomes
+the highest-load anchor; and the incidental-parameter theory (currently
+orphaned, lens A2) finds its consumer -- thin-per-item regimes are
+exactly Neyman-Scott territory. The load axis also absorbs the honest
+boundary: under starvation a shared representation's smoothing can help
+PREDICTION while corrupting the readout -- which is the axis sentence
+(prediction is not measurement) made mechanistic.
+
+(File: `docs/framing_review/E3_load_axis.md`. Refinements for the
+author's rewrite if adopted: per-item -- rather than per-cell -- version
+of the same curve inside EdNet-NRM, exposure-binned; the synthetic bed's
+resp/param values annotated as calibration points; the NRM cell uses the
+paper's own keyed contrast/keyed intercept objects.)
+
+**Revised recommendation.** F2+ stands in content but changes status:
+not a spine replacement -- an INTEGRATION LAYER over the intended
+plan-v2 arc. What the rewrite adds to the intended paper: the taxonomy
+paragraph (one family), the inferential-contract sentences (one
+mechanism, two evidence regimes), the load axis with E3 (one curve; why
+here), the archetype sentences as the venue-facing wrapper of the load
+mechanism, the axis sentence (prediction is not measurement), and the
+promoted buried results (+.08-.12; the two-resolution capstone). The
+plan-v2 beats (motivation, mechanism, repair, invoice, guidance) keep
+their order and their exhibits. Beat-map deltas vs section D.2: beat 2
+drops the monotone-ladder phrasing for the ample-data-benign /
+starvation-pays formulation; beat 6 leads with the load axis and E3,
+demoting the archetype sentences to its wrapper; beat 7-8 present
+TIMSS/EdNet as the safe and starved ends of the curve. Decision-menu
+deltas: R-C strengthens (KDD's role is now quantitative -- keep it);
+new R-I: adopt E3 (or its per-item refinement) as a main-text exhibit
+vs a one-sentence citation of the four numbers [either works; the
+per-item refinement is the strongest version and is computable from
+stored arrays].
+
