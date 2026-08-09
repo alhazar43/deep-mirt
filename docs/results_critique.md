@@ -440,11 +440,45 @@ outcome has a publishable reading.
 
 ---
 
+## Part VII. Post-dossier executions (2026-08-10): the Tier-3 buys, landed
+
+All three purchased runs are complete, committed, and change verdicts:
+
+**E9 misspecification battery (item 17) — the strong outcome.**
+2500/2500 units, zero failures. The SK-SH recovery delta stays positive
+in 49/50 cells (5/5 seeds, t 2.3-18.4) and never reverses; it GROWS
+under local dependence and threshold disorder (the feared reversal
+cases); |d(acc)| <= .011 everywhere (the dissociation survives every
+violation); the truth-free discrepancy tracks true corruption at
+Spearman .93 (SH) / .72 (SK) and rises with dose within every family.
+Boundary: extreme exposure imbalance floors both arms (the exposure
+law). M10 closed. Exhibit E7; tables
+`kt-irt/results/p2_misspec/battery_report.md`.
+
+**TIMSS raw-threshold rerun (item 18) — F1 closed with an upgrade.**
+Honest ordered fraction .43 in both arms (sorted export said 1.00;
+classical .613), 18/31 stably disordered, containing all 12 classical
+non-modal items; the raw order gap tracks the classical gap at
+Spearman .98. The sort had erased a true, classically-agreeing signal.
+Exhibit E6; store `kt-irt/results/p2_realstudy_rawbeta/`.
+
+**DKVMN seed completion (item 19) — M5 closed.** Both arm1r DKVMN
+cells at 5 seeds x 5 folds (was seed 0 only).
+
+Also filed: `docs/framing_review/format_unification.md` — the
+author-requested framing that strings 2PL/GPCM/NRM into one storyline
+(one divide-by-total family; one law, location-preserving /
+slope-corrupting readout path, tested at three doses of slope
+structure; the battery's cross-format table is its closure).
+
+---
+
 *Program artifacts: boards `docs/framing_review/B1..B5_*.md`; exhibits
-`docs/framing_review/E1..E5_*.md`; v1 narrative dossier
+`docs/framing_review/E1..E7_*.md`; v1 narrative dossier
 `docs/framing_review_caeai.md` (sections A-E); CAT real-bank harness
 `kt-irt/src/deep_irt/bench/_p2_cat_realbank.py` with results in
 `kt-irt/results/p2_cat_realbank/`. Verified-this-session facts: sort
 artifact call chain, 12/31 classical disorder count, width-64 real SH,
 mirt converged FALSE, unrouted SH .595, no banked weights for real
-cells, no misspecification outputs anywhere under results/.*
+cells, no misspecification outputs anywhere under results/ (now
+superseded by the E9 store).*
