@@ -164,14 +164,20 @@ distractor-validation standard (Gierl et al. 2017 review), computed
 from raw data with no model. Every encoder: the anchor sides with the
 separated key; lstm and dkvmn are near-identical (+.25); the
 transformer is weakest with either arm (consistent with its crowding).
-Guardrails still to apply before any "classical bar" sentence:
-option-count floors + frequency-weighted distractor means (Attali &
-Fraenkel 2000), the anchor's own split-half reliability printed
-beside the result, paired seed statistics, and the scope line (keyed
-contrast only; distractor intercepts need predicted-vs-observed
-option shares). A pre-registered cross-platform replication on Eedi
-(15.9M option-level answers, UK school math) is running; success =
-SK>SH paired and clears a preset floor; either outcome reported.
+Guardrails NOW APPLIED (option-count floor 50, frequency-weighted
+distractor means, anchor split-half reliability, paired seed stats):
+the EdNet headline becomes SH .548 -> SK .632, +.094 [t(4)=10.5, 5/5
+seeds], anchor reliability .857 -- passes every pre-set criterion;
+the unguarded .437/.705 is retired to the record. The pre-registered
+Eedi cross-platform replication EXECUTED (12,299 learners, 380k obs,
+190 resp/param, 50 fits, 0 failures): replicates in LEVEL, not
+DIRECTION -- both arms high (.756/.723, anchor reliability .912),
+small seed-consistent SH edge (-.023). Mechanism-consistent reading:
+Eedi distractors are expert-designed diagnostics (strong option
+signal; displacement is inverse-Fisher, so both arms read it); EdNet
+lures are weak-signal, where separation pays. Licensed sentence in
+docs/framing_review/eedi_replication.md; never claim a universal
+real-data SK win on options.
 
 ### 2.6 The audit, precisely
 

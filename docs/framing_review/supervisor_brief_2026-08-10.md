@@ -150,12 +150,20 @@ other cells sit at 300-530) against an MML anchor covering 395 of
 loader verified clean). A matched-exposure rerun (top-250 option-rich
 items x 8,493 learners = 191 resp/param; identical protocol) settles
 it: both arms stabilize (.76/.78), the audit calms (.24/.33), the arms
-genuinely diverge (.60 agreement) -- and the model-free empirical
-anchor (option point-biserials) sides with the separated key, **.705
-vs .437**. The real-data nominal result now aligns with the synthetic
-story; the canonical cell stays as the honestly-labeled exposure
-floor. (docs/framing_review/nrm_matched_exposure.md;
-kt-irt/results/p2_nrm250)
+genuinely diverge (.60 agreement) -- and the model-free classical
+anchor (guardrailed per-option point-biserials, anchor reliability
+.857) sides with the separated key: **SH .548 -> SK .632, +.094
+[t(4)=10.5, 5/5 seeds]**, replicated in pattern by dkvmn and (weaker)
+transformer. A pre-registered cross-platform replication on Eedi
+(12,299 learners, 190 resp/param, anchor reliability .912) replicates
+in LEVEL not DIRECTION: both arms high (.756/.723, small SH edge) --
+consistent with the displacement mechanism's information dependence
+(Eedi distractors are expert-designed diagnostics; strong option
+signal needs no separation). The licensed claim: separation pays
+decisively where option signal is weak; where it is strong both
+designs read it -- the paper's regime-dependence point, instantiated
+across platforms. (nrm_matched_exposure.md; eedi_replication.md;
+kt-irt/results/p2_nrm250, p2_eedi250)
 
 ## What exists vs what remains
 
