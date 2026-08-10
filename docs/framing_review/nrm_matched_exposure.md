@@ -43,6 +43,21 @@ the other cells). 50 fits, zero failures, frozen stores untouched.
 | SH~SK agreement (seed-mean) | .772 | .600 |
 | empirical anchor agreement SH / SK | — | **.437 / .705** |
 
+EXTENDED to all three encoders (25 folds per arm each, 0 failures):
+
+| encoder | anchor SH -> SK | delta SH / SK | stability SH / SK | SH~SK |
+|---|---|---|---|---|
+| lstm | .437 -> **.705** | .239 / .325 | .762 / .780 | .600 |
+| dkvmn | .462 -> **.696** | .203 / .281 | .771 / .807 | .582 |
+| transformer | .264 -> .364 | .174 / .285 | .660 / .706 | .836 |
+
+lstm and dkvmn replicate each other nearly exactly (levels and the
+~+.25 SK gain); the transformer is uniformly weaker on option
+structure with either arm (its known contrariness, consistent with
+synthetic crowding and the real-2PL reversal) yet still SK-positive.
+Every encoder: the model-free classical anchor sides with the
+separated key.
+
 (Cross-fit stability = mean pairwise Spearman of the keyed contrast
 across all 25 fits; this differs from the frozen table's WITHIN-fit
 split-half, which is why SH could show .93 there and .40 here. The
