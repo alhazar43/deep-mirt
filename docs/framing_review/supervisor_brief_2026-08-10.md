@@ -65,11 +65,11 @@ dynamics AND the parameter readout, and training is prediction-only.
 Linear probes of the trained embeddings (fresh ridge, item-CV) against
 ground truth separate two failure components:
 
-| finding | evidence |
+| finding | evidence (all cells n=25) |
 |---|---|
-| Difficulty information is never lost -- the trained HEAD is misaligned | b decodable at >= .97 from every SH embedding, even where the head recovers .60-.65 |
-| Slope information is partially crowded out, worst under global attention | transformer SH: decode .364 ~= recovery .373 (truly absent); lstm: decode .75 vs recovery .55 (present, under-extracted) |
-| Separation makes the channels specialize | under SK the key decodes both families (.64-.87 / .97+) while the value embedding is PURGED of them (a .06-.31); the residual b trace (.33-.61) shows difficulty is what dynamics still demand |
+| Difficulty information is never lost -- the trained HEAD is misaligned | b decodable at .97-.99 from every SH embedding, even where the head recovers .60-.65 (transformer, dkvmn) |
+| Slope information is partially crowded out, worst under global attention | transformer 2PL SH: decode .364 ~= recovery .373 (truly absent); lstm/dkvmn: decode .75-.87 vs lower recovery (present, under-extracted) |
+| Separation makes the channels specialize | under SK the key decodes both families (.64-.88 / .97+) while the value embedding is purged of slope (a-decode .06-.44); the residual difficulty trace ORDERS dkvmn (.70-.81) > lstm (.45-.61) > transformer (.33-.53) -- each architecture's own demand for difficulty, measured in isolation |
 
 DKVMN is the mechanism's fingerprint, not an exception: it already
 separates addressing from state INTERNALLY (static key memory, dynamic
@@ -79,11 +79,34 @@ the READOUT, an orthogonal cut) still helps it at full size. The two
 separations resolve the apparent contradiction: DKVMN has one of them
 natively, benefits from the other.
 
-[Theory section: gradient-routing derivation in
-docs/framing_review/theory_contention.md -- being finalized; the
-stationary-point account of contested-channel training, the two-route
-gradient decomposition, and the falsifiable predictions it makes,
-two of which the probe table above already confirms.]
+**The theory** (full derivation: docs/framing_review/theory_contention.md;
+propositions proved in a linear-Gaussian model, the rest graded in an
+honesty ledger). The gradient on the shared embedding decomposes
+exactly into a parameter route and a dynamics route; the key's gradient
+has the parameter route only (an architectural fact, verified in code).
+Two mechanisms follow. Mechanism A, displacement (universal): at
+stationarity the trained heads sit displaced from the per-item
+conditional maximum-likelihood solution by an inverse-Fisher-amplified,
+dynamics-structured term -- which is why difficulty is decodable at
+.98 while the head reads .65 (a theorem-shaped consequence, not a
+paradox), and why widening the shared embedding cannot fix it (the
+conflict lives in the head plane; this DERIVES the width-sweep fact
+that width closes only about half the gap). Mechanism B, crowding
+(architecture-dependent): slope information is written only through
+the Fisher-suppressed parameter route and survives only where the
+dynamics' demand leaves slack; demand breadth orders dkvmn < lstm <<
+transformer, so attention erases the slope deposit (probe .364 =
+recovery .373) while the others keep it but under-extract. SK is
+Proposition 1: its stationary point forces the per-item score to zero,
+making the trained heads exact conditional M-estimators given the
+model's own ability estimates -- encoder-free, hence the uniform
+plateau. The purge is Proposition 4, and its b-over-a residue is the
+dynamics' demand asymmetry measured in isolation. The theory states
+its own exposure: if held-out NLL ties exactly between arms, mechanism
+A is wrong. Among its eight pre-registered predictions, one is also a
+free practical repair: refitting ONLY the heads on frozen embeddings
+(no retraining) should recover to probe level wherever information is
+present -- being tested today.
 
 ## The storyline that answers the criticism
 
