@@ -7,11 +7,13 @@ in the repo; table sources at the end.
 
 Prediction-trained knowledge-tracing models learn item parameters only
 as a byproduct of what their sequence dynamics need. Where the readout
-fails depends on the architecture and is unpredictable in practice; a
-one-embedding separated item key repairs it uniformly, at zero
-prediction cost; and a truth-free audit detects the failure without
-ground truth. Unpredictable disease, uniform cure, and a meter that
-says when you need it.
+fails depends on the architecture and is unpredictable in practice;
+the failure decomposes into two proven mechanisms (head displacement,
+universal; representation crowding, architecture-dependent); a
+zero-retraining head refit repairs the first, a one-embedding
+separated key repairs both at zero prediction cost; and a truth-free
+audit detects the failure without ground truth. Unpredictable disease,
+a two-rung cure, and a meter that says which rung you need.
 
 ## Three statements, each carried by one table
 
@@ -103,10 +105,17 @@ model's own ability estimates -- encoder-free, hence the uniform
 plateau. The purge is Proposition 4, and its b-over-a residue is the
 dynamics' demand asymmetry measured in isolation. The theory states
 its own exposure: if held-out NLL ties exactly between arms, mechanism
-A is wrong. Among its eight pre-registered predictions, one is also a
-free practical repair: refitting ONLY the heads on frozen embeddings
-(no retraining) should recover to probe level wherever information is
-present -- being tested today.
+A is wrong. Its sharpest pre-registered prediction was tested the same
+day and CONFIRMED in every cell (E9_head_refit.md): refitting only the
+heads on the frozen tables -- no retraining, no ground truth, ability
+clamped at the model's own estimates -- recovers to the probe ceiling
+wherever information is present (DKVMN difficulty .652 -> .989;
+transformer difficulty .604 -> .982; lstm slope .553 -> .779) and
+stays flat exactly where attention crowded the information out
+(transformer 2PL slope .435). The paper therefore ships a REPAIR
+LADDER: head refit (free, post hoc, fixes displacement) < separated
+key (one embedding at training time, fixes both mechanisms), with the
+truth-free audit deciding whether any rung is needed.
 
 ## The storyline that answers the criticism
 
