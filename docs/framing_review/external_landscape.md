@@ -303,7 +303,242 @@ amortizers as the adjacent (easier-regime) benchmark.
 
 ---
 
-## E. Expert reads
+## E. Expert reads (both on the strongest model, independent)
 
-[Research-scientist and psychometric-researcher reads appended after
-section D lands.]
+### E.1 Research-scientist read
+
+OVERALL: the sweep changes posture, not destination. CAEAI + audit arc
+stands. Remaining risk is external: (i) the .88-.9996 precedent bar
+WILL be applied to our .68-.74 unless the regime distinction is
+architected into the question, not appended as a caveat; (ii) the
+23-architecture survey sells the separated key as the missing rung of
+a six-year climb — at AIED-class venues, where we are going anyway;
+(iii) the .705 vs .437 anchor result rests on one platform + one
+encoder, and Eedi is the only public second instance in existence;
+(iv) arXiv:2606.14123 is a TITLE collision, not content (their
+"discrimination" = prediction AUC, post-hoc Kalman corrector, binary
+only, parameters never touched; their AUC-invariance theorem argues
+FOR trained-in repair — cite first and co-opt). NEW EXPOSURE: the
+theory's own falsification tests (theory_contention.md section 10)
+were never run; a strong reviewer will notice the kill switch was
+left untouched.
+
+MOVE 1 (restructure; costs the rewrite already budgeted): results
+around the audit arc + format unification; related work around two
+tables — a 2x2 regime table (static vs sequential estimation x
+complete-matrix vs sparse-log data) placing ML2P-VAE, Tabak et al.,
+AutoIRT, and us; and the code-verified pathway table presented as four
+independent lines (AKT, DIMKT, Deep-IRT, DisKT) + a pykt toolkit
+monoculture (itself a finding). Adopt all sweep citations; say
+concordance, not recovery, on real data; disclose MML's own defects so
+the anchor reads as a peer estimator, not an oracle.
+
+MOVE 2 (falsification package; days of local compute, near-zero
+author time): run Prediction 1 (NLL/ECE gap between arms despite the
+accuracy tie — the theory's stated exposure of mechanism A; reword now,
+not in rebuttal); Prediction 7 (MLP probe on the transformer-2PL
+table, CPU — "genuinely absent" currently rests on a linear probe);
+Prediction 3 (DKVMN summary-key ablation, one cell, local overnight —
+load-bearing if the DKVMN flip leads). Disclose no-DKVMN-in-battery
+or buy a two-violation DKVMN slice.
+
+MOVE 3 (Eedi cheap half; 1-2 days engineering + local overnights, off
+the writing path): the decisive experiment needs NO misconception
+join — a log-only replication of the matched-exposure cell (top-N
+option-rich items at ~191 resp/param, same routed protocol as
+_p2_nrm_matched.py), SH vs SK against the same model-free per-option
+point-biserial anchor, 5 seeds, pre-registered both ways. Replication
+= two platforms, two domains; non-replication = honest scoping before
+a reviewer does it. Misconception join: one timeboxed day, optional
+upside, dropped without regret.
+
+THREATS: (1) the precedent bar — the regime defense is sound as
+STRUCTURE, a fig leaf as CAVEAT; make the deployed sequential model
+the object of the question (does a deployed predictor carry
+trustworthy parameters, and how would a practitioner know) — low real
+concordance without ground truth becomes the motivation for the
+audit, not an embarrassment; put the regime-matched synthetic plateau
+(.90-.95) in the same paragraph as every real concordance. (2)
+novelty compression, three prongs: "Deep-IRT already split" (answer:
+its key also drives addressing — no gradient boundary; discrimination
+= fixed 3.0; nobody in the lineage validates parameters); the Yan et
+al. title (cite first, co-opt); "SK is two-stage refit rediscovered"
+(OWN IT: Proposition 1 says SK is a trained-in conditional MLE; the
+oracle ladder has two-stage .934 vs SK .941; the answer is that SK
+repairs the deployed heads themselves, online, with no second
+calibration pass over stored responses — and frees the refit to serve
+as the audit instrument instead of the estimator; write that sentence
+before a reviewer does).
+
+DO NOT: measurement-journal/TMLR repackaging; NAEP license; PISA
+annexes; IEA sibling now (PIRLS = legitimate under-a-day
+revision-stage buy); width-matched real rerun (scope person-side to
+symptom status + print the unrouted .595); tuned direct-NRM baseline
+(retract gains per the popularity floor); new encoders; MIRT; the
+Eedi join beyond its timebox; presenting 23 architectures as 23
+independent confirmations (five are one pykt code block); presenting
+49/50 as 50/50 (the one non-significant cell IS the exposure law's
+boundary — saying so buys credibility for the rest).
+
+CLAIM (one sentence): prediction-trained KT models learn item
+parameters only as their sequence dynamics need them, so whichever
+parameter family the architecture pools is silently corrupted with no
+accuracy trace; a gradient-separated key restores the deployed
+readout to its conditional-MLE plateau at zero prediction cost across
+encoders, response formats, and seven misspecifications; and a
+truth-free refit audit — the neural analog of classical
+parameter-comparison diagnostics — tells a practitioner when readouts
+cannot be trusted, in the first validation of sequential KT readouts
+held to the classical psychometric standard.
+
+### E.2 Psychometric-researcher read
+
+AUDIT GENEALOGY: correct in FUNCTION, a stretch in NAME. The audit
+belongs to the parameter-comparison family (split-sample
+recalibration, drift screening, DIF), not the residual-fit family;
+but classical invariance testing compares across samples or
+occasions, while the audit compares two estimators on the SAME
+sample — the deployed head vs a per-item conditional MLE at clamped
+abilities, structurally Stocking Method A used diagnostically (the
+known-biased member of the online-calibration family, Ban et al.
+2001). That defines it rather than invalidating it: a
+between-estimator consistency check, Hausman-shaped, whose warrant is
+EMPIRICAL — the E9 battery (rho .93 for SH; only .72 for SK, because
+the SK head already IS the conditional M-estimator, leaving the
+statistic little dynamic range — never print .93 unqualified). Cite
+Smith & Suh (2003) for the family and the missed-threat quote; Bock,
+Muraki & Pfeiffenberger (1988) + the FIPC/pretest tradition (Kim
+2006) for the measure-only deployment posture: operational programs
+(NCLEX, CAT-ASVAB) freeze the deployed scale and recalibrate in
+shadow constantly — measure-only is the OPERATIONAL NORM, not a
+limitation. Blind spots in print: corruption shared by theta-hat and
+the readout is invisible to a conditional check; at exposure
+starvation the audit's own refit is noise.
+
+ANCHOR: the classical standard in its corrected form — the rest-score
+criterion is Henrysson part-whole correction (already right); the
+keyed-minus-mean-distractor contrast is conjugate to the keyed-ray
+parameterization (apples-to-apples). Three guardrails BEFORE any
+"classical bar" sentence: (1) option base-rate control — minimum
+option counts and a frequency-weighted distractor mean (Attali &
+Fraenkel 2000, JEM: raw distractor point-biserials are mechanically
+compressed for rarely chosen options); (2) the anchor's own
+split-half reliability — without that ceiling, .705 is a number with
+no bar; (3) scope — the contrast validates keyed,
+correctness-direction discrimination only; distractor INTERCEPT
+structure (the genuinely nominal content) needs predicted-vs-observed
+option shares, a different exhibit. Run SH-vs-SK through the same
+paired seed-level statistics as everything else.
+
+STARVATION: the canonical cell sits below any published adequacy
+figure however counted, under worse-than-benchmark conditions (De
+Ayala & Sava-Bolesta 10:1 was established on complete matrices with
+approximately normal ability, and ability-distribution SHAPE
+dominated the ratio; DeMars: more categories hurt, skew hurts, other
+items cannot rescue a given item). CORRECTNESS NOTE: state the
+parameter-count convention — raw 8 vs 6 IDENTIFIED per K=4 item; a
+reviewer will recompute and the conventions give different numbers.
+Below the floor NOTHING is readable, including the MML anchor itself
+(9.4% coverage): that cell's concordances are uninterpretable in
+either direction. The matched cell at 191 sits an order of magnitude
+above the ratio and behaves accordingly; claim necessity-logic only
+(the ratio literature speaks of MML-class estimators). The keyed-ray
+restriction is the classically sanctioned thin-data move (Revuelta &
+Ximenez put free nominal structure at several hundred responses per
+item), not an engineering convenience.
+
+MML BAR: concordance with MML is the right criterion only where MML
+consistently estimates the same estimand — three regime breaks here
+(static-theta MML is misspecified on learning data, Embretson 1991;
+first-attempt MML vs repeats-native KT consume different response
+sets; degraded anchors — converged FALSE, 9.4% coverage). The static
+amortizers hit .9+ because they amortize the same estimand on the
+same complete-matrix data MML sees. ORDER MATTERS: print the
+pre-registered primary in every cell FIRST (the M3 fix), THEN argue
+the criterion revision — reversed, it is outcome-switching with a
+literature review attached. The replacement is not a metric but a
+Kane-style validity argument, five legs: model-free classical
+anchors; stability as a gate, never a verdict; the truth-free audit
+with its simulation warrant; downstream decision cost (the CAT
+invoice — the evidence this audience actually feels); MML concordance
+where the regime supports it. ONE CHEAP ADDITION beats all prose:
+split-sample MML-vs-MML self-agreement per real dataset — the
+empirically achievable concordance CEILING on this data; .68-.74
+read against that ceiling is a different quantity than against an
+imported .998 from a 28-item complete-matrix exam. CPU hours,
+alongside the per-fold refits already in the Tier-2 menu.
+
+TIMSS: two halves, never averaged, plus one provenance sentence
+(VERIFIED: the anchor is the project's OWN mirt GPCM fit on the
+identical USA G8 matrix — kt-irt/data/timss/_build_timss_gpcm.R; say
+"our own MML calibration of the identical matrix", and do not let a
+reader assume IEA official parameters). Location family: raw
+thresholds reproduce the classical category-order structure, gap rho
+.98, all 12 classically never-modal items recovered as stably
+disordered — step inversion in GPCM is a bank fact (a category that
+is never modal), which is what makes the agreement meaningful; the
+sorted export had erased a true classically-agreeing signal, itself
+an exhibit of the thesis; cap the claim at the gap correlation plus
+12-of-12 containment; the six extra neural flags are systematic
+over-flagging with named candidate causes, NOT discoveries. Slope
+family: concordance .32-.56 with the neural range compressed, the
+audit at 4-5x threshold, SH~SK .976 — the stable-and-wrong signature;
+flagged untrusted under the paper's own framework; path immateriality
+is exposure-law confirmation, never validity. Print interval
+estimates (31 items).
+
+MUST-NOT CLAIMS, with the honest wording: (1) never "the audit is
+invariance testing", never any implication the refit side is truth —
+honest: "a refit-discrepancy diagnostic in the spirit of
+parameter-comparison checks (Smith & Suh 2003), validated against
+known corruption in simulation, where it tracks true slope corruption
+at rho .93 for the shared readout and .72 for the separated key; it
+flags disagreement between two estimators, certifies neither, and is
+blind to corruption shared with the model's own ability estimates and
+to starvation regimes where its own refit is uninformative." (2)
+never "the matched NRM cell validates the separated key at the
+classical bar" — honest: "at the first exposure level where the
+option-level question is answerable, the model-free classical anchor
+sides with the separated key, .705 versus .437; convergent evidence
+for the keyed-contrast slope family, on one encoder and one dataset,
+against an anchor that is itself a proxy whose reliability caps
+attainable agreement." Corpses stay buried: no resurrected
+ordered-thresholds claim; no "six newly discovered disordered items."
+
+EEDI PRE-REGISTRATION (if acquired): join gates — exact QuestionId
+match with a text-match fallback audited on a random hundred, join
+coverage reported; eligibility floors — minimum count per option (on
+the order of 50-100), a learner floor for rest-score stability;
+achieved responses per identified parameter and option-skew
+distributions reported per cell. P1 = anchor concordance: per-item
+keyed contrast of rest-score option point-biserials (count-floored,
+frequency-weighted distractor mean) vs the model keyed slope
+contrast, Spearman across eligible items, SH vs SK by paired
+seed-level t, the anchor split-half reliability printed beside;
+success only if SK exceeds SH paired AND clears a pre-set observed
+floor. P2 = misconception-code discrimination — the first SCORED
+expert-anchor test in option-level KT: distractors sharing an expert
+misconception code should have more similar learned option structure
+than non-sharing distractors, permutation test within subject strand
+(controls content confounds); converts the literature's unscored
+qualitative clustering into a falsifiable statistic. Secondaries:
+audit delta per arm with tau .152 explicitly labeled a transported
+synthetic threshold; cross-fit stability as a gate; the person-side
+fingerprint (NRM theta correlating lower with number-correct than
+2PL theta — the distractor-information signature). Discipline:
+first-attempt subset for any MML companion with the repeats-native
+fit reported separately as-deployed; every pre-registered endpoint
+reported regardless of outcome; the UK KS1-4 domain caveat named.
+Kill conditions fixed in advance: join coverage below ~60% demotes
+P2 to exploratory; anchor reliability below .5 restricts P1 to the
+comparative claim.
+
+CONTRIBUTION (one sentence): this paper imports the measurement
+field's own validation bar — parameter-comparison auditing, classical
+option-level anchors, exposure-adequacy reporting — into a
+knowledge-tracing literature that stops at AUC, and shows that a
+deployed prediction model can meet that bar, or be told honestly and
+without ground truth exactly where it fails, at zero prediction cost.
+
+(The psychometric agent recorded its rulings in its own agent memory,
+including the verified TIMSS anchor provenance.)
