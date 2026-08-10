@@ -226,16 +226,55 @@ achievable ceiling on our own data — so .68-.74 is read against the
 right bar. Print the pre-registered primary in every cell FIRST, then
 argue the criterion (anything else is outcome switching).
 
-(c) PRIOR ART: "Recovering Stranded Discrimination in KT" (ECML PKDD
-2026) is a title collision — their "discrimination" is prediction
-AUC, post-hoc corrected, parameters untouched; their theorem that
-monotone post-hoc fixes cannot reach per-item pathology argues FOR
-trained-in repair. Cite first, co-opt. Also anticipate and answer:
-"Deep-IRT already split the heads" (its key also drives addressing —
-no gradient boundary; discrimination is a fixed 3.0; no validation);
-"SK is two-stage refit rediscovered" (SK repairs the deployed heads
-themselves, online, no second calibration pass — and frees
-re-estimation to serve as the audit).
+(c) PRIOR ART, full treatment.
+
+The nearest-sounding paper — verified against the source
+(arXiv:2606.14123): Yan, Tang & Shimada, "Recovering Stranded
+Discrimination in Knowledge Tracing: Per-Item Bias Correction via
+Empirical-Bayes Shrinkage," ECML PKDD 2026. What it actually is:
+their "discrimination" is PREDICTION QUALITY (per-item AUC), not the
+IRT slope parameter; nothing in the paper estimates or evaluates item
+parameters in the measurement sense. Their finding: KT backbones
+carry a systematic per-item logit bias — attributed, in their own
+words, to "limited per-item expressivity in backbone architectures"
+and post-deployment shift — and global monotone calibrators (Platt
+etc.) cannot recover the lost AUC because monotone score-only
+transforms preserve ranks ("a structural consequence"; recovery
+"requires conditioning on item identity"). Their fix, SLC
+(State-space Logit Correction): binary observations to Gaussian
+pseudo-observations via Laplace/IRLS, empirical-Bayes shrinkage
+through a Kalman smoother, an offset-Platt link — a POST-DEPLOYMENT
+corrector, validated on AUC/NLL only, binary responses only, with
+the gains concentrated on sparse items.
+
+Construct mapping (write this into related work; disambiguate the
+word "discrimination" in the first sentence that cites them):
+
+| theirs (prediction side) | ours (measurement side) |
+|---|---|
+| per-item logit bias from limited per-item backbone expressivity | the contested item channel: displacement + crowding of item PARAMETERS (mechanism, probes, theory) |
+| monotone post-hoc calibrators cannot recover per-item structure (their impossibility result) | why the repair must condition on item identity AT TRAINING TIME: the separated key; post-hoc paths additionally excluded by the real-time premise |
+| gains concentrate on sparse items | the exposure law (battery boundary cell; the 5.1-resp/param starved cell) |
+| fix = post-deployment Kalman shrinkage for prediction quality | fix = trained-in separation for measurement quality; shrinkage is precisely the SH-style medicine (stability bought at information cost) and repairs prediction, not parameters |
+
+How to use them: cite FIRST and generously — their impossibility
+result is independent prediction-side support for our central
+architectural claim (per-item structure needs a dedicated per-item
+pathway), and their sparse-item concentration independently
+replicates the exposure law from the prediction side. Differences to
+state plainly: binary-only vs our three response formats;
+AUC/NLL-only validation vs parameter recovery + external anchors;
+post-deployment correction vs trained-in separation under a
+real-time constraint; no architecture-dependence analysis vs our
+three-encoder law. The two papers are complementary sides of one
+phenomenon; ours supplies the mechanism, the measurement
+consequences, and the audit.
+
+Also anticipate and answer: "Deep-IRT already split the heads" (its
+key also drives addressing — no gradient boundary; discrimination is
+a fixed 3.0; no validation); "SK is two-stage refit rediscovered"
+(SK repairs the deployed heads themselves, online, no second
+calibration pass — and frees re-estimation to serve as the audit).
 
 (d) OPTION-LEVEL KT: Option Tracing (AIED 2021) and successors
 validate options with accuracy only; the classical per-option
@@ -306,7 +345,13 @@ refit-style method (banned; real-time assumption).
    miss what recalibration-comparison catches; ours is the
    parameter-comparison family's neural analog, simulation-warranted.
 3. "Deep-IRT/AKT already do this." — Pathway table: no gradient
-   boundary anywhere, no learned discrimination, no validation.
+   boundary anywhere, no learned discrimination, no validation. And
+   "isn't this the ECML stranded-discrimination paper?" — different
+   construct (their discrimination = per-item AUC; ours = the IRT
+   slope), different side (prediction vs measurement), different fix
+   class (post-deployment corrector vs trained-in separation); their
+   impossibility result and sparse-item concentration SUPPORT us;
+   see the 3(c) mapping table.
 4. "Why not just refit?" — Refit-as-method violates the real-time
    premise; SK is the trained-in, online equivalent (its endpoint IS
    the conditional MLE), and re-estimation serves as the meter.
