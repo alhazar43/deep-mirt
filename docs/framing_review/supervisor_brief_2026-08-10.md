@@ -106,18 +106,18 @@ model's own ability estimates -- encoder-free, hence the uniform
 plateau. The purge is Proposition 4, and its b-over-a residue is the
 dynamics' demand asymmetry measured in isolation. The theory states
 its own exposure: if held-out NLL ties exactly between arms, mechanism
-A is wrong. Its sharpest pre-registered prediction was tested the same
-day and CONFIRMED in every cell (E9_head_refit.md): a head-only refit
-on the frozen tables -- run purely as the theory's OFFLINE
-DISCRIMINATOR, not as a method (refit-style corrections are out of
-scope: the model operates in real time) -- recovers to the probe
-ceiling wherever information is present (DKVMN difficulty .652 ->
-.989; transformer difficulty .604 -> .982) and stays flat exactly
-where attention crowded the information out (transformer 2PL slope
-.435). This verifies the displacement-vs-crowding decomposition
-experimentally and strengthens the case for SK as the cure: only the
-trained-in separated key repairs both mechanisms while preserving the
-real-time operating assumption.
+A is wrong. Its verification rests on the probe matrix above, which it
+predicts in sign and ordering: difficulty decodable at .97+ from every
+shared embedding while the trained heads read as low as .65
+(displacement), slope decodability collapsing only under global
+attention (crowding), and the SK purge with its demand-ordered
+difficulty residue (dkvmn > lstm > transformer). Its remaining
+pre-registered predictions -- the held-out NLL and calibration gap
+despite the accuracy tie, the DKVMN memory-size sweep, the summary-key
+ablation, the gradient-geometry ordering -- are cheap follow-ups, each
+tied to a named mechanism. The cure is singular: the trained-in
+separated key, fully online at inference, repairs both mechanisms
+while preserving the real-time assumption the model lives under.
 
 ## The storyline that answers the criticism
 
