@@ -1263,3 +1263,26 @@ Acquisitions:
   12 -> 3 GiB, resubmitted as job 553056 (monitor with
   sacct-confirmed exit; the first monitor false-exited on one empty
   squeue reply -- fixed to require terminal-state confirmation).
+
+## 2026-07-31 early: deep-Junyi memory SOLVED, walltime is the real constraint; paper campaign OPENED
+
+- Memory probe 553147 (chunk=1, B=2, 6h cap): NO OOM -- MaxRSS 137G
+  vs the ~243-248G kills at chunk 3/12. The budgeted chunking WAS the
+  lever once chunk=1; the estimator's ~0.5G/replicate guess is ~70x
+  under for this bed shape (engineering follow-up owed, not urgent).
+  But the probe TIMED OUT before finishing 2 replicates: measured
+  cost ~1.5-2h per permutation replicate on the deep cohort.
+- Consequence measured, not extrapolated: B=39 needs ~2.5-3 days.
+  Resubmitted as job 560630 (chunk=1, B=39, -t 4320). Pre-registered
+  B=39 kept intact rather than degrading null resolution for speed.
+  Monitor attached (30-min polls, sacct-confirmed exit).
+- AUTHOR INSTRUCTION (mid-session): minimal GPU use, cluster and
+  local; real compute delayed for later. Applied: the approved
+  external-alignment pilot (Junyi prerequisite graph, full-K) is
+  DEFERRED to code-prep only, no launch; deep-Junyi 560630 stays (CPU
+  node, pre-approved thread continuation); nothing else computes.
+- Thread C OPENED: Paper 2 drafting campaign in kt-mirt-paper/
+  (plan-of-plan approved; framing F1 certify-then-claim + boundary
+  map, my call per author; venue-agnostic; markdown only tonight).
+  Stage 1 grounding workflow launched (evidence map, Paper-1
+  continuity, verified related-work). Pipeline log kt-mirt-paper/LOG.md.
