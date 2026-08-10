@@ -12,9 +12,12 @@ the failure decomposes into two proven mechanisms (head displacement,
 universal; representation crowding, architecture-dependent); a
 one-embedding separated key -- trained in, fully online at inference,
 consistent with the model's real-time operating assumption -- repairs
-both at zero prediction cost; and a truth-free audit detects the
-failure without ground truth. Unpredictable disease, one cheap
-trained-in cure, and a meter that says when you need it.
+both at zero accuracy cost (the shared arm keeps a small held-out
+NLL edge, .005-.043 nats: the quantified price prediction pays for
+the very entanglement that corrupts measurement); and a truth-free
+audit detects the failure without ground truth. Unpredictable
+disease, one cheap trained-in cure, and a meter that says when you
+need it.
 
 ## Three statements, each carried by one table
 
