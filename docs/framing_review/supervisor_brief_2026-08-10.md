@@ -107,18 +107,23 @@ Proposition 1: its stationary point forces the per-item score to zero,
 making the trained heads exact conditional M-estimators given the
 model's own ability estimates -- encoder-free, hence the uniform
 plateau. The purge is Proposition 4, and its b-over-a residue is the
-dynamics' demand asymmetry measured in isolation. The theory states
-its own exposure: if held-out NLL ties exactly between arms, mechanism
-A is wrong. Its verification rests on the probe matrix above, which it
+dynamics' demand asymmetry measured in isolation. Its verification rests on the probe matrix above, which it
 predicts in sign and ordering: difficulty decodable at .97+ from every
 shared embedding while the trained heads read as low as .65
 (displacement), slope decodability collapsing only under global
 attention (crowding), and the SK purge with its demand-ordered
-difficulty residue (dkvmn > lstm > transformer). Its remaining
-pre-registered predictions -- the held-out NLL and calibration gap
-despite the accuracy tie, the DKVMN memory-size sweep, the summary-key
-ablation, the gradient-geometry ordering -- are cheap follow-ups, each
-tied to a named mechanism. The cure is singular: the trained-in
+difficulty residue (dkvmn > lstm > transformer). Two of its
+falsification tests have now been RUN. The nonlinear-probe check
+passed (an MLP probe on the transformer table finds nothing the
+linear probe missed, .14 -- the slope absence is real). The NLL test
+came back AGAINST the original sign: the shared arm wins held-out NLL
+slightly (.005-.043 nats, accuracy tied) -- the prediction was
+mis-derived and is withdrawn, and the corrected account is stronger:
+the shared channel's larger effective function class makes the
+displacement likelihood-PROFITABLE, so the corruption is purchased by
+prediction training, not incidental (P1_nll_ece.md). The summary-key
+ablation is running; the memory-size sweep and gradient-geometry
+ordering remain cheap follow-ups. The cure is singular: the trained-in
 separated key, fully online at inference, repairs both mechanisms
 while preserving the real-time assumption the model lives under.
 
