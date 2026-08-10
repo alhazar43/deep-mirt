@@ -1190,7 +1190,7 @@ Acquisitions:
   mechanism demonstrated on real data) OR stays silent (boundary
   story weakened -- logged honestly either way).
 
-## 2026-07-30 overnight: both threads EXECUTING (direct-drive mode)
+## 2026-08-10 overnight: both threads EXECUTING (direct-drive mode)
 
 - CONTEXT: the subagent/workflow API path was unstable (spawns dying
   on connection resets; a workflow resume stalled at 0 tokens). The
@@ -1229,7 +1229,7 @@ Acquisitions:
   {0.01,0.02,0.04,0.08} at reference + winner. Plumbing
   micro-smoked; full run in background.
 
-## 2026-07-30 overnight: Thread A COMPLETE -- verdict in r0a1_interference_verdict.md
+## 2026-08-10 overnight: Thread A COMPLETE -- verdict in r0a1_interference_verdict.md
 
 - EXPECTATION vs REALITY: expected the L1 ladder to hold true zeros
   and unlock the 1x negative dose; REALITY refuted it (no qualifying
@@ -1264,7 +1264,7 @@ Acquisitions:
   sacct-confirmed exit; the first monitor false-exited on one empty
   squeue reply -- fixed to require terminal-state confirmation).
 
-## 2026-07-31 early: deep-Junyi memory SOLVED, walltime is the real constraint; paper campaign OPENED
+## 2026-08-11 early: deep-Junyi memory SOLVED, walltime is the real constraint; paper campaign OPENED
 
 - Memory probe 553147 (chunk=1, B=2, 6h cap): NO OOM -- MaxRSS 137G
   vs the ~243-248G kills at chunk 3/12. The budgeted chunking WAS the

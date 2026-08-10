@@ -1,6 +1,6 @@
 # Claim-language constraints (binding for every downstream agent)
 
-Synthesized at the Stage 1 gate (2026-07-31) from the verified
+Synthesized at the Stage 1 gate (2026-08-11) from the verified
 literature sweep (`related-work/`). These rules bind framing, outline,
 and prose. No agent may relax them; tightening is allowed.
 

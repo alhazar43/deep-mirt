@@ -1,6 +1,6 @@
 # Paper 2 pipeline log
 
-- 2026-07-31 ~04:00 Plan approved (see PLAN.md decisions). Stage 0
+- 2026-08-11 ~04:00 Plan approved (see PLAN.md decisions). Stage 0
   scaffold created (this folder, PLAN.md, LOG.md; subfolders arrive
   with their stages' outputs).
 - Stage 1 grounding workflow LAUNCHED (evidence extraction from

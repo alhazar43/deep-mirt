@@ -409,7 +409,7 @@ memory-budgeted, B=39 first -- all the banked lessons).
 state monitoring; kill by enumerated PID only; memory budget env on
 every cluster job; small-B-first; verdicts logged win or lose.
 
-## 2026-07-30 overnight: direct-drive execution notes
+## 2026-08-10 overnight: direct-drive execution notes
 
 **Why epoch-robustness, not tuned stopping (Thread A).** The CT0 leak
 grows with epochs at flat NLL. Two candidate fixes: stop earlier
@@ -435,7 +435,7 @@ relative `cd` after the session cwd had already moved (the
 micro-smoke's cd persisted). Absolute paths in every background
 launch from here on.
 
-## 2026-07-30 late: what the shuffle kill actually says
+## 2026-08-10 late: what the shuffle kill actually says
 
 The shuffle preserves per-KC counts and per-KC internal order,
 randomizing only the cross-KC interleaving. A uniform re-interleave

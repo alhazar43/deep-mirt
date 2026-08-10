@@ -183,7 +183,7 @@ evidence leans toward B, but that is your call.
 
 ---
 
-## Addendum, 2026-07-30 overnight: the influence question got its first real answers
+## Addendum, 2026-08-10 overnight: the influence question got its first real answers
 
 This addendum covers the overnight run on the program's SECOND goal,
 skill-to-skill influence (does practicing skill A help or hurt skill

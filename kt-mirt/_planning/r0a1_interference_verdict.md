@@ -1,6 +1,6 @@
 # R0-A1 verdict: the interference read -- L1 refuted, dose floor certified, causal framing killed at this grain
 
-Status: run 2026-07-30 overnight, direct-drive (scripts
+Status: run 2026-08-10 overnight, direct-drive (scripts
 `r0a1_study.py`, `r0a1_floor_cert.py`, `r0a1_kill_arms.py`; raw JSONs
 under `outputs/a1/r0a1/`, numbers transcribed here because outputs/ is
 never committed). Follows `ct0_power_result.md` (CT0: negative half

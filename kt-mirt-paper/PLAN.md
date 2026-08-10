@@ -1,4 +1,4 @@
-# Paper 2 plan of record (frozen 2026-07-31)
+# Paper 2 plan of record (frozen 2026-08-11)
 
 Proposal in `PLAN_OF_PLAN.md`. Author decisions, verbatim intent:
 

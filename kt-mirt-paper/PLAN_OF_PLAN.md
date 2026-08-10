@@ -1,6 +1,6 @@
 # Plan-of-the-plan, Paper 2 (the kt-mirt paper)
 
-Written 2026-07-31 early morning for author approval before any agent
+Written 2026-08-11 early morning for author approval before any agent
 drafting launches. Nothing below is prose for the paper. The working
 directory for everything paper-related is this folder, `kt-mirt-paper/`,
 to keep it apart from the code tree (`kt-mirt/`) and from Paper 1's
