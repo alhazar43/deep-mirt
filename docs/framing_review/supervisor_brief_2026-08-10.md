@@ -132,6 +132,23 @@ case studies: EdNet is the rung where the repair is verifiable against
 MML; TIMSS is the rung where truth is absent and the audit is what a
 practitioner has.
 
+## The weakest cell, closed out (same-day)
+
+The real nominal cell (EdNet-NRM) was the study's open wound: terrible
+concordance both arms, SK unstable, the audit loud. Diagnosis: the cell
+loads the full 4,220-item bank at **5.1 responses per parameter** (the
+other cells sit at 300-530) against an MML anchor covering 395 of
+4,220 items -- the starvation boundary by construction, no bug (key and
+loader verified clean). A matched-exposure rerun (top-250 option-rich
+items x 8,493 learners = 191 resp/param; identical protocol) settles
+it: both arms stabilize (.76/.78), the audit calms (.24/.33), the arms
+genuinely diverge (.60 agreement) -- and the model-free empirical
+anchor (option point-biserials) sides with the separated key, **.705
+vs .437**. The real-data nominal result now aligns with the synthetic
+story; the canonical cell stays as the honestly-labeled exposure
+floor. (docs/framing_review/nrm_matched_exposure.md;
+kt-irt/results/p2_nrm250)
+
 ## What exists vs what remains
 
 In hand, committed: the full synthetic grid with paired statistics
