@@ -28,13 +28,15 @@ does not:
 | dkvmn gpcm | .879/.849 | .879/.974 | .868/.983 | repaired |
 | SK control (key) | .898/.957 | .834/.988 | .715/.975 | control: already near-optimal, refit does not move it up |
 
-Consequences: (1) the two-mechanism decomposition (displacement vs
+Consequences: the two-mechanism decomposition (displacement vs
 crowding) is experimentally verified by its own pre-registered
-discriminator; (2) the paper gains a REPAIR LADDER -- head refit
-(zero retraining, truth-free, fixes displacement: most of the failure
-in lstm/dkvmn and all of everyone's difficulty) < separated key (one
-embedding at training time, fixes both mechanisms) -- with the audit
-deciding whether any rung is needed. The refit uses only the model's
-own ability estimates and its training data; it is deployable on
-already-trained models as-is.
+discriminator, and the case for SK sharpens: only the trained-in
+separated key repairs both mechanisms.
+
+SCOPE (author ruling, strict): this refit exists ONLY as an offline
+scientific instrument for testing the theory. Refit-style corrections
+are BANNED as methods or deliverables in this research -- the model
+operates under a real-time assumption, and any post-hoc refit violates
+the premise it lives under. Nothing in this exhibit is a proposed
+repair; the cure story is SK plus the audit, full stop.
 

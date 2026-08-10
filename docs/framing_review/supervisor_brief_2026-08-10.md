@@ -10,10 +10,11 @@ as a byproduct of what their sequence dynamics need. Where the readout
 fails depends on the architecture and is unpredictable in practice;
 the failure decomposes into two proven mechanisms (head displacement,
 universal; representation crowding, architecture-dependent); a
-zero-retraining head refit repairs the first, a one-embedding
-separated key repairs both at zero prediction cost; and a truth-free
-audit detects the failure without ground truth. Unpredictable disease,
-a two-rung cure, and a meter that says which rung you need.
+one-embedding separated key -- trained in, fully online at inference,
+consistent with the model's real-time operating assumption -- repairs
+both at zero prediction cost; and a truth-free audit detects the
+failure without ground truth. Unpredictable disease, one cheap
+trained-in cure, and a meter that says when you need it.
 
 ## Three statements, each carried by one table
 
@@ -106,16 +107,17 @@ plateau. The purge is Proposition 4, and its b-over-a residue is the
 dynamics' demand asymmetry measured in isolation. The theory states
 its own exposure: if held-out NLL ties exactly between arms, mechanism
 A is wrong. Its sharpest pre-registered prediction was tested the same
-day and CONFIRMED in every cell (E9_head_refit.md): refitting only the
-heads on the frozen tables -- no retraining, no ground truth, ability
-clamped at the model's own estimates -- recovers to the probe ceiling
-wherever information is present (DKVMN difficulty .652 -> .989;
-transformer difficulty .604 -> .982; lstm slope .553 -> .779) and
-stays flat exactly where attention crowded the information out
-(transformer 2PL slope .435). The paper therefore ships a REPAIR
-LADDER: head refit (free, post hoc, fixes displacement) < separated
-key (one embedding at training time, fixes both mechanisms), with the
-truth-free audit deciding whether any rung is needed.
+day and CONFIRMED in every cell (E9_head_refit.md): a head-only refit
+on the frozen tables -- run purely as the theory's OFFLINE
+DISCRIMINATOR, not as a method (refit-style corrections are out of
+scope: the model operates in real time) -- recovers to the probe
+ceiling wherever information is present (DKVMN difficulty .652 ->
+.989; transformer difficulty .604 -> .982) and stays flat exactly
+where attention crowded the information out (transformer 2PL slope
+.435). This verifies the displacement-vs-crowding decomposition
+experimentally and strengthens the case for SK as the cure: only the
+trained-in separated key repairs both mechanisms while preserving the
+real-time operating assumption.
 
 ## The storyline that answers the criticism
 
