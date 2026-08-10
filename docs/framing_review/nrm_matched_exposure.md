@@ -84,8 +84,12 @@ raw data with no model; 250/250 items covered.)
 
 ## Caveats
 
-Single encoder (lstm) so far; the anchor is a proxy (linear
-point-biserial against a correctness score), not truth; both deltas
+All three encoders now covered (the single-encoder caveat is retired);
+one platform still (EdNet; the Eedi pre-registered replication is the
+cross-platform test). The anchor is a proxy (linear point-biserial
+against a correctness score), not truth, pending the guardrails
+(option-count floors, frequency weighting, anchor split-half
+reliability) before any classical-bar sentence; both deltas
 remain above the synthetic alarm threshold .152 (no real readout is
 fully clean -- consistent with the study-wide finding); accuracies are
 not comparable across banks (different item mix); the canonical cell
