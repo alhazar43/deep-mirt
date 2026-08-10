@@ -216,12 +216,6 @@ Transfer to the real system. M1-M3 transfer under local quadratic expansion of t
 6. **Interventions on the Fisher weights.** Widening the ability distribution (population SD $0.5 \to 2$) raises $I_{aa}$ relative to $I_{bb}$, so SH $a$ recovery and $a$ probe rise while $b$ barely moves, and the transformer's $a$ absence is partially repaired. Extending $K$ ($3,5,7$) continues the observed 2PL$\to$GPCM trend in both deposit and recovery with diminishing returns, and raises the SK value-table $b$ trace (already $.449 \to .605$, $.329 \to .526$) while the $a$ trace stays near zero.
 7. **Nonlinear-probe check on "absence."** An MLP probe on the transformer 2PL SH table stays low ($\lesssim .5$) for $\log a$. If it recovers $.7+$, regime 2 is nonlinear encoding rather than absence, and mechanism B needs restating as format mismatch rather than crowding.
 
-(Note: an earlier draft carried a frozen-table head-refit prediction; it
-is withdrawn on the author's standing ruling that refit constructs have
-no place in this research — the model operates under a real-time
-assumption. The mechanism separation above is carried by the probe
-matrix and Predictions 1, 4, and 5.)
-
 ---
 
 ## 11. Honesty ledger
