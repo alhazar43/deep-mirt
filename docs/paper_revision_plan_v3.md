@@ -98,8 +98,14 @@ isolation.
   training, not incidental. Reported honestly; sharpens the
   dissociation (both sides of the trade now have prices).
 - DKVMN summary-key stop-gradient ablation (the flip's load-bearing
-  test): running; prediction = SH difficulty rises toward the lstm
-  level. Either outcome is publishable (confirm mechanism / scope it).
+  test): CONFIRMED, stronger than predicted. On the spiraled bed,
+  cutting only the gradient through the key-to-summary path lifts SH
+  difficulty from .652 to .904 (past the lstm reference .723) and SH
+  discrimination .752 to .853, accuracy unchanged, SK control flat.
+  Bonus finding: the displacement is BED-DEPENDENT -- under
+  uniform-random item draws the lag never appears (.989 unablated);
+  structured (spiraled) sequencing is required to generate systematic
+  gradient pressure through the path. Store: p2_toggle_sg.
 
 DKVMN is the mechanism's fingerprint, not an anomaly: it internally
 separates addressing (static key memory) from state (dynamic value
@@ -164,7 +170,21 @@ distractor-validation standard (Gierl et al. 2017 review), computed
 from raw data with no model. Every encoder: the anchor sides with the
 separated key; lstm and dkvmn are near-identical (+.25); the
 transformer is weakest with either arm (consistent with its crowding).
-Guardrails NOW APPLIED (option-count floor 50, frequency-weighted
+FULL MATCHED-BANK BENCHMARK REBUILT (kt-irt/results/p2_matched_bench.md;
+figure overleaf-sync/figures/fig_matched_anchor.pdf): per encoder,
+guardrailed anchors on ednet250 -- lstm .548->.632, dkvmn .562->.609,
+transformer .378->.447 (every encoder SK-positive); eedi250 lstm
+.756->.723 (the level-not-direction outcome). Floors: item-majority
+.584 (ednet250) / .569 (eedi250); IRT arms clear the ednet floor
+(.591-.597) while direct heads do not (.563-.585); on eedi the IRT
+arms sit AT the floor (.568-.573) -- the cell's value is anchor level,
+not prediction, and the table says so. Classical MML: estimable on
+eedi250 only (concordance .626/.623 with the full fit for BOTH arms),
+and its own split-half self-agreement is r=.163 (ceiling ~.28) --
+weaker than either arm's stability, the ceiling argument made
+concrete; on ednet250 the campaign mirt harness fails on real option
+data (documented, results/p2_matched_mml) -- the point-biserial is
+the anchor of record on both banks. Guardrails NOW APPLIED (option-count floor 50, frequency-weighted
 distractor means, anchor split-half reliability, paired seed stats):
 the EdNet headline becomes SH .548 -> SK .632, +.094 [t(4)=10.5, 5/5
 seeds], anchor reliability .857 -- passes every pre-set criterion;
@@ -363,11 +383,16 @@ refit-style method (banned; real-time assumption).
 
 ## 7. Remaining work
 
-Compute (agent, running/queued): DKVMN summary-key ablation (P3);
-Eedi pre-registered replication; then anchor guardrails (floors,
-reliability, paired stats), MML self-agreement ceilings (CPU), the
-memory-size sweep and gradient-geometry checks as optional
-follow-ups.
+Compute: COMPLETE. Executed and committed: the full falsification
+package (P7 passed; P1 sign-refuted with the purchased-corruption
+account; P3 confirmed with bed-dependence), the Eedi pre-registered
+replication, guardrailed anchors for every encoder on both banks,
+direct baselines and floors on both matched banks, classical-MML
+anchors/ceilings where estimable, the rebuilt benchmark table
+(p2_matched_bench.md), and the anchor figure. Optional follow-ups
+that remain genuinely open: the DKVMN memory-size sweep, the
+gradient-geometry ordering, PIRLS as a revision-stage second
+official-anchor bed if a reviewer demands one.
 Writing (author): the rewrite per section 4 from the committed
 evidence; every table exists; the two must-not sentences respected;
 title to be chosen.
@@ -378,7 +403,10 @@ encoders, no MIRT, no refit-style methods ever.
 
 ## 8. Source map (for verification)
 
-Master audit: docs/results_critique.md. Theory:
+Master audit: docs/results_critique.md. Matched-bank benchmark:
+kt-irt/results/p2_matched_bench.md (+ stores p2_matched_direct,
+p2_matched_mml, p2_toggle_sg; figure
+overleaf-sync/figures/fig_matched_anchor.pdf). Theory:
 docs/framing_review/theory_contention.md. Probes/exhibits:
 docs/framing_review/E6-E8, P1_nll_ece.md, nrm_matched_exposure.md,
 format_unification.md. External landscape + expert reads:
