@@ -1,0 +1,54 @@
+{
+  "_provenance": {
+    "description": "Summary statistics extracted from the kt-mirt real-bed pilot result files on the UT HPC cluster. The full result files are 32 MB (KDD) and 23 KB (Junyi) and live under outputs/, which is never committed, so the scalars needed for the slide figures are recorded here with their sources.",
+    "extracted": "2026-08-11",
+    "kdd_source": "uthpc:kt-mirt-stage/kt-mirt/outputs/a4/realpilot/kdd_real/kdd_real/slice_seed0.json (written 2026-07-23)",
+    "junyi_source": "uthpc:kt-mirt-stage/kt-mirt/outputs/a4/realpilot/junyi_real/junyi_real/slice_seed0.json (written 2026-07-23)",
+    "depth_source": "full-file scan of data/junyi15/junyi_ProblemLog_original.csv (2026-08-11) for the Junyi rows; KDD interactions-per-student from _planning/triage/triage_report.md"
+  },
+  "kdd_real": {
+    "bed": "kdd_real",
+    "bed_pvalue": 0.01,
+    "bed_stat": 6113.820539539796,
+    "n_perm_bed": 99,
+    "n_learners": 3310,
+    "n_analysis_learners": 1655,
+    "n_kcs": 515,
+    "analysis_unsaturated": 257,
+    "calib_unsaturated": 243,
+    "bh_reject": 0,
+    "mean_rows_per_student": 2688,
+    "note": "Positive bed statistic at the B=99 permutation floor. One seed, one cohort split, bed decision restricted to the 257 unsaturated KCs."
+  },
+  "junyi_real": {
+    "bed": "junyi_real",
+    "bed_pvalue": 0.025,
+    "bed_stat": -11763.780098586867,
+    "n_learners": 40000,
+    "n_analysis_learners": 20000,
+    "n_kcs": 40,
+    "n_kcs_attempted": 39,
+    "bh_reject": 0,
+    "mean_rows_per_student": 105,
+    "biased_first40k_bed_stat": -11038.9,
+    "note": "Seeded-random 40k cohort. The bed statistic is NEGATIVE, so the growth model loses to the no-growth reference and no growth is detected; the small p-value is a low-tail artifact of that negative statistic and must not be read as a fire. The near-identical biased first-40k statistic rules out a sampling-bias explanation."
+  },
+  "deep_junyi_pending": {
+    "bed": "junyi_real deepest-40k",
+    "mean_rows_per_student": 557,
+    "depth_cutoff_rows": 108,
+    "max_rows_one_student": 22067,
+    "cohort_rows": 22274847,
+    "cohort_share_of_all_rows": 0.859,
+    "slurm_job": 560630,
+    "status": "running, verdict pending"
+  },
+  "junyi_population": {
+    "n_students": 247606,
+    "n_rows": 25925992,
+    "median_rows_per_student": 10,
+    "p75_rows_per_student": 50,
+    "p90_rows_per_student": 220,
+    "p99_rows_per_student": 1670
+  }
+}
