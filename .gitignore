@@ -181,6 +181,7 @@ rl/data/
 # EdNet raw data (large; permanent home is rl/data/ednet_raw/, do not commit)
 /EdNet-KT1/
 /EdNet-Contents/
+/EdNet-Eedi/
 EdNet-*.zip
 
 # KDD Cup 2010 raw data (large; extracted under data/, do not commit)
