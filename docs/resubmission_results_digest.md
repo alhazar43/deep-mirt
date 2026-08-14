@@ -95,6 +95,33 @@ levels sit below sorted where thresholds disorder (transformer-gpcm SH
 sorted .768 vs raw .659) and the SK-SH contrast survives and GROWS in
 raw form (+.269 raw vs +.179 sorted). 2PL raw == sorted (K=2).
 
+## T6. Training-duration control (added 2026-08-14) -- SH IS NOT SLOW
+
+Store results/p2_duration (225 fits, zero failures; report by
+_p2_duration_report). Every SH cell trained to 4x the standard budget
+with early stopping DISABLED, recovery scored at nested 1x/2x/4x marks
+of the same run (identical seed, init, batch order).
+
+NO cell reaches SK by training longer. Eight of nine degrade (lstm-2pl
+-.050 [t=-8.9, 5/5], dkvmn-2pl -.074 [-10.7], transformer-nrm -.088
+[-6.9]); the ninth (dkvmn-nrm) improves +.031 and still lands .922
+against SK's .960. QUALIFICATION, stated in print: held-out accuracy
+falls and NLL rises over the same windows in every cell, so past the
+standard budget these models overfit -- the licensed claim is the narrow
+negative one (more optimization does not rescue the shared readout), NOT
+that optimization trades prediction for parameter error.
+
+## T7. TIMSS raw steps, all three encoders (added 2026-08-14)
+
+100 new fits closed the transformer/dkvmn gap (the frozen panel archived
+only the sorted readout; sorting is not invertible). Learned steps are
+ordered in .41-.43 of items raw, against the sorted export's artifactual
+1.00 and the classical calibration's OWN .613 -- disordered steps are a
+property of these data, not a model defect. Scored consistently (raw
+against the reference's raw steps) agreement is .92-.94 under both paths,
+SK-SH negligible (+.009/-.002/+.010). The .25-.30 figure is what sorting
+one side only produces and is not evidence about the model.
+
 ## Provenance corrections surfaced
 
 1. P1 NLL exhibit: unreproducible from the tree; superseded by the
