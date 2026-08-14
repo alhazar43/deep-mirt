@@ -24,9 +24,16 @@ pure gradient effect (all 27 cells positive; representative cells):
 - dkvmn-2pl b: .652 -> .929 -> .950 (iso-SH +.277 [6.3]; SK-iso +.021
   [1.9] NOT significant: DKVMN's failure is essentially pure gradient
   contention)
-- dkvmn-nrm a: .802 -> .916 -> .968; theta .752 -> .895 -> .918
-- Ability improves under isolation in every cell; accuracy is flat
-  (iso-SH within +-.005, mostly ns).
+- dkvmn-nrm a: .881 -> .918 -> .960; intercepts .737 -> .910 -> .914
+  (the nominal cells were RERUN with the manuscript's canonical routed
+  head after GPT's config audit; the first pass had used the retired
+  toggle sweep's plain channel decoder, a different model. The rerun's
+  SH and SK columns reproduce tab:mass EXACTLY on all three encoders
+  and both parameter families, so all three conditions now sit on
+  identical footing. Store results/p2_gradiso_arm1r, 225 fits.)
+- Isolation is positive in all 5 seeds of every cell for BOTH item
+  families; the single exception in the whole grid is ability recovery
+  in the nominal transformer cell (-.004, 1/5). Accuracy is flat.
 
 NLL, archived per fit for every cell (the P1 gap): the isolated and
 separated paths have HELD-OUT NLL <= SH essentially everywhere (e.g.
