@@ -1,197 +1,197 @@
 # Project Handoff (START HERE)
 
-Last updated 2026-08-17. Read `CLAUDE.md` and the memory index first.
-This file is the state pointer. Plain language throughout, no internal
-codenames.
+Last updated 2026-08-17, after the v7 reset and the Gate 0 and M1/M2 work.
+Read `CLAUDE.md` and the memory index first. This file is the state pointer.
+Plain language throughout, no internal codenames.
 
 Repo root `C:/Users/steph/documents/deep-mirt`, branch
-`feat/prediction-loss`. Paper repo github.com/alhazar43/JEDM-paper
-(name is historical). Framework submodule `kt-irt/`
-(github.com/alhazar43/kt-irt). The working record with the second
-reviewer is kt-irt issue #3, which is long but is the honest history.
+`feat/prediction-loss`. Paper repo github.com/alhazar43/JEDM-paper (name is
+historical). Framework submodule `kt-irt/` (github.com/alhazar43/kt-irt).
+
+The working thread with the second reviewer is **kt-irt issue #5**. Issue #3
+is an archive of how the evidence was found and should not be treated as the
+plan. The v6 four-figure system is dead and its prototypes are not to be
+iterated on.
 
 ## 1. The paper in plain words
 
-A knowledge tracing model is trained only to predict whether a learner
-answers the next question correctly. Some of these models also report
-item response theory quantities as a side product, such as how hard an
-item is and how sharply it separates strong learners from weak ones.
-People read those numbers as measurements.
+A knowledge tracing model is trained only to predict whether a learner answers
+the next question correctly. Some of these models also report item response
+theory quantities as a side product, such as how hard an item is and how sharply
+it separates strong learners from weak ones. People read those numbers as
+measurements.
 
-We asked whether those numbers can be trusted. The answer is that they
-depend heavily on architecture choices that prediction accuracy cannot
-see. Two models that predict almost identically can report very
-different item parameters.
+The paper asks which gradients actually train those numbers. An item
+representation can receive two very different kinds of credit. When the item is
+answered, the response feeds back through the psychometric head, and that
+channel has the same shape as calibrating the item. When the same item sits in
+a learner's history, later responses feed back through the sequence model, and
+that channel only asks the item representation to help predict the future. The
+second channel is not a calibration signal and nothing in the objective asks it
+to be one.
 
-We can name two causes. The first is how wide the representation is
-that the parameter readout reads. The second is whether the sequence
-model is allowed to change that same representation during training. A
-control that leaves the forward computation completely unchanged and
-only removes the sequence model's ability to write into the item
-representation improves the reported parameters in all nine model
-families we tested.
-
-The original claim of the earlier draft, that splitting the item
-representation into two tables is what helps, is dead. It died because
-the old comparison also widened the readout at the same time. When
-widths are matched, splitting alone does almost nothing.
+So the question is not whether item embeddings should be split in two, and not
+which width is best. It is which prediction-credit paths are allowed to write
+into the storage the psychometric parameters are read from. Forward separation
+is not backward separation.
 
 ## 2. What is settled
 
-All numbers below come from five data seeds by five folds per cell, on
-synthetic data, across three sequence models and three response
-formats, which is nine families.
+### From the frozen synthetic grid, five data seeds by five folds
 
-- Widening the representation the parameter readout reads improves
-  recovery in nine of nine families.
-- Widening the item representation on the sequence side helps in zero
-  of nine and clearly hurts in four.
-- Removing the sequence model's write access, with the forward pass
-  held identical, improves recovery in nine of nine. Accuracy moves by
-  a median of 0.002.
-- Splitting into two tables at matched width does almost nothing. Of
-  45 matched comparisons, 42 fall below the agreed materiality bar.
-  The three that pass are all at narrow widths and share neither
-  family nor width.
-- Prediction accuracy across all these designs moves within about half
-  a percentage point while recovery ranges from about 0.30 to 0.96.
-- There is a mathematical account, checked numerically. At a training
-  optimum, designs that deny the sequence model write access satisfy
-  exactly the calibration equations a psychometrician would solve. The
-  shared design satisfies a version of those equations pushed off
-  target. This also predicts, correctly, which parameter suffers most
-  and why the effect shrinks as the readout widens.
-- One architecture behaves differently in a useful way. The memory
-  based model gains almost nothing from width but still gains from
-  removing write access. Its own design keeps ability outside the item
-  representation. Caution, our version of that model ties both of its
-  internal roles to one item table, unlike the published design, and
-  that must be disclosed.
+Three sequence models by three response formats, nine families.
 
-## 3. What is not working, and it is the main thing to talk about
+- Removing the sequence model's ability to write into the measurement storage,
+  with the forward computation held bitwise identical, improves the primary item
+  parameter in nine of nine families. It clears the agreed materiality bar of
+  0.05 in the six non-nominal families; the three nominal families improve by
+  0.020 to 0.037 and fall short of it. Say it that way, not "nine of nine".
+- Held-out likelihood under that intervention is equal or better in eight of
+  nine families, largest gain 0.0085, worst loss 0.0003. Prediction is not
+  merely preserved, it is very slightly better.
+- Widening the representation the parameter readout reads improves recovery in
+  nine of nine. Widening the item representation on the sequence side helps in
+  zero of nine and clearly hurts in four.
+- Splitting into two tables at matched width does almost nothing. Of 45 matched
+  comparisons, 42 fall below the materiality bar.
+- Prediction accuracy across all these designs moves within about half a
+  percentage point while recovery ranges from about 0.30 to 0.96.
 
-The figures do not communicate. That judgment is the author's and it
-is correct. My diagnosis, offered so the next conversation does not
-repeat the mistake.
+### From the Gate 0 autograd audit, `kt-irt/docs/v7_audit.md`
 
-Everything we have drawn so far is a picture of agreement statistics.
-Panels of correlation coefficients, effect sizes with error bars,
-points in a plane of two effects. A reader sees 0.57 against 0.90 and
-has no way to know whether that difference would change anything they
-do. We converted a stats table into pictures of the same stats.
+Verified numerically on a rerunnable instrument, not asserted from comments.
 
-Three specific problems.
+- The credit decomposition is exact. The two parts are computed independently
+  and reconstruct the full gradient to 1e-7 or better, at initialisation and at
+  fitted weights.
+- The one-step shift does what it claims. Credit reaching an item's row from
+  losses at or before its own occurrence is exactly zero in all three encoders,
+  so the attention mask does not leak.
+- The isolation intervention leaves response probabilities equal to the last bit.
+- The published DKVMN uses a separate interaction table for memory content; ours
+  reuses the question-side table there. But the published Deep-IRT reads
+  difficulty from the same embedding that drives addressing and the summary, so
+  its difficulty is already exposed to cross-time credit through those two
+  routes. Our implementation adds a third. Verified against both papers.
+- The three DKVMN routes can be cut independently and forward-identically, and
+  are additive as vectors. Cuts must recompute a route's input from a detached
+  embedding; detaching the shared per-step key also strips another parameter's
+  gradient, which is what the old summary-key ablation did.
+- The measurement readout subspace is one global two-dimensional plane for the
+  static two-parameter head, the span of the two readout weight rows, the same
+  for every item. Call it a shared measurement subspace. Do not say items
+  compete for the same directions.
 
-First, no consequence is ever shown. Nothing in the figures tells a
-teacher, a test developer, or a modeler what breaks. The natural fix
-is to show a decision. Two models that predict equally well disagree
-about which twenty items are the hardest, or about which items are too
-weak to keep, or about where a particular learner stands. That is a
-picture with a victim.
+### From M1 and M2 on 54 fitted checkpoints, `kt-irt/results/p2_v7_m2/report.md`
 
-Second, we buried the most striking result we have. When the estimated
-values are plotted against the generating values with the identity
-line drawn, every design compresses the scale badly. The slopes are
-about 0.15, 0.19, 0.25 and 0.56 across the four designs. Every model
-we fit understates how sharply items separate learners, by between two
-and seven times. The literature audit found that nobody in this field
-reports scale at all, only correlations, so this may be the most
-publishable single fact in the study, and we found it by accident an
-hour before stopping.
+- M1 passes at fitted weights. Stop A of the freeze is cleared.
+- The refits reproduce their historical parents bit for bit, 53 of 54 units at
+  exactly zero difference, because the bed and protocol are inherited by import
+  rather than copied.
+- **Stop B is triggered.** The in-plane component of cross-time credit does not
+  track the item score or the recovery error better than total cross-time
+  magnitude. Every item-level coefficient is under 0.11 and the in-plane
+  quantity is the weaker of the two in eight of twelve comparisons.
+- The isotropic reference was never applicable. Cross-time credit lives in
+  between two and four effective dimensions at both widths, so the object is an
+  angle between two low-dimensional subspaces, not a dimensional dilution.
+  Against random planes holding the gradients fixed, the fitted readout plane
+  captures less than random at width 8 and more than random at width 64 for the
+  two non-memory encoders, with the memory model at chance.
+- The checkpoints are far from stationary, so the estimating-equation
+  displacement was never testable at them. That is a protocol limit, not a
+  refutation.
 
-Third, the real data section is weak and should be presented as weak.
-On the assessment data the two designs give agreement of about 0.12
-and 0.43 with a classical calibration, so the better one is still poor.
-On the log data, when item estimates are averaged over all runs, the
-two designs are indistinguishable at about 0.90 each, and only single
-runs separate them, which points to run to run instability rather than
-a systematic difference.
+## 3. Open decisions
 
-One idea worth trying next, not yet built. The most common display in
-this field is a single learner's estimated ability over time. We have
-full ability trajectories for four hundred held out learners in every
-design. Nobody has ever drawn that display for two models that predict
-identically. Showing the same learner's ability curve under two such
-models, side by side with the responses underneath, would be
-immediately readable by the knowledge tracing audience and would make
-the point without a single correlation coefficient.
+These belong to the author and the second reviewer.
 
-## 4. Open decisions
+1. Accept Stop B and retreat to the write-access intervention plus the
+   decomposition, or reopen the geometry question on the subspace-angle quantity
+   with a written falsifier first. Promoting the new quantity without one is the
+   rescue-after-seeing that the freeze forbids.
+2. Whether to authorise fits continued to near stationarity so the
+   estimating-equation displacement becomes testable. This is a protocol change
+   on a frozen bed.
+3. Whether the paper's centre is a warning and an audit procedure or an
+   architecture recommendation. The evidence still supports the first more
+   comfortably.
+4. Whether the real data section stays in the main text at its current strength,
+   moves to an appendix, or is presented as a limitation. On the assessment data
+   agreement with a classical calibration is about 0.12 and 0.43, so even the
+   better design is poor. On the log data, averaged item estimates make the two
+   designs indistinguishable at about 0.90 each and only single runs separate
+   them, which points to run to run instability.
+5. On the log data, whether to report averaged or single-run item estimates.
+   They disagree and the choice must be stated.
 
-These belong to the author and the second reviewer, not to me.
+## 4. Rules in force
 
-1. Whether the paper's center is a warning and an audit procedure, or
-   an architecture recommendation. The evidence supports the first
-   more comfortably than the second.
-2. Whether the scale compression result is promoted to the headline.
-3. Which figure system to use, now that the four prototypes have been
-   seen and judged not to work.
-4. Whether the real data section stays in the main text at its current
-   strength, moves to an appendix, or is presented explicitly as a
-   limitation.
-5. On the log data, whether to report averaged item estimates or single
-   run estimates. They disagree and the choice must be stated.
-
-## 5. Rules in force
-
-- No prose goes into the manuscript file directly. Everything for the
-  paper is drafted in `overleaf-sync/rewrite_kit/` and the author
-  splices it.
-- Plain language everywhere, including figures, captions, tables and
-  posts on the issue thread. No internal codenames.
-- If something cannot be done with the data or compute that exists,
-  say so at once and stop. The decision to spend more is the author's.
-- Do not run new fits without being asked.
+- No prose goes into the manuscript file directly. Everything for the paper is
+  drafted in `overleaf-sync/rewrite_kit/` and the author splices it.
+- Plain language everywhere, including figures, captions, tables and issue
+  posts. No internal codenames.
+- If something cannot be done with the data or compute that exists, say so at
+  once and stop. The decision to spend more is the author's.
+- Do not run new fits without being asked. When a fit is authorised, inherit the
+  bed and protocol by import and check the result against its historical parent.
+- No publication figures until the mechanism stores are frozen.
 - Commits carry no assistant attribution.
 
-## 6. Where things live
+## 5. Where things live
 
-- Paper planning, current: `overleaf-sync/rewrite_kit/v6/`. Start with
-  `paper_blueprint.md` and `evidence_ledger.md`, then
-  `provenance_and_layout.md` for the agreed figure hierarchy.
-- The mathematical account: `rewrite_kit/two_role_formalization.md`.
-- Claim by claim audit: `rewrite_kit/central_claim_audit.md`.
-- What the two fields actually print when they claim a parameter is
-  trustworthy: `rewrite_kit/v6/validity_displays_kt.md` and
-  `validity_displays_psychometrics.md`. These are the most useful
-  documents produced in the last session.
-- What we can draw from stored results:
-  `rewrite_kit/v6/measurement_object_inventory.md`.
-- The memory model question: `rewrite_kit/v6/memory_encoder_check.md`.
-- Figures, captions and every value behind them:
-  `rewrite_kit/v6/exhibits/`.
-- One generator produces all of it, from committed results only, with
-  no refitting. `kt-irt/src/deep_irt/bench/_p2_v6_exhibits.py`. Run it
-  with the research environment active. It cross checks itself against
-  the frozen report before writing anything.
-- Latest commits, kt-irt 53c8422 and paper repo 7ed99f0.
+- The autograd audit and the graph maps: `kt-irt/docs/v7_audit.md`.
+- Its instrument, which trains nothing and reruns in twenty seconds:
+  `kt-irt/src/deep_irt/bench/_p2_v7_gate0.py`.
+- The M1 and M2 runners and report:
+  `kt-irt/src/deep_irt/bench/_p2_v7_m1_fits.py`,
+  `_p2_v7_m2_gradients.py`, `_p2_v7_m2_report.py`.
+- Their stores: `kt-irt/results/p2_v7_m1`, `p2_v7_m2`, and the report at
+  `p2_v7_m2/report.md`. Checkpoints at `kt-irt/weights/v7_m1`, untracked.
+- Paper-level framing and the experiment freeze:
+  `overleaf-sync/rewrite_kit/v7/global_picture.md` and `experiment_freeze.md`.
+- The mathematical account: `overleaf-sync/rewrite_kit/two_role_formalization.md`.
+- What the two fields print when they claim a parameter is trustworthy:
+  `rewrite_kit/v6/validity_displays_kt.md` and
+  `validity_displays_psychometrics.md`. Still the most useful documents in the
+  kit.
+- The v6 exhibit generator, now historical:
+  `kt-irt/src/deep_irt/bench/_p2_v6_exhibits.py`.
 
-## 7. Data and compute state
+## 6. Data and compute state
 
-Everything needed is on disk. Per item estimated and generating
-parameters exist for all nine families in every design, at five seeds
-by five folds, including the nominal response format. Ability
-trajectories over sixty steps exist for every design. Two real
-datasets have classical calibrations to compare against.
+Per item estimated and generating parameters exist for all nine families in
+every design at five seeds by five folds. Ability trajectories over sixty steps
+exist for every design. Two real datasets have classical calibrations to compare
+against. Per-item gradients, scores, Jacobians and projectors now exist for the
+54 shared checkpoints.
 
-Known gaps. The reversed design, wide on the sequence side and narrow
-on the parameter side, was never fit for the memory model. The nominal
-format on real data has no defensible classical comparison. No trained
-weights were kept, so anything needing the model's internals would
-require refitting.
+Known gaps.
 
-On 2026-08-17 the author authorized filling the missing widths, which
-added 42 cells and 1050 fits in about three hours on the local card.
-Seven of the nine families received their middle and top widths in
-that fill. Those cells are follow up evidence and the paper must not
-read as though a full width sweep was part of the original design.
+- The isolated condition is missing at width 16 for all three encoders and above
+  width 8 for the memory model entirely, because the width runner loops over the
+  other two encoders only. Six cells, 150 fits, under an hour. Gated with M3.
+- The nominal format on real data has no defensible classical comparison.
+- The toggle-family stores hold no held-out likelihood for the two-parameter and
+  ordinal formats, so the prediction companion the freeze names primary does not
+  exist for the width and read-only cells.
+- Five units of the width-64 transformer cells in `results/p2_toggle_w64` are
+  Windows file-lock write failures rather than fits, so those two cells rest on
+  22 and 23 units. The runner's retry flag clears such markers.
+- Trained weights exist for the misspecification grid, the memory-model probe
+  cells, six nominal cells and the 54 new shared checkpoints. Nothing else.
 
-## 8. Rest of the repo
+On 2026-08-17 the author authorised filling missing widths, which added 42 cells
+and 1050 fits, and separately the 54 shared checkpoints above. Both are follow-up
+evidence. The paper must not read as though a full width sweep was part of the
+original design.
+
+## 7. Rest of the repo
 
 - `kt-irt/` is the active framework and is portable. Install with
-  `pip install -e kt-irt`. Tests with `python -m pytest` from inside
-  it. Cluster notes in `kt-irt/slurm/README.md`.
+  `pip install -e kt-irt`. Tests with `python -m pytest` from inside it. Cluster
+  notes in `kt-irt/slurm/README.md`.
 - `kt-mirt/` is an active sideline on multi concept tracing. Start at
   `kt-mirt/_planning/PLAN.md`.
-- `ma-irt/` is the frozen first chapter. `rl/` is parked. The thesis
-  north star is `docs/Thesis_overview.md`.
+- `ma-irt/` is the frozen first chapter. `rl/` is parked. The thesis north star
+  is `docs/Thesis_overview.md`.
