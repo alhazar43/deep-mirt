@@ -1,6 +1,7 @@
 # Project Handoff (START HERE)
 
-Last updated 2026-08-17, after the v7 reset and the Gate 0 and M1/M2 work.
+Last updated 2026-08-17, after the v7 reset and the Gate 0, M1, M2, M3
+and M4 work.
 Read `CLAUDE.md` and the memory index first. This file is the state pointer.
 Plain language throughout, no internal codenames.
 
@@ -88,7 +89,7 @@ Verified numerically on a rerunnable instrument, not asserted from comments.
 - The refits reproduce their historical parents bit for bit, 53 of 54 units at
   exactly zero difference, because the bed and protocol are inherited by import
   rather than copied.
-- **Stop B is triggered.** The in-plane component of cross-time credit does not
+- **Stop B is triggered, and the author has accepted it.** The in-plane component of cross-time credit does not
   track the item score or the recovery error better than total cross-time
   magnitude. Every item-level coefficient is under 0.11 and the in-plane
   quantity is the weaker of the two in eight of twelve comparisons.
@@ -102,27 +103,47 @@ Verified numerically on a rerunnable instrument, not asserted from comments.
   displacement was never testable at them. That is a protocol limit, not a
   refutation.
 
+### From M3 and M4, `kt-irt/results/p2_v7_m3m4/report.md`
+
+- The width boundary is complete for the two-parameter family, 25 units per
+  cell. Blocking cross-time write access improves discrimination recovery in 15
+  of 15 cells and materially at widths 8, 16 and 32. Prediction never moves.
+  Gains by width, 8 through 128: LSTM 0.145, 0.134, 0.069, 0.019, 0.005;
+  Transformer 0.076, 0.079, 0.069, 0.021, 0.002; memory model 0.125, 0.146,
+  0.107, 0.046, 0.026. The memory model keeps a detectable effect at width 128
+  where the other two lose it.
+- The damage has a single route. Blocking only the path where the question
+  embedding enters the per-step summary state recovers 0.88 of what full
+  isolation buys. That is the path published Deep-IRT reads its difficulty from.
+  The memory-content route, which this implementation adds and the published one
+  does not have, is exactly null at 0.0001 with p = 0.89. Addressing is 0.0075.
+- Two cautions. The route split at initialisation, 0.01, 0.97 and 0.13, is not
+  the split at fitted weights, which is 0.28, 0.82 and 0.61; never quote the
+  first as the mechanism. And gradient magnitude does not predict damage at the
+  route level either, since the memory-content route carries 0.61 of the
+  cross-time credit and none of the damage.
+
 ## 3. Open decisions
 
 These belong to the author and the second reviewer.
 
-1. Accept Stop B and retreat to the write-access intervention plus the
-   decomposition, or reopen the geometry question on the subspace-angle quantity
-   with a written falsifier first. Promoting the new quantity without one is the
-   rescue-after-seeing that the freeze forbids.
-2. Whether to authorise fits continued to near stationarity so the
-   estimating-equation displacement becomes testable. This is a protocol change
-   on a frozen bed.
-3. Whether the paper's centre is a warning and an audit procedure or an
+Two that were open on 2026-08-17 are now closed by the author. Stop B is
+accepted, so the projection and width-geometry mechanism is out of v7 as an
+explanatory claim and the low-rank subspace observation survives only as an
+exploratory note. Fits continued to near stationarity are refused, so the
+estimating-equation displacement stays a conditional theorem about stationary
+points and never an empirical claim about the fitted models.
+
+1. Whether the paper's centre is a warning and an audit procedure or an
    architecture recommendation. The evidence still supports the first more
    comfortably.
-4. Whether the real data section stays in the main text at its current strength,
+2. Whether the real data section stays in the main text at its current strength,
    moves to an appendix, or is presented as a limitation. On the assessment data
    agreement with a classical calibration is about 0.12 and 0.43, so even the
    better design is poor. On the log data, averaged item estimates make the two
    designs indistinguishable at about 0.90 each and only single runs separate
    them, which points to run to run instability.
-5. On the log data, whether to report averaged or single-run item estimates.
+3. On the log data, whether to report averaged or single-run item estimates.
    They disagree and the choice must be stated.
 
 ## 4. Rules in force
@@ -168,18 +189,15 @@ against. Per-item gradients, scores, Jacobians and projectors now exist for the
 
 Known gaps.
 
-- The isolated condition is missing at width 16 for all three encoders and above
-  width 8 for the memory model entirely, because the width runner loops over the
-  other two encoders only. Six cells, 150 fits, under an hour. Gated with M3.
 - The nominal format on real data has no defensible classical comparison.
 - The toggle-family stores hold no held-out likelihood for the two-parameter and
   ordinal formats, so the prediction companion the freeze names primary does not
   exist for the width and read-only cells.
-- Five units of the width-64 transformer cells in `results/p2_toggle_w64` are
-  Windows file-lock write failures rather than fits, so those two cells rest on
-  22 and 23 units. The runner's retry flag clears such markers.
 - Trained weights exist for the misspecification grid, the memory-model probe
-  cells, six nominal cells and the 54 new shared checkpoints. Nothing else.
+  cells, six nominal cells, the 54 shared checkpoints of the gradient audit and
+  the 100 route-block fits. Nothing else.
+- The width ladder and the five lost width-64 units are no longer gaps. Both were
+  closed on 2026-08-17.
 
 On 2026-08-17 the author authorised filling missing widths, which added 42 cells
 and 1050 fits, and separately the 54 shared checkpoints above. Both are follow-up
