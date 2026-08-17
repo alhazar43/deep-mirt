@@ -146,9 +146,19 @@ Verified numerically on a rerunnable instrument, not asserted from comments.
   packets, resolved titles included; the storyline lives in
   `overleaf-sync/rewrite_kit/v7/results_spine.md` with the open decisions in
   `open_questions_register.md` beside it.
-- The real-data echo: isolated cells fit for all three encoders on TIMSS
-  ordered, EdNet binary, EdNet nominal, against byte-checked comparators;
-  the report is one command, `python -m deep_irt.bench._p2_v7_m9_report`.
+- The real-data echo is complete: 225 isolated units, zero failures, report
+  at `kt-irt/results/p2_v7_m9/report.md` and Figure 9 rendered. On TIMSS
+  ordered and EdNet binary the synthetic pattern echoes (agreement and
+  stability rise, prediction flat); on EdNet nominal, which has no external
+  reference, isolation lowers cross-fit stability for all three encoders.
+  Both directions are in spine claim H at equal prominence.
+- The assistant's independent second reading is at
+  `overleaf-sync/rewrite_kit/v7/v7_second_reading.md`, committed with its
+  probe pre-registration before the probe ran; its section 6 carries the
+  probe and conditioning results.
+- The Overleaf git remote (`origin` in `overleaf-sync/`) is a stale stub
+  abandoned 2026-07-06; the live remote is `jedm` (github JEDM-paper).
+  Reconciling or recreating the Overleaf project is the author's call.
 
 ## 3. Open decisions
 
