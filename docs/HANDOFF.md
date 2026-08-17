@@ -1,7 +1,9 @@
 # Project Handoff (START HERE)
 
-Last updated 2026-08-17, after the v7 reset and the Gate 0, M1, M2, M3
-and M4 work.
+Last updated 2026-08-18, after the overnight campaign that closed the
+mechanism programme: theory formalization, the canonical storage factorial,
+the ordered-head route replication, the nominal routing audit, eight rendered
+exhibits, the results spine, and the real-data echo tail.
 Read `CLAUDE.md` and the memory index first. This file is the state pointer.
 Plain language throughout, no internal codenames.
 
@@ -122,6 +124,31 @@ Verified numerically on a rerunnable instrument, not asserted from comments.
   first as the mechanism. And gradient magnitude does not predict damage at the
   route level either, since the memory-content route carries 0.61 of the
   cross-time credit and none of the damage.
+
+### From the overnight campaign, `kt-irt` and the paper repo, 2026-08-18
+
+- The theory document exists: `kt-irt/docs/v7_theory_formalization.md`,
+  fourteen parts, every claim statused with its falsifier in a dependency
+  table. The v7 GPCM cells train on the cumulative-link ordinal cross-entropy,
+  not the legacy weighted loss; the methods caveat is written there.
+- The harmful summary route has exactly one-step temporal reach, verified.
+- The published key/content storage split does not protect the measurement
+  table: write-access harm +0.161 under a faithful canonical variant against
+  +0.125 tied, and canonical writable is worse than tied writable. D5 crossed
+  out; the phenomenon belongs to the lineage.
+- The route story crosses to the ordered head with a refinement: content null
+  again, the question-side pair carries 0.82 of the full effect, no single
+  route material alone.
+- Nominal routing is a repair, not a treatment: ownership direction is
+  head-invariant, materiality is head-dependent, and the adopted head absorbs
+  part of the harm. Zero fits; 79 cells rescored with zero failures.
+- Eight figures are rendered to the binding plotting guide from frozen
+  packets, resolved titles included; the storyline lives in
+  `overleaf-sync/rewrite_kit/v7/results_spine.md` with the open decisions in
+  `open_questions_register.md` beside it.
+- The real-data echo: isolated cells fit for all three encoders on TIMSS
+  ordered, EdNet binary, EdNet nominal, against byte-checked comparators;
+  the report is one command, `python -m deep_irt.bench._p2_v7_m9_report`.
 
 ## 3. Open decisions
 
