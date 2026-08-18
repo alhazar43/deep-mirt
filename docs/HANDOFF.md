@@ -165,6 +165,24 @@ Verified numerically on a rerunnable instrument, not asserted from comments.
   stability rise, prediction flat); on EdNet nominal, which has no external
   reference, isolation lowers cross-fit stability for all three encoders.
   Both directions are in spine claim H at equal prominence.
+- **The width surface is complete** (2,150 new fits, 144 settings at 25
+  runs, `kt-irt/results/p2_surface/`): the best coordinate is wide
+  measurement with thin sequence width in seven of nine panels, the two
+  attention exceptions prefer sequence width 16 by margins that miss the
+  rule, and widening measurement width meets the rule in all 36
+  comparisons across every sequence width.
+- **Capacity allocation and update access are two separate levers.** The
+  interaction experiment (800 fits, `kt-irt/results/p2_p1_interaction/`)
+  shows blocking later-response updates shrinks the sequence-width loss in
+  eight of nine settings but meets the rule in none, and the loss survives
+  blocking in nine of nine. Correcting the ability trajectory removes 55 to
+  90 percent of the same loss. The paper therefore states two findings, not
+  one mechanism; the spine's section "What explains the width effect, and
+  what does not" carries both.
+- **A failure log for the working day is at `docs/failure_log_2026-08-18.md`**
+  and should be read before trusting any figure or number that has not been
+  re-derived: it records two silent-null defects, several checks that were
+  weaker than described, and the rules adopted in response.
 - The assistant's independent second reading is at
   `overleaf-sync/rewrite_kit/v7/v7_second_reading.md`, committed with its
   probe pre-registration before the probe ran; its section 6 carries the
