@@ -1,9 +1,22 @@
 # Project Handoff (START HERE)
 
-Last updated 2026-08-18, after the overnight campaign that closed the
-mechanism programme: theory formalization, the canonical storage factorial,
-the ordered-head route replication, the nominal routing audit, eight rendered
-exhibits, the results spine, and the real-data echo tail.
+Last updated 2026-08-18, twice. First the overnight campaign closed the
+mechanism programme (theory formalization, storage factorial, route
+replication, routing audit, exhibits, spine, real-data echo). Then the
+paper RECENTERED on the reviewer's paper-center correction and the author's
+execution order (issue #5, comments 5323301609 and 5323425631): the central
+result is now the capacity-allocation law, item capacity helps in
+measurement and hurts in sequence history, from `p2_equalwidth`; the
+mechanism audit is the scope-and-mechanism layer under it. Since then: all
+three live documents recentered; the capacity-path headline figures, the
+information surface, the real-data rebuild, and the reader-grammar
+replacement exhibits built and committed; the memory encoder's fourth
+capacity corner fit (75 units) with a full post-run parity audit; the
+allocation theory document finalized after review corrections (existence
+form of the teacher proposition, the coherence construction withdrawn); and
+the ability-anchoring diagnostic (450 fits, both sequence widths, paired
+difference-in-differences primary, protocol and gates committed before any
+fit) launched. Venue deliberately open.
 Read `CLAUDE.md` and the memory index first. This file is the state pointer.
 Plain language throughout, no internal codenames.
 
